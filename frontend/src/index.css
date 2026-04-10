@@ -1,0 +1,65 @@
+/**
+ * ARCHIVO: index.css
+ * PROPÓSITO: Estilos globales y directivas de Tailwind CSS.
+ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  /* Scrollbar personalizada para la app */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-gray-100;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400;
+  }
+}
+
+@layer components {
+  /* Chip de etiqueta reutilizable */
+  .chip {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  /* Card base */
+  .card {
+    @apply bg-white rounded-lg border border-gray-200 shadow-sm;
+  }
+
+  /* Input base */
+  .input-base {
+    @apply w-full px-3 py-2 border border-gray-300 rounded-lg text-sm
+           focus:outline-none focus:ring-2 focus:ring-guinda-500 focus:border-guinda-500
+           placeholder-gray-400;
+  }
+
+  /* Botón primario guinda */
+  .btn-primary {
+    @apply px-4 py-2 bg-guinda-500 text-white rounded-lg text-sm font-medium
+           hover:bg-guinda-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Botón secundario */
+  .btn-secondary {
+    @apply px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg text-sm font-medium
+           hover:bg-gray-50 transition-colors;
+  }
+
+  /* Botón verde */
+  .btn-verde {
+    @apply px-4 py-2 bg-verde-500 text-white rounded-lg text-sm font-medium
+           hover:bg-verde-600 transition-colors;
+  }
+}

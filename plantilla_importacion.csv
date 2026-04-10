@@ -1,0 +1,22 @@
+Nivel	Clave Etapa	Etapa	Clave Accion	Accion	Peso %	Fecha Inicio	Fecha Fin	Responsable	Dependencia Externa	Entregable	Estado
+ETAPA	E1	Integración del documento PTO-AT				2026-01-01	2026-12-12	DGOTU		Documento PTO-AT completo	Pendiente
+ACCION	E1	Integración del documento PTO-AT	A01	1. Resumen ejecutivo		2026-10-01	2026-12-12	DGOTU		Capítulo 01 integrado	Pendiente
+SUBACCION	E1	Integración del documento PTO-AT	A01.01	1.1 Semáforo de viabilidad territorial		2026-10-01	2026-10-19	DGOTU		Sección 1.1 entregada	Pendiente
+SUBACCION	E1	Integración del documento PTO-AT	A01.02	1.2 Restricciones 'Dónde sí / dónde no'		2026-10-19	2026-11-06	DGOTU		Sección 1.2 entregada	Pendiente
+SUBACCION	E1	Integración del documento PTO-AT	A01.03	1.3 Riesgos críticos, condicionantes, acciones inmediatas		2026-11-06	2026-11-24	DGOTU		Sección 1.3 entregada	Pendiente
+SUBACCION	E1	Integración del documento PTO-AT	A01.04	1.4 Recomendación de transición normativa		2026-11-24	2026-12-12	DGOTU		Sección 1.4 entregada	Pendiente
+ACCION	E1	Integración del documento PTO-AT	A02	2. Antecedentes, propósito y alcance		2026-01-01	2026-02-15	DGOTU		Capítulo 02 integrado	Pendiente
+SUBACCION	E1	Integración del documento PTO-AT	A02.01	2.1 Antecedentes del proyecto y problema público territorial		2026-01-01	2026-01-16	DGOTU		Sección 2.1 entregada	Pendiente
+SUBACCION	E1	Integración del documento PTO-AT	A02.02	2.2 Propósito del PTO-AT		2026-01-16	2026-01-31	DGOTU		Sección 2.2 entregada	Pendiente
+SUBACCION	E1	Integración del documento PTO-AT	A02.03	2.3 Alcance territorial: polígono + área de influencia		2026-01-31	2026-02-15	DGOTU		Sección 2.3 entregada	Pendiente
+ACCION	E1	Integración del documento PTO-AT	A03	3. Gobernanza operativa y coordinación		2026-01-15	2026-03-15	DGOTU		Capítulo 03 integrado	Pendiente
+SUBACCION	E1	Integración del documento PTO-AT	A03.01	3.1 Estructura de coordinación (mesa directiva + temáticas)		2026-01-15	2026-02-03	DGOTU		Sección 3.1 entregada	Pendiente
+SUBACCION	E1	Integración del documento PTO-AT	A03.02	3.2 Cronograma general y plan de sesiones		2026-02-03	2026-02-21	DGOTU		Sección 3.2 entregada	Pendiente
+SUBACCION	E1	Integración del documento PTO-AT	A03.03	3.3 Protocolo de comunicación interinstitucional		2026-02-21	2026-03-15	DGOTU		Sección 3.3 entregada	Pendiente
+ETAPA	E2	Análisis territorial		 		2026-02-01	2026-06-30	DGOTU		Análisis completado	Pendiente
+ACCION	E2	Análisis territorial	A04	4. Diagnóstico base		2026-02-01	2026-04-15	DGOTU		Diagnóstico entregado	Pendiente
+SUBACCION	E2	Análisis territorial	A04.01	4.1 Recopilación de datos geoespaciales		2026-02-01	2026-03-01	DGOTU		Datos recopilados	Pendiente
+SUBACCION	E2	Análisis territorial	A04.02	4.2 Procesamiento de capas SIG		2026-03-01	2026-04-15	DGOTU		Capas procesadas	Pendiente
+ACCION	E2	Análisis territorial	A05	5. Modelo de aptitud		2026-04-15	2026-06-30	DGOTU		Modelo calibrado	Pendiente
+SUBACCION	E2	Análisis territorial	A05.01	5.1 Definición de variables y pesos		2026-04-15	2026-05-15	DGOTU		Variables definidas	Pendiente
+SUBACCION	E2	Análisis territorial	A05.02	5.2 Calibración del modelo		2026-05-15	2026-06-30	DGOTU		Modelo validado	Pendiente
