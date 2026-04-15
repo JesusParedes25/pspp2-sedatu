@@ -11,11 +11,12 @@
  * Actividad reciente: full-width abajo.
  * ─────────────────────────────────────────────────────────────────
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
-  Calendar, AlertTriangle, Shield, ChevronDown,
+  Calendar, AlertTriangle, Shield, ChevronDown, BarChart3,
   Lock, Paperclip, Tag, Users, Clock,
-  Target, CheckCircle2, Info, Zap, MessageSquare
+  Target, CheckCircle2, Info, Zap, MessageSquare, User, GitBranch, Layers
 } from 'lucide-react';
 import client from '../../api/client';
 
@@ -66,14 +67,138 @@ function Anillo({ pct, size = 82, stroke = 8 }) {
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-base font-black tabular-nums leading-none" style={{ color }}>{pct.toFixed(0)}%</span>
-        <span className="text-[9px] text-gray-400 font-medium">avance</span>
+        <span className="text-[9px] text-gray-400 font-medium leading-tight text-center">acciones</span>
       </div>
+    </div>
+  );
+}
+
+// ─── Tooltip de acción con info detallada ────────────────────────────────────
+function TooltipAccion({ accion }) {
+  const cfg = ECFG[accion.estado] || ECFG.Pendiente;
+  const pct = parseFloat(accion.porcentaje_avance) || 0;
+  const subs = Array.isArray(accion.subacciones) ? accion.subacciones : [];
+  const ahora = new Date();
+  const estaVencida = accion.fecha_fin && new Date(accion.fecha_fin) < ahora && accion.estado !== 'Completada';
+  const diasAtraso = estaVencida ? Math.ceil((ahora - new Date(accion.fecha_fin)) / 86400000) : null;
+  const subsCompletadas = subs.filter(s => s.estado === 'Completada').length;
+  const subsAtrasadas = subs.filter(s => s.fecha_fin && new Date(s.fecha_fin) < ahora && s.estado !== 'Completada' && s.estado !== 'Cancelada').length;
+  const totalComentarios = parseInt(accion.total_comentarios) || 0;
+  const totalEvidencias = parseInt(accion.total_evidencias) || 0;
+
+  return (
+    <div className="w-72 bg-white rounded-xl shadow-2xl border border-gray-200 p-3.5 space-y-2.5 text-left z-[100]">
+      {/* Header del tooltip */}
+      <div>
+        <div className="flex items-center gap-2 mb-1">
+          <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${cfg.badge}`}>{cfg.label}</span>
+          <span className={`text-[11px] font-black tabular-nums ${cfg.text}`}>{pct.toFixed(0)}%</span>
+          {estaVencida && (
+            <span className="text-[9px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full font-bold border border-orange-200">
+              -{diasAtraso}d atraso
+            </span>
+          )}
+        </div>
+        <p className="text-[12px] font-semibold text-gray-800 leading-snug">{accion.nombre}</p>
+      </div>
+
+      {/* Responsable */}
+      {accion.responsable_nombre && (
+        <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
+          <User size={10} className="text-gray-400 flex-shrink-0" />
+          <span>{accion.responsable_nombre}</span>
+        </div>
+      )}
+
+      {/* Fechas */}
+      <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
+        <Calendar size={10} className="text-gray-400 flex-shrink-0" />
+        <span>{fmt(accion.fecha_inicio)} — {fmt(accion.fecha_fin)}</span>
+      </div>
+
+      {/* Bloqueo */}
+      {accion.motivo_bloqueo && (
+        <div className="flex items-start gap-1.5 bg-red-50 rounded-lg px-2 py-1.5 border border-red-100">
+          <Lock size={10} className="text-red-500 flex-shrink-0 mt-0.5" />
+          <p className="text-[10px] text-red-600 leading-snug">{accion.motivo_bloqueo}</p>
+        </div>
+      )}
+
+      {/* Subacciones */}
+      {subs.length > 0 && (
+        <div>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">
+            Subacciones ({subsCompletadas}/{subs.length})
+            {subsAtrasadas > 0 && <span className="text-orange-500 normal-case"> · {subsAtrasadas} atrasada{subsAtrasadas > 1 ? 's' : ''}</span>}
+          </p>
+          <div className="space-y-1 max-h-28 overflow-y-auto">
+            {subs.map(s => {
+              const sCfg = ECFG[s.estado] || ECFG.Pendiente;
+              const sVencida = s.fecha_fin && new Date(s.fecha_fin) < ahora && s.estado !== 'Completada';
+              return (
+                <div key={s.id} className="flex items-center gap-1.5">
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${sCfg.bar}`} />
+                  <span className={`text-[10px] leading-snug truncate flex-1 ${s.estado === 'Completada' ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                    {s.nombre}
+                  </span>
+                  {sVencida && <span className="text-[8px] text-orange-500 font-bold flex-shrink-0">atrasada</span>}
+                  <span className={`text-[9px] font-bold tabular-nums flex-shrink-0 ${sCfg.text}`}>
+                    {(parseFloat(s.porcentaje_avance) || 0).toFixed(0)}%
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Comentarios y evidencias */}
+      {(totalComentarios > 0 || totalEvidencias > 0) && (
+        <div className="flex items-center gap-3 pt-1 border-t border-gray-100">
+          {totalComentarios > 0 && (
+            <span className="flex items-center gap-1 text-[10px] text-gray-500">
+              <MessageSquare size={10} className="text-blue-400" /> {totalComentarios} comentario{totalComentarios !== 1 ? 's' : ''}
+            </span>
+          )}
+          {totalEvidencias > 0 && (
+            <span className="flex items-center gap-1 text-[10px] text-gray-500">
+              <Paperclip size={10} className="text-guinda-400" /> {totalEvidencias} evidencia{totalEvidencias !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── Tarjeta de acción en el mosaico ─────────────────────────────────────────
 function TarjetaAccion({ accion, numero }) {
+  const [hover, setHover] = useState(false);
+  const [posicion, setPosicion] = useState({ top: 0, left: 0 });
+  const refTarjeta = useRef(null);
+  const timerRef = useRef(null);
+
+  function mostrarTooltip() {
+    timerRef.current = setTimeout(() => {
+      if (refTarjeta.current) {
+        const rect = refTarjeta.current.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const spaceRight = window.innerWidth - rect.left;
+        setPosicion({
+          top: spaceBelow < 260 ? rect.top - 8 : rect.bottom + 8,
+          left: Math.min(rect.left, window.innerWidth - 300),
+          arriba: spaceBelow < 260,
+        });
+      }
+      setHover(true);
+    }, 350);
+  }
+
+  function ocultarTooltip() {
+    clearTimeout(timerRef.current);
+    setHover(false);
+  }
+
   const cfg = ECFG[accion.estado] || ECFG.Pendiente;
   const pct = parseFloat(accion.porcentaje_avance) || 0;
   const esCompletada = accion.estado === 'Completada';
@@ -86,11 +211,15 @@ function TarjetaAccion({ accion, numero }) {
     : null;
 
   return (
-    <div className={`relative rounded-xl border p-3 flex flex-col gap-1.5 overflow-hidden ${
+    <div
+      ref={refTarjeta}
+      onMouseEnter={mostrarTooltip}
+      onMouseLeave={ocultarTooltip}
+      className={`relative rounded-xl border p-3 flex flex-col gap-1.5 overflow-hidden cursor-default ${
       esCompletada ? 'opacity-40 border-gray-100 bg-gray-50'
       : estaVencida ? 'border-orange-300 border-dashed bg-white'
       : esBloqueada ? 'border-red-200 bg-red-50/30'
-      : 'border-gray-100 bg-white'
+      : 'border-gray-100 bg-white hover:shadow-md hover:border-gray-200 transition-shadow'
     }`}>
       <span className={`text-3xl font-black tabular-nums leading-none ${cfg.text} opacity-15 select-none`}>
         {String(numero).padStart(2, '0')}
@@ -136,6 +265,22 @@ function TarjetaAccion({ accion, numero }) {
         )}
       </div>
       <div className={`absolute bottom-0 left-0 right-0 h-[3px] ${cfg.bar}`} />
+
+      {/* Tooltip flotante */}
+      {hover && createPortal(
+        <div
+          className="fixed pointer-events-none animate-in fade-in duration-150"
+          style={{
+            top: posicion.arriba ? undefined : posicion.top,
+            bottom: posicion.arriba ? (window.innerHeight - posicion.top) : undefined,
+            left: posicion.left,
+            zIndex: 9999,
+          }}
+        >
+          <TooltipAccion accion={accion} />
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
@@ -240,6 +385,114 @@ function ItemActividad({ item }) {
   );
 }
 
+// ─── Sección de indicadores con desglose expandible ──────────────────────────
+function SeccionIndicadores({ indicadores }) {
+  const [abiertos, setAbiertos] = useState({});
+  const toggle = (id) => setAbiertos(prev => ({ ...prev, [id]: !prev[id] }));
+
+  return (
+    <div className="mt-4 pt-4 border-t border-gray-50">
+      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1">
+        <BarChart3 size={10} /> Avance de indicadores
+        <span className="font-normal normal-case text-gray-300 ml-1">
+          (aportación comprometida vs meta)
+        </span>
+      </p>
+      <div className="space-y-2">
+        {indicadores.map(ind => {
+          const barColor = ind.pct_avance >= 100 ? 'bg-emerald-400'
+            : ind.pct_avance >= 60 ? 'bg-guinda-400'
+            : ind.pct_avance >= 30 ? 'bg-amber-400'
+            : 'bg-gray-200';
+          const textColor = ind.pct_avance >= 100 ? 'text-emerald-600'
+            : ind.pct_avance >= 60 ? 'text-guinda-600'
+            : ind.pct_avance >= 30 ? 'text-amber-600'
+            : 'text-gray-400';
+          const hayDesglose = ind.aportaciones && ind.aportaciones.length > 0;
+          const abierto = abiertos[ind.id];
+
+          return (
+            <div key={ind.id} className="rounded-lg border border-gray-100 overflow-hidden">
+              {/* Fila principal del indicador */}
+              <button
+                type="button"
+                onClick={() => hayDesglose && toggle(ind.id)}
+                className={`w-full text-left px-3 py-2 ${hayDesglose ? 'hover:bg-gray-50 cursor-pointer' : 'cursor-default'}`}
+              >
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 border ${
+                      ind.nivel === 'etapa'
+                        ? 'bg-amber-50 text-amber-600 border-amber-100'
+                        : 'bg-guinda-50 text-guinda-600 border-guinda-100'
+                    }`}>
+                      {ind.nivel === 'etapa' ? ind.etapa_nombre || 'Etapa' : 'Proyecto'}
+                    </span>
+                    <span className="text-[11px] font-semibold text-gray-700 truncate">{ind.nombre}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <span className="text-[10px] text-gray-400 tabular-nums">
+                      {Number(ind.total_aportado).toLocaleString()} / {Number(ind.meta_global).toLocaleString()} {ind.unidad_label}
+                    </span>
+                    <span className={`text-[12px] font-black tabular-nums ${textColor}`}>
+                      {ind.pct_avance.toFixed(0)}%
+                    </span>
+                    {hayDesglose && (
+                      <ChevronDown size={11} className={`text-gray-300 transition-transform flex-shrink-0 ${abierto ? 'rotate-180' : ''}`} />
+                    )}
+                  </div>
+                </div>
+                <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${barColor}`}
+                    style={{ width: `${Math.min(ind.pct_avance, 100)}%` }} />
+                </div>
+              </button>
+
+              {/* Desglose de aportaciones por acción/subacción */}
+              {abierto && hayDesglose && (
+                <div className="border-t border-gray-100 bg-gray-50/60 px-3 py-2 space-y-1">
+                  {ind.aportaciones.map((ap, i) => {
+                    const cfg = ECFG[ap.estado] || ECFG.Pendiente;
+                    const pctAp = ind.meta_global > 0
+                      ? Math.min(100, (ap.valor_aportado / ind.meta_global) * 100)
+                      : 0;
+                    return (
+                      <div key={i} className="flex items-center gap-2 py-0.5">
+                        <div className="flex-shrink-0">
+                          {ap.tipo === 'subaccion'
+                            ? <GitBranch size={9} className="text-gray-300 ml-2" />
+                            : <Layers size={9} className="text-gray-300" />
+                          }
+                        </div>
+                        <span className="text-[10px] text-gray-600 flex-1 truncate min-w-0">
+                          {ap.tipo === 'subaccion' && <span className="text-gray-300 mr-1">└</span>}
+                          {ap.nombre}
+                          {ap.etapa_nombre && (
+                            <span className="text-gray-300 ml-1">· {ap.etapa_nombre}</span>
+                          )}
+                        </span>
+                        <span className={`text-[9px] px-1 py-0.5 rounded font-medium border flex-shrink-0 ${cfg.badge}`}>
+                          {cfg.label}
+                        </span>
+                        <span className="text-[10px] font-bold tabular-nums text-gray-600 flex-shrink-0 w-16 text-right">
+                          {Number(ap.valor_aportado).toLocaleString()} {ind.unidad_label}
+                        </span>
+                        <span className="text-[9px] tabular-nums text-gray-400 flex-shrink-0 w-8 text-right">
+                          {pctAp.toFixed(0)}%
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Fila de métrica en sidebar ───────────────────────────────────────────────
 function FilaMetrica({ icono: Icono, label, valor, color = 'gray', alerta }) {
   const CLS = {
@@ -293,6 +546,7 @@ export default function ResumenProyecto({ proyecto, etapas = [], proyectoId, onI
   const atrasadas = stats?.atrasadas || [];
   const proximasAVencer = stats?.proximas_a_vencer || [];
   const riesgosDetalle = stats?.riesgos_detalle || [];
+  const indicadores = stats?.indicadores || [];
 
   // Agrupar acciones por etapa
   const accionesPorEtapa = {};
@@ -318,9 +572,6 @@ export default function ResumenProyecto({ proyecto, etapas = [], proyectoId, onI
   const pctP = ((accionesStats.por_estado?.Pendiente   || 0) / totalAcc) * 100;
 
   return (
-    console.log("Acciones crudas del backend:", accionesResumen),
-    console.log("Acciones agrupadas por etapa:", accionesPorEtapa),
-    console.log("Etapas registradas:", etapas),
     <div className="pb-8 space-y-4">
 
       {/* ═══ HEADER: Anillo + pills + descripción + fechas ═══════════════════ */}
@@ -348,9 +599,6 @@ export default function ResumenProyecto({ proyecto, etapas = [], proyectoId, onI
                 </span>
               )}
             </div>
-            {proyecto?.descripcion && (
-              <p className="text-[12px] text-gray-500 leading-relaxed line-clamp-2 mb-2">{proyecto.descripcion}</p>
-            )}
             <div className="flex flex-wrap items-center gap-3 text-[11px] text-gray-400">
               {(proyecto?.fecha_inicio || fechaFin) && (
                 <span className="flex items-center gap-1">
@@ -383,7 +631,7 @@ export default function ResumenProyecto({ proyecto, etapas = [], proyectoId, onI
           </div>
         </div>
 
-        {/* Barra apilada de distribución */}
+        {/* Barra apilada de distribución de acciones */}
         {accionesStats.total > 0 && (
           <div className="mt-4 pt-4 border-t border-gray-50 flex items-center gap-3">
             <div className="flex-1 flex h-2 rounded-full overflow-hidden gap-px">
@@ -419,6 +667,11 @@ export default function ResumenProyecto({ proyecto, etapas = [], proyectoId, onI
               )}
             </div>
           </div>
+        )}
+
+        {/* Indicadores en cascada — progreso por indicador con desglose expandible */}
+        {indicadores.length > 0 && (
+          <SeccionIndicadores indicadores={indicadores} />
         )}
       </div>
 

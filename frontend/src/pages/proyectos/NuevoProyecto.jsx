@@ -20,6 +20,7 @@ import { useAuth } from '../../context/AuthContext';
 import { usePermisosGlobales } from '../../hooks/usePermisos';
 import * as proyectosApi from '../../api/proyectos';
 import * as catalogosApi from '../../api/catalogos';
+import { ImagePlus, X } from 'lucide-react';
 
 const PASOS = [
   'Información general',
@@ -94,6 +95,9 @@ export default function NuevoProyecto() {
   // Estado local para el input de etiquetas (texto crudo)
   const [textoEtiqueta, setTextoEtiqueta] = useState('');
   const refEtiqueta = useRef(null);
+  const [imagenPortada, setImagenPortada] = useState(null);
+  const [previewPortada, setPreviewPortada] = useState(null);
+  const refImagen = useRef(null);
 
   // Cargar catálogos al montar
   useEffect(() => {
@@ -130,13 +134,34 @@ export default function NuevoProyecto() {
     if (pasoActual > 0) setPasoActual(prev => prev - 1);
   }
 
+  function seleccionarImagen(e) {
+    const archivo = e.target.files[0];
+    if (!archivo) return;
+    setImagenPortada(archivo);
+    setPreviewPortada(URL.createObjectURL(archivo));
+  }
+
+  function quitarImagen() {
+    setImagenPortada(null);
+    setPreviewPortada(null);
+    if (refImagen.current) refImagen.current.value = '';
+  }
+
   // Enviar formulario
   async function crearProyecto() {
     setEnviando(true);
     try {
       const respuesta = await proyectosApi.crearProyecto(datos);
+      const nuevoId = respuesta.datos.id;
+      if (imagenPortada) {
+        try {
+          await proyectosApi.subirImagenProyecto(nuevoId, imagenPortada);
+        } catch (imgErr) {
+          console.error('Error subiendo imagen de portada:', imgErr);
+        }
+      }
       mostrarToast('Proyecto creado exitosamente', 'exito');
-      navigate(`/proyectos/${respuesta.datos.id}`);
+      navigate(`/proyectos/${nuevoId}`);
     } catch (err) {
       mostrarToast(err.response?.data?.mensaje || 'Error al crear proyecto', 'error');
     } finally {
@@ -185,6 +210,25 @@ export default function NuevoProyecto() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
               <textarea value={datos.descripcion} onChange={e => actualizar('descripcion', e.target.value)}
                 rows={3} className="input-base resize-none" placeholder="Describe brevemente el proyecto..." />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Imagen de encabezado <span className="text-gray-400 font-normal">(opcional, máx. 5 MB)</span></label>
+              {previewPortada ? (
+                <div className="relative h-32 rounded-lg overflow-hidden border border-gray-200">
+                  <img src={previewPortada} alt="Preview" className="w-full h-full object-cover" />
+                  <button type="button" onClick={quitarImagen}
+                    className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 transition-colors">
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => refImagen.current?.click()}
+                  className="flex items-center gap-2 w-full h-24 border-2 border-dashed border-gray-300 hover:border-guinda-400 rounded-lg justify-center text-sm text-gray-400 hover:text-guinda-500 transition-colors">
+                  <ImagePlus size={20} />
+                  Seleccionar imagen
+                </button>
+              )}
+              <input ref={refImagen} type="file" accept="image/*" onChange={seleccionarImagen} className="hidden" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>

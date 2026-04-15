@@ -78,4 +78,17 @@ async function eliminar(req, res, next) {
   }
 }
 
-module.exports = { listarPorProyecto, listarPorEtapa, listarTodosPorProyecto, crear, actualizar, eliminar };
+// GET /indicadores/:id/resumen-aportaciones — meta, total aportado, disponible
+async function resumenAportaciones(req, res, next) {
+  try {
+    const resumen = await indicadoresQueries.obtenerResumenAportaciones(req.params.id);
+    if (!resumen) {
+      return res.status(404).json({ error: true, mensaje: 'Indicador no encontrado' });
+    }
+    res.json({ datos: resumen });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { listarPorProyecto, listarPorEtapa, listarTodosPorProyecto, crear, actualizar, eliminar, resumenAportaciones };

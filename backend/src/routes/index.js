@@ -43,8 +43,12 @@ const proyectosStatsController = require('../controllers/proyectos.stats.control
 
 const router = Router();
 
-// ─── Ruta pública (login) ──────────────────────────────────────
+// ─── Rutas públicas ────────────────────────────────────────────
 router.use('/auth', authRoutes);
+
+// Imagen de encabezado (pública porque <img src> no envía JWT)
+const proyectosController = require('../controllers/proyectos.controller');
+router.get('/proyectos/:id/imagen', proyectosController.servirImagen);
 
 // ─── Middleware de autenticación para todas las rutas siguientes ─
 router.use(verificarToken);
@@ -78,6 +82,10 @@ router.get('/acciones/:id/subacciones', accionesController.listarSubacciones);
 router.post('/acciones/:id/subacciones', accionesController.crearSubaccion);
 router.put('/subacciones/:id/toggle', accionesController.toggleSubaccion);
 
+// Indicadores vinculados a una acción (lectura + edición)
+router.get('/acciones/:id/indicadores', accionesController.obtenerIndicadores);
+router.put('/acciones/:id/indicadores', accionesController.actualizarIndicadores);
+
 // Importar estructura desde CSV
 router.post('/proyectos/:id/importar-csv', accionesController.importarCSV);
 
@@ -101,6 +109,7 @@ router.post('/proyectos/:id/indicadores', indicadoresController.crear);
 router.get('/etapas/:id/indicadores', indicadoresController.listarPorEtapa);
 router.put('/indicadores/:id', indicadoresController.actualizar);
 router.delete('/indicadores/:id', indicadoresController.eliminar);
+router.get('/indicadores/:id/resumen-aportaciones', indicadoresController.resumenAportaciones);
 
 // Estadísticas del proyecto (para el resumen/dashboard)
 router.get('/proyectos/:id/stats', proyectosStatsController.obtenerStats);

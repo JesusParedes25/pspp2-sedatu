@@ -14,9 +14,11 @@
  */
 const { Router } = require('express');
 const etapasController = require('../controllers/etapas.controller');
+const indicadoresController = require('../controllers/indicadores.controller');
 
 const router = Router();
 
+router.get('/:id/indicadores', indicadoresController.listarPorEtapa);
 router.get('/:id', etapasController.obtenerPorId);
 router.put('/:id', etapasController.actualizar);
 router.delete('/:id', etapasController.eliminar);

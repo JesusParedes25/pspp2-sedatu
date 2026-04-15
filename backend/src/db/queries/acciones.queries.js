@@ -97,6 +97,41 @@ async function obtenerAccionPorId(accionId) {
   return resultado.rows[0] || null;
 }
 
+// ── Helper: vincular indicadores a una acción con validación de meta ──
+// Valida que la suma total no supere meta_global de cada indicador.
+// Si valor_aportado es 0 o vacío, la acción queda vinculada sin aportar.
+async function vincularIndicadores(client, accionId, indicadoresAsociados) {
+  if (!indicadoresAsociados || indicadoresAsociados.length === 0) return;
+  for (const ia of indicadoresAsociados) {
+    const aportado = (ia.valor_aportado !== '' && ia.valor_aportado != null)
+      ? parseFloat(ia.valor_aportado) : 0;
+    if (aportado < 0) throw new Error('El valor aportado no puede ser negativo');
+    if (aportado > 0) {
+      const res = await client.query(`
+        SELECT i.meta_global, COALESCE(SUM(ai.valor_aportado), 0)::numeric AS total_aportado
+        FROM indicadores i
+        LEFT JOIN accion_indicador ai ON ai.id_indicador = i.id
+        WHERE i.id = $1
+        GROUP BY i.id
+      `, [ia.id_indicador]);
+      if (res.rows[0]) {
+        const meta = parseFloat(res.rows[0].meta_global) || 0;
+        const yaAportado = parseFloat(res.rows[0].total_aportado) || 0;
+        if (meta > 0 && yaAportado + aportado > meta) {
+          throw new Error(
+            `La aportación (${aportado}) excede lo disponible del indicador. ` +
+            `Meta: ${meta}, ya comprometido: ${yaAportado}, disponible: ${(meta - yaAportado).toFixed(2)}`
+          );
+        }
+      }
+    }
+    await client.query(
+      'INSERT INTO accion_indicador (id_accion, id_indicador, valor_aportado) VALUES ($1, $2, $3)',
+      [accionId, ia.id_indicador, aportado]
+    );
+  }
+}
+
 // Crea una nueva acción dentro de una etapa con asociaciones opcionales a indicadores
 async function crearAccionEnEtapa(etapaId, datos) {
   const client = await pool.connect();
@@ -122,20 +157,9 @@ async function crearAccionEnEtapa(etapaId, datos) {
     ]);
 
     const accion = resultado.rows[0];
-
-    // Vincular indicadores si se proporcionaron
-    if (datos.indicadores_asociados && datos.indicadores_asociados.length > 0) {
-      for (const ia of datos.indicadores_asociados) {
-        await client.query(
-          'INSERT INTO accion_indicador (id_accion, id_indicador) VALUES ($1, $2)',
-          [accion.id, ia.id_indicador]
-        );
-      }
-    }
+    await vincularIndicadores(client, accion.id, datos.indicadores_asociados);
 
     await client.query('COMMIT');
-
-    // Recalcular la etapa después de agregar la acción
     await recalcularEtapa(etapaId);
 
     return accion;
@@ -167,15 +191,7 @@ async function crearAccionEnProyecto(proyectoId, datos) {
     ]);
 
     const accion = resultado.rows[0];
-
-    if (datos.indicadores_asociados && datos.indicadores_asociados.length > 0) {
-      for (const ia of datos.indicadores_asociados) {
-        await client.query(
-          'INSERT INTO accion_indicador (id_accion, id_indicador) VALUES ($1, $2)',
-          [accion.id, ia.id_indicador]
-        );
-      }
-    }
+    await vincularIndicadores(client, accion.id, datos.indicadores_asociados);
 
     await client.query('COMMIT');
     await recalcularProyecto(proyectoId);
@@ -331,6 +347,9 @@ async function crearSubaccion(accionPadreId, datos) {
       datos.id_direccion_area || null,
       datos.id_responsable || null
     ]);
+
+    // Vincular indicadores si se proporcionaron (con validación de meta)
+    await vincularIndicadores(client, resultado.rows[0].id, datos.indicadores_asociados);
 
     // Recalcular pesos de subacciones del padre
     await recalcularPesosSubacciones(accionPadreId, client);
@@ -552,6 +571,37 @@ async function recalcularAccionDesdeSubs(accionPadreId) {
   }
 }
 
+// Reemplaza las aportaciones a indicadores de una acción (o subacción).
+// Borra las existentes y las vuelve a crear con validación de meta.
+async function actualizarIndicadoresAccion(accionId, indicadoresAsociados) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DELETE FROM accion_indicador WHERE id_accion = $1', [accionId]);
+    await vincularIndicadores(client, accionId, indicadoresAsociados);
+    await client.query('COMMIT');
+    return { ok: true };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// Obtiene los indicadores vinculados a una acción con sus valores
+async function obtenerIndicadoresAccion(accionId) {
+  const res = await pool.query(`
+    SELECT ai.id_indicador, ai.valor_aportado,
+           i.nombre, i.unidad, i.unidad_personalizada, i.meta_global, i.id_etapa
+    FROM accion_indicador ai
+    JOIN indicadores i ON i.id = ai.id_indicador
+    WHERE ai.id_accion = $1
+    ORDER BY i.nombre
+  `, [accionId]);
+  return res.rows;
+}
+
 module.exports = {
   obtenerAccionesPorEtapa,
   obtenerSubacciones,
@@ -566,5 +616,7 @@ module.exports = {
   recalcularPesosEtapa,
   importarEstructuraCSV,
   toggleSubaccion,
-  recalcularAccionDesdeSubs
+  recalcularAccionDesdeSubs,
+  actualizarIndicadoresAccion,
+  obtenerIndicadoresAccion
 };

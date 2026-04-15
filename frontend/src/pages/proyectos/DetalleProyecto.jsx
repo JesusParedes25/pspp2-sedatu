@@ -17,8 +17,8 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Star, FileText, Settings, BarChart3, Clock, UsersRound, LayoutDashboard, Search, Plus, Pencil, Save, X, FileSpreadsheet } from 'lucide-react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Star, FileText, Settings, BarChart3, Clock, UsersRound, LayoutDashboard, Search, Plus, Pencil, X, FileSpreadsheet, Trash2, AlertTriangle } from 'lucide-react';
 import { useProyecto } from '../../hooks/useProyectos';
 import { useEtapas } from '../../hooks/useEtapas';
 import { useAuth } from '../../context/AuthContext';
@@ -36,6 +36,7 @@ import EmptyState from '../../components/common/EmptyState';
 import ModalNuevaEtapa from '../../components/seguimiento/ModalNuevaEtapa';
 import ModalNuevaAccion from '../../components/seguimiento/ModalNuevaAccion';
 import ModalImportarCSV from '../../components/seguimiento/ModalImportarCSV';
+import ModalEditarProyecto from '../../components/proyectos/ModalEditarProyecto';
 import * as evidenciasApi from '../../api/evidencias';
 import * as etapasApi from '../../api/etapas';
 import * as accionesApi from '../../api/acciones';
@@ -72,9 +73,12 @@ export default function DetalleProyecto() {
   const [modalAccion, setModalAccion] = useState(null); // null = cerrado, 'proyecto' = directa, etapaId = en etapa
   const [modalCSV, setModalCSV] = useState(false);
 
-  // Edición inline del proyecto
-  const [editando, setEditando] = useState(false);
-  const [datosEdicion, setDatosEdicion] = useState({});
+  const navigate = useNavigate();
+
+  // Modal de edición de proyecto
+  const [modalEditar, setModalEditar] = useState(false);
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
 
   // Datos de evidencias (carga bajo demanda)
   const [evidencias, setEvidencias] = useState([]);
@@ -144,24 +148,17 @@ export default function DetalleProyecto() {
     }
   }
 
-  function iniciarEdicion() {
-    setDatosEdicion({
-      nombre: proyecto.nombre,
-      descripcion: proyecto.descripcion || '',
-      estado: proyecto.estado,
-      meta_descripcion: proyecto.meta_descripcion || '',
-    });
-    setEditando(true);
-  }
 
-  async function guardarEdicion() {
+  async function eliminarProyecto() {
+    setEliminando(true);
     try {
-      await proyectosApi.actualizarProyecto(id, datosEdicion);
-      mostrarToast('Proyecto actualizado', 'exito');
-      setEditando(false);
-      recargarProyecto();
+      await proyectosApi.eliminarProyecto(id);
+      mostrarToast('Proyecto eliminado', 'exito');
+      navigate('/proyectos');
     } catch (err) {
-      mostrarToast(err.response?.data?.mensaje || 'Error al actualizar', 'error');
+      mostrarToast(err.response?.data?.mensaje || 'Error al eliminar', 'error');
+      setEliminando(false);
+      setConfirmandoEliminar(false);
     }
   }
 
@@ -192,55 +189,38 @@ export default function DetalleProyecto() {
 
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            {editando ? (
-              <div className="space-y-3">
-                <input type="text" value={datosEdicion.nombre} onChange={e => setDatosEdicion(p => ({ ...p, nombre: e.target.value }))}
-                  className="input-base text-xl font-bold" />
-                <textarea value={datosEdicion.descripcion} onChange={e => setDatosEdicion(p => ({ ...p, descripcion: e.target.value }))}
-                  rows={2} className="input-base text-sm resize-none" placeholder="Descripcion..." />
-                <div className="flex items-center gap-3">
-                  <select value={datosEdicion.estado} onChange={e => setDatosEdicion(p => ({ ...p, estado: e.target.value }))} className="input-base text-sm w-auto">
-                    <option value="Programado">Programado</option>
-                    <option value="En_proceso">En proceso</option>
-                    <option value="Pausado">Pausado</option>
-                    <option value="Concluido">Concluido</option>
-                    <option value="Cancelado">Cancelado</option>
-                  </select>
-                  <input type="text" value={datosEdicion.meta_descripcion} onChange={e => setDatosEdicion(p => ({ ...p, meta_descripcion: e.target.value }))}
-                    className="input-base text-sm flex-1" placeholder="Descripcion de la meta..." />
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={guardarEdicion} className="btn-primary text-sm flex items-center gap-1"><Save size={14} /> Guardar</button>
-                  <button onClick={() => setEditando(false)} className="btn-secondary text-sm flex items-center gap-1"><X size={14} /> Cancelar</button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center gap-3 mb-2">
-                  <h1 className="text-2xl font-bold text-gray-900">{proyecto.nombre}</h1>
-                  {proyecto.es_prioritario && <Star size={20} className="text-yellow-500 fill-yellow-500" />}
-                </div>
-                {proyecto.descripcion && (
-                  <p className="text-sm text-gray-500 mb-2">{proyecto.descripcion}</p>
-                )}
-                <div className="flex items-center gap-3 text-sm text-gray-500">
-                  <span className="font-medium text-guinda-600">{proyecto.dg_lider_siglas}</span>
-                  {proyecto.direccion_area_lider_siglas && <span>/ {proyecto.direccion_area_lider_siglas}</span>}
-                  <EstadoChip estado={proyecto.estado} />
-                  <span>{proyecto.tipo?.replace(/_/g, ' ')}</span>
-                  {proyecto.programa_clave && <span className="text-gray-400">{proyecto.programa_clave}</span>}
-                </div>
-              </>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-2xl font-bold text-gray-900">{proyecto.nombre}</h1>
+              {proyecto.es_prioritario && <Star size={20} className="text-yellow-500 fill-yellow-500" />}
+            </div>
+            {proyecto.descripcion && (
+              <p className="text-sm text-gray-500 mb-2">{proyecto.descripcion}</p>
             )}
+            <div className="flex items-center gap-3 text-sm text-gray-500">
+              <span className="font-medium text-guinda-600">{proyecto.dg_lider_siglas}</span>
+              {proyecto.direccion_area_lider_siglas && <span>/ {proyecto.direccion_area_lider_siglas}</span>}
+              <EstadoChip estado={proyecto.estado} />
+              <span>{proyecto.tipo?.replace(/_/g, ' ')}</span>
+              {proyecto.programa_clave && <span className="text-gray-400">{proyecto.programa_clave}</span>}
+            </div>
           </div>
 
-          {/* Botones de accion del header */}
-          {!editando && permisos.puedeEditar && (
-            <button onClick={iniciarEdicion} className="btn-secondary text-sm flex items-center gap-1.5 flex-shrink-0">
+          {/* Botón Editar */}
+          {permisos.puedeEditar && (
+            <button onClick={() => setModalEditar(true)} className="btn-secondary text-sm flex items-center gap-1.5 flex-shrink-0">
               <Pencil size={14} /> Editar
             </button>
           )}
         </div>
+
+        {/* ─── Modal editar proyecto ─── */}
+        {modalEditar && (
+          <ModalEditarProyecto
+            proyecto={proyecto}
+            onCerrar={() => { setModalEditar(false); setConfirmandoEliminar(false); }}
+            onGuardado={() => { mostrarToast('Proyecto actualizado', 'exito'); recargarProyecto(); }}
+          />
+        )}
       </div>
 
       {/* Selector de DGs */}
@@ -308,7 +288,7 @@ export default function DetalleProyecto() {
                 <div className="flex items-center gap-2">
                   <button onClick={() => setModalEtapa(true)}
                     className="btn-primary text-sm flex items-center gap-1.5">
-                    <Plus size={14} /> Nueva etapa
+                    <Plus size={14} /> Nueva etapa / subproyecto
                   </button>
                   {permisos.puedeCrearAccion && (
                     <button onClick={() => setModalAccion('proyecto')}
@@ -332,6 +312,8 @@ export default function DetalleProyecto() {
                   <EtapaCard
                     key={etapa.id}
                     etapa={etapa}
+                    proyecto={proyecto}
+                    etapas={etapas}
                     soloLectura={permisos.esSoloLectura}
                     onAccionCreada={(etapaId) => setModalAccion(etapaId)}
                     onEtapaActualizada={recargarEtapas}

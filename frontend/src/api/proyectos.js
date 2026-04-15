@@ -51,3 +51,17 @@ export async function eliminarDGProyecto(proyectoId, dgId) {
   const { data } = await client.delete(`/proyectos/${proyectoId}/dgs/${dgId}`);
   return data;
 }
+
+export async function obtenerEtiquetasProyecto(id) {
+  const { data } = await client.get(`/proyectos/${id}/etiquetas`);
+  return data;
+}
+
+export async function subirImagenProyecto(id, archivo) {
+  const formData = new FormData();
+  formData.append('imagen', archivo);
+  const { data } = await client.post(`/proyectos/${id}/imagen`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+}

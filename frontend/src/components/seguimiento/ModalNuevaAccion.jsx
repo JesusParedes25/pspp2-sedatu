@@ -7,16 +7,124 @@
  * ─────────────────────────────────────────────────────────────────
  * Una acción es la unidad atómica de trabajo. Es el ÚNICO nivel
  * donde el porcentaje se edita manualmente. Cada acción puede
- * vincularse a indicadores de nivel proyecto O de nivel etapa vía
- * la tabla accion_indicador. Cuando se crea dentro de una etapa,
- * el modal muestra ambos grupos para elegir.
+ * vincularse a indicadores vía la tabla accion_indicador.
+ * Regla de cascada: si la acción pertenece a una etapa, solo ve
+ * los indicadores de ESA etapa. Si es acción directa del proyecto
+ * (sin etapa), solo ve los indicadores de nivel proyecto.
+ *
+ * Aporte en cascada: cada acción puede aportar a un indicador con
+ * valor manual o distribución equitativa. La distribución calcula
+ * (disponible / 1) porque se crea una acción a la vez. El backend
+ * valida que la suma nunca supere meta_global.
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, BarChart3, Divide, PenLine } from 'lucide-react';
 import * as catalogosApi from '../../api/catalogos';
 import * as etapasApi from '../../api/etapas';
+import * as indicadoresApi from '../../api/indicadores';
 import { useAuth } from '../../context/AuthContext';
+
+// ── Componente de tarjeta de indicador reutilizable ─────────────
+// Se usa tanto en ModalNuevaAccion como en DrawerAccion (subacciones)
+export function TarjetaIndicadorCascada({ ind, asociado, resumen, color, onToggle, onCambioModo, onCambioValor }) {
+  const unidadLabel = ind.unidad === 'Porcentaje' ? '%' : ind.unidad === 'Moneda_MXN' ? '$MXN' : ind.unidad_personalizada || '#';
+  const meta = parseFloat(ind.meta_global) || 0;
+  const totalAportado = resumen?.total_aportado ?? 0;
+  const disponible = resumen?.disponible ?? meta;
+  const pctComprometido = meta > 0 ? Math.min(100, (totalAportado / meta) * 100) : 0;
+  const valorNum = parseFloat(asociado?.valor_aportado) || 0;
+  const excede = valorNum > disponible && disponible >= 0;
+
+  const esGuinda = color === 'guinda';
+  const accentBg = esGuinda ? 'bg-guinda-50/20' : 'bg-amber-50/20';
+  const accentBorder = esGuinda ? 'border-guinda-300' : 'border-amber-300';
+  const accentText = esGuinda ? 'text-guinda-600' : 'text-amber-600';
+  const accentCheck = esGuinda ? 'text-guinda-500 focus:ring-guinda-500' : 'text-amber-500 focus:ring-amber-500';
+  const barColor = esGuinda ? 'bg-guinda-400' : 'bg-amber-400';
+  const separatorBorder = esGuinda ? 'border-guinda-100' : 'border-amber-100';
+
+  return (
+    <div className={`border rounded-lg transition-all ${asociado ? `${accentBorder} ${accentBg}` : 'border-gray-200'}`}>
+      {/* Fila principal: checkbox + nombre + mini barra de progreso */}
+      <label className="flex items-center gap-2.5 p-2.5 cursor-pointer">
+        <input type="checkbox" checked={!!asociado} onChange={onToggle}
+          className={`rounded border-gray-300 ${accentCheck} flex-shrink-0`} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <BarChart3 size={12} className={asociado ? accentText : 'text-gray-300'} />
+            <span className="text-sm font-medium text-gray-800 truncate">{ind.nombre}</span>
+          </div>
+          <div className="flex items-center gap-2 mt-1">
+            {/* Mini barra de cuánto se ha comprometido */}
+            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden max-w-[120px]">
+              <div className={`h-full rounded-full transition-all ${barColor}`}
+                style={{ width: `${pctComprometido}%` }} />
+            </div>
+            <span className="text-[10px] text-gray-400 tabular-nums flex-shrink-0">
+              {Number(totalAportado).toLocaleString()} / {Number(meta).toLocaleString()} {unidadLabel}
+            </span>
+            <span className={`text-[10px] font-semibold tabular-nums flex-shrink-0 ${
+              disponible <= 0 ? 'text-red-500' : 'text-emerald-600'
+            }`}>
+              ({Number(disponible).toLocaleString()} disp.)
+            </span>
+          </div>
+        </div>
+      </label>
+
+      {/* Panel expandido: modo de aportación */}
+      {asociado && (
+        <div className={`px-3 pb-3 pt-1 border-t ${separatorBorder} space-y-2`}>
+          {/* Selector de modo */}
+          <div className="flex gap-1">
+            {[
+              { modo: 'manual', label: 'Manual', icono: PenLine },
+              { modo: 'equitativo', label: 'Equitativo', icono: Divide },
+            ].map(({ modo, label, icono: Icono }) => (
+              <button key={modo} type="button"
+                onClick={() => onCambioModo(ind.id, modo)}
+                className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${
+                  asociado.modo === modo
+                    ? `${esGuinda ? 'bg-guinda-100 text-guinda-700' : 'bg-amber-100 text-amber-700'} shadow-sm`
+                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+                }`}>
+                <Icono size={11} /> {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Campo de valor */}
+          {asociado.modo === 'manual' && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 flex-shrink-0">Aporta:</span>
+              <input
+                type="number" step="any" min="0"
+                max={disponible > 0 ? disponible : undefined}
+                value={asociado.valor_aportado}
+                onChange={e => onCambioValor(ind.id, e.target.value)}
+                className={`input-base text-sm w-28 py-1 ${excede ? 'border-red-400 ring-1 ring-red-200' : ''}`}
+                placeholder="0"
+              />
+              <span className="text-xs text-gray-400">{unidadLabel}</span>
+              {excede && <span className="text-[10px] text-red-500 font-medium">Excede lo disponible</span>}
+            </div>
+          )}
+
+          {asociado.modo === 'equitativo' && (
+            <div className="flex items-center gap-2 px-2.5 py-1.5 bg-white/60 rounded-lg border border-dashed border-gray-200">
+              <Divide size={12} className="text-gray-400" />
+              <span className="text-xs text-gray-600">
+                Aportará <span className="font-bold tabular-nums">{Number(disponible).toLocaleString()}</span> {unidadLabel}
+                <span className="text-gray-400 ml-1">(todo lo disponible)</span>
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ModalNuevaAccion({ proyecto, etapaId, onGuardar, onCerrar }) {
   const { usuario } = useAuth();
@@ -41,6 +149,8 @@ export default function ModalNuevaAccion({ proyecto, etapaId, onGuardar, onCerra
   });
 
   const [indicadoresEtapa, setIndicadoresEtapa] = useState([]);
+  // Resumen de aportaciones por indicador: { [indicadorId]: { meta_global, total_aportado, disponible } }
+  const [resumenes, setResumenes] = useState({});
 
   useEffect(() => {
     async function cargar() {
@@ -67,6 +177,28 @@ export default function ModalNuevaAccion({ proyecto, etapaId, onGuardar, onCerra
     cargar();
   }, [etapaId]);
 
+  // Regla de cascada: si hay etapa → solo indicadores de etapa;
+  // si es acción directa → solo indicadores del proyecto.
+  const indicadoresProyecto = etapaId ? [] : (proyecto?.indicadores || []);
+  const todosIndicadores = [...indicadoresProyecto, ...indicadoresEtapa];
+
+  useEffect(() => {
+    if (todosIndicadores.length === 0) return;
+    async function cargarResumenes() {
+      const resultados = await Promise.allSettled(
+        todosIndicadores.map(ind => indicadoresApi.obtenerResumenAportaciones(ind.id))
+      );
+      const mapa = {};
+      todosIndicadores.forEach((ind, i) => {
+        if (resultados[i].status === 'fulfilled') {
+          mapa[ind.id] = resultados[i].value.datos;
+        }
+      });
+      setResumenes(mapa);
+    }
+    cargarResumenes();
+  }, [todosIndicadores.length]);
+
   function actualizar(campo, valor) {
     setDatos(prev => ({ ...prev, [campo]: valor }));
   }
@@ -77,8 +209,31 @@ export default function ModalNuevaAccion({ proyecto, etapaId, onGuardar, onCerra
       if (existe) {
         return { ...prev, indicadores_asociados: prev.indicadores_asociados.filter(ia => ia.id_indicador !== indicadorId) };
       }
-      return { ...prev, indicadores_asociados: [...prev.indicadores_asociados, { id_indicador: indicadorId }] };
+      return { ...prev, indicadores_asociados: [...prev.indicadores_asociados, { id_indicador: indicadorId, valor_aportado: '', modo: 'manual' }] };
     });
+  }
+
+  function cambiarModo(indicadorId, modo) {
+    setDatos(prev => ({
+      ...prev,
+      indicadores_asociados: prev.indicadores_asociados.map(ia => {
+        if (ia.id_indicador !== indicadorId) return ia;
+        if (modo === 'equitativo') {
+          const disp = resumenes[indicadorId]?.disponible ?? 0;
+          return { ...ia, modo, valor_aportado: disp > 0 ? String(disp) : '0' };
+        }
+        return { ...ia, modo, valor_aportado: '' };
+      }),
+    }));
+  }
+
+  function actualizarAportacion(indicadorId, valor) {
+    setDatos(prev => ({
+      ...prev,
+      indicadores_asociados: prev.indicadores_asociados.map(ia =>
+        ia.id_indicador === indicadorId ? { ...ia, valor_aportado: valor } : ia
+      ),
+    }));
   }
 
   async function manejarSubmit(e) {
@@ -96,9 +251,6 @@ export default function ModalNuevaAccion({ proyecto, etapaId, onGuardar, onCerra
       setEnviando(false);
     }
   }
-
-  const indicadoresProyecto = proyecto?.indicadores || [];
-  const todosIndicadores = [...indicadoresProyecto, ...indicadoresEtapa];
 
   const dasFiltradas = direccionesArea.filter(da => {
     if (!datos.id_dg) return true;
@@ -188,46 +340,26 @@ export default function ModalNuevaAccion({ proyecto, etapaId, onGuardar, onCerra
             </select>
           </div>
 
-          {/* Vinculación con indicadores (proyecto + etapa) */}
+          {/* ── Aporte a indicadores en cascada ── */}
           {todosIndicadores.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Indicadores asociados</label>
-              <p className="text-xs text-gray-400 mb-2">Marca los indicadores a los que esta acción contribuirá.</p>
-              <div className="space-y-1.5">
-                {indicadoresProyecto.length > 0 && (
-                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Indicadores del proyecto</p>
-                )}
-                {indicadoresProyecto.map(ind => {
-                  const asociado = datos.indicadores_asociados.find(ia => ia.id_indicador === ind.id);
-                  const unidadLabel = ind.unidad === 'Porcentaje' ? '%' : ind.unidad === 'Moneda_MXN' ? '$MXN' : ind.unidad_personalizada || '#';
-                  return (
-                    <label key={ind.id} className={`flex items-center gap-2 p-2 border rounded-lg cursor-pointer transition-colors ${asociado ? 'border-guinda-300 bg-guinda-50/30' : 'border-gray-200 hover:border-gray-300'}`}>
-                      <input type="checkbox" checked={!!asociado} onChange={() => toggleIndicador(ind.id)}
-                        className="rounded border-gray-300 text-guinda-500 focus:ring-guinda-500" />
-                      <span className="text-sm text-gray-800 flex-1">
-                        {ind.nombre}
-                        <span className="text-xs text-gray-400 ml-1">({Number(ind.meta_global).toLocaleString()} {unidadLabel})</span>
-                      </span>
-                    </label>
-                  );
-                })}
-                {indicadoresEtapa.length > 0 && (
-                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mt-2">Indicadores de la etapa</p>
-                )}
-                {indicadoresEtapa.map(ind => {
-                  const asociado = datos.indicadores_asociados.find(ia => ia.id_indicador === ind.id);
-                  const unidadLabel = ind.unidad === 'Porcentaje' ? '%' : ind.unidad === 'Moneda_MXN' ? '$MXN' : ind.unidad_personalizada || '#';
-                  return (
-                    <label key={ind.id} className={`flex items-center gap-2 p-2 border rounded-lg cursor-pointer transition-colors ${asociado ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200 hover:border-gray-300'}`}>
-                      <input type="checkbox" checked={!!asociado} onChange={() => toggleIndicador(ind.id)}
-                        className="rounded border-gray-300 text-amber-500 focus:ring-amber-500" />
-                      <span className="text-sm text-gray-800 flex-1">
-                        {ind.nombre}
-                        <span className="text-xs text-amber-500 ml-1">(etapa · {Number(ind.meta_global).toLocaleString()} {unidadLabel})</span>
-                      </span>
-                    </label>
-                  );
-                })}
+              <label className="block text-sm font-medium text-gray-700 mb-0.5">Aporte a indicadores</label>
+              <p className="text-[11px] text-gray-400 mb-2">
+                Marca los indicadores a los que esta acción contribuye. Si no marcas ninguno, la acción no aporta a ningún indicador.
+              </p>
+              <div className="space-y-2">
+                {todosIndicadores.map(ind => (
+                  <TarjetaIndicadorCascada
+                    key={ind.id}
+                    ind={ind}
+                    asociado={datos.indicadores_asociados.find(ia => ia.id_indicador === ind.id)}
+                    resumen={resumenes[ind.id]}
+                    color={ind.id_etapa ? 'amber' : 'guinda'}
+                    onToggle={() => toggleIndicador(ind.id)}
+                    onCambioModo={cambiarModo}
+                    onCambioValor={actualizarAportacion}
+                  />
+                ))}
               </div>
             </div>
           )}

@@ -154,20 +154,32 @@ async function eliminar(indicadorId) {
   return resultado.rows[0] || null;
 }
 
-// Lista indicadores propios de una etapa (id_etapa = etapaId)
+// Lista indicadores de una etapa: propios (id_etapa) + asociados via indicador_etapas
 async function listarPorEtapa(etapaId) {
-  const indicadores = await pool.query(`
-    SELECT * FROM indicadores
-    WHERE id_etapa = $1 AND activo = true
-    ORDER BY orden, created_at
+  // 1. Indicadores propios de la etapa
+  const propios = await pool.query(`
+    SELECT i.*, NULL::numeric AS meta_etapa, NULL::uuid AS id_indicador_ref
+    FROM indicadores i
+    WHERE i.id_etapa = $1 AND i.activo = true
+    ORDER BY i.orden, i.created_at
   `, [etapaId]);
 
-  if (indicadores.rows.length > 0) {
-    const ids = indicadores.rows.map(i => i.id);
+  // 2. Indicadores del proyecto asociados a esta etapa via indicador_etapas
+  const asociados = await pool.query(`
+    SELECT i.*, ie.meta_etapa, ie.id_indicador AS id_indicador_ref
+    FROM indicador_etapas ie
+    JOIN indicadores i ON i.id = ie.id_indicador
+    WHERE ie.id_etapa = $1 AND i.activo = true
+    ORDER BY i.orden, i.created_at
+  `, [etapaId]);
+
+  const todos = [...propios.rows, ...asociados.rows];
+
+  if (todos.length > 0) {
+    const ids = todos.map(i => i.id);
     const metas = await pool.query(`
       SELECT * FROM indicador_metas_anuales
-      WHERE id_indicador = ANY($1)
-      ORDER BY anio
+      WHERE id_indicador = ANY($1) ORDER BY anio
     `, [ids]);
 
     const metasPorIndicador = {};
@@ -175,12 +187,12 @@ async function listarPorEtapa(etapaId) {
       if (!metasPorIndicador[m.id_indicador]) metasPorIndicador[m.id_indicador] = [];
       metasPorIndicador[m.id_indicador].push(m);
     }
-    for (const ind of indicadores.rows) {
+    for (const ind of todos) {
       ind.metas_anuales = metasPorIndicador[ind.id] || [];
     }
   }
 
-  return indicadores.rows;
+  return todos;
 }
 
 // Lista TODOS los indicadores de un proyecto (nivel proyecto + nivel etapa)
@@ -195,11 +207,40 @@ async function listarTodosPorProyecto(proyectoId) {
   return indicadores.rows;
 }
 
+// Resumen de aportaciones a un indicador: meta, cuánto ya está comprometido, disponible
+async function obtenerResumenAportaciones(indicadorId) {
+  const resultado = await pool.query(`
+    SELECT
+      i.meta_global,
+      i.unidad,
+      i.unidad_personalizada,
+      i.nombre,
+      COALESCE(SUM(ai.valor_aportado), 0)::numeric AS total_aportado,
+      COUNT(ai.id)::int AS num_acciones
+    FROM indicadores i
+    LEFT JOIN accion_indicador ai ON ai.id_indicador = i.id
+    WHERE i.id = $1
+    GROUP BY i.id
+  `, [indicadorId]);
+
+  if (!resultado.rows[0]) return null;
+  const r = resultado.rows[0];
+  const metaGlobal = parseFloat(r.meta_global) || 0;
+  const totalAportado = parseFloat(r.total_aportado) || 0;
+  return {
+    ...r,
+    meta_global: metaGlobal,
+    total_aportado: totalAportado,
+    disponible: Math.max(0, metaGlobal - totalAportado),
+  };
+}
+
 module.exports = {
   listarPorProyecto,
   listarPorEtapa,
   listarTodosPorProyecto,
   crear,
   actualizar,
-  eliminar
+  eliminar,
+  obtenerResumenAportaciones
 };

@@ -67,6 +67,16 @@ export async function toggleSubaccion(subaccionId) {
   return data;
 }
 
+export async function obtenerIndicadoresAccion(accionId) {
+  const { data } = await client.get(`/acciones/${accionId}/indicadores`);
+  return data;
+}
+
+export async function actualizarIndicadoresAccion(accionId, indicadoresAsociados) {
+  const { data } = await client.put(`/acciones/${accionId}/indicadores`, { indicadores_asociados: indicadoresAsociados });
+  return data;
+}
+
 export async function obtenerAgenda(params = {}) {
   const { data } = await client.get('/agenda', { params });
   return data;

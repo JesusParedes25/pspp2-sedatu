@@ -154,7 +154,7 @@ export default function ModalNuevaEtapa({ proyecto, etapas, onGuardar, onCerrar 
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Nueva etapa</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Nueva etapa / subproyecto</h2>
           <button onClick={onCerrar} className="p-1 rounded hover:bg-gray-100">
             <X size={18} className="text-gray-400" />
           </button>
@@ -163,7 +163,7 @@ export default function ModalNuevaEtapa({ proyecto, etapas, onGuardar, onCerrar 
         <form onSubmit={manejarSubmit} className="p-5 space-y-4">
           {/* Nombre */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de la etapa *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de la etapa / subproyecto *</label>
             <input type="text" value={datos.nombre} onChange={e => actualizar('nombre', e.target.value)}
               className="input-base" placeholder="Ej: Análisis de restricción territorial" required />
           </div>
@@ -315,7 +315,7 @@ export default function ModalNuevaEtapa({ proyecto, etapas, onGuardar, onCerrar 
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onCerrar} className="btn-secondary">Cancelar</button>
             <button type="submit" disabled={enviando || !datos.nombre.trim()} className="btn-primary">
-              {enviando ? 'Creando...' : 'Crear etapa'}
+              {enviando ? 'Creando...' : 'Crear etapa / subproyecto'}
             </button>
           </div>
         </form>

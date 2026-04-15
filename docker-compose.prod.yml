@@ -1,15 +1,6 @@
 # ARCHIVO: docker-compose.prod.yml
 # PROPÓSITO: Configuración de Docker Compose para producción con Nginx.
-#
-# MINI-CLASE: Producción vs Desarrollo en Docker
-# ─────────────────────────────────────────────────────────────────
-# En producción: (1) El frontend se compila con `npm run build` y
-# los archivos estáticos se sirven con Nginx. (2) El backend usa
-# `npm start` en vez de `npm run dev` (sin nodemon). (3) Nginx
-# actúa como reverse proxy recibiendo todo el tráfico en el puerto
-# 80 y distribuyéndolo entre frontend estático y backend API.
-# (4) No se montan volúmenes de código fuente.
-# ─────────────────────────────────────────────────────────────────
+# AJUSTADO: Para convivir con daot.geobint.com via Nginx Proxy Manager.
 
 version: '3.8'
 
@@ -17,6 +8,7 @@ services:
   # ─── Base de datos ─────────────────────────────────────────────
   postgres:
     image: postgis/postgis:15-3.3
+    container_name: pspp-postgres
     restart: always
     environment:
       POSTGRES_USER: ${DB_USER}
@@ -26,10 +18,16 @@ services:
       - pgdata_prod:/var/lib/postgresql/data
     networks:
       - pspp-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # ─── Almacenamiento de archivos ────────────────────────────────
   minio:
     image: minio/minio:latest
+    container_name: pspp-minio
     restart: always
     command: server /data --console-address ":9001"
     environment:
@@ -43,6 +41,7 @@ services:
   # ─── GeoServer (WMS/WFS) ──────────────────────────────────────
   geoserver:
     image: kartoza/geoserver:2.23.0
+    container_name: pspp-geoserver
     restart: always
     environment:
       GEOSERVER_ADMIN_PASSWORD: ${GEOSERVER_ADMIN_PASSWORD}
@@ -56,6 +55,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    container_name: pspp-backend
     restart: always
     command: npm start
     environment:
@@ -69,35 +69,45 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
       MINIO_ENDPOINT: minio
       MINIO_PORT: ${MINIO_PORT}
+      MINIO_USE_SSL: "false"
       MINIO_USER: ${MINIO_USER}
       MINIO_PASSWORD: ${MINIO_PASSWORD}
       MINIO_BUCKET: ${MINIO_BUCKET}
+      GEOSERVER_URL: http://geoserver:8080/geoserver
+      PORT: 3000
     depends_on:
-      - postgres
-      - minio
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
     networks:
       - pspp-network
 
   # ─── Nginx (reverse proxy + frontend estático) ─────────────────
+  # NO expone puertos al host — NPM rutea el tráfico desde afuera.
   nginx:
     image: nginx:alpine
+    container_name: pspp-nginx
     restart: always
-    ports:
-      - "${NGINX_PORT:-80}:80"
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - frontend_build:/usr/share/nginx/html:ro
     depends_on:
       - backend
+      - frontend-build
     networks:
       - pspp-network
+      - npm-network
 
   # ─── Frontend build (solo genera archivos estáticos) ───────────
   frontend-build:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    container_name: pspp-frontend-build
     command: sh -c "npm run build && cp -r /app/dist/* /output/"
+    environment:
+      VITE_API_URL: /api/v1
     volumes:
       - frontend_build:/output
     networks:
@@ -112,3 +122,6 @@ volumes:
 networks:
   pspp-network:
     driver: bridge
+  npm-network:
+    external: true
+    name: nginx-proxy-manager_default

@@ -22,7 +22,7 @@ async function obtenerStats(req, res, next) {
     const proyectoId = req.params.id;
 
     // Ejecutar todas las queries en paralelo
-    const [acciones, evidencias, riesgos, actividad, accionesResumen, atrasadas, proximasAVencer, riesgosDetalle] = await Promise.all([
+    const [acciones, evidencias, riesgos, actividad, accionesResumen, atrasadas, proximasAVencer, riesgosDetalle, indicadores] = await Promise.all([
       statsQueries.contarAccionesPorEstado(proyectoId),
       statsQueries.contarEvidenciasProyecto(proyectoId),
       statsQueries.contarRiesgosActivos(proyectoId),
@@ -31,6 +31,7 @@ async function obtenerStats(req, res, next) {
       statsQueries.obtenerAtrasadas(proyectoId),
       statsQueries.obtenerProximasAVencer(proyectoId),
       statsQueries.obtenerRiesgosDetalle(proyectoId),
+      statsQueries.obtenerIndicadoresConProgreso(proyectoId),
     ]);
 
     res.json({
@@ -43,6 +44,7 @@ async function obtenerStats(req, res, next) {
         atrasadas,
         proximas_a_vencer: proximasAVencer,
         riesgos_detalle: riesgosDetalle,
+        indicadores,
       },
       mensaje: 'Estadísticas del proyecto obtenidas',
     });

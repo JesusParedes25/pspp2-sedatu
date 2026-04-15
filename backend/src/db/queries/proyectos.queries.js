@@ -182,35 +182,80 @@ async function crearProyecto(datos, creadorId) {
   }
 }
 
-// Actualiza un proyecto existente
+// Actualiza un proyecto con todos sus campos e indicadores en transacción
 async function actualizarProyecto(proyectoId, datos) {
-  const resultado = await pool.query(`
-    UPDATE proyectos SET
-      nombre = COALESCE($1, nombre),
-      descripcion = COALESCE($2, descripcion),
-      tipo = COALESCE($3, tipo),
-      estado = COALESCE($4, estado),
-      meta_descripcion = COALESCE($5, meta_descripcion),
-      tiene_indicador = COALESCE($6, tiene_indicador),
-      indicador_nombre = COALESCE($7, indicador_nombre),
-      indicador_valor_actual = COALESCE($8, indicador_valor_actual),
-      indicador_meta = COALESCE($9, indicador_meta),
-      indicador_unidad = COALESCE($10, indicador_unidad),
-      es_prioritario = COALESCE($11, es_prioritario),
-      fecha_inicio = COALESCE($12, fecha_inicio),
-      fecha_limite = COALESCE($13, fecha_limite),
-      updated_at = NOW()
-    WHERE id = $14 AND deleted_at IS NULL
-    RETURNING *
-  `, [
-    datos.nombre, datos.descripcion, datos.tipo, datos.estado,
-    datos.meta_descripcion, datos.tiene_indicador, datos.indicador_nombre,
-    datos.indicador_valor_actual, datos.indicador_meta, datos.indicador_unidad,
-    datos.es_prioritario, datos.fecha_inicio, datos.fecha_limite,
-    proyectoId
-  ]);
+  const n = (v) => (v === '' || v === undefined) ? null : v;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
 
-  return resultado.rows[0] || null;
+    const tieneIndicadores = Array.isArray(datos.indicadores) && datos.indicadores.length > 0;
+
+    const resultado = await client.query(`
+      UPDATE proyectos SET
+        nombre                  = COALESCE($1, nombre),
+        descripcion             = $2,
+        tipo                    = COALESCE($3, tipo),
+        estado                  = COALESCE($4, estado),
+        meta_descripcion        = $5,
+        tiene_indicador         = $6,
+        es_prioritario          = $7,
+        ciclo_anual             = $8,
+        dependencia_externa     = $9,
+        descripcion_dependencia = $10,
+        tiene_subproyectos      = $11,
+        fecha_inicio            = $12,
+        fecha_limite            = $13,
+        id_dg_lider             = $14,
+        id_direccion_area_lider = $15,
+        id_programa             = $16,
+        updated_at              = NOW()
+      WHERE id = $17 AND deleted_at IS NULL
+      RETURNING *
+    `, [
+      datos.nombre,
+      n(datos.descripcion),
+      n(datos.tipo),
+      n(datos.estado),
+      n(datos.meta_descripcion),
+      tieneIndicadores,
+      datos.es_prioritario ?? false,
+      datos.ciclo_anual ?? false,
+      datos.dependencia_externa ?? false,
+      n(datos.descripcion_dependencia),
+      datos.tiene_subproyectos ?? false,
+      n(datos.fecha_inicio),
+      n(datos.fecha_limite),
+      n(datos.id_dg_lider),
+      n(datos.id_direccion_area_lider),
+      n(datos.id_programa),
+      proyectoId,
+    ]);
+
+    const proyecto = resultado.rows[0];
+    if (!proyecto) { await client.query('ROLLBACK'); return null; }
+
+    // Sincronizar etiquetas si se envían
+    if (Array.isArray(datos.etiquetas)) {
+      await client.query('DELETE FROM etiquetas WHERE id_proyecto = $1', [proyectoId]);
+      for (const etiqueta of datos.etiquetas) {
+        if (etiqueta?.trim()) {
+          await client.query(
+            'INSERT INTO etiquetas (nombre, id_proyecto) VALUES ($1, $2)',
+            [etiqueta.trim(), proyectoId]
+          );
+        }
+      }
+    }
+
+    await client.query('COMMIT');
+    return proyecto;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 // Soft delete: marca deleted_at en lugar de borrar
@@ -267,6 +312,16 @@ async function eliminarDGProyecto(proyectoId, dgId) {
   return resultado.rows[0] || null;
 }
 
+// Actualiza solo la imagen_url de un proyecto
+async function actualizarImagenProyecto(proyectoId, imagenUrl) {
+  const resultado = await pool.query(`
+    UPDATE proyectos SET imagen_url = $1, updated_at = NOW()
+    WHERE id = $2 AND deleted_at IS NULL
+    RETURNING id, imagen_url
+  `, [imagenUrl, proyectoId]);
+  return resultado.rows[0] || null;
+}
+
 // Obtiene etiquetas de un proyecto
 async function obtenerEtiquetas(proyectoId) {
   const resultado = await pool.query(
@@ -285,5 +340,6 @@ module.exports = {
   obtenerDGsProyecto,
   agregarDGProyecto,
   eliminarDGProyecto,
-  obtenerEtiquetas
+  obtenerEtiquetas,
+  actualizarImagenProyecto,
 };

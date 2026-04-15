@@ -157,24 +157,28 @@ async function obtenerAccionesResumen(proyectoId) {
       a.motivo_bloqueo,
       a.tipo,
       a.id_etapa,
-      -- Quitamos a.orden de aquí arriba
+      u.nombre_completo AS responsable_nombre,
+      (SELECT COUNT(*) FROM comentarios c WHERE c.entidad_id = a.id AND c.entidad_tipo = 'Accion') AS total_comentarios,
+      (SELECT COUNT(*) FROM evidencias ev WHERE ev.id_accion = a.id) AS total_evidencias,
       COALESCE(
         json_agg(
           json_build_object(
             'id', s.id,
             'estado', s.estado,
             'nombre', s.nombre,
-            'fecha_fin', s.fecha_fin
-          ) ORDER BY s.created_at -- Quitamos s.orden de aquí
+            'fecha_fin', s.fecha_fin,
+            'porcentaje_avance', s.porcentaje_avance
+          ) ORDER BY s.created_at
         ) FILTER (WHERE s.id IS NOT NULL),
         '[]'
       ) AS subacciones
     FROM acciones a
     LEFT JOIN acciones s ON s.id_accion_padre = a.id AND s.estado != 'Cancelada'
+    LEFT JOIN usuarios u ON u.id = a.id_responsable
     WHERE a.id_proyecto = $1
       AND a.id_accion_padre IS NULL
       AND a.estado != 'Cancelada'
-    GROUP BY a.id
+    GROUP BY a.id, u.nombre_completo
     ORDER BY a.id_etapa NULLS LAST, a.fecha_fin ASC 
   `, [proyectoId]);
   return resultado.rows;
@@ -226,6 +230,83 @@ async function obtenerProximasAVencer(proyectoId) {
 }
 
 /**
+ * Obtiene los indicadores del proyecto (nivel proyecto y nivel etapa)
+ * con su meta global, total aportado, % de avance, y desglose de
+ * aportaciones por acción/subacción (nombre, tipo, etapa, valor_aportado).
+ */
+async function obtenerIndicadoresConProgreso(proyectoId) {
+  const resIndicadores = await pool.query(`
+    SELECT
+      i.id,
+      i.nombre,
+      i.unidad,
+      i.unidad_personalizada,
+      i.meta_global,
+      i.descripcion,
+      CASE WHEN i.id_etapa IS NOT NULL THEN 'etapa' ELSE 'proyecto' END AS nivel,
+      e.nombre AS etapa_nombre,
+      COALESCE(SUM(ai.valor_aportado), 0)::numeric AS total_aportado,
+      COUNT(ai.id)::int AS num_acciones
+    FROM indicadores i
+    LEFT JOIN etapas e ON e.id = i.id_etapa
+    LEFT JOIN accion_indicador ai ON ai.id_indicador = i.id
+    WHERE i.id_proyecto = $1
+    GROUP BY i.id, e.nombre
+    ORDER BY i.id_etapa NULLS FIRST, i.nombre
+  `, [proyectoId]);
+
+  const resAportaciones = await pool.query(`
+    SELECT
+      ai.id_indicador,
+      ai.valor_aportado,
+      a.id AS accion_id,
+      a.nombre AS accion_nombre,
+      a.id_accion_padre,
+      et.nombre AS etapa_nombre,
+      a.estado
+    FROM accion_indicador ai
+    JOIN acciones a ON a.id = ai.id_accion
+    LEFT JOIN etapas et ON et.id = a.id_etapa
+    WHERE ai.id_indicador IN (
+      SELECT id FROM indicadores WHERE id_proyecto = $1
+    )
+    ORDER BY ai.id_indicador, a.id_accion_padre NULLS FIRST, a.nombre
+  `, [proyectoId]);
+
+  const aportacionesPorIndicador = {};
+  for (const row of resAportaciones.rows) {
+    if (!aportacionesPorIndicador[row.id_indicador]) {
+      aportacionesPorIndicador[row.id_indicador] = [];
+    }
+    aportacionesPorIndicador[row.id_indicador].push({
+      accion_id: row.accion_id,
+      nombre: row.accion_nombre,
+      tipo: row.id_accion_padre ? 'subaccion' : 'accion',
+      etapa_nombre: row.etapa_nombre,
+      valor_aportado: parseFloat(row.valor_aportado) || 0,
+      estado: row.estado,
+    });
+  }
+
+  return resIndicadores.rows.map(r => {
+    const meta = parseFloat(r.meta_global) || 0;
+    const aportado = parseFloat(r.total_aportado) || 0;
+    const pct = meta > 0 ? Math.min(100, (aportado / meta) * 100) : 0;
+    const unidadLabel = r.unidad === 'Porcentaje' ? '%'
+      : r.unidad === 'Moneda_MXN' ? '$MXN'
+      : r.unidad_personalizada || '#';
+    return {
+      ...r,
+      meta_global: meta,
+      total_aportado: aportado,
+      pct_avance: parseFloat(pct.toFixed(2)),
+      unidad_label: unidadLabel,
+      aportaciones: aportacionesPorIndicador[r.id] || [],
+    };
+  });
+}
+
+/**
  * Obtiene detalle de riesgos activos del proyecto.
  */
 async function obtenerRiesgosDetalle(proyectoId) {
@@ -262,4 +343,5 @@ module.exports = {
   obtenerAtrasadas,
   obtenerProximasAVencer,
   obtenerRiesgosDetalle,
+  obtenerIndicadoresConProgreso,
 };

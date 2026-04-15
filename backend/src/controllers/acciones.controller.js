@@ -187,6 +187,29 @@ async function agenda(req, res, next) {
   }
 }
 
+// PUT /acciones/:id/indicadores — Reemplazar aportaciones a indicadores
+async function actualizarIndicadores(req, res, next) {
+  try {
+    await accionesQueries.actualizarIndicadoresAccion(req.params.id, req.body.indicadores_asociados || []);
+    res.json({ mensaje: 'Indicadores actualizados' });
+  } catch (err) {
+    if (err.message.includes('excede') || err.message.includes('negativo')) {
+      return res.status(400).json({ error: true, mensaje: err.message, codigo: 'VALIDACION_NEGOCIO' });
+    }
+    next(err);
+  }
+}
+
+// GET /acciones/:id/indicadores — Obtener indicadores vinculados
+async function obtenerIndicadores(req, res, next) {
+  try {
+    const datos = await accionesQueries.obtenerIndicadoresAccion(req.params.id);
+    res.json({ datos });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   listarPorEtapa,
   listarDirectasProyecto,
@@ -199,5 +222,7 @@ module.exports = {
   actualizar,
   eliminar,
   agenda,
-  importarCSV
+  importarCSV,
+  actualizarIndicadores,
+  obtenerIndicadores
 };

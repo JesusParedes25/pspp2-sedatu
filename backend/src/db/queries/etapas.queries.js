@@ -130,28 +130,64 @@ async function crearEtapa(proyectoId, datos) {
   }
 }
 
-// Actualiza una etapa
+// Actualiza una etapa (campos directos + indicadores asociados en transacción)
 async function actualizarEtapa(etapaId, datos) {
-  const resultado = await pool.query(`
-    UPDATE etapas SET
-      nombre = COALESCE($1, nombre),
-      descripcion = COALESCE($2, descripcion),
-      orden = COALESCE($3, orden),
-      estado = COALESCE($4, estado),
-      tipo_meta = COALESCE($5, tipo_meta),
-      meta_descripcion = COALESCE($6, meta_descripcion),
-      meta_valor = COALESCE($7, meta_valor),
-      meta_unidad = COALESCE($8, meta_unidad),
-      id_responsable = COALESCE($9, id_responsable)
-    WHERE id = $10
-    RETURNING *
-  `, [
-    datos.nombre, datos.descripcion, datos.orden, datos.estado,
-    datos.tipo_meta, datos.meta_descripcion, datos.meta_valor,
-    datos.meta_unidad, datos.id_responsable, etapaId
-  ]);
+  const n = (v) => (v === '' || v === undefined) ? null : v;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
 
-  return resultado.rows[0] || null;
+    const resultado = await client.query(`
+      UPDATE etapas SET
+        nombre            = COALESCE($1, nombre),
+        descripcion       = $2,
+        id_dg             = $3,
+        id_direccion_area = $4,
+        id_responsable    = $5,
+        depende_de        = $6,
+        tipo_meta         = COALESCE($7, tipo_meta),
+        meta_descripcion  = $8,
+        meta_valor        = $9,
+        meta_unidad       = $10
+      WHERE id = $11
+      RETURNING *
+    `, [
+      datos.nombre,
+      n(datos.descripcion),
+      n(datos.id_dg),
+      n(datos.id_direccion_area),
+      n(datos.id_responsable),
+      n(datos.depende_de),
+      datos.tipo_meta || null,
+      n(datos.meta_descripcion),
+      n(datos.meta_valor),
+      n(datos.meta_unidad),
+      etapaId,
+    ]);
+
+    const etapa = resultado.rows[0];
+    if (!etapa) { await client.query('ROLLBACK'); return null; }
+
+    // Sincronizar indicadores asociados (meta_etapa por indicador)
+    if (Array.isArray(datos.indicadores_asociados)) {
+      await client.query('DELETE FROM indicador_etapas WHERE id_etapa = $1', [etapaId]);
+      for (const ia of datos.indicadores_asociados) {
+        const metaEtapa = ia.meta_etapa === '' || ia.meta_etapa == null ? 0 : parseFloat(ia.meta_etapa);
+        await client.query(
+          'INSERT INTO indicador_etapas (id_indicador, id_etapa, meta_etapa) VALUES ($1, $2, $3)',
+          [ia.id_indicador, etapaId, metaEtapa]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    return etapa;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 // Elimina una etapa y sus acciones en cascada (por FK ON DELETE CASCADE)

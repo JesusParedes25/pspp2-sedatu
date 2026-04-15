@@ -111,7 +111,7 @@ export default function DrawerSubaccion({ sub, soloLectura, onCerrar, onCambio }
       {/* Overlay */}
       <div
         onClick={cerrar}
-        className={`fixed inset-0 z-[9998] bg-black/15 transition-opacity duration-200 ${
+        className={`fixed inset-0 z-[10000] bg-black/30 transition-opacity duration-200 ${
           visible ? 'opacity-100' : 'opacity-0'
         }`}
       />
@@ -119,7 +119,7 @@ export default function DrawerSubaccion({ sub, soloLectura, onCerrar, onCambio }
       {/* Drawer panel */}
       <div
         ref={drawerRef}
-        className={`fixed top-0 right-0 z-[9999] h-full w-full sm:w-[460px] bg-white shadow-2xl flex flex-col transition-transform duration-250 ease-out ${
+        className={`fixed top-0 right-0 z-[10001] h-full w-full sm:w-[600px] bg-white shadow-2xl flex flex-col transition-transform duration-250 ease-out ${
           visible ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
