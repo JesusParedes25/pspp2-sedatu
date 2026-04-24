@@ -130,12 +130,14 @@ async function crearEtapa(proyectoId, datos) {
   }
 }
 
-// Actualiza una etapa (campos directos + indicadores asociados en transacción)
-async function actualizarEtapa(etapaId, datos) {
+// Actualiza una etapa (campos directos + indicadores asociados en transacción).
+// Acepta un client externo para participar en una transacción del controller.
+async function actualizarEtapa(etapaId, datos, externalClient) {
   const n = (v) => (v === '' || v === undefined) ? null : v;
-  const client = await pool.connect();
+  const gestionaTransaccion = !externalClient;
+  const client = externalClient || await pool.connect();
   try {
-    await client.query('BEGIN');
+    if (gestionaTransaccion) await client.query('BEGIN');
 
     const resultado = await client.query(`
       UPDATE etapas SET
@@ -166,7 +168,10 @@ async function actualizarEtapa(etapaId, datos) {
     ]);
 
     const etapa = resultado.rows[0];
-    if (!etapa) { await client.query('ROLLBACK'); return null; }
+    if (!etapa) {
+      if (gestionaTransaccion) await client.query('ROLLBACK');
+      return null;
+    }
 
     // Sincronizar indicadores asociados (meta_etapa por indicador)
     if (Array.isArray(datos.indicadores_asociados)) {
@@ -180,13 +185,13 @@ async function actualizarEtapa(etapaId, datos) {
       }
     }
 
-    await client.query('COMMIT');
+    if (gestionaTransaccion) await client.query('COMMIT');
     return etapa;
   } catch (err) {
-    await client.query('ROLLBACK');
+    if (gestionaTransaccion) await client.query('ROLLBACK');
     throw err;
   } finally {
-    client.release();
+    if (gestionaTransaccion) client.release();
   }
 }
 

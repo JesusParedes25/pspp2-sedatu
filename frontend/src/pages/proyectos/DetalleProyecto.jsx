@@ -25,6 +25,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useUI } from '../../context/UIContext';
 import { usePermisosProyecto } from '../../hooks/usePermisos';
 import EstadoChip from '../../components/common/EstadoChip';
+import SelectorEstado from '../../components/common/SelectorEstado';
 import EtapaCard from '../../components/seguimiento/EtapaCard';
 import GanttCronograma from '../../components/seguimiento/GanttCronograma';
 import ActividadReciente from '../../components/seguimiento/ActividadReciente';
@@ -199,7 +200,13 @@ export default function DetalleProyecto() {
             <div className="flex items-center gap-3 text-sm text-gray-500">
               <span className="font-medium text-guinda-600">{proyecto.dg_lider_siglas}</span>
               {proyecto.direccion_area_lider_siglas && <span>/ {proyecto.direccion_area_lider_siglas}</span>}
-              <EstadoChip estado={proyecto.estado} />
+              <SelectorEstado
+                entidadTipo="Proyecto"
+                entidadId={proyecto.id}
+                estadoActual={proyecto.estado}
+                onCambio={recargarProyecto}
+                soloLectura={!permisos.puedeEditar}
+              />
               <span>{proyecto.tipo?.replace(/_/g, ' ')}</span>
               {proyecto.programa_clave && <span className="text-gray-400">{proyecto.programa_clave}</span>}
             </div>

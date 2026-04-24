@@ -32,6 +32,7 @@ const comentariosRoutes = require('./comentarios.routes');
 const riesgosRoutes = require('./riesgos.routes');
 const notificacionesRoutes = require('./notificaciones.routes');
 const catalogosRoutes = require('./catalogos.routes');
+const bloqueosRoutes = require('./bloqueos.routes');
 
 // Importar controllers para rutas anidadas
 const etapasController = require('../controllers/etapas.controller');
@@ -40,6 +41,8 @@ const evidenciasController = require('../controllers/evidencias.controller');
 const riesgosController = require('../controllers/riesgos.controller');
 const indicadoresController = require('../controllers/indicadores.controller');
 const proyectosStatsController = require('../controllers/proyectos.stats.controller');
+const bloqueosController = require('../controllers/bloqueos.controller');
+const estadoController = require('../controllers/estado.controller');
 
 const router = Router();
 
@@ -62,6 +65,7 @@ router.use('/comentarios', comentariosRoutes);
 router.use('/riesgos', riesgosRoutes);
 router.use('/notificaciones', notificacionesRoutes);
 router.use('/catalogos', catalogosRoutes);
+router.use('/bloqueos', bloqueosRoutes);
 
 // ─── Rutas anidadas (conectan controllers de diferentes recursos) ─
 
@@ -80,7 +84,7 @@ router.post('/proyectos/:id/acciones', accionesController.crearEnProyecto);
 // Subacciones de una acción
 router.get('/acciones/:id/subacciones', accionesController.listarSubacciones);
 router.post('/acciones/:id/subacciones', accionesController.crearSubaccion);
-router.put('/subacciones/:id/toggle', accionesController.toggleSubaccion);
+// toggle eliminado — usar PUT /acciones/:id con { estado } en body
 
 // Indicadores vinculados a una acción (lectura + edición)
 router.get('/acciones/:id/indicadores', accionesController.obtenerIndicadores);
@@ -98,9 +102,11 @@ router.get('/subacciones/:id/evidencias', evidenciasController.listarPorSubaccio
 router.post('/subacciones/:id/evidencias', upload.single('archivo'), evidenciasController.subirParaSubaccion);
 router.get('/proyectos/:id/evidencias', evidenciasController.listarPorProyecto);
 
-// Riesgos de un proyecto y de una etapa
+// Riesgos de un proyecto, etapa, acción y subacción
 router.get('/proyectos/:id/riesgos', riesgosController.listarPorProyecto);
 router.get('/etapas/:id/riesgos', riesgosController.listarPorEtapa);
+router.get('/acciones/:id/riesgos', riesgosController.listarPorAccion);
+router.get('/subacciones/:id/riesgos', riesgosController.listarPorSubaccion);
 
 // Indicadores de un proyecto (nivel proyecto, nivel etapa, o todos)
 router.get('/proyectos/:id/indicadores', indicadoresController.listarPorProyecto);
@@ -113,6 +119,12 @@ router.get('/indicadores/:id/resumen-aportaciones', indicadoresController.resume
 
 // Estadísticas del proyecto (para el resumen/dashboard)
 router.get('/proyectos/:id/stats', proyectosStatsController.obtenerStats);
+
+// Conteo de descendientes (para confirm de cancelación en cascada)
+router.get('/conteo-descendientes', estadoController.conteoDescendientes);
+
+// Cambio de estado genérico (alternativa a PUT en cada recurso)
+router.put('/estado', estadoController.cambiarEstado);
 
 // Agenda del usuario autenticado
 router.get('/agenda', accionesController.agenda);

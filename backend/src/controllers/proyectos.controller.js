@@ -14,6 +14,9 @@
  */
 const proyectosQueries = require('../db/queries/proyectos.queries');
 const indicadoresQueries = require('../db/queries/indicadores.queries');
+const pool = require('../db/pool');
+const { cambiarEstado: cambiarEstadoUtil } = require('../utils/validaciones-estado');
+const { recalcularProyecto } = require('../utils/recalculos');
 const { Client: MinioClient } = require('minio');
 const { v4: uuidv4 } = require('uuid');
 
@@ -102,18 +105,51 @@ async function crear(req, res, next) {
 }
 
 // PUT /proyectos/:id — Actualizar un proyecto
+// Si el body incluye 'estado', delega al módulo compartido validaciones-estado.
 async function actualizar(req, res, next) {
-  try {
-    const proyecto = await proyectosQueries.actualizarProyecto(req.params.id, req.body);
+  const { estado, motivo_bloqueo, nota_resolucion, ...otrosDatos } = req.body;
+  const proyectoId = req.params.id;
+  const idUsuario = req.usuario?.id;
 
-    if (!proyecto) {
-      return res.status(404).json({
-        error: true,
-        mensaje: 'Proyecto no encontrado',
-        codigo: 'NO_ENCONTRADO'
-      });
+  if (estado) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      await cambiarEstadoUtil(
+        'Proyecto', proyectoId, estado,
+        { motivoBloqueo: motivo_bloqueo, notaResolucion: nota_resolucion, idUsuario },
+        client
+      );
+
+      // Actualizar campos no-estado si los hay
+      if (Object.keys(otrosDatos).length > 0) {
+        await proyectosQueries.actualizarProyecto(proyectoId, otrosDatos, client);
+      }
+
+      await recalcularProyecto(proyectoId, client);
+      await client.query('COMMIT');
+
+      const actualizado = await proyectosQueries.obtenerProyectoPorId(proyectoId);
+      return res.json({ datos: actualizado, mensaje: 'Proyecto actualizado' });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      const status = err.statusCode || 500;
+      if (status < 500) {
+        return res.status(status).json({ error: true, mensaje: err.message, codigo: 'VALIDACION_NEGOCIO' });
+      }
+      return next(err);
+    } finally {
+      client.release();
     }
+  }
 
+  // Sin cambio de estado
+  try {
+    const proyecto = await proyectosQueries.actualizarProyecto(proyectoId, otrosDatos);
+    if (!proyecto) {
+      return res.status(404).json({ error: true, mensaje: 'Proyecto no encontrado', codigo: 'NO_ENCONTRADO' });
+    }
     res.json({ datos: proyecto, mensaje: 'Proyecto actualizado' });
   } catch (err) {
     next(err);

@@ -13,6 +13,9 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const accionesQueries = require('../db/queries/acciones.queries');
+const pool = require('../db/pool');
+const { cambiarEstado: cambiarEstadoUtil, tipoRealAccion } = require('../utils/validaciones-estado');
+const { recalcularEtapa, recalcularProyecto } = require('../utils/recalculos');
 
 // GET /etapas/:id/acciones — Listar acciones de una etapa
 async function listarPorEtapa(req, res, next) {
@@ -74,25 +77,65 @@ async function crearEnProyecto(req, res, next) {
 }
 
 // PUT /acciones/:id — Actualizar acción (dispara recálculo en cascada)
+// Si el body incluye 'estado', delega al módulo compartido validaciones-estado.
+// Los demás campos (nombre, descripcion, porcentaje, fechas) se actualizan vía query.
 async function actualizar(req, res, next) {
-  try {
-    const accion = await accionesQueries.actualizarAccion(
-      req.params.id,
-      req.body,
-      req.usuario.id
-    );
+  const { estado, motivo_bloqueo, nota_resolucion, ...otrosDatos } = req.body;
+  const idUsuario = req.usuario.id;
+  const accionId = req.params.id;
 
-    res.json({ datos: accion, mensaje: 'Acción actualizada' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Si hay cambio de estado, usar módulo compartido
+    if (estado) {
+      const fila = await client.query('SELECT * FROM acciones WHERE id = $1', [accionId]);
+      if (!fila.rows[0]) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: true, mensaje: 'Acción no encontrada' });
+      }
+      const entidadTipo = tipoRealAccion(fila.rows[0]);
+
+      // Auto-completar porcentaje si se marca Completada
+      if (estado === 'Completada' && otrosDatos.porcentaje_avance === undefined) {
+        otrosDatos.porcentaje_avance = 100;
+      }
+
+      await cambiarEstadoUtil(
+        entidadTipo, accionId, estado,
+        { motivoBloqueo: motivo_bloqueo, notaResolucion: nota_resolucion, idUsuario },
+        client
+      );
+    }
+
+    // Actualizar campos no-estado si hay alguno
+    const accion = await accionesQueries.actualizarAccionCampos(accionId, otrosDatos, client);
+
+    // Recalcular cascada
+    const fila = accion || (await client.query('SELECT * FROM acciones WHERE id = $1', [accionId])).rows[0];
+    if (fila?.id_etapa) await recalcularEtapa(fila.id_etapa, client);
+    else if (fila?.id_proyecto) await recalcularProyecto(fila.id_proyecto, client);
+
+    // Si es subacción, recalcular porcentaje del padre
+    if (fila?.id_accion_padre) {
+      await accionesQueries.recalcularAccionDesdeSubs(fila.id_accion_padre, client);
+    }
+
+    await client.query('COMMIT');
+
+    // Retornar acción actualizada
+    const actualizada = await accionesQueries.obtenerAccionPorId(accionId);
+    res.json({ datos: actualizada, mensaje: 'Acción actualizada' });
   } catch (err) {
-    // Errores de validación de negocio tienen mensaje descriptivo
-    if (err.message.includes('motivo_bloqueo') || err.message.includes('evidencia')) {
-      return res.status(400).json({
-        error: true,
-        mensaje: err.message,
-        codigo: 'VALIDACION_NEGOCIO'
-      });
+    await client.query('ROLLBACK');
+    const status = err.statusCode || (err.message.includes('evidencia') ? 400 : 500);
+    if (status < 500) {
+      return res.status(status).json({ error: true, mensaje: err.message, codigo: 'VALIDACION_NEGOCIO' });
     }
     next(err);
+  } finally {
+    client.release();
   }
 }
 
@@ -218,7 +261,6 @@ module.exports = {
   crearEnProyecto,
   crearSubaccion,
   listarSubacciones,
-  toggleSubaccion,
   actualizar,
   eliminar,
   agenda,

@@ -132,9 +132,52 @@ async function eliminarRiesgo(riesgoId) {
   return resultado.rows[0] || null;
 }
 
+// Obtiene riesgos de una acción (tipo Accion + sus subacciones)
+async function obtenerRiesgosPorAccion(accionId) {
+  const resultado = await pool.query(`
+    SELECT
+      r.*,
+      u_resp.nombre_completo AS responsable_nombre,
+      u_rep.nombre_completo AS reportador_nombre
+    FROM riesgos r
+    LEFT JOIN usuarios u_resp ON u_resp.id = r.id_responsable
+    LEFT JOIN usuarios u_rep ON u_rep.id = r.id_reportador
+    WHERE (r.entidad_tipo = 'Accion' AND r.entidad_id = $1)
+       OR (r.entidad_tipo = 'Subaccion' AND r.entidad_id IN (
+            SELECT id FROM acciones WHERE id_accion_padre = $1
+          ))
+    ORDER BY
+      CASE r.nivel WHEN 'Critico' THEN 1 WHEN 'Alto' THEN 2 WHEN 'Medio' THEN 3 ELSE 4 END,
+      r.created_at DESC
+  `, [accionId]);
+
+  return resultado.rows;
+}
+
+// Obtiene riesgos de una subacción específica
+async function obtenerRiesgosPorSubaccion(subaccionId) {
+  const resultado = await pool.query(`
+    SELECT
+      r.*,
+      u_resp.nombre_completo AS responsable_nombre,
+      u_rep.nombre_completo AS reportador_nombre
+    FROM riesgos r
+    LEFT JOIN usuarios u_resp ON u_resp.id = r.id_responsable
+    LEFT JOIN usuarios u_rep ON u_rep.id = r.id_reportador
+    WHERE r.entidad_tipo = 'Subaccion' AND r.entidad_id = $1
+    ORDER BY
+      CASE r.nivel WHEN 'Critico' THEN 1 WHEN 'Alto' THEN 2 WHEN 'Medio' THEN 3 ELSE 4 END,
+      r.created_at DESC
+  `, [subaccionId]);
+
+  return resultado.rows;
+}
+
 module.exports = {
   obtenerRiesgosPorProyecto,
   obtenerRiesgosPorEtapa,
+  obtenerRiesgosPorAccion,
+  obtenerRiesgosPorSubaccion,
   obtenerRiesgoPorId,
   crearRiesgo,
   actualizarRiesgo,

@@ -205,75 +205,43 @@ async function crearAccionEnProyecto(proyectoId, datos) {
   }
 }
 
-// Actualiza el estado y/o % de una acción con todas las validaciones de negocio.
-// Después de actualizar, dispara el recálculo en cascada (etapa → proyecto).
-async function actualizarAccion(accionId, datos, usuarioId) {
+// Actualiza campos no-estado de una acción (nombre, descripcion, porcentaje, fechas).
+// El cambio de estado se maneja en el controller vía validaciones-estado.js.
+// Acepta client de transacción para uso atómico.
+async function actualizarAccionCampos(accionId, datos, client) {
+  const db = client || pool;
 
-  // Validación: si el nuevo estado es Bloqueada debe haber motivo
-  if (datos.estado === 'Bloqueada' && !datos.motivo_bloqueo) {
-    throw new Error('Se requiere motivo_bloqueo cuando el estado es Bloqueada');
+  // Si no hay campos que actualizar, retornar la acción actual
+  const tienesCampos = datos.nombre || datos.descripcion ||
+    datos.porcentaje_avance !== undefined || datos.fecha_fin_real ||
+    datos.fecha_inicio || datos.fecha_fin;
+  if (!tienesCampos) {
+    const actual = await db.query('SELECT * FROM acciones WHERE id = $1', [accionId]);
+    return actual.rows[0] || null;
   }
 
-  // Validación: no se puede completar sin evidencia, SALVO que tenga subacciones
-  if (datos.estado === 'Completada') {
-    const subs = await pool.query(
-      'SELECT id FROM acciones WHERE id_accion_padre = $1 LIMIT 1', [accionId]
-    );
-    if (subs.rows.length === 0) {
-      const evidencias = await pool.query(
-        'SELECT id FROM evidencias WHERE id_accion = $1 LIMIT 1', [accionId]
-      );
-      if (evidencias.rows.length === 0) {
-        throw new Error('No se puede completar una acción sin al menos una evidencia');
-      }
-    }
-  }
-
-  // Obtenemos la acción actual para saber a qué etapa/proyecto pertenece
-  const accionActual = await pool.query(
-    'SELECT * FROM acciones WHERE id = $1', [accionId]
-  );
-  const accion = accionActual.rows[0];
-
-  if (!accion) {
-    throw new Error('Acción no encontrada');
-  }
-
-  // Si se marca como Completada y porcentaje no viene, poner 100
-  if (datos.estado === 'Completada' && datos.porcentaje_avance === undefined) {
-    datos.porcentaje_avance = 100;
-  }
-
-  // COALESCE mantiene el valor existente si el campo no viene en "datos"
-  const resultado = await pool.query(`
+  const resultado = await db.query(`
     UPDATE acciones SET
       nombre            = COALESCE($1, nombre),
       descripcion       = COALESCE($2, descripcion),
-      estado            = COALESCE($3, estado),
-      porcentaje_avance = COALESCE($4, porcentaje_avance),
-      motivo_bloqueo    = COALESCE($5, motivo_bloqueo),
-      fecha_fin_real    = COALESCE($6, fecha_fin_real),
+      porcentaje_avance = COALESCE($3, porcentaje_avance),
+      fecha_fin_real    = COALESCE($4, fecha_fin_real),
+      fecha_inicio      = COALESCE($5, fecha_inicio),
+      fecha_fin         = COALESCE($6, fecha_fin),
       updated_at        = NOW()
     WHERE id = $7
     RETURNING *
   `, [
     datos.nombre || null,
     datos.descripcion || null,
-    datos.estado || null,
     datos.porcentaje_avance !== undefined ? datos.porcentaje_avance : null,
-    datos.motivo_bloqueo || null,
     datos.fecha_fin_real || null,
+    datos.fecha_inicio || null,
+    datos.fecha_fin || null,
     accionId
   ]);
 
-  // Recálculo en cascada según si la acción tiene etapa o cuelga del proyecto
-  if (accion.id_etapa) {
-    await recalcularEtapa(accion.id_etapa);
-  } else if (accion.id_proyecto) {
-    await recalcularProyecto(accion.id_proyecto);
-  }
-
-  return resultado.rows[0];
+  return resultado.rows[0] || null;
 }
 
 // Elimina una acción
@@ -527,8 +495,10 @@ async function toggleSubaccion(subaccionId) {
 }
 
 // Recalcula el % de una acción padre desde sus subacciones (promedio ponderado).
-async function recalcularAccionDesdeSubs(accionPadreId) {
-  const subs = await pool.query(
+// Acepta client de transacción para uso atómico.
+async function recalcularAccionDesdeSubs(accionPadreId, client) {
+  const db = client || pool;
+  const subs = await db.query(
     `SELECT porcentaje_avance, peso_porcentaje FROM acciones
      WHERE id_accion_padre = $1 AND estado != 'Cancelada'`,
     [accionPadreId]
@@ -553,7 +523,7 @@ async function recalcularAccionDesdeSubs(accionPadreId) {
   if (promedio >= 100) estadoPadre = 'Completada';
   else if (promedio > 0) estadoPadre = 'En_proceso';
 
-  await pool.query(
+  await db.query(
     `UPDATE acciones SET porcentaje_avance = $1,
      estado = COALESCE($2, estado), updated_at = NOW()
      WHERE id = $3`,
@@ -561,13 +531,13 @@ async function recalcularAccionDesdeSubs(accionPadreId) {
   );
 
   // Cascada: etapa → proyecto
-  const padre = await pool.query(
+  const padre = await db.query(
     'SELECT id_etapa, id_proyecto FROM acciones WHERE id = $1', [accionPadreId]
   );
   if (padre.rows[0]?.id_etapa) {
-    await recalcularEtapa(padre.rows[0].id_etapa);
+    await recalcularEtapa(padre.rows[0].id_etapa, db);
   } else if (padre.rows[0]?.id_proyecto) {
-    await recalcularProyecto(padre.rows[0].id_proyecto);
+    await recalcularProyecto(padre.rows[0].id_proyecto, db);
   }
 }
 
@@ -610,12 +580,11 @@ module.exports = {
   crearAccionEnEtapa,
   crearAccionEnProyecto,
   crearSubaccion,
-  actualizarAccion,
+  actualizarAccionCampos,
   eliminarAccion,
   obtenerAccionesAgenda,
   recalcularPesosEtapa,
   importarEstructuraCSV,
-  toggleSubaccion,
   recalcularAccionDesdeSubs,
   actualizarIndicadoresAccion,
   obtenerIndicadoresAccion

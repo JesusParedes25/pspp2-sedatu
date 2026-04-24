@@ -13,7 +13,9 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const etapasQueries = require('../db/queries/etapas.queries');
+const pool = require('../db/pool');
 const { recalcularProyecto } = require('../utils/recalculos');
+const { cambiarEstado: cambiarEstadoUtil } = require('../utils/validaciones-estado');
 
 // GET /proyectos/:id/etapas — Listar etapas de un proyecto
 async function listarPorProyecto(req, res, next) {
@@ -60,18 +62,57 @@ async function crear(req, res, next) {
 }
 
 // PUT /etapas/:id — Actualizar una etapa
+// Si el body incluye 'estado', delega al módulo compartido validaciones-estado.
 async function actualizar(req, res, next) {
-  try {
-    const etapa = await etapasQueries.actualizarEtapa(req.params.id, req.body);
+  const { estado, motivo_bloqueo, nota_resolucion, ...otrosDatos } = req.body;
+  const etapaId = req.params.id;
+  const idUsuario = req.usuario?.id;
 
-    if (!etapa) {
-      return res.status(404).json({
-        error: true,
-        mensaje: 'Etapa no encontrada',
-        codigo: 'NO_ENCONTRADO'
-      });
+  // Si hay cambio de estado, usar transacción con módulo compartido
+  if (estado) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      await cambiarEstadoUtil(
+        'Etapa', etapaId, estado,
+        { motivoBloqueo: motivo_bloqueo, notaResolucion: nota_resolucion, idUsuario },
+        client
+      );
+
+      // Actualizar campos no-estado si los hay
+      if (Object.keys(otrosDatos).length > 0) {
+        await etapasQueries.actualizarEtapa(etapaId, otrosDatos, client);
+      }
+
+      // Recalcular proyecto padre
+      const etapa = await client.query('SELECT id_proyecto FROM etapas WHERE id = $1', [etapaId]);
+      if (etapa.rows[0]?.id_proyecto) {
+        await recalcularProyecto(etapa.rows[0].id_proyecto, client);
+      }
+
+      await client.query('COMMIT');
+
+      const actualizada = await etapasQueries.obtenerEtapaPorId(etapaId);
+      return res.json({ datos: actualizada, mensaje: 'Etapa actualizada' });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      const status = err.statusCode || 500;
+      if (status < 500) {
+        return res.status(status).json({ error: true, mensaje: err.message, codigo: 'VALIDACION_NEGOCIO' });
+      }
+      return next(err);
+    } finally {
+      client.release();
     }
+  }
 
+  // Sin cambio de estado: actualizar campos directamente
+  try {
+    const etapa = await etapasQueries.actualizarEtapa(etapaId, otrosDatos);
+    if (!etapa) {
+      return res.status(404).json({ error: true, mensaje: 'Etapa no encontrada', codigo: 'NO_ENCONTRADO' });
+    }
     res.json({ datos: etapa, mensaje: 'Etapa actualizada' });
   } catch (err) {
     next(err);

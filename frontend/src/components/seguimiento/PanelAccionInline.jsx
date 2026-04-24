@@ -24,6 +24,7 @@ import SubaccionItem from './SubaccionItem';
 import DrawerSubaccion from './DrawerSubaccion';
 import { TarjetaIndicadorCascada } from './ModalNuevaAccion';
 import CATEGORIAS_EVIDENCIA from './categoriasEvidencia';
+import SelectorEstado from '../common/SelectorEstado';
 import * as accionesApi from '../../api/acciones';
 import * as evidenciasApi from '../../api/evidencias';
 import * as etapasApi from '../../api/etapas';
@@ -37,7 +38,6 @@ const ESTADO_CONFIG = {
   Pendiente:  { etiqueta: 'Pendiente',  icono: Circle,       bg: 'bg-slate-50',   texto: 'text-slate-500',   borde: 'border-slate-200',  dot: 'bg-slate-300',   barra: 'bg-slate-300'  },
 };
 
-const ESTADOS_TRANSICION = ['Pendiente', 'En_proceso', 'Bloqueada', 'Completada', 'Cancelada'];
 
 const hoy = () => new Date(new Date().toDateString());
 
@@ -93,7 +93,6 @@ export default function PanelAccionInline({ accion, soloLectura, onActualizado }
   const [subiendo, setSubiendo]             = useState(false);
   const [categoriaEv, setCategoriaEv]       = useState('Otro');
   const [notasEv, setNotasEv]               = useState('');
-  const [cambiandoEstado, setCambiandoEstado] = useState(false);
   const [mostrarFormSub, setMostrarFormSub] = useState(false);
   const [nuevaSub, setNuevaSub]             = useState({ nombre: '', fecha_inicio: '', fecha_fin: '', indicadores_asociados: [] });
   const [creandoSub, setCreandoSub]         = useState(false);
@@ -176,22 +175,6 @@ export default function PanelAccionInline({ accion, soloLectura, onActualizado }
     finally { setCargandoEv(false); }
   }
 
-  async function cambiarEstado(nuevoEstado) {
-    if (cambiandoEstado || accion.estado === nuevoEstado) return;
-    const payload = { estado: nuevoEstado };
-    if (nuevoEstado === 'Bloqueada') {
-      const motivo = prompt('Motivo del bloqueo:');
-      if (!motivo) return;
-      payload.motivo_bloqueo = motivo;
-    }
-    setCambiandoEstado(true);
-    try {
-      await accionesApi.actualizarAccion(accion.id, payload);
-      onActualizado && onActualizado();
-    } catch (err) {
-      alert(err.response?.data?.mensaje || 'Error al cambiar estado');
-    } finally { setCambiandoEstado(false); }
-  }
 
   function toggleIndicadorAccion(indicadorId) {
     setIndicadoresAccion(prev => {
@@ -421,23 +404,14 @@ export default function PanelAccionInline({ accion, soloLectura, onActualizado }
       {/* ── CAMBIO DE ESTADO ────────────────────────────────────── */}
       {!soloLectura && (
         <div className="px-4 py-2 flex items-center gap-1.5 flex-wrap bg-slate-50/60 border-b border-gray-100">
-          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mr-1">Cambiar a:</span>
-          {ESTADOS_TRANSICION.map(est => {
-            const c = ESTADO_CONFIG[est];
-            const activo = accion.estado === est;
-            return (
-              <button key={est}
-                disabled={cambiandoEstado || activo}
-                onClick={() => cambiarEstado(est)}
-                className={`flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-lg transition-all font-semibold ${
-                  activo
-                    ? `${c.bg} ${c.texto} border ${c.borde} shadow-sm`
-                    : 'text-gray-400 hover:bg-white hover:text-gray-700 hover:shadow-sm'
-                } disabled:cursor-default`}>
-                <c.icono size={10} />{c.etiqueta}
-              </button>
-            );
-          })}
+          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mr-1">Estado:</span>
+          <SelectorEstado
+            entidadTipo={accion.id_accion_padre ? 'Subaccion' : 'Accion'}
+            entidadId={accion.id}
+            estadoActual={accion.estado}
+            onCambio={onActualizado}
+            soloLectura={soloLectura}
+          />
         </div>
       )}
 

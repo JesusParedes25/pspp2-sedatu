@@ -62,8 +62,14 @@ export async function importarCSV(proyectoId, filas) {
   return data;
 }
 
+// DEPRECADO: toggleSubaccion eliminado. Usar cambiarEstado de api/estado.js
+// Se mantiene este wrapper por retrocompatibilidad temporal.
 export async function toggleSubaccion(subaccionId) {
-  const { data } = await client.put(`/subacciones/${subaccionId}/toggle`);
+  // Obtener estado actual y alternar
+  const { data: info } = await client.get(`/acciones/${subaccionId}`);
+  const actual = info.datos?.estado || 'Pendiente';
+  const nuevoEstado = actual === 'Completada' ? 'Pendiente' : 'Completada';
+  const { data } = await client.put(`/acciones/${subaccionId}`, { estado: nuevoEstado });
   return data;
 }
 

@@ -14,14 +14,9 @@
 
 // Mapeo de cada estado posible a sus clases de Tailwind
 const estilosPorEstado = {
-  // Proyectos y subproyectos
-  Programado:    'bg-gray-100 text-gray-700',
-  En_proceso:    'bg-blue-100 text-blue-700',
-  Pausado:       'bg-yellow-100 text-yellow-700',
-  Concluido:     'bg-green-100 text-green-700',
-  Cancelado:     'bg-red-100 text-red-700',
-  // Etapas y acciones
+  // Catálogo unificado (Proyectos, Etapas, Acciones, Subacciones)
   Pendiente:     'bg-gray-100 text-gray-700',
+  En_proceso:    'bg-blue-100 text-blue-700',
   Bloqueada:     'bg-red-100 text-red-700',
   Completada:    'bg-green-100 text-green-700',
   Cancelada:     'bg-red-100 text-red-500',

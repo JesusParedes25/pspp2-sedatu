@@ -12,17 +12,16 @@
  * persisten al momento de la interacción, no al cerrar.
  * ─────────────────────────────────────────────────────────────────
  */
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Upload, Download, Trash2, FileText, Paperclip } from 'lucide-react';
-import * as accionesApi from '../../api/acciones';
+import SelectorEstado from '../common/SelectorEstado';
 import * as evidenciasApi from '../../api/evidencias';
 import CATEGORIAS_EVIDENCIA from './categoriasEvidencia';
 import HiloComentarios from '../comentarios/HiloComentarios';
 
 export default function DrawerSubaccion({ sub, soloLectura, onCerrar, onCambio }) {
   const [visible, setVisible] = useState(false);
-  const [toggling, setToggling] = useState(false);
   const [evidencias, setEvidencias] = useState([]);
   const [cargandoEv, setCargandoEv] = useState(false);
   const [subiendo, setSubiendo] = useState(false);
@@ -60,19 +59,6 @@ export default function DrawerSubaccion({ sub, soloLectura, onCerrar, onCambio }
     } catch { /* silenciar */ }
     finally { setCargandoEv(false); }
   }
-
-  const toggleCheck = useCallback(async () => {
-    if (toggling || soloLectura) return;
-    setToggling(true);
-    try {
-      await accionesApi.toggleSubaccion(sub.id);
-      onCambio && onCambio();
-    } catch (err) {
-      alert(err.response?.data?.mensaje || 'Error al cambiar subacción');
-    } finally {
-      setToggling(false);
-    }
-  }, [sub.id, toggling, soloLectura, onCambio]);
 
   async function subirArchivo(e) {
     const archivo = e.target.files?.[0];
@@ -126,23 +112,16 @@ export default function DrawerSubaccion({ sub, soloLectura, onCerrar, onCambio }
         {/* ── Header ── */}
         <div className="flex-shrink-0 border-b border-gray-100 px-5 py-4">
           <div className="flex items-start gap-3">
-            {/* Checkbox */}
-            {!soloLectura ? (
-              <button onClick={toggleCheck} disabled={toggling}
-                className={`w-6 h-6 mt-0.5 rounded-lg flex-shrink-0 flex items-center justify-center border-2 transition-all duration-200 ${
-                  completada
-                    ? 'bg-emerald-500 border-emerald-500 text-white'
-                    : 'border-gray-300 hover:border-guinda-400'
-                } ${toggling ? 'opacity-40' : 'active:scale-90'}`}>
-                {completada && (
-                  <svg width="14" height="14" viewBox="0 0 12 12" fill="none">
-                    <path d="M2.5 6l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                )}
-              </button>
-            ) : (
-              <div className={`w-3 h-3 mt-1.5 rounded-full flex-shrink-0 ${completada ? 'bg-emerald-400' : 'bg-gray-300'}`} />
-            )}
+            {/* Selector de estado */}
+            <div className="mt-0.5 flex-shrink-0">
+              <SelectorEstado
+                entidadTipo="Subaccion"
+                entidadId={sub.id}
+                estadoActual={sub.estado}
+                onCambio={onCambio}
+                soloLectura={soloLectura}
+              />
+            </div>
 
             {/* Info */}
             <div className="flex-1 min-w-0">
@@ -152,13 +131,6 @@ export default function DrawerSubaccion({ sub, soloLectura, onCerrar, onCambio }
                 {sub.nombre}
               </h2>
               <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                  completada
-                    ? 'bg-emerald-50 text-emerald-600'
-                    : 'bg-gray-100 text-gray-500'
-                }`}>
-                  {sub.estado?.replace(/_/g, ' ') || 'Pendiente'}
-                </span>
                 {parseFloat(sub.peso_porcentaje) > 0 && (
                   <span className="tabular-nums">Peso: {parseFloat(sub.peso_porcentaje).toFixed(0)}%</span>
                 )}

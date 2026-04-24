@@ -182,12 +182,15 @@ async function crearProyecto(datos, creadorId) {
   }
 }
 
-// Actualiza un proyecto con todos sus campos e indicadores en transacción
-async function actualizarProyecto(proyectoId, datos) {
+// Actualiza un proyecto con todos sus campos e indicadores en transacción.
+// El campo 'estado' ya NO se actualiza aquí — se maneja via validaciones-estado.js.
+// Acepta un client externo para participar en una transacción del controller.
+async function actualizarProyecto(proyectoId, datos, externalClient) {
   const n = (v) => (v === '' || v === undefined) ? null : v;
-  const client = await pool.connect();
+  const gestionaTransaccion = !externalClient;
+  const client = externalClient || await pool.connect();
   try {
-    await client.query('BEGIN');
+    if (gestionaTransaccion) await client.query('BEGIN');
 
     const tieneIndicadores = Array.isArray(datos.indicadores) && datos.indicadores.length > 0;
 
@@ -196,27 +199,25 @@ async function actualizarProyecto(proyectoId, datos) {
         nombre                  = COALESCE($1, nombre),
         descripcion             = $2,
         tipo                    = COALESCE($3, tipo),
-        estado                  = COALESCE($4, estado),
-        meta_descripcion        = $5,
-        tiene_indicador         = $6,
-        es_prioritario          = $7,
-        ciclo_anual             = $8,
-        dependencia_externa     = $9,
-        descripcion_dependencia = $10,
-        tiene_subproyectos      = $11,
-        fecha_inicio            = $12,
-        fecha_limite            = $13,
-        id_dg_lider             = $14,
-        id_direccion_area_lider = $15,
-        id_programa             = $16,
+        meta_descripcion        = $4,
+        tiene_indicador         = $5,
+        es_prioritario          = $6,
+        ciclo_anual             = $7,
+        dependencia_externa     = $8,
+        descripcion_dependencia = $9,
+        tiene_subproyectos      = $10,
+        fecha_inicio            = $11,
+        fecha_limite            = $12,
+        id_dg_lider             = $13,
+        id_direccion_area_lider = $14,
+        id_programa             = $15,
         updated_at              = NOW()
-      WHERE id = $17 AND deleted_at IS NULL
+      WHERE id = $16 AND deleted_at IS NULL
       RETURNING *
     `, [
       datos.nombre,
       n(datos.descripcion),
       n(datos.tipo),
-      n(datos.estado),
       n(datos.meta_descripcion),
       tieneIndicadores,
       datos.es_prioritario ?? false,
@@ -233,7 +234,10 @@ async function actualizarProyecto(proyectoId, datos) {
     ]);
 
     const proyecto = resultado.rows[0];
-    if (!proyecto) { await client.query('ROLLBACK'); return null; }
+    if (!proyecto) {
+      if (gestionaTransaccion) await client.query('ROLLBACK');
+      return null;
+    }
 
     // Sincronizar etiquetas si se envían
     if (Array.isArray(datos.etiquetas)) {
@@ -248,13 +252,13 @@ async function actualizarProyecto(proyectoId, datos) {
       }
     }
 
-    await client.query('COMMIT');
+    if (gestionaTransaccion) await client.query('COMMIT');
     return proyecto;
   } catch (err) {
-    await client.query('ROLLBACK');
+    if (gestionaTransaccion) await client.query('ROLLBACK');
     throw err;
   } finally {
-    client.release();
+    if (gestionaTransaccion) client.release();
   }
 }
 

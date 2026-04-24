@@ -8,7 +8,8 @@
     "start": "node src/server.js",
     "seed": "node src/db/seeders/index.js",
     "seed:base": "node src/db/seeders/index.js --base",
-    "migrate": "node src/db/migrate.js"
+    "migrate": "node src/db/migrate.js",
+    "test": "jest --verbose"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -22,6 +23,7 @@
     "uuid": "^9.0.0"
   },
   "devDependencies": {
+    "jest": "^30.3.0",
     "nodemon": "^3.0.2"
   }
 }

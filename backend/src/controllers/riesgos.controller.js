@@ -90,6 +90,26 @@ async function actualizar(req, res, next) {
   }
 }
 
+// GET /acciones/:id/riesgos — Listar riesgos de una acción
+async function listarPorAccion(req, res, next) {
+  try {
+    const riesgos = await riesgosQueries.obtenerRiesgosPorAccion(req.params.id);
+    res.json({ datos: riesgos, mensaje: 'Riesgos de acción obtenidos' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /subacciones/:id/riesgos — Listar riesgos de una subacción
+async function listarPorSubaccion(req, res, next) {
+  try {
+    const riesgos = await riesgosQueries.obtenerRiesgosPorSubaccion(req.params.id);
+    res.json({ datos: riesgos, mensaje: 'Riesgos de subacción obtenidos' });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // DELETE /riesgos/:id — Eliminar un riesgo
 async function eliminar(req, res, next) {
   try {
@@ -109,4 +129,7 @@ async function eliminar(req, res, next) {
   }
 }
 
-module.exports = { listarPorProyecto, listarPorEtapa, obtenerPorId, crear, actualizar, eliminar };
+module.exports = {
+  listarPorProyecto, listarPorEtapa, listarPorAccion, listarPorSubaccion,
+  obtenerPorId, crear, actualizar, eliminar
+};

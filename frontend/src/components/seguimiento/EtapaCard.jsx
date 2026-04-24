@@ -12,14 +12,14 @@
  * para cambios de subacciones (no desmonta hijos).
  * ─────────────────────────────────────────────────────────────────
  */
-import { useState, useEffect, useMemo } from 'react';
-import { ChevronDown, Plus, AlertTriangle, Shield, Trash2, ListOrdered, CalendarClock, Flag, BarChart3, Pencil, SlidersHorizontal } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { ChevronDown, Plus, AlertTriangle, Trash2, ListOrdered, CalendarClock, Flag, BarChart3, Pencil, SlidersHorizontal } from 'lucide-react';
 import PanelAccionInline from './PanelAccionInline';
 import HiloComentarios from '../comentarios/HiloComentarios';
-import RiesgoCard from '../riesgos/RiesgoCard';
+import PanelRiesgos from '../riesgos/PanelRiesgos';
 import ModalEditarEtapa from './ModalEditarEtapa';
+import SelectorEstado from '../common/SelectorEstado';
 import { useAcciones } from '../../hooks/useAcciones';
-import * as riesgosApi from '../../api/riesgos';
 import * as etapasApi from '../../api/etapas';
 
 const ESTADO_CONFIG_FICHA = {
@@ -39,8 +39,6 @@ const CRITERIOS_ORDEN = [
 
 export default function EtapaCard({ etapa, proyecto, etapas = [], soloLectura = false, onAccionCreada, onEtapaActualizada }) {
   const [expandida, setExpandida] = useState(false);
-  const [mostrarRiesgos, setMostrarRiesgos] = useState(false);
-  const [riesgos, setRiesgos] = useState([]);
   const [ordenActivo, setOrdenActivo] = useState('orden');
   const [mostrarOrden, setMostrarOrden] = useState(false);
   const [modalEdicion, setModalEdicion] = useState(false);
@@ -70,12 +68,6 @@ export default function EtapaCard({ etapa, proyecto, etapas = [], soloLectura = 
     }
   }, [acciones, ordenActivo]);
 
-  useEffect(() => {
-    if (!expandida || !etapa.id) return;
-    riesgosApi.obtenerRiesgosEtapa(etapa.id)
-      .then(res => setRiesgos(res.datos || []))
-      .catch(() => {});
-  }, [expandida, etapa.id]);
 
   const periodo = etapa.fecha_inicio && etapa.fecha_fin
     ? `${new Date(etapa.fecha_inicio).toLocaleDateString('es-MX', { month: 'short', year: 'numeric' })} — ${new Date(etapa.fecha_fin).toLocaleDateString('es-MX', { month: 'short', year: 'numeric' })}`
@@ -100,11 +92,15 @@ export default function EtapaCard({ etapa, proyecto, etapas = [], soloLectura = 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-gray-800 truncate">{etapa.nombre}</span>
-              {riesgos.length > 0 && (
-                <span className="flex items-center gap-0.5 text-[10px] text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">
-                  <Shield size={10} /> {riesgos.length}
-                </span>
-              )}
+              <div onClick={e => e.stopPropagation()} className="flex-shrink-0">
+                <SelectorEstado
+                  entidadTipo="Etapa"
+                  entidadId={etapa.id}
+                  estadoActual={etapa.estado}
+                  onCambio={onEtapaActualizada}
+                  soloLectura={soloLectura}
+                />
+              </div>
             </div>
             {(periodo || etapa.responsable_nombre) && (
               <div className="flex items-center gap-2 mt-0.5 text-[11px] text-gray-400">
@@ -160,21 +156,14 @@ export default function EtapaCard({ etapa, proyecto, etapas = [], soloLectura = 
           )}
 
           {/* Riesgos */}
-          {riesgos.length > 0 && (
-            <div className="mb-3">
-              <button onClick={() => setMostrarRiesgos(!mostrarRiesgos)}
-                className="flex items-center gap-2 text-xs font-medium text-orange-500 hover:text-orange-600 transition-colors">
-                <Shield size={13} />
-                {riesgos.length} riesgo(s)
-                <ChevronDown size={12} className={`transition-transform ${mostrarRiesgos ? 'rotate-180' : ''}`} />
-              </button>
-              {mostrarRiesgos && (
-                <div className="mt-2 space-y-2">
-                  {riesgos.map(r => <RiesgoCard key={r.id} riesgo={r} compacto />)}
-                </div>
-              )}
-            </div>
-          )}
+          <div className="mb-3">
+            <PanelRiesgos
+              entidadTipo="Etapa"
+              entidadId={etapa.id}
+              soloLectura={soloLectura}
+              compacto
+            />
+          </div>
 
           {/* Toolbar: ordenar + editar + eliminar */}
           <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-100">

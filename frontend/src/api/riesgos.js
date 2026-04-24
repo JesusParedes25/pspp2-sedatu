@@ -37,6 +37,16 @@ export async function actualizarRiesgo(id, datos) {
   return data;
 }
 
+export async function obtenerRiesgosAccion(accionId) {
+  const { data } = await client.get(`/acciones/${accionId}/riesgos`);
+  return data;
+}
+
+export async function obtenerRiesgosSubaccion(subaccionId) {
+  const { data } = await client.get(`/subacciones/${subaccionId}/riesgos`);
+  return data;
+}
+
 export async function eliminarRiesgo(id) {
   const { data } = await client.delete(`/riesgos/${id}`);
   return data;
