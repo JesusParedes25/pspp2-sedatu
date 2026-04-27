@@ -17,7 +17,7 @@ import {
   Upload, Download, Trash2, FileText, Plus,
   Lock, CheckCircle2, Circle, Ban, Clock,
   Flame, CalendarClock, AlertTriangle, Paperclip,
-  MessageSquare, Tag, BarChart3, Save,
+  MessageSquare, Tag, BarChart3, Save, Pencil,
 } from 'lucide-react';
 import HiloConsolidado from '../comentarios/HiloConsolidado';
 import SubaccionItem from './SubaccionItem';
@@ -25,6 +25,7 @@ import DrawerSubaccion from './DrawerSubaccion';
 import { TarjetaIndicadorCascada } from './ModalNuevaAccion';
 import CATEGORIAS_EVIDENCIA from './categoriasEvidencia';
 import SelectorEstado from '../common/SelectorEstado';
+import ModalEditarAccion from './ModalEditarAccion';
 import * as accionesApi from '../../api/acciones';
 import * as evidenciasApi from '../../api/evidencias';
 import * as etapasApi from '../../api/etapas';
@@ -104,6 +105,7 @@ export default function PanelAccionInline({ accion, soloLectura, onActualizado }
   const [resumenesAccion, setResumenesAccion] = useState({});
   const [indicadoresAccion, setIndicadoresAccion] = useState([]);
   const [guardandoInd, setGuardandoInd] = useState(false);
+  const [modalEditar, setModalEditar] = useState(false);
   const fileRef = useRef(null);
 
   const estaVencida = !['Completada', 'Cancelada'].includes(accion.estado)
@@ -412,7 +414,21 @@ export default function PanelAccionInline({ accion, soloLectura, onActualizado }
             onCambio={onActualizado}
             soloLectura={soloLectura}
           />
+          <button onClick={() => setModalEditar(true)}
+            className="ml-auto text-gray-300 hover:text-guinda-500 transition-colors p-1"
+            title="Editar acción">
+            <Pencil size={13} />
+          </button>
         </div>
+      )}
+
+      {/* Modal editar acción */}
+      {modalEditar && (
+        <ModalEditarAccion
+          accion={accion}
+          onGuardado={onActualizado}
+          onCerrar={() => setModalEditar(false)}
+        />
       )}
 
       {/* Alertas */}

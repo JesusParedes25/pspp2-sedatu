@@ -205,16 +205,18 @@ async function crearAccionEnProyecto(proyectoId, datos) {
   }
 }
 
-// Actualiza campos no-estado de una acción (nombre, descripcion, porcentaje, fechas).
+// Actualiza campos no-estado de una acción (nombre, descripcion, porcentaje, fechas, responsable, DG, DA, tipo).
 // El cambio de estado se maneja en el controller vía validaciones-estado.js.
 // Acepta client de transacción para uso atómico.
 async function actualizarAccionCampos(accionId, datos, client) {
   const db = client || pool;
 
   // Si no hay campos que actualizar, retornar la acción actual
-  const tienesCampos = datos.nombre || datos.descripcion ||
+  const tienesCampos = datos.nombre || datos.descripcion !== undefined ||
     datos.porcentaje_avance !== undefined || datos.fecha_fin_real ||
-    datos.fecha_inicio || datos.fecha_fin;
+    datos.fecha_inicio || datos.fecha_fin ||
+    datos.id_responsable !== undefined || datos.id_dg !== undefined ||
+    datos.id_direccion_area !== undefined || datos.tipo;
   if (!tienesCampos) {
     const actual = await db.query('SELECT * FROM acciones WHERE id = $1', [accionId]);
     return actual.rows[0] || null;
@@ -222,22 +224,30 @@ async function actualizarAccionCampos(accionId, datos, client) {
 
   const resultado = await db.query(`
     UPDATE acciones SET
-      nombre            = COALESCE($1, nombre),
-      descripcion       = COALESCE($2, descripcion),
-      porcentaje_avance = COALESCE($3, porcentaje_avance),
-      fecha_fin_real    = COALESCE($4, fecha_fin_real),
-      fecha_inicio      = COALESCE($5, fecha_inicio),
-      fecha_fin         = COALESCE($6, fecha_fin),
-      updated_at        = NOW()
-    WHERE id = $7
+      nombre              = COALESCE($1, nombre),
+      descripcion         = COALESCE($2, descripcion),
+      porcentaje_avance   = COALESCE($3, porcentaje_avance),
+      fecha_fin_real      = COALESCE($4, fecha_fin_real),
+      fecha_inicio        = COALESCE($5, fecha_inicio),
+      fecha_fin           = COALESCE($6, fecha_fin),
+      id_responsable      = COALESCE($7, id_responsable),
+      id_dg               = COALESCE($8, id_dg),
+      id_direccion_area   = COALESCE($9, id_direccion_area),
+      tipo                = COALESCE($10, tipo),
+      updated_at          = NOW()
+    WHERE id = $11
     RETURNING *
   `, [
     datos.nombre || null,
-    datos.descripcion || null,
+    datos.descripcion !== undefined ? (datos.descripcion || null) : null,
     datos.porcentaje_avance !== undefined ? datos.porcentaje_avance : null,
     datos.fecha_fin_real || null,
     datos.fecha_inicio || null,
     datos.fecha_fin || null,
+    datos.id_responsable !== undefined ? (datos.id_responsable || null) : null,
+    datos.id_dg !== undefined ? (datos.id_dg || null) : null,
+    datos.id_direccion_area !== undefined ? (datos.id_direccion_area || null) : null,
+    datos.tipo || null,
     accionId
   ]);
 

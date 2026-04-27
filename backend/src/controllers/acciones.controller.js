@@ -14,7 +14,7 @@
  */
 const accionesQueries = require('../db/queries/acciones.queries');
 const pool = require('../db/pool');
-const { cambiarEstado: cambiarEstadoUtil, tipoRealAccion } = require('../utils/validaciones-estado');
+const { cambiarEstado: cambiarEstadoUtil, tipoRealAccion, verificarAutoCompletarPadre } = require('../utils/validaciones-estado');
 const { recalcularEtapa, recalcularProyecto } = require('../utils/recalculos');
 
 // GET /etapas/:id/acciones — Listar acciones de una etapa
@@ -107,6 +107,11 @@ async function actualizar(req, res, next) {
         { motivoBloqueo: motivo_bloqueo, notaResolucion: nota_resolucion, idUsuario },
         client
       );
+
+      // Auto-completar padre si todos los hijos están terminados
+      if (['Completada', 'Cancelada'].includes(estado)) {
+        await verificarAutoCompletarPadre(entidadTipo, accionId, idUsuario, client);
+      }
     }
 
     // Actualizar campos no-estado si hay alguno

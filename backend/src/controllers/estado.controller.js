@@ -14,7 +14,8 @@
 const pool = require('../db/pool');
 const {
   cambiarEstado: cambiarEstadoUtil,
-  contarDescendientes
+  contarDescendientes,
+  verificarAutoCompletarPadre
 } = require('../utils/validaciones-estado');
 const { recalcularEtapa, recalcularProyecto } = require('../utils/recalculos');
 
@@ -41,6 +42,11 @@ async function cambiarEstado(req, res) {
       { motivoBloqueo: motivo_bloqueo, notaResolucion: nota_resolucion, idUsuario },
       client
     );
+
+    // Auto-completar padre si todos los hijos están terminados
+    if (['Completada', 'Cancelada'].includes(estado)) {
+      await verificarAutoCompletarPadre(entidad_tipo, entidad_id, idUsuario, client);
+    }
 
     // Recalcular porcentajes en cascada tras cambio de estado
     await recalcularTrasEstado(entidad_tipo, entidad_id, client);

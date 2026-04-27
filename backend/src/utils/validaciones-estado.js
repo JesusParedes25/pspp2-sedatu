@@ -400,6 +400,60 @@ async function contarDescendientes(entidadTipo, entidadId, client) {
   return conteo;
 }
 
+/**
+ * Verifica si el padre de una entidad debe auto-completarse.
+ * Se llama después de que un hijo cambia a Completada o Cancelada.
+ * Si TODOS los hermanos están en estado terminal (Completada/Cancelada),
+ * el padre se marca automáticamente como Completada.
+ * Luego recursa hacia arriba (etapa→proyecto).
+ *
+ * @param {string} entidadTipo - Tipo del HIJO que acaba de cambiar
+ * @param {string} entidadId   - UUID del HIJO que acaba de cambiar
+ * @param {string} idUsuario   - UUID del usuario que hizo el cambio
+ * @param {object} client      - pg client de transacción
+ */
+async function verificarAutoCompletarPadre(entidadTipo, entidadId, idUsuario, client) {
+  const db = client || pool;
+
+  // Obtener la entidad para saber quién es su padre
+  const entidad = await obtenerEntidad(entidadTipo, entidadId, db);
+  const padreInfo = obtenerPadreInfo(entidadTipo, entidad);
+  if (!padreInfo) return; // Es raíz (Proyecto), no hay padre
+
+  const padre = await obtenerEntidad(padreInfo.padreTipo, padreInfo.padreId, db);
+
+  // No auto-completar si el padre ya está Completada, Cancelada o Bloqueada
+  if (['Completada', 'Cancelada', 'Bloqueada'].includes(padre.estado)) return;
+
+  // Verificar si todos los hijos del padre están en estado terminal
+  const check = await validarCompletitud(padreInfo.padreTipo, padreInfo.padreId, db);
+  if (!check.valido) return; // Aún hay hijos sin terminar
+
+  // Auto-completar el padre
+  const mapaPadre = MAPA_ENTIDAD[padreInfo.padreTipo];
+  await db.query(
+    `UPDATE ${mapaPadre.tabla} SET estado = 'Completada', updated_at = NOW() WHERE id = $1`,
+    [padreInfo.padreId]
+  );
+
+  // Si el padre es una acción, poner porcentaje al 100%
+  if (padreInfo.padreTipo === 'Accion' || padreInfo.padreTipo === 'Subaccion') {
+    await db.query(
+      `UPDATE acciones SET porcentaje_avance = 100 WHERE id = $1`,
+      [padreInfo.padreId]
+    );
+  }
+
+  // Registrar auditoría del auto-completado
+  await registrarAuditoria(
+    mapaPadre.tabla, padreInfo.padreId, padre.estado, 'Completada',
+    idUsuario, null, db
+  );
+
+  // Recursar: verificar si el abuelo también debe auto-completarse
+  await verificarAutoCompletarPadre(padreInfo.padreTipo, padreInfo.padreId, idUsuario, db);
+}
+
 module.exports = {
   ESTADOS_VALIDOS,
   MAPA_ENTIDAD,
@@ -412,5 +466,6 @@ module.exports = {
   registrarAuditoria,
   contarDescendientes,
   obtenerEntidad,
-  tipoRealAccion
+  tipoRealAccion,
+  verificarAutoCompletarPadre
 };
