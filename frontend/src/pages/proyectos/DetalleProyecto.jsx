@@ -65,7 +65,7 @@ export default function DetalleProyecto() {
   const { proyecto, cargando, error, recargar: recargarProyecto } = useProyecto(id);
   const permisos = usePermisosProyecto(proyecto);
   const [dgSeleccionada, setDgSeleccionada] = useState(null);
-  const { etapas, cargando: cargandoEtapas, recargar: recargarEtapas } = useEtapas(id, dgSeleccionada);
+  const { etapas, cargando: cargandoEtapas, recargar: recargarEtapas, recargarSilencioso: recargarEtapasSilencioso } = useEtapas(id, dgSeleccionada);
   const [pestanaActiva, setPestanaActiva] = useState('resumen');
   const [subseccionActiva, setSubseccionActiva] = useState('etapas');
 
@@ -323,7 +323,7 @@ export default function DetalleProyecto() {
                     etapas={etapas}
                     soloLectura={permisos.esSoloLectura}
                     onAccionCreada={(etapaId) => setModalAccion(etapaId)}
-                    onEtapaActualizada={recargarEtapas}
+                    onEtapaActualizada={recargarEtapasSilencioso}
                   />
                 ))
               )}

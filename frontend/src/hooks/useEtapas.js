@@ -19,9 +19,9 @@ export function useEtapas(proyectoId, idDg) {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
 
-  const cargar = useCallback(async () => {
+  const cargar = useCallback(async (silencioso = false) => {
     if (!proyectoId) return;
-    setCargando(true);
+    if (!silencioso) setCargando(true);
     setError(null);
     try {
       const respuesta = await etapasApi.obtenerEtapasProyecto(proyectoId, idDg);
@@ -29,13 +29,16 @@ export function useEtapas(proyectoId, idDg) {
     } catch (err) {
       setError(err.response?.data?.mensaje || 'Error al cargar etapas');
     } finally {
-      setCargando(false);
+      if (!silencioso) setCargando(false);
     }
   }, [proyectoId, idDg]);
+
+  // Recarga silenciosa: actualiza datos sin mostrar spinner (no desmonta hijos)
+  const recargarSilencioso = useCallback(() => cargar(true), [cargar]);
 
   useEffect(() => {
     cargar();
   }, [cargar]);
 
-  return { etapas, cargando, error, recargar: cargar };
+  return { etapas, cargando, error, recargar: cargar, recargarSilencioso };
 }
