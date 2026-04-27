@@ -13,7 +13,13 @@
  */
 import { Search } from 'lucide-react';
 
-const estados = ['En_proceso', 'Programado', 'Pausado', 'Concluido', 'Cancelado'];
+const estados = [
+  { valor: 'Pendiente',   etiqueta: 'Pendiente' },
+  { valor: 'En_proceso',  etiqueta: 'En proceso' },
+  { valor: 'Bloqueada',   etiqueta: 'Bloqueada' },
+  { valor: 'Completada',  etiqueta: 'Completada' },
+  { valor: 'Cancelada',   etiqueta: 'Cancelada' },
+];
 const tipos = [
   { valor: 'Analisis_tecnico', etiqueta: 'Análisis técnico' },
   { valor: 'Obra_fisica', etiqueta: 'Obra física' },
@@ -45,18 +51,18 @@ export default function FiltrosProyectos({ filtros, onCambio }) {
         <span className="text-xs text-gray-500 self-center mr-1">Estado:</span>
         {estados.map(estado => (
           <button
-            key={estado}
+            key={estado.valor}
             onClick={() => onCambio({
-              estado: filtros.estado === estado ? undefined : estado,
+              estado: filtros.estado === estado.valor ? undefined : estado.valor,
               pagina: 1
             })}
             className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-              filtros.estado === estado
+              filtros.estado === estado.valor
                 ? 'bg-guinda-500 text-white'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
-            {estado.replace(/_/g, ' ')}
+            {estado.etiqueta}
           </button>
         ))}
       </div>
