@@ -17,7 +17,7 @@ import {
   Upload, Download, Trash2, FileText, Plus,
   Lock, CheckCircle2, Circle, Ban, Clock,
   Flame, CalendarClock, AlertTriangle, Paperclip,
-  MessageSquare, Tag, BarChart3, Save, Pencil,
+  MessageSquare, Tag, BarChart3, Save, Pencil, ShieldAlert,
 } from 'lucide-react';
 import HiloConsolidado from '../comentarios/HiloConsolidado';
 import SubaccionItem from './SubaccionItem';
@@ -26,6 +26,7 @@ import { TarjetaIndicadorCascada } from './ModalNuevaAccion';
 import CATEGORIAS_EVIDENCIA from './categoriasEvidencia';
 import SelectorEstado from '../common/SelectorEstado';
 import ModalEditarAccion from './ModalEditarAccion';
+import PanelRiesgos from '../riesgos/PanelRiesgos';
 import * as accionesApi from '../../api/acciones';
 import * as evidenciasApi from '../../api/evidencias';
 import * as etapasApi from '../../api/etapas';
@@ -587,6 +588,7 @@ export default function PanelAccionInline({ accion, soloLectura, onActualizado, 
             {[
               { clave: 'indicadores', label: 'Indicadores', icono: BarChart3, count: indicadoresAccion.length },
               { clave: 'archivos',  label: 'Archivos',  icono: Paperclip,     count: todasEvidencias.length },
+              { clave: 'riesgos',   label: 'Riesgos',   icono: ShieldAlert,   count: null },
               { clave: 'discusion', label: 'Discusión', icono: MessageSquare, count: null },
             ].map(tab => (
               <button key={tab.clave} onClick={() => setTabDerecha(tab.clave)}
@@ -698,6 +700,15 @@ export default function PanelAccionInline({ accion, soloLectura, onActualizado, 
                   </div>
                 )}
               </div>
+            )}
+            {tabDerecha === 'riesgos' && (
+              <PanelRiesgos
+                entidadTipo="Accion"
+                entidadId={accion.id}
+                soloLectura={soloLectura}
+                compacto
+                onStatsChange={onStatsChange}
+              />
             )}
             {tabDerecha === 'discusion' && (
               <HiloConsolidado

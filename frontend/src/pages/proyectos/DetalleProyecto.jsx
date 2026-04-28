@@ -101,7 +101,7 @@ export default function DetalleProyecto() {
       }
     }
     cargar();
-  }, [id, pestanaActiva]);
+  }, [id, pestanaActiva, statsKey]);
 
   // Filtrar evidencias en el cliente
   const evidenciasFiltradas = useMemo(() => {

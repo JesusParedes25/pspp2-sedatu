@@ -19,6 +19,7 @@ import SelectorEstado from '../common/SelectorEstado';
 import * as evidenciasApi from '../../api/evidencias';
 import CATEGORIAS_EVIDENCIA from './categoriasEvidencia';
 import HiloComentarios from '../comentarios/HiloComentarios';
+import PanelRiesgos from '../riesgos/PanelRiesgos';
 
 export default function DrawerSubaccion({ sub, soloLectura, onCerrar, onCambio, onStatsChange }) {
   const [visible, setVisible] = useState(false);
@@ -207,6 +208,20 @@ export default function DrawerSubaccion({ sub, soloLectura, onCerrar, onCambio, 
                 </button>
               </div>
             )}
+          </section>
+
+          {/* Sección: Riesgos */}
+          <section>
+            <h3 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">
+              Riesgos
+            </h3>
+            <PanelRiesgos
+              entidadTipo="Subaccion"
+              entidadId={sub.id}
+              soloLectura={soloLectura}
+              compacto
+              onStatsChange={onStatsChange}
+            />
           </section>
 
           {/* Sección: Discusión */}

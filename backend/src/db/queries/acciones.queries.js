@@ -20,6 +20,7 @@ async function obtenerAccionesPorEtapa(etapaId) {
   const resultado = await pool.query(`
     SELECT
       a.*,
+      COALESCE(bl.motivo, a.motivo_bloqueo) AS motivo_bloqueo,
       u.nombre_completo AS responsable_nombre,
       u.cargo AS responsable_cargo,
       dg.siglas AS dg_siglas,
@@ -27,12 +28,17 @@ async function obtenerAccionesPorEtapa(etapaId) {
       COUNT(e.id) AS total_evidencias,
       (SELECT COUNT(*) FROM acciones sub WHERE sub.id_accion_padre = a.id) AS total_subacciones
     FROM acciones a
+    LEFT JOIN LATERAL (
+      SELECT motivo FROM bloqueos
+      WHERE entidad_tipo = 'Accion' AND entidad_id = a.id AND fecha_desbloqueo IS NULL
+      ORDER BY created_at DESC LIMIT 1
+    ) bl ON true
     LEFT JOIN usuarios u  ON u.id = a.id_responsable
     LEFT JOIN direcciones_generales dg ON dg.id = a.id_dg
     LEFT JOIN direcciones_area da ON da.id = a.id_direccion_area
     LEFT JOIN evidencias e ON e.id_accion = a.id
     WHERE a.id_etapa = $1 AND a.id_accion_padre IS NULL
-    GROUP BY a.id, u.nombre_completo, u.cargo, dg.siglas, da.siglas
+    GROUP BY a.id, u.nombre_completo, u.cargo, dg.siglas, da.siglas, bl.motivo
     ORDER BY a.fecha_inicio ASC
   `, [etapaId]);
 
@@ -44,15 +50,21 @@ async function obtenerSubacciones(accionPadreId) {
   const resultado = await pool.query(`
     SELECT
       a.*,
+      COALESCE(bl.motivo, a.motivo_bloqueo) AS motivo_bloqueo,
       u.nombre_completo AS responsable_nombre,
       dg.siglas AS dg_siglas,
       COUNT(e.id) AS total_evidencias
     FROM acciones a
+    LEFT JOIN LATERAL (
+      SELECT motivo FROM bloqueos
+      WHERE entidad_tipo = 'Accion' AND entidad_id = a.id AND fecha_desbloqueo IS NULL
+      ORDER BY created_at DESC LIMIT 1
+    ) bl ON true
     LEFT JOIN usuarios u ON u.id = a.id_responsable
     LEFT JOIN direcciones_generales dg ON dg.id = a.id_dg
     LEFT JOIN evidencias e ON e.id_accion = a.id
     WHERE a.id_accion_padre = $1
-    GROUP BY a.id, u.nombre_completo, dg.siglas
+    GROUP BY a.id, u.nombre_completo, dg.siglas, bl.motivo
     ORDER BY a.fecha_inicio ASC
   `, [accionPadreId]);
   return resultado.rows;
@@ -63,15 +75,21 @@ async function obtenerAccionesDirectasProyecto(proyectoId) {
   const resultado = await pool.query(`
     SELECT
       a.*,
+      COALESCE(bl.motivo, a.motivo_bloqueo) AS motivo_bloqueo,
       u.nombre_completo AS responsable_nombre,
       dg.siglas AS dg_siglas,
       COUNT(e.id) AS total_evidencias
     FROM acciones a
+    LEFT JOIN LATERAL (
+      SELECT motivo FROM bloqueos
+      WHERE entidad_tipo = 'Accion' AND entidad_id = a.id AND fecha_desbloqueo IS NULL
+      ORDER BY created_at DESC LIMIT 1
+    ) bl ON true
     LEFT JOIN usuarios u ON u.id = a.id_responsable
     LEFT JOIN direcciones_generales dg ON dg.id = a.id_dg
     LEFT JOIN evidencias e ON e.id_accion = a.id
     WHERE a.id_proyecto = $1 AND a.id_etapa IS NULL
-    GROUP BY a.id, u.nombre_completo, dg.siglas
+    GROUP BY a.id, u.nombre_completo, dg.siglas, bl.motivo
     ORDER BY a.fecha_inicio ASC
   `, [proyectoId]);
 
@@ -83,11 +101,17 @@ async function obtenerAccionPorId(accionId) {
   const resultado = await pool.query(`
     SELECT
       a.*,
+      COALESCE(bl.motivo, a.motivo_bloqueo) AS motivo_bloqueo,
       u.nombre_completo AS responsable_nombre,
       u.cargo AS responsable_cargo,
       dg.siglas AS dg_siglas,
       da.siglas AS direccion_area_siglas
     FROM acciones a
+    LEFT JOIN LATERAL (
+      SELECT motivo FROM bloqueos
+      WHERE entidad_tipo = 'Accion' AND entidad_id = a.id AND fecha_desbloqueo IS NULL
+      ORDER BY created_at DESC LIMIT 1
+    ) bl ON true
     LEFT JOIN usuarios u ON u.id = a.id_responsable
     LEFT JOIN direcciones_generales dg ON dg.id = a.id_dg
     LEFT JOIN direcciones_area da ON da.id = a.id_direccion_area
