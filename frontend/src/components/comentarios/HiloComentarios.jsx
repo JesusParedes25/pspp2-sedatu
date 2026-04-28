@@ -18,7 +18,7 @@ import { MessageSquare, Send, ChevronDown, ChevronUp } from 'lucide-react';
 import * as comentariosApi from '../../api/comentarios';
 import ComentarioItem from './ComentarioItem';
 
-export default function HiloComentarios({ entidadTipo, entidadId, compacto = true }) {
+export default function HiloComentarios({ entidadTipo, entidadId, compacto = true, onStatsChange }) {
   const [comentarios, setComentarios] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [abierto, setAbierto] = useState(!compacto);
@@ -67,6 +67,7 @@ export default function HiloComentarios({ entidadTipo, entidadId, compacto = tru
       // Recargar
       const res = await comentariosApi.obtenerComentarios(entidadTipo, entidadId);
       setComentarios(res.datos || []);
+      onStatsChange && onStatsChange();
     } catch (err) {
       console.error('Error publicando comentario:', err);
     } finally {
@@ -92,6 +93,7 @@ export default function HiloComentarios({ entidadTipo, entidadId, compacto = tru
       // Recargar
       const res = await comentariosApi.obtenerComentarios(entidadTipo, entidadId);
       setComentarios(res.datos || []);
+      onStatsChange && onStatsChange();
     } catch (err) {
       console.error('Error publicando respuesta:', err);
     } finally {

@@ -20,7 +20,7 @@ import * as evidenciasApi from '../../api/evidencias';
 import CATEGORIAS_EVIDENCIA from './categoriasEvidencia';
 import HiloComentarios from '../comentarios/HiloComentarios';
 
-export default function DrawerSubaccion({ sub, soloLectura, onCerrar, onCambio }) {
+export default function DrawerSubaccion({ sub, soloLectura, onCerrar, onCambio, onStatsChange }) {
   const [visible, setVisible] = useState(false);
   const [evidencias, setEvidencias] = useState([]);
   const [cargandoEv, setCargandoEv] = useState(false);
@@ -69,6 +69,7 @@ export default function DrawerSubaccion({ sub, soloLectura, onCerrar, onCambio }
         categoria: categoriaEv,
       });
       await cargarEvidencias();
+      onStatsChange && onStatsChange();
     } catch (err) {
       alert(err.response?.data?.mensaje || 'Error al subir evidencia');
     } finally {
@@ -82,6 +83,7 @@ export default function DrawerSubaccion({ sub, soloLectura, onCerrar, onCambio }
     try {
       await evidenciasApi.eliminarEvidencia(evId);
       await cargarEvidencias();
+      onStatsChange && onStatsChange();
     } catch { /* silenciar */ }
   }
 
@@ -212,7 +214,7 @@ export default function DrawerSubaccion({ sub, soloLectura, onCerrar, onCambio }
             <h3 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">
               Discusión
             </h3>
-            <HiloComentarios entidadTipo="Subaccion" entidadId={sub.id} compacto />
+            <HiloComentarios entidadTipo="Subaccion" entidadId={sub.id} compacto onStatsChange={onStatsChange} />
           </section>
         </div>
       </div>

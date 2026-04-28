@@ -23,7 +23,7 @@ function fechaMs(fecha) {
   return new Date(fecha).getTime();
 }
 
-export default function HiloConsolidado({ entidades = [] }) {
+export default function HiloConsolidado({ entidades = [], onStatsChange }) {
   const [grupos, setGrupos]       = useState({}); // { "Accion:12": [comentarios] }
   const [cargando, setCargando]   = useState(false);
   const [nuevoTexto, setNuevoTexto] = useState('');
@@ -85,6 +85,7 @@ export default function HiloConsolidado({ entidades = [] }) {
       });
       setNuevoTexto('');
       await cargarTodos();
+      onStatsChange && onStatsChange();
     } catch { /* silenciar */ }
     finally { setEnviando(false); }
   }
@@ -103,6 +104,7 @@ export default function HiloConsolidado({ entidades = [] }) {
       setTextoRespuesta('');
       setRespondiendo(null);
       await cargarTodos();
+      onStatsChange && onStatsChange();
     } catch { /* silenciar */ }
     finally { setEnviando(false); }
   }

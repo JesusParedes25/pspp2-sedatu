@@ -74,9 +74,13 @@ async function contarRiesgosActivos(proyectoId) {
       COUNT(*)::int AS total,
       COUNT(*) FILTER (WHERE nivel IN ('Alto','Critico'))::int AS criticos
     FROM riesgos
-    WHERE entidad_tipo = 'Proyecto'
-      AND entidad_id = $1
-      AND estado IN ('Abierto','En_mitigacion')
+    WHERE estado IN ('Abierto','En_mitigacion')
+      AND (
+        (entidad_tipo = 'Proyecto'  AND entidad_id = $1)
+        OR (entidad_tipo = 'Etapa'     AND entidad_id IN (SELECT id FROM etapas WHERE id_proyecto = $1))
+        OR (entidad_tipo = 'Accion'    AND entidad_id IN (SELECT id FROM acciones WHERE id_proyecto = $1 AND id_accion_padre IS NULL))
+        OR (entidad_tipo = 'Subaccion' AND entidad_id IN (SELECT id FROM acciones WHERE id_proyecto = $1 AND id_accion_padre IS NOT NULL))
+      )
   `, [proyectoId]);
   return resultado.rows[0] || { total: 0, criticos: 0 };
 }
@@ -154,7 +158,7 @@ async function obtenerAccionesResumen(proyectoId) {
       a.porcentaje_avance,
       a.fecha_inicio,
       a.fecha_fin,
-      a.motivo_bloqueo,
+      COALESCE(bl.motivo, a.motivo_bloqueo) AS motivo_bloqueo,
       a.tipo,
       a.id_etapa,
       u.nombre_completo AS responsable_nombre,
@@ -175,10 +179,17 @@ async function obtenerAccionesResumen(proyectoId) {
     FROM acciones a
     LEFT JOIN acciones s ON s.id_accion_padre = a.id AND s.estado != 'Cancelada'
     LEFT JOIN usuarios u ON u.id = a.id_responsable
+    LEFT JOIN LATERAL (
+      SELECT motivo FROM bloqueos
+      WHERE entidad_tipo IN ('Accion','Subaccion')
+        AND entidad_id = a.id
+        AND fecha_desbloqueo IS NULL
+      ORDER BY created_at DESC LIMIT 1
+    ) bl ON true
     WHERE a.id_proyecto = $1
       AND a.id_accion_padre IS NULL
       AND a.estado != 'Cancelada'
-    GROUP BY a.id, u.nombre_completo
+    GROUP BY a.id, u.nombre_completo, bl.motivo
     ORDER BY a.id_etapa NULLS LAST, a.fecha_fin ASC 
   `, [proyectoId]);
   return resultado.rows;
@@ -316,11 +327,26 @@ async function obtenerRiesgosDetalle(proyectoId) {
       r.titulo,
       r.nivel,
       r.estado,
-      r.descripcion
+      r.descripcion,
+      r.entidad_tipo,
+      CASE
+        WHEN r.entidad_tipo = 'Proyecto'  THEN p.nombre
+        WHEN r.entidad_tipo = 'Etapa'     THEN et.nombre
+        WHEN r.entidad_tipo = 'Accion'    THEN ac.nombre
+        WHEN r.entidad_tipo = 'Subaccion' THEN sa.nombre
+      END AS etiqueta
     FROM riesgos r
-    WHERE r.entidad_tipo = 'Proyecto'
-      AND r.entidad_id = $1
-      AND r.estado IN ('Abierto','En_mitigacion')
+    LEFT JOIN proyectos p  ON r.entidad_tipo = 'Proyecto'  AND p.id  = r.entidad_id
+    LEFT JOIN etapas    et ON r.entidad_tipo = 'Etapa'     AND et.id = r.entidad_id
+    LEFT JOIN acciones  ac ON r.entidad_tipo = 'Accion'    AND ac.id = r.entidad_id
+    LEFT JOIN acciones  sa ON r.entidad_tipo = 'Subaccion' AND sa.id = r.entidad_id
+    WHERE r.estado IN ('Abierto','En_mitigacion')
+      AND (
+        (r.entidad_tipo = 'Proyecto'  AND r.entidad_id = $1)
+        OR (r.entidad_tipo = 'Etapa'     AND r.entidad_id IN (SELECT id FROM etapas WHERE id_proyecto = $1))
+        OR (r.entidad_tipo = 'Accion'    AND r.entidad_id IN (SELECT id FROM acciones WHERE id_proyecto = $1 AND id_accion_padre IS NULL))
+        OR (r.entidad_tipo = 'Subaccion' AND r.entidad_id IN (SELECT id FROM acciones WHERE id_proyecto = $1 AND id_accion_padre IS NOT NULL))
+      )
     ORDER BY
       CASE r.nivel
         WHEN 'Critico' THEN 1
@@ -329,7 +355,7 @@ async function obtenerRiesgosDetalle(proyectoId) {
         ELSE 4
       END,
       r.created_at DESC
-    LIMIT 10
+    LIMIT 15
   `, [proyectoId]);
   return resultado.rows;
 }

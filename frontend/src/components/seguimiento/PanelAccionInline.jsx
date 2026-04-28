@@ -85,7 +85,7 @@ function FilaEvidencia({ ev, soloLectura, onEliminar }) {
   );
 }
 
-export default function PanelAccionInline({ accion, soloLectura, onActualizado }) {
+export default function PanelAccionInline({ accion, soloLectura, onActualizado, onStatsChange }) {
   const [tabDerecha, setTabDerecha]         = useState('indicadores');
   const [subacciones, setSubacciones]       = useState([]);
   const [evidenciasAccion, setEvidenciasAccion] = useState([]);
@@ -208,6 +208,7 @@ export default function PanelAccionInline({ accion, soloLectura, onActualizado }
     try {
       await accionesApi.actualizarIndicadoresAccion(accion.id, indicadoresAccion);
       onActualizado && onActualizado();
+      onStatsChange && onStatsChange();
       await cargarIndicadoresAccion();
     } catch (err) {
       alert(err.response?.data?.mensaje || 'Error al guardar indicadores');
@@ -280,6 +281,7 @@ export default function PanelAccionInline({ accion, soloLectura, onActualizado }
       setMostrarFormSub(false);
       await cargarSubacciones();
       onActualizado && onActualizado('subaccion');
+      onStatsChange && onStatsChange();
     } catch (err) {
       alert(err.response?.data?.mensaje || 'Error al crear tarea');
     } finally { setCreandoSub(false); }
@@ -294,6 +296,7 @@ export default function PanelAccionInline({ accion, soloLectura, onActualizado }
       setNotasEv('');
       await cargarEvidenciasAccion();
       onActualizado && onActualizado();
+      onStatsChange && onStatsChange();
     } catch (err) {
       alert(err.response?.data?.mensaje || 'Error al subir evidencia');
     } finally {
@@ -308,6 +311,7 @@ export default function PanelAccionInline({ accion, soloLectura, onActualizado }
       await evidenciasApi.eliminarEvidencia(evId);
       await cargarEvidenciasAccion();
       onActualizado && onActualizado();
+      onStatsChange && onStatsChange();
     } catch { /* silenciar */ }
   }
 
@@ -508,7 +512,7 @@ export default function PanelAccionInline({ accion, soloLectura, onActualizado }
                     <SubaccionItem
                       sub={sub}
                       soloLectura={soloLectura}
-                      onCambio={() => { cargarSubacciones(); onActualizado && onActualizado('subaccion'); }}
+                      onCambio={() => { cargarSubacciones(); onActualizado && onActualizado('subaccion'); onStatsChange && onStatsChange(); }}
                       onAbrirDetalle={(s) => setSubaccionDetalle(s)}
                     />
                   </div>
@@ -701,6 +705,7 @@ export default function PanelAccionInline({ accion, soloLectura, onActualizado }
                   { tipo: 'Accion', id: accion.id, etiqueta: 'Esta acción' },
                   ...subacciones.map(s => ({ tipo: 'Subaccion', id: s.id, etiqueta: s.nombre }))
                 ]}
+                onStatsChange={onStatsChange}
               />
             )}
           </div>
@@ -716,7 +721,8 @@ export default function PanelAccionInline({ accion, soloLectura, onActualizado }
             sub={subFresca}
             soloLectura={soloLectura}
             onCerrar={() => setSubaccionDetalle(null)}
-            onCambio={() => { cargarSubacciones(); onActualizado && onActualizado('subaccion'); }}
+            onCambio={() => { cargarSubacciones(); onActualizado && onActualizado('subaccion'); onStatsChange && onStatsChange(); }}
+            onStatsChange={onStatsChange}
           />
         );
       })()}

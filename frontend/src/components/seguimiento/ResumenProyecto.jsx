@@ -523,7 +523,7 @@ function FilaMetrica({ icono: Icono, label, valor, color = 'gray', alerta }) {
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
-export default function ResumenProyecto({ proyecto, etapas = [], proyectoId, onIrSeguimiento }) {
+export default function ResumenProyecto({ proyecto, etapas = [], proyectoId, onIrSeguimiento, refreshKey = 0 }) {
   const [stats, setStats] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [datosAbiertos, setDatosAbiertos] = useState(false);
@@ -535,7 +535,7 @@ export default function ResumenProyecto({ proyecto, etapas = [], proyectoId, onI
       .then(res => setStats(res.data.datos))
       .catch(err => console.error('Error stats:', err))
       .finally(() => setCargando(false));
-  }, [proyectoId]);
+  }, [proyectoId, refreshKey]);
 
   const pct = parseFloat(proyecto?.porcentaje_calculado) || 0;
   const accionesStats = stats?.acciones || { por_estado: {}, total: 0 };
@@ -807,7 +807,9 @@ export default function ResumenProyecto({ proyecto, etapas = [], proyectoId, onI
                         : r.nivel === 'Alto'  ? 'text-orange-500'
                         : 'text-gray-400'
                       }`}>{r.nivel}</span>
-                      {r.etiqueta && <span className="text-[9px] text-gray-300">· {r.etiqueta}</span>}
+                      {r.entidad_tipo && r.entidad_tipo !== 'Proyecto' && (
+                        <span className="text-[9px] text-gray-300">· {r.entidad_tipo === 'Subaccion' ? 'Tarea' : r.entidad_tipo}{r.etiqueta ? `: ${r.etiqueta}` : ''}</span>
+                      )}
                     </div>
                   </div>
                 </div>

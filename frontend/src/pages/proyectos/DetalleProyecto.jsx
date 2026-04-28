@@ -16,7 +16,7 @@
  * - Los riesgos se asignan por etapa con acción asociada.
  * ─────────────────────────────────────────────────────────────────
  */
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Star, FileText, Settings, BarChart3, Clock, UsersRound, LayoutDashboard, Search, Plus, Pencil, X, FileSpreadsheet, Trash2, AlertTriangle } from 'lucide-react';
 import { useProyecto } from '../../hooks/useProyectos';
@@ -81,6 +81,10 @@ export default function DetalleProyecto() {
   const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
   const [eliminando, setEliminando] = useState(false);
 
+  // Clave de refresco para el resumen — se incrementa en cada mutación relevante
+  const [statsKey, setStatsKey] = useState(0);
+  const incrementarStats = useCallback(() => setStatsKey(k => k + 1), []);
+
   // Datos de evidencias (carga bajo demanda)
   const [evidencias, setEvidencias] = useState([]);
   const [filtroEvidencias, setFiltroEvidencias] = useState({ busqueda: '', categoria: '', etapa: '' });
@@ -129,6 +133,7 @@ export default function DetalleProyecto() {
       mostrarToast('Etapa creada exitosamente', 'exito');
       setModalEtapa(false);
       recargarEtapas();
+      incrementarStats();
     } catch (err) {
       mostrarToast(err.response?.data?.mensaje || 'Error al crear etapa', 'error');
     }
@@ -144,6 +149,7 @@ export default function DetalleProyecto() {
       mostrarToast('Acción creada exitosamente', 'exito');
       setModalAccion(null);
       recargarEtapas();
+      incrementarStats();
     } catch (err) {
       mostrarToast(err.response?.data?.mensaje || 'Error al crear acción', 'error');
     }
@@ -204,7 +210,7 @@ export default function DetalleProyecto() {
                 entidadTipo="Proyecto"
                 entidadId={proyecto.id}
                 estadoActual={proyecto.estado}
-                onCambio={recargarProyecto}
+                onCambio={() => { recargarProyecto(); incrementarStats(); }}
                 soloLectura={!permisos.puedeEditar}
               />
               <span>{proyecto.tipo?.replace(/_/g, ' ')}</span>
@@ -225,7 +231,7 @@ export default function DetalleProyecto() {
           <ModalEditarProyecto
             proyecto={proyecto}
             onCerrar={() => { setModalEditar(false); setConfirmandoEliminar(false); }}
-            onGuardado={() => { mostrarToast('Proyecto actualizado', 'exito'); recargarProyecto(); }}
+            onGuardado={() => { mostrarToast('Proyecto actualizado', 'exito'); recargarProyecto(); incrementarStats(); }}
           />
         )}
       </div>
@@ -261,7 +267,7 @@ export default function DetalleProyecto() {
 
       {/* ═══ PESTAÑA RESUMEN ═══ */}
       {pestanaActiva === 'resumen' && (
-        <ResumenProyecto proyecto={proyecto} etapas={etapas} proyectoId={id} />
+        <ResumenProyecto proyecto={proyecto} etapas={etapas} proyectoId={id} refreshKey={statsKey} />
       )}
 
       {/* ═══ PESTAÑA SEGUIMIENTO ═══ */}
@@ -323,7 +329,8 @@ export default function DetalleProyecto() {
                     etapas={etapas}
                     soloLectura={permisos.esSoloLectura}
                     onAccionCreada={(etapaId) => setModalAccion(etapaId)}
-                    onEtapaActualizada={recargarEtapasSilencioso}
+                    onEtapaActualizada={() => { recargarEtapasSilencioso(); incrementarStats(); }}
+                    onStatsChange={incrementarStats}
                   />
                 ))
               )}
@@ -436,7 +443,7 @@ export default function DetalleProyecto() {
       {modalCSV && (
         <ModalImportarCSV
           proyectoId={id}
-          onImportado={() => { recargarEtapas(); recargarProyecto(); }}
+          onImportado={() => { recargarEtapas(); recargarProyecto(); incrementarStats(); }}
           onCerrar={() => setModalCSV(false)}
         />
       )}

@@ -30,7 +30,7 @@ const CARGADORES = {
  * @param {boolean} soloLectura  - Deshabilita crear/editar/eliminar
  * @param {boolean} compacto     - Usa RiesgoCard en modo compacto
  */
-export default function PanelRiesgos({ entidadTipo, entidadId, soloLectura = false, compacto = false }) {
+export default function PanelRiesgos({ entidadTipo, entidadId, soloLectura = false, compacto = false, onStatsChange }) {
   const [riesgos, setRiesgos] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [modal, setModal] = useState(null); // null | 'crear' | riesgoObj
@@ -58,6 +58,7 @@ export default function PanelRiesgos({ entidadTipo, entidadId, soloLectura = fal
     }
     setModal(null);
     await cargar();
+    onStatsChange && onStatsChange();
   }
 
   async function handleEliminar(riesgoId) {
@@ -65,6 +66,7 @@ export default function PanelRiesgos({ entidadTipo, entidadId, soloLectura = fal
     try {
       await riesgosApi.eliminarRiesgo(riesgoId);
       await cargar();
+      onStatsChange && onStatsChange();
     } catch (err) {
       alert(err.response?.data?.mensaje || 'Error al eliminar');
     }

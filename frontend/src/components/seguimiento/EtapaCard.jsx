@@ -37,7 +37,7 @@ const CRITERIOS_ORDEN = [
   { clave: 'avance',  icono: BarChart3,     etiqueta: 'Avance' },
 ];
 
-export default function EtapaCard({ etapa, proyecto, etapas = [], soloLectura = false, onAccionCreada, onEtapaActualizada }) {
+export default function EtapaCard({ etapa, proyecto, etapas = [], soloLectura = false, onAccionCreada, onEtapaActualizada, onStatsChange }) {
   const [expandida, setExpandida] = useState(false);
   const [ordenActivo, setOrdenActivo] = useState('orden');
   const [mostrarOrden, setMostrarOrden] = useState(false);
@@ -97,7 +97,7 @@ export default function EtapaCard({ etapa, proyecto, etapas = [], soloLectura = 
                   entidadTipo="Etapa"
                   entidadId={etapa.id}
                   estadoActual={etapa.estado}
-                  onCambio={onEtapaActualizada}
+                  onCambio={() => { onEtapaActualizada && onEtapaActualizada(); onStatsChange && onStatsChange(); }}
                   soloLectura={soloLectura}
                 />
               </div>
@@ -162,6 +162,7 @@ export default function EtapaCard({ etapa, proyecto, etapas = [], soloLectura = 
               entidadId={etapa.id}
               soloLectura={soloLectura}
               compacto
+              onStatsChange={onStatsChange}
             />
           </div>
 
@@ -211,6 +212,7 @@ export default function EtapaCard({ etapa, proyecto, etapas = [], soloLectura = 
                     try {
                       await etapasApi.eliminarEtapa(etapa.id);
                       onEtapaActualizada && onEtapaActualizada();
+                      onStatsChange && onStatsChange();
                     } catch (err) {
                       alert(err.response?.data?.mensaje || 'Error al eliminar etapa / subproyecto');
                     }
@@ -308,7 +310,9 @@ export default function EtapaCard({ etapa, proyecto, etapas = [], soloLectura = 
                             recargar();
                             onEtapaActualizada && onEtapaActualizada();
                           }
+                          onStatsChange && onStatsChange();
                         }}
+                        onStatsChange={onStatsChange}
                       />
                     )}
                   </div>
@@ -328,7 +332,7 @@ export default function EtapaCard({ etapa, proyecto, etapas = [], soloLectura = 
 
           {/* Comentarios de etapa */}
           <div className="mt-4 pt-3 border-t border-gray-100">
-            <HiloComentarios entidadTipo="Etapa" entidadId={etapa.id} compacto />
+            <HiloComentarios entidadTipo="Etapa" entidadId={etapa.id} compacto onStatsChange={onStatsChange} />
           </div>
         </div>
       )}
@@ -344,6 +348,7 @@ export default function EtapaCard({ etapa, proyecto, etapas = [], soloLectura = 
             await etapasApi.actualizarEtapa(etapaId, datosActualizados);
             setModalEdicion(false);
             onEtapaActualizada && onEtapaActualizada();
+            onStatsChange && onStatsChange();
           }}
         />
       )}

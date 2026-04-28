@@ -65,13 +65,18 @@ async function obtenerEvidenciasPorProyecto(proyectoId) {
     SELECT
       ev.*,
       u.nombre_completo AS autor_nombre,
-      a.nombre AS accion_nombre,
-      e.nombre AS etapa_nombre
+      COALESCE(a.nombre, sa.nombre) AS accion_nombre,
+      COALESCE(e1.nombre, e2.nombre) AS etapa_nombre
     FROM evidencias ev
     LEFT JOIN usuarios u ON u.id = ev.id_autor
-    LEFT JOIN acciones a ON a.id = ev.id_accion
-    LEFT JOIN etapas e ON e.id = a.id_etapa
-    WHERE a.id_proyecto = $1
+    LEFT JOIN acciones a  ON a.id  = ev.id_accion
+    LEFT JOIN etapas   e1 ON e1.id = a.id_etapa
+    LEFT JOIN acciones sa ON sa.id = ev.id_subaccion
+    LEFT JOIN acciones sa_padre ON sa_padre.id = sa.id_accion_padre
+    LEFT JOIN etapas   e2 ON e2.id = sa_padre.id_etapa
+    WHERE
+      (a.id_proyecto = $1)
+      OR (sa.id_proyecto = $1)
     ORDER BY ev.created_at DESC
   `, [proyectoId]);
 
