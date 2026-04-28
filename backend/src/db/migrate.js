@@ -1,14 +1,17 @@
 /**
  * ARCHIVO: migrate.js
- * PROPÓSITO: Ejecutar las migraciones SQL en orden contra PostgreSQL.
+ * PROPÓSITO: Ejecutar las migraciones SQL pendientes contra PostgreSQL.
  *
- * MINI-CLASE: Migraciones de base de datos
+ * MINI-CLASE: Migraciones con registro de estado
  * ─────────────────────────────────────────────────────────────────
- * Las migraciones son archivos SQL numerados que se ejecutan en orden
- * para crear o modificar la estructura de la BD. Al ejecutarlas en
- * secuencia (001, 002, 003...) garantizamos que las tablas se crean
- * antes de los índices y constraints que dependen de ellas. Este
- * script lee cada archivo .sql y lo ejecuta contra PostgreSQL.
+ * Mantiene una tabla `schema_migrations` con los nombres de cada
+ * archivo .sql ya aplicado. En cada arranque solo ejecuta los
+ * archivos nuevos (los que NO están en esa tabla), en orden
+ * alfabético. Esto garantiza:
+ *   - Idempotencia: nunca se aplica dos veces la misma migración.
+ *   - Seguridad: ALTER TABLE, INSERT, UPDATE no se re-ejecutan.
+ *   - Portabilidad: cualquier servidor nuevo queda al día con un
+ *     solo `docker compose up`.
  * ─────────────────────────────────────────────────────────────────
  */
 const fs = require('fs');
@@ -16,37 +19,60 @@ const path = require('path');
 const pool = require('./pool');
 
 async function ejecutarMigraciones() {
-  const carpetaMigraciones = path.join(__dirname, 'migrations');
+  const client = await pool.connect();
+  try {
+    // Crear tabla de registro si no existe (primera vez en servidor nuevo)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        nombre TEXT PRIMARY KEY,
+        aplicada_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
 
-  // Leer archivos .sql ordenados por nombre
-  const archivos = fs.readdirSync(carpetaMigraciones)
-    .filter(f => f.endsWith('.sql'))
-    .sort();
+    // Leer archivos .sql disponibles, ordenados
+    const carpeta = path.join(__dirname, 'migrations');
+    const archivos = fs.readdirSync(carpeta)
+      .filter(f => f.endsWith('.sql'))
+      .sort();
 
-  console.log(`\n═══ Ejecutando ${archivos.length} migración(es) ═══\n`);
+    // Consultar cuáles ya fueron aplicadas
+    const { rows } = await client.query('SELECT nombre FROM schema_migrations');
+    const yaAplicadas = new Set(rows.map(r => r.nombre));
 
-  for (const archivo of archivos) {
-    const rutaCompleta = path.join(carpetaMigraciones, archivo);
-    const sql = fs.readFileSync(rutaCompleta, 'utf-8');
+    const pendientes = archivos.filter(f => !yaAplicadas.has(f));
 
-    try {
-      await pool.query(sql);
-      console.log(`  ✓ ${archivo}`);
-    } catch (err) {
-      // Si el error es que ya existe, lo ignoramos (idempotente)
-      if (err.message.includes('already exists')) {
-        console.log(`  ⊘ ${archivo} (ya existe, saltando)`);
-      } else {
+    if (pendientes.length === 0) {
+      console.log('═══ Migraciones: nada nuevo que aplicar ═══');
+      return;
+    }
+
+    console.log(`\n═══ Migraciones pendientes: ${pendientes.length} ═══\n`);
+
+    for (const archivo of pendientes) {
+      const sql = fs.readFileSync(path.join(carpeta, archivo), 'utf-8');
+      try {
+        await client.query('BEGIN');
+        await client.query(sql);
+        await client.query(
+          'INSERT INTO schema_migrations (nombre) VALUES ($1)',
+          [archivo]
+        );
+        await client.query('COMMIT');
+        console.log(`  ✓ ${archivo}`);
+      } catch (err) {
+        await client.query('ROLLBACK');
         console.error(`  ✗ ${archivo}: ${err.message}`);
         throw err;
       }
     }
-  }
 
-  console.log('\n═══ Migraciones completadas ═══\n');
+    console.log('\n═══ Migraciones completadas ═══\n');
+  } finally {
+    client.release();
+  }
 }
 
-// Si se ejecuta directamente: node migrate.js
+// Si se ejecuta directamente: node src/db/migrate.js
 if (require.main === module) {
   ejecutarMigraciones()
     .then(() => process.exit(0))
