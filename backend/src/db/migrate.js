@@ -61,8 +61,17 @@ async function ejecutarMigraciones() {
         console.log(`  ✓ ${archivo}`);
       } catch (err) {
         await client.query('ROLLBACK');
-        console.error(`  ✗ ${archivo}: ${err.message}`);
-        throw err;
+        // Si el error es por objeto que ya existe, registrar y continuar
+        if (err.message.includes('already exists') || err.code === '42P07' || err.code === '42710') {
+          await client.query(
+            'INSERT INTO schema_migrations (nombre) VALUES ($1) ON CONFLICT DO NOTHING',
+            [archivo]
+          );
+          console.log(`  ⊘ ${archivo} (ya aplicada, registrando)`);
+        } else {
+          console.error(`  ✗ ${archivo}: ${err.message}`);
+          throw err;
+        }
       }
     }
 

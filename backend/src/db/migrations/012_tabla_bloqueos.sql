@@ -10,7 +10,7 @@
 -- ═══════════════════════════════════════════════════════════════
 
 -- 1. Crear tabla de bloqueos
-CREATE TABLE bloqueos (
+CREATE TABLE IF NOT EXISTS bloqueos (
   id                         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   entidad_tipo               VARCHAR(20) NOT NULL
                              CHECK (entidad_tipo IN (
@@ -27,17 +27,18 @@ CREATE TABLE bloqueos (
 );
 
 -- 2. Constraint parcial: máximo un bloqueo activo por entidad
-CREATE UNIQUE INDEX idx_bloqueo_activo_unico
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bloqueo_activo_unico
   ON bloqueos (entidad_tipo, entidad_id)
   WHERE fecha_desbloqueo IS NULL;
 
 -- 3. Índice para consultas por entidad (historial completo)
-CREATE INDEX idx_bloqueos_entidad
+CREATE INDEX IF NOT EXISTS idx_bloqueos_entidad
   ON bloqueos (entidad_tipo, entidad_id);
 
 -- 4. Migrar datos existentes de acciones.motivo_bloqueo
 --    Usa id_responsable de la acción como creador del bloqueo histórico.
 --    Solo migra si hay un responsable asignado (NOT NULL requerido).
+--    NOT EXISTS evita duplicar registros en re-ejecución.
 INSERT INTO bloqueos (entidad_tipo, entidad_id, motivo, id_creador)
 SELECT
   CASE WHEN a.id_accion_padre IS NOT NULL THEN 'Subaccion' ELSE 'Accion' END,
@@ -47,7 +48,10 @@ SELECT
 FROM acciones a
 WHERE a.estado = 'Bloqueada'
   AND a.motivo_bloqueo IS NOT NULL
-  AND a.id_responsable IS NOT NULL;
+  AND a.id_responsable IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM bloqueos b WHERE b.entidad_id = a.id
+  );
 
 -- 5. Marcar columna como deprecada (no se elimina aún por retrocompatibilidad)
 COMMENT ON COLUMN acciones.motivo_bloqueo
