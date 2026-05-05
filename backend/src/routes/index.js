@@ -33,6 +33,8 @@ const riesgosRoutes = require('./riesgos.routes');
 const notificacionesRoutes = require('./notificaciones.routes');
 const catalogosRoutes = require('./catalogos.routes');
 const bloqueosRoutes = require('./bloqueos.routes');
+const importarRoutes = require('./importar.routes');
+const plantillasRoutes = require('./plantillas.routes');
 
 // Importar controllers para rutas anidadas
 const etapasController = require('../controllers/etapas.controller');
@@ -66,6 +68,8 @@ router.use('/riesgos', riesgosRoutes);
 router.use('/notificaciones', notificacionesRoutes);
 router.use('/catalogos', catalogosRoutes);
 router.use('/bloqueos', bloqueosRoutes);
+router.use('/importar', importarRoutes);
+router.use('/plantillas-importacion', plantillasRoutes);
 
 // ─── Rutas anidadas (conectan controllers de diferentes recursos) ─
 
