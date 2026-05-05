@@ -1,0 +1,6 @@
+nivel,clave,nombre,peso,fecha_inicio,fecha_fin,responsable,entregable,estado
+ETAPA,E01,Etapa de prueba Fase A,100,2024-01-01,2024-12-31,,,
+ACCION,A01,Acción de prueba 1,50,2024-01-01,2024-06-30,Jesús Paredes,Entregable 1,En_proceso
+ACCION,A01.01,Subacción de prueba,50,2024-01-01,2024-03-31,Jesús Paredes,Entregable sub,Pendiente
+ETAPA,E02,Segunda etapa de prueba,100,2024-07-01,2024-12-31,,,
+ACCION,A02,Acción segunda etapa,100,2024-07-01,2024-12-31,Jesús Paredes,Entregable 2,Pendiente
