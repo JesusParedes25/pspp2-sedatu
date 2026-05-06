@@ -36,7 +36,7 @@ import EvidenciaRow from '../../components/evidencias/EvidenciaRow';
 import EmptyState from '../../components/common/EmptyState';
 import ModalNuevaEtapa from '../../components/seguimiento/ModalNuevaEtapa';
 import ModalNuevaAccion from '../../components/seguimiento/ModalNuevaAccion';
-import ModalImportarCSV from '../../components/seguimiento/ModalImportarCSV';
+import ImportarWizard from '../../components/importar/ImportarWizard';
 import ModalEditarProyecto from '../../components/proyectos/ModalEditarProyecto';
 import * as evidenciasApi from '../../api/evidencias';
 import * as etapasApi from '../../api/etapas';
@@ -441,7 +441,7 @@ export default function DetalleProyecto() {
       )}
 
       {modalCSV && (
-        <ModalImportarCSV
+        <ImportarWizard
           proyectoId={id}
           onImportado={() => { recargarEtapas(); recargarProyecto(); incrementarStats(); }}
           onCerrar={() => setModalCSV(false)}
