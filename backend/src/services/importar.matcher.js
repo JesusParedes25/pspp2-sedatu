@@ -55,13 +55,19 @@ function extraerCamposPlantilla(config) {
  * Calcula el score de coincidencia entre headers del archivo y una plantilla.
  * @param {string[]} headersArchivo - Encabezados detectados del archivo
  * @param {object} config - Config JSONB de la plantilla
+ * @param {string[]|null} superHeaders - Super-encabezados (para templates pivotados)
  * @returns {number} Score entre 0 y 1
  */
-function calcularScore(headersArchivo, config) {
+function calcularScore(headersArchivo, config, superHeaders) {
   const camposPlantilla = extraerCamposPlantilla(config);
   if (camposPlantilla.size === 0) return 0;
 
-  const headersNorm = new Set(headersArchivo.map(normalizar));
+  // Combinar headers + superHeaders para matching
+  const todosHeaders = [...headersArchivo];
+  if (superHeaders && Array.isArray(superHeaders)) {
+    todosHeaders.push(...superHeaders);
+  }
+  const headersNorm = new Set(todosHeaders.map(normalizar));
 
   let matches = 0;
   for (const campo of camposPlantilla) {
@@ -75,9 +81,10 @@ function calcularScore(headersArchivo, config) {
  * Busca la mejor plantilla que coincida con los headers del archivo.
  * @param {string[]} headersArchivo - Encabezados detectados
  * @param {string|null} idDg - UUID de la DG del usuario (para filtrar plantillas de su DG)
+ * @param {string[]|null} superHeaders - Super-encabezados opcionales
  * @returns {Promise<{ plantilla: object, score: number }|null>}
  */
-async function sugerirPlantilla(headersArchivo, idDg) {
+async function sugerirPlantilla(headersArchivo, idDg, superHeaders) {
   // Cargar plantillas del sistema (id_dg IS NULL) + las de la DG del usuario
   let query = 'SELECT * FROM plantillas_importacion WHERE id_dg IS NULL';
   const params = [];
@@ -95,7 +102,7 @@ async function sugerirPlantilla(headersArchivo, idDg) {
   let mejorScore = 0;
 
   for (const p of plantillas) {
-    const score = calcularScore(headersArchivo, p.config);
+    const score = calcularScore(headersArchivo, p.config, superHeaders);
     if (score > mejorScore) {
       mejorScore = score;
       mejorPlantilla = p;

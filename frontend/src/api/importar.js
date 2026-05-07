@@ -35,7 +35,7 @@ export async function confirmar({ fileId, config, proyectoId, skipDuplicados, sh
   return data;
 }
 
-export async function sugerirPlantilla(headers) {
-  const { data } = await client.post('/importar/sugerir', { headers });
+export async function sugerirPlantilla(headers, superHeaders) {
+  const { data } = await client.post('/importar/sugerir', { headers, superHeaders });
   return data;
 }

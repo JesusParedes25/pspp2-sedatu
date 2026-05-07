@@ -87,22 +87,35 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
     setVistaPrevia(resultado.vistaPrevia);
     setError(null);
 
-    // Auto-detectar headers de la fila 1
+    // Heurística: detectar si fila 1 es super-header
+    // Indicadores: pocos valores únicos (agrupados/repetidos) vs fila 2 con más variedad
+    const fila1 = resultado.vistaPrevia[0] || [];
+    const fila2 = resultado.vistaPrevia[1] || [];
+    const unicos1 = new Set(fila1.filter(c => c && String(c).trim()).map(c => String(c).trim())).size;
+    const unicos2 = new Set(fila2.filter(c => c && String(c).trim()).map(c => String(c).trim())).size;
+    const tieneSuperHeaders = fila1.length > 4 && unicos1 < unicos2 && unicos2 >= 4 && unicos1 <= Math.ceil(fila1.length / 3);
+
+    const hRow = tieneSuperHeaders ? 2 : 1;
+    const shRow = tieneSuperHeaders ? 1 : null;
+    const dRow = tieneSuperHeaders ? 3 : 2;
+
     try {
       const headersRes = await importarApi.extraerHeaders({
         fileId: resultado.fileId,
-        headerRow: 1,
-        superHeaderRow: null,
-        dataStartRow: 2,
+        headerRow: hRow,
+        superHeaderRow: shRow,
+        dataStartRow: dRow,
       });
       const h = headersRes.datos.headers;
+      const sh = headersRes.datos.superHeaders;
       setHeaders(h);
-      setSuperHeaders(headersRes.datos.superHeaders);
+      setSuperHeaders(sh);
       setSampleRows(headersRes.datos.sampleRows);
       setTotalDataRows(headersRes.datos.totalDataRows);
+      actualizarConfig({ headerRow: hRow, superHeaderRow: shRow, dataStartRow: dRow });
 
-      // Intentar sugerir plantilla
-      const sug = await importarApi.sugerirPlantilla(h);
+      // Intentar sugerir plantilla (incluir superHeaders para matching de templates pivotados)
+      const sug = await importarApi.sugerirPlantilla(h, sh);
       if (sug.datos) {
         setSugerencia(sug.datos);
       }
@@ -111,7 +124,7 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
     }
 
     avanzar();
-  }, [avanzar]);
+  }, [avanzar, actualizarConfig]);
 
   // Aplicar plantilla sugerida → saltar a preview
   const aplicarPlantilla = useCallback((plantilla) => {

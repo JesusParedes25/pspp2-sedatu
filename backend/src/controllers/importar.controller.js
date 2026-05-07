@@ -200,7 +200,7 @@ async function confirmar(req, res, next) {
 
 async function sugerir(req, res, next) {
   try {
-    const { headers } = req.body;
+    const { headers, superHeaders } = req.body;
 
     if (!headers || !Array.isArray(headers)) {
       return res.status(400).json({
@@ -211,7 +211,7 @@ async function sugerir(req, res, next) {
     }
 
     const idDg = req.usuario?.id_dg || null;
-    const sugerencia = await matcher.sugerirPlantilla(headers, idDg);
+    const sugerencia = await matcher.sugerirPlantilla(headers, idDg, superHeaders || null);
 
     res.json({
       datos: sugerencia, // null si no hay match
