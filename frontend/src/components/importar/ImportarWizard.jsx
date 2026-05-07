@@ -78,6 +78,11 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
     }
   }, [pasoActivo, irAPaso]);
 
+  // Actualizar config parcialmente
+  const actualizarConfig = useCallback((parcial) => {
+    setConfig(prev => ({ ...prev, ...parcial }));
+  }, []);
+
   // Cuando se sube el archivo exitosamente
   const onUploadExitoso = useCallback(async (resultado) => {
     setFileId(resultado.fileId);
@@ -136,11 +141,6 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
     // Marcar todos los pasos como visitados
     setPasosVisitados(new Set([0, 1, 2, 3, 4, 5]));
   }, [irAPaso]);
-
-  // Actualizar config parcialmente
-  const actualizarConfig = useCallback((parcial) => {
-    setConfig(prev => ({ ...prev, ...parcial }));
-  }, []);
 
   // Extraer headers al cambiar configuración de encabezados
   const reextraerHeaders = useCallback(async (headerRow, superHeaderRow, dataStartRow) => {
