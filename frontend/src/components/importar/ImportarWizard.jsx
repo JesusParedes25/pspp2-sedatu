@@ -198,6 +198,7 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
             superHeaders={superHeaders}
             sampleRows={sampleRows}
             config={config}
+            totalDataRows={totalDataRows}
             onCambiar={actualizarConfig}
             onAvanzar={avanzar}
           />

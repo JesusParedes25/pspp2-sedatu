@@ -1,13 +1,20 @@
 /**
  * ARCHIVO: PasoMapeo.jsx
- * PROPÓSITO: Paso 3 del wizard — mapear columnas a campos PSPP y configurar pivot blocks.
+ * PROPÓSITO: Paso 3 del wizard — Mapeo de columnas con UX de 3 secciones.
+ *
+ * Sección A: Campos del nivel base (etapa/acción/subacción por fila).
+ * Sección B: Acciones derivadas (pivot blocks) — opcional.
+ * Sección C: Subacciones — diferido (TODO futuro).
+ * Vista previa en tiempo real al final.
+ *
+ * Produce el mismo JSON (columnMap + pivotBlocks) que consume el backend.
  */
-import { useState } from 'react';
-import { ChevronRight, Plus, Trash2 } from 'lucide-react';
-import PivotBlockEditor from './PivotBlockEditor';
+import { useState, useMemo } from 'react';
+import { ChevronRight, Plus, Info, CheckCircle2 } from 'lucide-react';
+import TarjetaAccion from './TarjetaAccion';
 
-const CAMPOS_PSPP = [
-  { value: '', label: '— No mapear —' },
+const CAMPOS_NIVEL_BASE = [
+  { value: '', label: '— No usar —' },
   { value: 'nombre', label: 'Nombre' },
   { value: 'descripcion', label: 'Descripción' },
   { value: 'clave', label: 'Clave' },
@@ -21,17 +28,76 @@ const CAMPOS_PSPP = [
   { value: 'dependencia_externa', label: 'Dependencia externa' },
 ];
 
-export default function PasoMapeo({ headers, superHeaders, sampleRows, config, onCambiar, onAvanzar }) {
-  const [columnMap, setColumnMap] = useState(config.columnMap || {});
-  const [pivotBlocks, setPivotBlocks] = useState(config.pivotBlocks || []);
-  const [mostrarPivots, setMostrarPivots] = useState((config.pivotBlocks || []).length > 0);
+const ETIQUETAS_NIVEL = {
+  etapa: 'etapa',
+  accion: 'acción',
+  subaccion: 'subacción',
+};
 
-  // Columnas ya usadas (en columnMap o pivotBlocks)
-  const columnasUsadas = new Set([
-    ...Object.keys(columnMap).map(Number),
-    ...pivotBlocks.flatMap(b => b.columns || []),
-  ]);
+export default function PasoMapeo({ headers, superHeaders, sampleRows, config, totalDataRows: totalDataRowsProp, onCambiar, onAvanzar }) {
+  const [columnMap, setColumnMap] = useState(() => config.columnMap || {});
+  const [pivotBlocks, setPivotBlocks] = useState(() => config.pivotBlocks || []);
+  const [errorValidacion, setErrorValidacion] = useState(null);
 
+  const rowLevel = config.rowLevel || 'etapa';
+  const etiquetaNivel = ETIQUETAS_NIVEL[rowLevel] || 'etapa';
+
+  // ─── Columnas asignadas en Sección A ───────────────────────────
+  const columnasSeccionA = useMemo(() => {
+    return new Set(Object.keys(columnMap).map(Number));
+  }, [columnMap]);
+
+  // ─── Columnas usadas en todas las acciones (Sección B) ────────
+  const columnasSeccionB = useMemo(() => {
+    const set = new Set();
+    for (const block of pivotBlocks) {
+      for (const col of (block.columns || [])) {
+        set.add(col);
+      }
+    }
+    return set;
+  }, [pivotBlocks]);
+
+  // ─── Columnas disponibles para Sección B (no usadas en A) ─────
+  const columnasParaAcciones = useMemo(() => {
+    return headers
+      .map((_, i) => i)
+      .filter(i => !columnasSeccionA.has(i));
+  }, [headers, columnasSeccionA]);
+
+  // ─── Columnas disponibles para una acción específica ───────────
+  const columnasParaAccion = (accionIdx) => {
+    const usadasPorOtras = new Set();
+    pivotBlocks.forEach((block, idx) => {
+      if (idx !== accionIdx) {
+        for (const col of (block.columns || [])) {
+          usadasPorOtras.add(col);
+        }
+      }
+    });
+    return columnasParaAcciones.filter(i => !usadasPorOtras.has(i));
+  };
+
+  // ─── Validaciones ──────────────────────────────────────────────
+  const tieneNombre = Object.values(columnMap).includes('nombre');
+
+  const erroresAcciones = useMemo(() => {
+    const errores = {};
+    const nombres = new Set();
+    pivotBlocks.forEach((block, idx) => {
+      if (!block.name || !block.name.trim()) {
+        errores[idx] = 'El nombre es obligatorio';
+      } else if (nombres.has(block.name.trim().toLowerCase())) {
+        errores[idx] = 'Nombre duplicado';
+      }
+      nombres.add((block.name || '').trim().toLowerCase());
+    });
+    return errores;
+  }, [pivotBlocks]);
+
+  const puedeAvanzar = tieneNombre && Object.keys(erroresAcciones).length === 0;
+
+  // ─── Handlers ──────────────────────────────────────────────────
   const actualizarMapeo = (colIdx, campo) => {
     const nuevo = { ...columnMap };
     if (campo === '') {
@@ -40,135 +106,227 @@ export default function PasoMapeo({ headers, superHeaders, sampleRows, config, o
       nuevo[colIdx] = campo;
     }
     setColumnMap(nuevo);
+    setErrorValidacion(null);
   };
 
-  const guardar = () => {
-    onCambiar({ columnMap, pivotBlocks });
-    onAvanzar();
-  };
-
-  const agregarPivotBlock = () => {
+  const agregarAccion = () => {
     setPivotBlocks([...pivotBlocks, {
-      name: `Bloque ${pivotBlocks.length + 1}`,
+      name: '',
       columns: [],
       fieldMap: {},
       createsLevel: 'accion',
     }]);
   };
 
-  const actualizarPivotBlock = (idx, block) => {
+  const actualizarAccion = (idx, block) => {
     const copia = [...pivotBlocks];
     copia[idx] = block;
     setPivotBlocks(copia);
   };
 
-  const eliminarPivotBlock = (idx) => {
+  const eliminarAccion = (idx) => {
     setPivotBlocks(pivotBlocks.filter((_, i) => i !== idx));
   };
 
+  const guardar = () => {
+    if (!tieneNombre) {
+      setErrorValidacion('Debes asignar al menos una columna al campo "Nombre".');
+      return;
+    }
+    if (Object.keys(erroresAcciones).length > 0) {
+      setErrorValidacion('Corrige los errores en las acciones antes de continuar.');
+      return;
+    }
+    onCambiar({ columnMap, pivotBlocks });
+    onAvanzar();
+  };
+
+  // ─── Vista previa dinámica ─────────────────────────────────────
+  const camposAsignados = Object.values(columnMap)
+    .map(v => CAMPOS_NIVEL_BASE.find(c => c.value === v)?.label)
+    .filter(Boolean);
+
+  const accionesResumen = pivotBlocks
+    .filter(b => b.name && b.name.trim())
+    .map(b => {
+      const campos = Object.values(b.fieldMap || {})
+        .map(v => {
+          const def = CAMPOS_NIVEL_BASE.find(c => c.value === v);
+          return def ? def.label : v;
+        })
+        .filter(Boolean);
+      return { nombre: b.name, campos };
+    });
+
+  const totalDataRows = totalDataRowsProp || sampleRows?.length || 0;
+
   return (
-    <div className="space-y-5">
-      <h3 className="text-sm font-semibold text-gray-700">Mapeo de columnas</h3>
-      <p className="text-xs text-gray-500">
-        Asigna cada columna del archivo a un campo del sistema. Las columnas no mapeadas se ignoran.
-      </p>
-
-      {/* Mapeo directo columna → campo */}
-      <div className="border rounded-lg overflow-hidden">
-        <div className="bg-gray-50 px-3 py-2 border-b">
-          <span className="text-xs font-medium text-gray-600">Columnas del archivo</span>
-        </div>
-        <div className="max-h-64 overflow-y-auto">
-          <table className="w-full text-xs">
-            <thead className="bg-gray-50 sticky top-0">
-              <tr>
-                <th className="px-3 py-1.5 text-left font-medium text-gray-500 w-8">#</th>
-                <th className="px-3 py-1.5 text-left font-medium text-gray-500">Encabezado</th>
-                {superHeaders && (
-                  <th className="px-3 py-1.5 text-left font-medium text-gray-500">Super-header</th>
-                )}
-                <th className="px-3 py-1.5 text-left font-medium text-gray-500">Ejemplo</th>
-                <th className="px-3 py-1.5 text-left font-medium text-gray-500 w-48">Campo PSPP</th>
-              </tr>
-            </thead>
-            <tbody>
-              {headers.map((h, i) => {
-                const enPivot = pivotBlocks.some(b => (b.columns || []).includes(i));
-                return (
-                  <tr key={i} className={`border-t ${enPivot ? 'bg-orange-50 opacity-60' : ''}`}>
-                    <td className="px-3 py-1.5 text-gray-400">{i}</td>
-                    <td className="px-3 py-1.5 font-medium">{h || '(vacío)'}</td>
-                    {superHeaders && (
-                      <td className="px-3 py-1.5 text-purple-600">{superHeaders[i] || '—'}</td>
-                    )}
-                    <td className="px-3 py-1.5 text-gray-500 max-w-32 truncate">
-                      {sampleRows[0]?.[i] || '—'}
-                    </td>
-                    <td className="px-3 py-1.5">
-                      {enPivot ? (
-                        <span className="text-xs text-orange-600 italic">En pivot block</span>
-                      ) : (
-                        <select
-                          value={columnMap[i] || ''}
-                          onChange={e => actualizarMapeo(i, e.target.value)}
-                          className="w-full border rounded px-2 py-1 text-xs"
-                        >
-                          {CAMPOS_PSPP.map(c => (
-                            <option key={c.value} value={c.value}>{c.label}</option>
-                          ))}
-                        </select>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Pivot blocks */}
-      <div className="border rounded-lg p-4 bg-gray-50">
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={mostrarPivots}
-            onChange={e => setMostrarPivots(e.target.checked)}
-            className="rounded border-gray-300"
-          />
-          <span className="text-sm font-medium text-gray-700">Usar bloques pivotados (columnas agrupadas = acciones)</span>
-        </label>
-        <p className="text-xs text-gray-500 mt-1 ml-6">
-          Para archivos donde un grupo de columnas representa una acción (ej: Estado, Fecha inicio, Fecha fin de cada fase).
+    <div className="space-y-6">
+      {/* ═══ SECCIÓN A ═══ */}
+      <section>
+        <h3 className="text-sm font-semibold text-gray-800">
+          Datos de la {etiquetaNivel} de cada fila
+        </h3>
+        <p className="text-xs text-gray-500 mt-1 flex items-start gap-1.5">
+          <Info size={12} className="text-blue-400 mt-0.5 flex-shrink-0" />
+          <span>
+            Las columnas que selecciones aquí describen la {etiquetaNivel} que se creará por cada
+            fila del archivo. Las que dejes en "No usar" las puedes asignar más abajo a acciones.
+          </span>
         </p>
 
-        {mostrarPivots && (
-          <div className="mt-4 ml-2 space-y-3">
-            {pivotBlocks.map((block, idx) => (
-              <PivotBlockEditor
-                key={idx}
-                block={block}
-                index={idx}
-                headers={headers}
-                superHeaders={superHeaders}
-                onChange={(b) => actualizarPivotBlock(idx, b)}
-                onDelete={() => eliminarPivotBlock(idx)}
-              />
-            ))}
-            <button
-              onClick={agregarPivotBlock}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 border border-blue-200 rounded-md hover:bg-blue-50"
-            >
-              <Plus size={12} /> Agregar bloque pivotado
-            </button>
+        <div className="mt-3 border rounded-lg overflow-hidden">
+          <div className="max-h-56 overflow-y-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 sticky top-0 z-10">
+                <tr>
+                  <th className="px-3 py-1.5 text-left font-medium text-gray-500">Columna</th>
+                  {superHeaders && (
+                    <th className="px-3 py-1.5 text-left font-medium text-gray-500">Grupo</th>
+                  )}
+                  <th className="px-3 py-1.5 text-left font-medium text-gray-500">Ejemplo</th>
+                  <th className="px-3 py-1.5 text-left font-medium text-gray-500 w-44">Asignar a</th>
+                </tr>
+              </thead>
+              <tbody>
+                {headers.map((h, i) => {
+                  const enAccion = columnasSeccionB.has(i);
+                  return (
+                    <tr key={i} className={`border-t ${enAccion ? 'bg-amber-50/50' : ''}`}>
+                      <td className="px-3 py-1.5 font-medium text-gray-700">
+                        {h || <span className="italic text-gray-400">Col {i}</span>}
+                      </td>
+                      {superHeaders && (
+                        <td className="px-3 py-1.5 text-purple-600 text-xs">
+                          {superHeaders[i] || '—'}
+                        </td>
+                      )}
+                      <td className="px-3 py-1.5 text-gray-500 max-w-28 truncate">
+                        {sampleRows[0]?.[i] || '—'}
+                      </td>
+                      <td className="px-3 py-1.5">
+                        {enAccion ? (
+                          <span className="text-xs text-amber-600 italic">→ en acción</span>
+                        ) : (
+                          <select
+                            value={columnMap[i] || ''}
+                            onChange={e => actualizarMapeo(i, e.target.value)}
+                            className="w-full border rounded px-2 py-1 text-xs"
+                          >
+                            {CAMPOS_NIVEL_BASE.map(c => (
+                              <option key={c.value} value={c.value}>{c.label}</option>
+                            ))}
+                          </select>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+        </div>
 
-      <div className="flex justify-end pt-2">
+        {!tieneNombre && errorValidacion && (
+          <p className="text-xs text-red-500 mt-2 font-medium">{errorValidacion}</p>
+        )}
+      </section>
+
+      {/* ═══ SECCIÓN B ═══ */}
+      <section>
+        <h3 className="text-sm font-semibold text-gray-800">
+          (Opcional) Crear acciones automáticamente
+        </h3>
+        <p className="text-xs text-gray-500 mt-1 flex items-start gap-1.5">
+          <Info size={12} className="text-blue-400 mt-0.5 flex-shrink-0" />
+          <span>
+            Si tu archivo tiene columnas agrupadas que representan acciones dentro de cada {etiquetaNivel}
+            (por ejemplo, fases de un proceso con su propio estado y fechas), créalas aquí.
+            Si tu archivo solo tiene una {etiquetaNivel} por fila sin acciones internas, salta esta sección.
+          </span>
+        </p>
+
+        <div className="mt-3 space-y-2">
+          {pivotBlocks.map((block, idx) => (
+            <TarjetaAccion
+              key={idx}
+              accion={block}
+              index={idx}
+              columnasDisponibles={columnasParaAccion(idx)}
+              headers={headers}
+              onChange={(b) => actualizarAccion(idx, b)}
+              onDelete={() => eliminarAccion(idx)}
+              errorNombre={erroresAcciones[idx] || null}
+            />
+          ))}
+
+          <button
+            onClick={agregarAccion}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-blue-600 border border-dashed border-blue-300 rounded-lg hover:bg-blue-50 w-full justify-center"
+          >
+            <Plus size={14} /> Agregar acción
+          </button>
+        </div>
+      </section>
+
+      {/* ═══ SECCIÓN C — Diferida ═══ */}
+      {/* TODO: Subacciones en sprint futuro */}
+
+      {/* ═══ VISTA PREVIA DINÁMICA ═══ */}
+      <section className="bg-gray-50 border rounded-lg p-4">
+        <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
+          Vista previa de lo que se importará por cada fila
+        </h4>
+        <div className="space-y-1 text-sm">
+          {tieneNombre ? (
+            <>
+              <p className="flex items-center gap-1.5 text-green-700">
+                <CheckCircle2 size={14} />
+                1 {etiquetaNivel} con campos: {camposAsignados.join(', ')}
+              </p>
+              {accionesResumen.length > 0 && (
+                <>
+                  <p className="flex items-center gap-1.5 text-green-700">
+                    <CheckCircle2 size={14} />
+                    {accionesResumen.length} {accionesResumen.length === 1 ? 'acción derivada' : 'acciones derivadas'}:
+                  </p>
+                  <ul className="ml-7 text-xs text-gray-600 space-y-0.5">
+                    {accionesResumen.map((a, i) => (
+                      <li key={i}>• {a.nombre} ({a.campos.length > 0 ? a.campos.join(', ') : 'sin campos'})</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {totalDataRows > 0 && (
+                <p className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-200">
+                  Total estimado al importar: <strong>{totalDataRows} {etiquetaNivel}s</strong>
+                  {accionesResumen.length > 0 && (
+                    <> + <strong>{totalDataRows * accionesResumen.length} acciones</strong></>
+                  )}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-gray-400 italic text-xs">
+              Asigna al menos una columna a "Nombre" para ver la vista previa.
+            </p>
+          )}
+        </div>
+      </section>
+
+      {/* ═══ BOTÓN SIGUIENTE ═══ */}
+      {errorValidacion && (
+        <p className="text-xs text-red-500 font-medium">{errorValidacion}</p>
+      )}
+      <div className="flex justify-end pt-1">
         <button
           onClick={guardar}
-          className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
+          disabled={!puedeAvanzar}
+          className={`flex items-center gap-1.5 px-4 py-2 text-sm rounded-md font-medium transition-colors ${
+            puedeAvanzar
+              ? 'bg-blue-600 text-white hover:bg-blue-700'
+              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+          }`}
         >
           Siguiente <ChevronRight size={14} />
         </button>
