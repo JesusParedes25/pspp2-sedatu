@@ -1,15 +1,16 @@
 /**
  * ARCHIVO: PasoMapeo.jsx
- * PROPÓSITO: Paso 3 del wizard — Mapeo de columnas con UX de 3 secciones.
+ * PROPÓSITO: Paso 3 del wizard — Mapeo de columnas con UX de 2 secciones + subacciones anidadas.
  *
  * Sección A: Campos del nivel base (etapa/acción/subacción por fila).
- * Sección B: Acciones derivadas (pivot blocks) — opcional.
- * Sección C: Subacciones — diferido (TODO futuro).
- * Vista previa en tiempo real al final.
+ * Sección B: Acciones derivadas (pivot blocks) con subacciones anidadas.
+ * Vista previa jerárquica en tiempo real al final.
  *
  * Produce el mismo JSON (columnMap + pivotBlocks) que consume el backend.
+ * Las subacciones se almacenan como pivotBlocks con createsLevel="subaccion"
+ * y parentBlockName referenciando la acción padre.
  */
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { ChevronRight, Plus, Info, CheckCircle2 } from 'lucide-react';
 import TarjetaAccion from './TarjetaAccion';
 
@@ -28,35 +29,85 @@ const CAMPOS_NIVEL_BASE = [
   { value: 'dependencia_externa', label: 'Dependencia externa' },
 ];
 
+const CAMPOS_LABELS = Object.fromEntries(CAMPOS_NIVEL_BASE.filter(c => c.value).map(c => [c.value, c.label]));
+
 const ETIQUETAS_NIVEL = {
   etapa: 'etapa',
   accion: 'acción',
   subaccion: 'subacción',
 };
 
+// ─── Helpers para separar acciones y subacciones de pivotBlocks ──
+function separarBlocks(pivotBlocks) {
+  const acciones = [];
+  const subsPorAccion = {}; // accionName → [subBlock, ...]
+  for (const block of (pivotBlocks || [])) {
+    if ((block.createsLevel || 'accion') === 'subaccion') {
+      const parent = block.parentBlockName || '__sin_padre__';
+      if (!subsPorAccion[parent]) subsPorAccion[parent] = [];
+      subsPorAccion[parent].push(block);
+    } else {
+      acciones.push(block);
+    }
+  }
+  return { acciones, subsPorAccion };
+}
+
+function aplanarBlocks(acciones, subsPorAccion) {
+  const resultado = [];
+  for (const accion of acciones) {
+    resultado.push(accion);
+    const subs = subsPorAccion[accion.name] || [];
+    for (const sub of subs) {
+      resultado.push({ ...sub, parentBlockName: accion.name });
+    }
+  }
+  // Subacciones huérfanas (sin padre válido)
+  for (const [parent, subs] of Object.entries(subsPorAccion)) {
+    if (!acciones.some(a => a.name === parent)) {
+      resultado.push(...subs);
+    }
+  }
+  return resultado;
+}
+
 export default function PasoMapeo({ headers, superHeaders, sampleRows, config, totalDataRows: totalDataRowsProp, onCambiar, onAvanzar }) {
+  // Separar acciones y subacciones del config.pivotBlocks inicial
+  const inicial = useMemo(() => separarBlocks(config.pivotBlocks), []);
+
   const [columnMap, setColumnMap] = useState(() => config.columnMap || {});
-  const [pivotBlocks, setPivotBlocks] = useState(() => config.pivotBlocks || []);
+  const [acciones, setAcciones] = useState(() => inicial.acciones);
+  const [subsPorAccion, setSubsPorAccion] = useState(() => inicial.subsPorAccion);
   const [errorValidacion, setErrorValidacion] = useState(null);
 
   const rowLevel = config.rowLevel || 'etapa';
   const etiquetaNivel = ETIQUETAS_NIVEL[rowLevel] || 'etapa';
+
+  // ─── Todas las columnas usadas por subacciones (flat set) ──────
+  const columnasEnSubacciones = useMemo(() => {
+    const set = new Set();
+    for (const subs of Object.values(subsPorAccion)) {
+      for (const sub of subs) {
+        for (const col of (sub.columns || [])) set.add(col);
+      }
+    }
+    return set;
+  }, [subsPorAccion]);
 
   // ─── Columnas asignadas en Sección A ───────────────────────────
   const columnasSeccionA = useMemo(() => {
     return new Set(Object.keys(columnMap).map(Number));
   }, [columnMap]);
 
-  // ─── Columnas usadas en todas las acciones (Sección B) ────────
+  // ─── Columnas usadas en acciones + subacciones (Sección B) ────
   const columnasSeccionB = useMemo(() => {
     const set = new Set();
-    for (const block of pivotBlocks) {
-      for (const col of (block.columns || [])) {
-        set.add(col);
-      }
+    for (const block of acciones) {
+      for (const col of (block.columns || [])) set.add(col);
     }
+    for (const col of columnasEnSubacciones) set.add(col);
     return set;
-  }, [pivotBlocks]);
+  }, [acciones, columnasEnSubacciones]);
 
   // ─── Columnas disponibles para Sección B (no usadas en A) ─────
   const columnasParaAcciones = useMemo(() => {
@@ -66,17 +117,47 @@ export default function PasoMapeo({ headers, superHeaders, sampleRows, config, t
   }, [headers, columnasSeccionA]);
 
   // ─── Columnas disponibles para una acción específica ───────────
-  const columnasParaAccion = (accionIdx) => {
+  // Excluye columnas usadas por OTRAS acciones y ALL subacciones de OTRAS acciones
+  const columnasParaAccion = useCallback((accionIdx) => {
     const usadasPorOtras = new Set();
-    pivotBlocks.forEach((block, idx) => {
+    acciones.forEach((block, idx) => {
       if (idx !== accionIdx) {
-        for (const col of (block.columns || [])) {
-          usadasPorOtras.add(col);
-        }
+        for (const col of (block.columns || [])) usadasPorOtras.add(col);
       }
     });
+    // Excluir subacciones de OTRAS acciones
+    const thisName = acciones[accionIdx]?.name;
+    for (const [parent, subs] of Object.entries(subsPorAccion)) {
+      if (parent !== thisName) {
+        for (const sub of subs) {
+          for (const col of (sub.columns || [])) usadasPorOtras.add(col);
+        }
+      }
+    }
     return columnasParaAcciones.filter(i => !usadasPorOtras.has(i));
-  };
+  }, [acciones, subsPorAccion, columnasParaAcciones]);
+
+  // ─── Columnas disponibles para una subacción específica ────────
+  // Excluye cols de: Section A, other actions, parent action's own fieldMap, other subs
+  const columnasParaSubaccionFactory = useCallback((accionIdx) => {
+    return (subIdx) => {
+      const accion = acciones[accionIdx];
+      if (!accion) return [];
+      // Columnas del pool de esta acción (no usadas en A ni otras acciones)
+      const poolAccion = columnasParaAccion(accionIdx);
+      // Excluir columnas usadas por la acción misma
+      const usadasPorAccion = new Set(Object.keys(accion.fieldMap || {}).map(Number));
+      // Excluir columnas usadas por OTRAS subacciones de esta acción
+      const subs = subsPorAccion[accion.name] || [];
+      const usadasPorOtrasSubs = new Set();
+      subs.forEach((sub, idx) => {
+        if (idx !== subIdx) {
+          for (const col of (sub.columns || [])) usadasPorOtrasSubs.add(col);
+        }
+      });
+      return poolAccion.filter(i => !usadasPorAccion.has(i) && !usadasPorOtrasSubs.has(i));
+    };
+  }, [acciones, subsPorAccion, columnasParaAccion]);
 
   // ─── Validaciones ──────────────────────────────────────────────
   const tieneNombre = Object.values(columnMap).includes('nombre');
@@ -84,7 +165,7 @@ export default function PasoMapeo({ headers, superHeaders, sampleRows, config, t
   const erroresAcciones = useMemo(() => {
     const errores = {};
     const nombres = new Set();
-    pivotBlocks.forEach((block, idx) => {
+    acciones.forEach((block, idx) => {
       if (!block.name || !block.name.trim()) {
         errores[idx] = 'El nombre es obligatorio';
       } else if (nombres.has(block.name.trim().toLowerCase())) {
@@ -93,9 +174,28 @@ export default function PasoMapeo({ headers, superHeaders, sampleRows, config, t
       nombres.add((block.name || '').trim().toLowerCase());
     });
     return errores;
-  }, [pivotBlocks]);
+  }, [acciones]);
 
-  const puedeAvanzar = tieneNombre && Object.keys(erroresAcciones).length === 0;
+  const erroresSubaccionesPorAccion = useMemo(() => {
+    const resultado = {};
+    for (const [parent, subs] of Object.entries(subsPorAccion)) {
+      const errores = {};
+      const nombres = new Set();
+      subs.forEach((sub, idx) => {
+        if (!sub.name || !sub.name.trim()) {
+          errores[idx] = 'El nombre es obligatorio';
+        } else if (nombres.has(sub.name.trim().toLowerCase())) {
+          errores[idx] = 'Nombre duplicado';
+        }
+        nombres.add((sub.name || '').trim().toLowerCase());
+      });
+      if (Object.keys(errores).length > 0) resultado[parent] = errores;
+    }
+    return resultado;
+  }, [subsPorAccion]);
+
+  const tieneErroresSubs = Object.keys(erroresSubaccionesPorAccion).length > 0;
+  const puedeAvanzar = tieneNombre && Object.keys(erroresAcciones).length === 0 && !tieneErroresSubs;
 
   // ─── Handlers ──────────────────────────────────────────────────
   const actualizarMapeo = (colIdx, campo) => {
@@ -110,7 +210,7 @@ export default function PasoMapeo({ headers, superHeaders, sampleRows, config, t
   };
 
   const agregarAccion = () => {
-    setPivotBlocks([...pivotBlocks, {
+    setAcciones([...acciones, {
       name: '',
       columns: [],
       fieldMap: {},
@@ -119,13 +219,33 @@ export default function PasoMapeo({ headers, superHeaders, sampleRows, config, t
   };
 
   const actualizarAccion = (idx, block) => {
-    const copia = [...pivotBlocks];
+    const oldName = acciones[idx]?.name;
+    const newName = block.name;
+    const copia = [...acciones];
     copia[idx] = block;
-    setPivotBlocks(copia);
+    setAcciones(copia);
+    // Si el nombre cambió, actualizar parentBlockName en subacciones
+    if (oldName && oldName !== newName && subsPorAccion[oldName]) {
+      const nuevoSubs = { ...subsPorAccion };
+      nuevoSubs[newName] = (nuevoSubs[oldName] || []).map(s => ({ ...s, parentBlockName: newName }));
+      delete nuevoSubs[oldName];
+      setSubsPorAccion(nuevoSubs);
+    }
   };
 
   const eliminarAccion = (idx) => {
-    setPivotBlocks(pivotBlocks.filter((_, i) => i !== idx));
+    const nombre = acciones[idx]?.name;
+    setAcciones(acciones.filter((_, i) => i !== idx));
+    // Eliminar subacciones de esta acción
+    if (nombre && subsPorAccion[nombre]) {
+      const nuevoSubs = { ...subsPorAccion };
+      delete nuevoSubs[nombre];
+      setSubsPorAccion(nuevoSubs);
+    }
+  };
+
+  const actualizarSubaccionesDeAccion = (accionName, subs) => {
+    setSubsPorAccion(prev => ({ ...prev, [accionName]: subs }));
   };
 
   const guardar = () => {
@@ -133,31 +253,36 @@ export default function PasoMapeo({ headers, superHeaders, sampleRows, config, t
       setErrorValidacion('Debes asignar al menos una columna al campo "Nombre".');
       return;
     }
-    if (Object.keys(erroresAcciones).length > 0) {
-      setErrorValidacion('Corrige los errores en las acciones antes de continuar.');
+    if (Object.keys(erroresAcciones).length > 0 || tieneErroresSubs) {
+      setErrorValidacion('Corrige los errores en las acciones/subacciones antes de continuar.');
       return;
     }
+    const pivotBlocks = aplanarBlocks(acciones, subsPorAccion);
     onCambiar({ columnMap, pivotBlocks });
     onAvanzar();
   };
 
-  // ─── Vista previa dinámica ─────────────────────────────────────
+  // ─── Vista previa dinámica (jerárquica) ────────────────────────
   const camposAsignados = Object.values(columnMap)
-    .map(v => CAMPOS_NIVEL_BASE.find(c => c.value === v)?.label)
+    .map(v => CAMPOS_LABELS[v])
     .filter(Boolean);
 
-  const accionesResumen = pivotBlocks
+  const accionesResumen = acciones
     .filter(b => b.name && b.name.trim())
     .map(b => {
       const campos = Object.values(b.fieldMap || {})
-        .map(v => {
-          const def = CAMPOS_NIVEL_BASE.find(c => c.value === v);
-          return def ? def.label : v;
-        })
+        .map(v => CAMPOS_LABELS[v] || v)
         .filter(Boolean);
-      return { nombre: b.name, campos };
+      const subs = (subsPorAccion[b.name] || [])
+        .filter(s => s.name && s.name.trim())
+        .map(s => ({
+          nombre: s.name,
+          campos: Object.values(s.fieldMap || {}).map(v => CAMPOS_LABELS[v] || v).filter(Boolean),
+        }));
+      return { nombre: b.name, campos, subs };
     });
 
+  const totalSubacciones = accionesResumen.reduce((sum, a) => sum + a.subs.length, 0);
   const totalDataRows = totalDataRowsProp || sampleRows?.length || 0;
 
   return (
@@ -232,7 +357,7 @@ export default function PasoMapeo({ headers, superHeaders, sampleRows, config, t
         )}
       </section>
 
-      {/* ═══ SECCIÓN B ═══ */}
+      {/* ═══ SECCIÓN B — Acciones con subacciones anidadas ═══ */}
       <section>
         <h3 className="text-sm font-semibold text-gray-800">
           (Opcional) Crear acciones automáticamente
@@ -242,18 +367,22 @@ export default function PasoMapeo({ headers, superHeaders, sampleRows, config, t
           <span>
             Si tu archivo tiene columnas agrupadas que representan acciones dentro de cada {etiquetaNivel}
             (por ejemplo, fases de un proceso con su propio estado y fechas), créalas aquí.
-            Si tu archivo solo tiene una {etiquetaNivel} por fila sin acciones internas, salta esta sección.
+            Dentro de cada acción puedes crear subacciones si necesitas un nivel más de detalle.
           </span>
         </p>
 
         <div className="mt-3 space-y-2">
-          {pivotBlocks.map((block, idx) => (
+          {acciones.map((block, idx) => (
             <TarjetaAccion
               key={idx}
               accion={block}
               index={idx}
               columnasDisponibles={columnasParaAccion(idx)}
               headers={headers}
+              subacciones={subsPorAccion[block.name] || []}
+              onSubaccionesChange={(subs) => actualizarSubaccionesDeAccion(block.name, subs)}
+              columnasParaSubaccion={columnasParaSubaccionFactory(idx)}
+              erroresSubacciones={erroresSubaccionesPorAccion[block.name] || {}}
               onChange={(b) => actualizarAccion(idx, b)}
               onDelete={() => eliminarAccion(idx)}
               errorNombre={erroresAcciones[idx] || null}
@@ -269,10 +398,7 @@ export default function PasoMapeo({ headers, superHeaders, sampleRows, config, t
         </div>
       </section>
 
-      {/* ═══ SECCIÓN C — Diferida ═══ */}
-      {/* TODO: Subacciones en sprint futuro */}
-
-      {/* ═══ VISTA PREVIA DINÁMICA ═══ */}
+      {/* ═══ VISTA PREVIA DINÁMICA (JERÁRQUICA) ═══ */}
       <section className="bg-gray-50 border rounded-lg p-4">
         <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
           Vista previa de lo que se importará por cada fila
@@ -290,9 +416,21 @@ export default function PasoMapeo({ headers, superHeaders, sampleRows, config, t
                     <CheckCircle2 size={14} />
                     {accionesResumen.length} {accionesResumen.length === 1 ? 'acción derivada' : 'acciones derivadas'}:
                   </p>
-                  <ul className="ml-7 text-xs text-gray-600 space-y-0.5">
+                  <ul className="ml-7 text-xs text-gray-600 space-y-1">
                     {accionesResumen.map((a, i) => (
-                      <li key={i}>• {a.nombre} ({a.campos.length > 0 ? a.campos.join(', ') : 'sin campos'})</li>
+                      <li key={i}>
+                        <span>• {a.nombre} ({a.campos.length > 0 ? a.campos.join(', ') : 'sin campos'})</span>
+                        {a.subs.length > 0 && (
+                          <ul className="ml-4 mt-0.5 space-y-0.5 text-indigo-600">
+                            <li className="text-xs">└─ {a.subs.length} {a.subs.length === 1 ? 'subacción' : 'subacciones'}:</li>
+                            {a.subs.map((s, j) => (
+                              <li key={j} className="ml-5 text-xs text-gray-500">
+                                • {s.nombre} ({s.campos.length > 0 ? s.campos.join(', ') : 'sin campos'})
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </li>
                     ))}
                   </ul>
                 </>
@@ -302,6 +440,9 @@ export default function PasoMapeo({ headers, superHeaders, sampleRows, config, t
                   Total estimado al importar: <strong>{totalDataRows} {etiquetaNivel}s</strong>
                   {accionesResumen.length > 0 && (
                     <> + <strong>{totalDataRows * accionesResumen.length} acciones</strong></>
+                  )}
+                  {totalSubacciones > 0 && (
+                    <> + <strong>{totalDataRows * totalSubacciones} subacciones</strong></>
                   )}
                 </p>
               )}

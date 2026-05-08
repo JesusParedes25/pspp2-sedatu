@@ -1,12 +1,13 @@
 /**
  * ARCHIVO: TarjetaAccion.jsx
- * PROPÓSITO: Tarjeta colapsable para una acción/subacción pivotada en el Paso 3.
+ * PROPÓSITO: Tarjeta colapsable para una acción pivotada en el Paso 3.
  *
- * Muestra el nombre de la acción, las columnas disponibles con dropdown de campo,
- * y permite colapsar/expandir para no saturar la pantalla con 6+ acciones.
+ * Incluye: nombre, mapeo de columnas, y sección de subacciones anidadas.
+ * Cada subacción se renderiza como TarjetaSubaccion dentro de esta tarjeta.
  */
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Trash2, Plus } from 'lucide-react';
+import TarjetaSubaccion from './TarjetaSubaccion';
 
 const CAMPOS_ACCION = [
   { value: '', label: '— No usar —' },
@@ -24,6 +25,10 @@ export default function TarjetaAccion({
   index,
   columnasDisponibles,
   headers,
+  subacciones,
+  onSubaccionesChange,
+  columnasParaSubaccion,
+  erroresSubacciones,
   onChange,
   onDelete,
   errorNombre,
@@ -53,14 +58,33 @@ export default function TarjetaAccion({
     onChange({ ...accion, fieldMap, columns });
   };
 
-  // Columnas asignadas a ESTA acción (tienen un campo != '')
-  const columnasAsignadas = Object.keys(accion.fieldMap || {}).map(Number);
-  const tieneAsignaciones = columnasAsignadas.length > 0;
+  // ─── Subacciones helpers ───────────────────────────────────────
+  const agregarSubaccion = () => {
+    onSubaccionesChange([...subacciones, {
+      name: '',
+      columns: [],
+      fieldMap: {},
+      createsLevel: 'subaccion',
+      parentBlockName: accion.name,
+    }]);
+  };
 
-  // Resumen para mostrar cuando está colapsada
+  const actualizarSubaccion = (subIdx, sub) => {
+    const copia = [...subacciones];
+    copia[subIdx] = { ...sub, parentBlockName: accion.name };
+    onSubaccionesChange(copia);
+  };
+
+  const eliminarSubaccion = (subIdx) => {
+    onSubaccionesChange(subacciones.filter((_, i) => i !== subIdx));
+  };
+
+  // ─── Resumen para header colapsado ─────────────────────────────
   const resumenCampos = Object.values(accion.fieldMap || {})
     .map(v => CAMPOS_ACCION.find(c => c.value === v)?.label || v)
     .filter(Boolean);
+  const tieneAsignaciones = resumenCampos.length > 0;
+  const numSubs = subacciones.length;
 
   return (
     <div className={`border rounded-lg overflow-hidden ${errorNombre ? 'border-red-300' : 'border-gray-200'}`}>
@@ -74,9 +98,12 @@ export default function TarjetaAccion({
         <span className="text-sm font-medium text-gray-700 flex-1">
           {accion.name || <span className="italic text-gray-400">Sin nombre</span>}
         </span>
-        {colapsada && tieneAsignaciones && (
+        {colapsada && (
           <span className="text-xs text-gray-500">
-            {resumenCampos.join(', ')}
+            {[
+              tieneAsignaciones && resumenCampos.join(', '),
+              numSubs > 0 && `${numSubs} sub`,
+            ].filter(Boolean).join(' · ')}
           </span>
         )}
         <button
@@ -118,24 +145,32 @@ export default function TarjetaAccion({
                   </tr>
                 </thead>
                 <tbody>
-                  {columnasDisponibles.map(colIdx => (
-                    <tr key={colIdx} className="border-t">
-                      <td className="px-3 py-1.5 text-gray-700">
-                        {headers[colIdx] || `Col ${colIdx}`}
-                      </td>
-                      <td className="px-3 py-1.5">
-                        <select
-                          value={accion.fieldMap?.[colIdx] || ''}
-                          onChange={e => actualizarFieldMap(colIdx, e.target.value)}
-                          className="w-full border rounded px-2 py-1 text-xs"
-                        >
-                          {CAMPOS_ACCION.map(c => (
-                            <option key={c.value} value={c.value}>{c.label}</option>
-                          ))}
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
+                  {columnasDisponibles.map(colIdx => {
+                    // Marcar si está usada en una subacción de esta acción
+                    const enSub = subacciones.some(s => (s.columns || []).includes(colIdx));
+                    return (
+                      <tr key={colIdx} className={`border-t ${enSub ? 'bg-indigo-50/40' : ''}`}>
+                        <td className="px-3 py-1.5 text-gray-700">
+                          {headers[colIdx] || `Col ${colIdx}`}
+                        </td>
+                        <td className="px-3 py-1.5">
+                          {enSub ? (
+                            <span className="text-xs text-indigo-500 italic">→ en subacción</span>
+                          ) : (
+                            <select
+                              value={accion.fieldMap?.[colIdx] || ''}
+                              onChange={e => actualizarFieldMap(colIdx, e.target.value)}
+                              className="w-full border rounded px-2 py-1 text-xs"
+                            >
+                              {CAMPOS_ACCION.map(c => (
+                                <option key={c.value} value={c.value}>{c.label}</option>
+                              ))}
+                            </select>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {columnasDisponibles.length === 0 && (
                     <tr>
                       <td colSpan={2} className="px-3 py-3 text-center text-gray-400 italic">
@@ -145,6 +180,36 @@ export default function TarjetaAccion({
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+
+          {/* ─── Subacciones anidadas ─── */}
+          <div className="pt-2 border-t border-dashed border-gray-300">
+            <p className="text-xs font-medium text-indigo-600 mb-2">
+              Subacciones dentro de esta acción (opcional)
+            </p>
+
+            <div className="ml-3 space-y-2">
+              {subacciones.map((sub, subIdx) => (
+                <TarjetaSubaccion
+                  key={subIdx}
+                  subaccion={sub}
+                  accionIndex={index}
+                  subIndex={subIdx}
+                  columnasDisponibles={columnasParaSubaccion(subIdx)}
+                  headers={headers}
+                  onChange={(s) => actualizarSubaccion(subIdx, s)}
+                  onDelete={() => eliminarSubaccion(subIdx)}
+                  errorNombre={erroresSubacciones?.[subIdx] || null}
+                />
+              ))}
+
+              <button
+                onClick={agregarSubaccion}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-indigo-600 border border-dashed border-indigo-300 rounded-md hover:bg-indigo-50 w-full justify-center"
+              >
+                <Plus size={12} /> Agregar subacción
+              </button>
             </div>
           </div>
         </div>

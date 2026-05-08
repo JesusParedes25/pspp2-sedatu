@@ -165,10 +165,10 @@ function transformarFilas(dataRows, config, headers) {
 
     // Procesar pivot blocks → generar acciones/subacciones hijas
     if (pivotBlocks && pivotBlocks.length > 0) {
-      for (const block of pivotBlocks) {
+      // Función helper para extraer campos de un pivot block
+      const extraerCamposPivot = (block) => {
         const hijoCampos = {};
         let tieneData = false;
-
         for (const [colIdx, field] of Object.entries(block.fieldMap)) {
           const idx = parseInt(colIdx);
           let valor = idx < fila.length ? fila[idx] : '';
@@ -178,8 +178,7 @@ function transformarFilas(dataRows, config, headers) {
           }
           hijoCampos[field] = emptyToNull(valor);
         }
-
-        // Validar estado del hijo
+        // Validar estado
         if (hijoCampos.estado && !ESTADOS_VALIDOS.includes(hijoCampos.estado)) {
           warnings.push({
             fila: filaNum,
@@ -187,23 +186,54 @@ function transformarFilas(dataRows, config, headers) {
           });
           hijoCampos.estado = 'Pendiente';
         }
-
-        // Parsear fechas del hijo
+        // Parsear fechas
         for (const campoFecha of ['fecha_inicio', 'fecha_fin']) {
           if (hijoCampos[campoFecha]) {
             hijoCampos[campoFecha] = toDate(hijoCampos[campoFecha]);
           }
         }
+        return { hijoCampos, tieneData };
+      };
 
-        // Solo crear hijo si hay al menos un dato
+      // Paso 1: crear hijos de nivel acción (directos de la entidad)
+      const accionesPorNombre = {};
+      for (const block of pivotBlocks) {
+        if ((block.createsLevel || 'accion') === 'subaccion') continue;
+        const { hijoCampos, tieneData } = extraerCamposPivot(block);
         if (tieneData) {
-          entidad.hijos.push({
+          const hijo = {
             nivel: block.createsLevel || 'accion',
+            nombre: block.name,
+            campos: hijoCampos,
+            hijos: [],
+            filaOrigen: filaNum,
+            warnings: [],
+          };
+          entidad.hijos.push(hijo);
+          accionesPorNombre[block.name] = hijo;
+        }
+      }
+
+      // Paso 2: crear hijos de nivel subacción, anidándolos bajo su acción padre
+      for (const block of pivotBlocks) {
+        if ((block.createsLevel || 'accion') !== 'subaccion') continue;
+        const { hijoCampos, tieneData } = extraerCamposPivot(block);
+        if (tieneData) {
+          const hijo = {
+            nivel: 'subaccion',
             nombre: block.name,
             campos: hijoCampos,
             filaOrigen: filaNum,
             warnings: [],
-          });
+          };
+          // Anidar bajo acción padre si se indica parentBlockName
+          const padre = block.parentBlockName && accionesPorNombre[block.parentBlockName];
+          if (padre) {
+            padre.hijos.push(hijo);
+          } else {
+            // Sin padre explícito: agregar como hijo directo de la entidad
+            entidad.hijos.push(hijo);
+          }
         }
       }
     }
