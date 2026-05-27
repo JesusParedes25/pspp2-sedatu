@@ -204,10 +204,47 @@ async function eliminarEtapa(etapaId) {
   return resultado.rows[0] || null;
 }
 
+// Actualiza un solo campo de una etapa (para inline editing en DataGrid)
+async function patchCampoEtapa(etapaId, campo, valor) {
+  const CAMPOS_DIRECTOS = ['nombre', 'descripcion', 'estado', 'semaforo', 'fecha_inicio', 'fecha_fin', 'prioridad'];
+
+  let query, params;
+  if (CAMPOS_DIRECTOS.includes(campo)) {
+    query = `UPDATE etapas SET ${campo} = $1, updated_at = NOW() WHERE id = $2 RETURNING *`;
+    params = [valor, etapaId];
+  } else if (campo.startsWith('campos_extra.')) {
+    const clave = campo.replace('campos_extra.', '');
+    query = `UPDATE etapas SET campos_extra = jsonb_set(COALESCE(campos_extra, '{}'), $1, $2), updated_at = NOW() WHERE id = $3 RETURNING *`;
+    params = [`{${clave}}`, JSON.stringify(valor), etapaId];
+  } else {
+    throw new Error(`Campo no permitido: ${campo}`);
+  }
+
+  const { rows } = await pool.query(query, params);
+  return rows[0] || null;
+}
+
+// Obtiene las claves únicas de campos_extra de todas las etapas de un proyecto
+async function obtenerCamposExtraSchema(proyectoId) {
+  const { rows } = await pool.query(`
+    SELECT DISTINCT jsonb_object_keys(COALESCE(campos_extra, '{}')) AS clave
+    FROM etapas
+    WHERE id_proyecto = $1 AND campos_extra IS NOT NULL AND campos_extra != '{}'
+    UNION
+    SELECT DISTINCT jsonb_object_keys(COALESCE(campos_extra, '{}')) AS clave
+    FROM acciones
+    WHERE id_proyecto = $1 AND campos_extra IS NOT NULL AND campos_extra != '{}'
+    ORDER BY clave
+  `, [proyectoId]);
+  return rows.map(r => r.clave);
+}
+
 module.exports = {
   obtenerEtapasPorProyecto,
   obtenerEtapaPorId,
   crearEtapa,
   actualizarEtapa,
-  eliminarEtapa
+  eliminarEtapa,
+  patchCampoEtapa,
+  obtenerCamposExtraSchema
 };

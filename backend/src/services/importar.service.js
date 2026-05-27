@@ -11,6 +11,9 @@
  */
 const pool = require('../db/pool');
 const { recalcularPesosEtapa } = require('../db/queries/acciones.queries');
+const { limpiarValorGeografico, fuzzyMatch } = require('../utils/limpieza-geo');
+const { calcularSemaforo } = require('../utils/semaforo');
+const geografiaQueries = require('../db/queries/geografia.queries');
 
 const ESTADOS_VALIDOS = ['Pendiente', 'En_proceso', 'Bloqueada', 'Completada', 'Cancelada'];
 
@@ -135,6 +138,26 @@ function transformarFilas(dataRows, config, headers) {
       });
       campos.estado = 'Pendiente';
     }
+
+    // Calcular semáforo si hay datos para ello
+    if (campos.semaforo_explicito || campos.estado || campos.porcentaje_avance) {
+      const semaforoCalculado = calcularSemaforo({
+        semaforoExplicito: campos.semaforo_explicito,
+        estado: campos.estado_original || campos.estado,
+        porcentaje: campos.porcentaje_avance,
+      });
+      if (semaforoCalculado) campos._semaforo = semaforoCalculado;
+    }
+
+    // Procesar campos extra (claves que empiezan con _extra:)
+    const camposExtra = {};
+    for (const [k, v] of Object.entries(campos)) {
+      if (k.startsWith('_extra:') && v != null) {
+        camposExtra[k.replace('_extra:', '')] = v;
+        delete campos[k];
+      }
+    }
+    if (Object.keys(camposExtra).length > 0) campos._campos_extra = camposExtra;
 
     // Parsear fechas
     for (const campoFecha of ['fecha_inicio', 'fecha_fin']) {
@@ -317,11 +340,95 @@ async function detectarDuplicados(entidades, proyectoId, parentEntityId) {
   return duplicados;
 }
 
+// ─── Resolución geográfica ────────────────────────────────────
+
+/**
+ * Resuelve campos geográficos (entidad_federativa, municipio) contra el catálogo.
+ * Modifica las entidades in-place añadiendo _cobertura y _geo_matches.
+ */
+async function resolverGeografia(entidades) {
+  // Cargar catálogos una sola vez
+  const estados = await geografiaQueries.obtenerEstados();
+  const geoWarnings = [];
+
+  async function resolverEntidad(ent) {
+    const entFed = ent.campos.entidad_federativa;
+    const mun = ent.campos.municipio;
+
+    if (!entFed && !mun) {
+      // Resolver hijos también
+      for (const hijo of ent.hijos || []) await resolverEntidad(hijo);
+      return;
+    }
+
+    ent.campos._cobertura = [];
+    ent.campos._geo_matches = {};
+
+    // Limpiar y resolver entidad federativa
+    if (entFed) {
+      const valores = limpiarValorGeografico(entFed);
+      const valoresArray = Array.isArray(valores) ? valores : (valores ? [valores] : []);
+
+      for (const val of valoresArray) {
+        const match = fuzzyMatch(val, estados);
+        if (match) {
+          ent.campos._geo_matches.estado = { input: val, ...match };
+
+          // Resolver municipio si existe
+          if (mun) {
+            const munValores = limpiarValorGeografico(mun);
+            const munArray = Array.isArray(munValores) ? munValores : (munValores ? [munValores] : []);
+            const municipios = await geografiaQueries.obtenerMunicipios(match.id);
+
+            for (const munVal of munArray) {
+              const munMatch = fuzzyMatch(munVal, municipios);
+              if (munMatch) {
+                ent.campos._cobertura.push({ id_estado: match.id, id_municipio: munMatch.id });
+                ent.campos._geo_matches.municipio = { input: munVal, ...munMatch };
+              } else {
+                // Estado matched pero municipio no
+                ent.campos._cobertura.push({ id_estado: match.id, id_municipio: null });
+                geoWarnings.push({
+                  fila: ent.filaOrigen,
+                  mensaje: `Municipio "${munVal}" no encontrado en ${match.nombre}`,
+                });
+              }
+            }
+          } else {
+            // Solo estado, sin municipio
+            ent.campos._cobertura.push({ id_estado: match.id, id_municipio: null });
+          }
+        } else {
+          geoWarnings.push({
+            fila: ent.filaOrigen,
+            mensaje: `Entidad "${val}" no encontrada en catálogo`,
+          });
+        }
+      }
+    }
+
+    // Resolver hijos recursivamente
+    for (const hijo of ent.hijos || []) await resolverEntidad(hijo);
+  }
+
+  for (const ent of entidades) await resolverEntidad(ent);
+  return geoWarnings;
+}
+
 // ─── Preview (no toca BD) ──────────────────────────────────────
 
 async function generarPreview(dataRows, config, headers, proyectoId) {
   const { entidades, errores, warnings } = transformarFilas(dataRows, config, headers);
   const duplicados = await detectarDuplicados(entidades, proyectoId, config.parentEntityId);
+
+  // Resolver geografía si hay campos mapeados
+  const tieneGeo = Object.values(config.columnMap || {}).some(f =>
+    f === 'entidad_federativa' || f === 'municipio'
+  );
+  let geoWarnings = [];
+  if (tieneGeo) {
+    geoWarnings = await resolverGeografia(entidades);
+  }
 
   // Contar entidades
   let totalEtapas = 0;
@@ -342,7 +449,7 @@ async function generarPreview(dataRows, config, headers, proyectoId) {
     entidades,
     conteo: { etapas: totalEtapas, acciones: totalAcciones, subacciones: totalSubacciones },
     errores,
-    warnings,
+    warnings: [...warnings, ...geoWarnings],
     duplicados,
   };
 }
@@ -354,6 +461,14 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
 
   if (errores.length > 0) {
     throw new Error(`Hay ${errores.length} error(es) que impiden la importación. Use preview primero.`);
+  }
+
+  // Resolver geografía antes de insertar
+  const tieneGeo = Object.values(config.columnMap || {}).some(f =>
+    f === 'entidad_federativa' || f === 'municipio'
+  );
+  if (tieneGeo) {
+    await resolverGeografia(entidades);
   }
 
   const duplicados = await detectarDuplicados(entidades, proyectoId, config.parentEntityId);
@@ -407,8 +522,8 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
         ordenEtapa++;
         const { rows } = await client.query(`
           INSERT INTO etapas (nombre, descripcion, orden, tipo_meta, id_proyecto,
-                              fecha_inicio, fecha_fin, estado)
-          VALUES ($1, $2, $3, 'Sin_meta', $4, $5, $6, $7)
+                              fecha_inicio, fecha_fin, estado, semaforo, campos_extra)
+          VALUES ($1, $2, $3, 'Sin_meta', $4, $5, $6, $7, $8, $9)
           RETURNING id
         `, [
           ent.nombre,
@@ -418,9 +533,22 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
           toDate(ent.campos.fecha_inicio),
           toDate(ent.campos.fecha_fin),
           ent.campos.estado || 'Pendiente',
+          ent.campos._semaforo || null,
+          JSON.stringify(ent.campos._campos_extra || {}),
         ]);
         const etapaId = rows[0].id;
         resultado.etapas_creadas++;
+
+        // Insertar cobertura geográfica si existe
+        if (ent.campos._cobertura && ent.campos._cobertura.length > 0) {
+          for (const cob of ent.campos._cobertura) {
+            await client.query(
+              `INSERT INTO cobertura_geografica (tipo_entidad, id_entidad, id_estado, id_municipio)
+               VALUES ('etapa', $1, $2, $3) ON CONFLICT DO NOTHING`,
+              [etapaId, cob.id_estado, cob.id_municipio || null]
+            );
+          }
+        }
 
         // Insertar hijos (acciones pivotadas o jerárquicas)
         for (const hijo of ent.hijos || []) {
@@ -438,8 +566,8 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
         const { rows } = await client.query(`
           INSERT INTO acciones (
             nombre, descripcion, tipo, fecha_inicio, fecha_fin,
-            estado, id_etapa, id_proyecto
-          ) VALUES ($1, $2, 'Accion_programada', $3, $4, $5, $6, $7)
+            estado, id_etapa, id_proyecto, semaforo, campos_extra
+          ) VALUES ($1, $2, 'Accion_programada', $3, $4, $5, $6, $7, $8, $9)
           RETURNING id
         `, [
           ent.nombre,
@@ -449,9 +577,22 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
           ent.campos.estado || 'Pendiente',
           etapaId,
           proyectoId,
+          ent.campos._semaforo || null,
+          JSON.stringify(ent.campos._campos_extra || {}),
         ]);
         const accionId = rows[0].id;
         resultado.acciones_creadas++;
+
+        // Insertar cobertura geográfica si existe
+        if (ent.campos._cobertura && ent.campos._cobertura.length > 0) {
+          for (const cob of ent.campos._cobertura) {
+            await client.query(
+              `INSERT INTO cobertura_geografica (tipo_entidad, id_entidad, id_estado, id_municipio)
+               VALUES ('accion', $1, $2, $3) ON CONFLICT DO NOTHING`,
+              [accionId, cob.id_estado, cob.id_municipio || null]
+            );
+          }
+        }
 
         if (etapaId) etapasParaRecalculo.add(etapaId);
 
@@ -471,8 +612,8 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
         await client.query(`
           INSERT INTO acciones (
             nombre, descripcion, tipo, fecha_inicio, fecha_fin,
-            estado, id_accion_padre, id_etapa, id_proyecto
-          ) VALUES ($1, $2, 'Accion_programada', $3, $4, $5, $6, $7, $8)
+            estado, id_accion_padre, id_etapa, id_proyecto, semaforo, campos_extra
+          ) VALUES ($1, $2, 'Accion_programada', $3, $4, $5, $6, $7, $8, $9, $10)
         `, [
           ent.nombre,
           emptyToNull(ent.campos.descripcion),
@@ -482,6 +623,8 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
           accionPadreId,
           etapaId,
           proyectoId,
+          ent.campos._semaforo || null,
+          JSON.stringify(ent.campos._campos_extra || {}),
         ]);
         resultado.subacciones_creadas++;
         return null;

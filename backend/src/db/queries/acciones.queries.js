@@ -606,6 +606,26 @@ async function obtenerIndicadoresAccion(accionId) {
   return res.rows;
 }
 
+// Actualiza un solo campo de una acción (para inline editing en DataGrid)
+async function patchCampoAccion(accionId, campo, valor) {
+  const CAMPOS_DIRECTOS = ['nombre', 'descripcion', 'estado', 'semaforo', 'porcentaje_avance', 'fecha_inicio', 'fecha_fin', 'prioridad', 'tipo'];
+
+  let query, params;
+  if (CAMPOS_DIRECTOS.includes(campo)) {
+    query = `UPDATE acciones SET ${campo} = $1 WHERE id = $2 RETURNING *`;
+    params = [valor, accionId];
+  } else if (campo.startsWith('campos_extra.')) {
+    const clave = campo.replace('campos_extra.', '');
+    query = `UPDATE acciones SET campos_extra = jsonb_set(COALESCE(campos_extra, '{}'), $1, $2) WHERE id = $3 RETURNING *`;
+    params = [`{${clave}}`, JSON.stringify(valor), accionId];
+  } else {
+    throw new Error(`Campo no permitido: ${campo}`);
+  }
+
+  const { rows } = await pool.query(query, params);
+  return rows[0] || null;
+}
+
 module.exports = {
   obtenerAccionesPorEtapa,
   obtenerSubacciones,
@@ -621,5 +641,6 @@ module.exports = {
   importarEstructuraCSV,
   recalcularAccionDesdeSubs,
   actualizarIndicadoresAccion,
-  obtenerIndicadoresAccion
+  obtenerIndicadoresAccion,
+  patchCampoAccion
 };

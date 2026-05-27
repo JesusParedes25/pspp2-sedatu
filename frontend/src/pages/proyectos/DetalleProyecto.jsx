@@ -18,7 +18,7 @@
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Star, FileText, Settings, BarChart3, Clock, UsersRound, LayoutDashboard, Search, Plus, Pencil, X, FileSpreadsheet, Trash2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Star, FileText, Settings, BarChart3, Clock, UsersRound, LayoutDashboard, Search, Plus, Pencil, X, FileSpreadsheet, Trash2, AlertTriangle, Table2, MapPin } from 'lucide-react';
 import { useProyecto } from '../../hooks/useProyectos';
 import { useEtapas } from '../../hooks/useEtapas';
 import { useAuth } from '../../context/AuthContext';
@@ -38,6 +38,8 @@ import ModalNuevaEtapa from '../../components/seguimiento/ModalNuevaEtapa';
 import ModalNuevaAccion from '../../components/seguimiento/ModalNuevaAccion';
 import ImportarWizard from '../../components/importar/ImportarWizard';
 import ModalEditarProyecto from '../../components/proyectos/ModalEditarProyecto';
+import VistaLista from '../../components/seguimiento/VistaLista';
+import MapaCobertura from '../../components/seguimiento/MapaCobertura';
 import * as evidenciasApi from '../../api/evidencias';
 import * as etapasApi from '../../api/etapas';
 import * as accionesApi from '../../api/acciones';
@@ -53,6 +55,8 @@ const PESTANAS = [
 // Subsecciones dentro de Seguimiento
 const SUBSECCIONES = [
   { id: 'etapas', etiqueta: 'Etapas y avances', icono: Settings },
+  { id: 'lista', etiqueta: 'Vista lista', icono: Table2 },
+  { id: 'mapa', etiqueta: 'Mapa', icono: MapPin },
   { id: 'cronograma', etiqueta: 'Cronograma', icono: BarChart3 },
   { id: 'actividad', etiqueta: 'Actividad reciente', icono: Clock },
   { id: 'equipo', etiqueta: 'Equipo', icono: UsersRound },
@@ -337,7 +341,21 @@ export default function DetalleProyecto() {
             </div>
           )}
 
-          {/* 2. Cronograma (Gantt) */}
+          {/* 2. Vista Lista (DataGrid) */}
+          {subseccionActiva === 'lista' && (
+            <VistaLista
+              etapas={etapas}
+              proyectoId={id}
+              onRefresh={() => { recargarEtapasSilencioso(); incrementarStats(); }}
+            />
+          )}
+
+          {/* 3. Mapa de cobertura */}
+          {subseccionActiva === 'mapa' && (
+            <MapaCobertura proyectoId={id} />
+          )}
+
+          {/* 4. Cronograma (Gantt) */}
           {subseccionActiva === 'cronograma' && (
             <GanttCronograma
               etapas={etapas}

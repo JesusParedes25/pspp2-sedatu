@@ -13,6 +13,7 @@
  */
 const { Router } = require('express');
 const catalogosController = require('../controllers/catalogos.controller');
+const geografiaController = require('../controllers/geografia.controller');
 
 const router = Router();
 
@@ -20,5 +21,7 @@ router.get('/dgs', catalogosController.obtenerDGs);
 router.get('/usuarios', catalogosController.obtenerUsuarios);
 router.get('/programas', catalogosController.obtenerProgramas);
 router.get('/direcciones-area', catalogosController.obtenerDireccionesArea);
+router.get('/estados', geografiaController.obtenerEstados);
+router.get('/municipios', geografiaController.obtenerMunicipios);
 
 module.exports = router;

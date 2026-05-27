@@ -19,6 +19,7 @@ const router = Router();
 
 router.get('/:id', accionesController.obtenerPorId);
 router.put('/:id', accionesController.actualizar);
+router.patch('/:id/campo', accionesController.patchCampo);
 router.delete('/:id', accionesController.eliminar);
 
 module.exports = router;

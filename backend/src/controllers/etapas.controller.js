@@ -143,4 +143,34 @@ async function eliminar(req, res, next) {
   }
 }
 
-module.exports = { listarPorProyecto, obtenerPorId, crear, actualizar, eliminar };
+// PATCH /etapas/:id/campo — Actualizar un solo campo (para inline editing en DataGrid)
+async function patchCampo(req, res, next) {
+  try {
+    const { campo, valor } = req.body;
+    if (!campo) return res.status(400).json({ error: true, mensaje: 'Se requiere "campo"' });
+
+    const etapa = await etapasQueries.patchCampoEtapa(req.params.id, campo, valor);
+    if (!etapa) {
+      return res.status(404).json({ error: true, mensaje: 'Etapa no encontrada', codigo: 'NO_ENCONTRADO' });
+    }
+
+    res.json({ datos: etapa, mensaje: `Campo "${campo}" actualizado` });
+  } catch (err) {
+    if (err.message?.startsWith('Campo no permitido')) {
+      return res.status(400).json({ error: true, mensaje: err.message });
+    }
+    next(err);
+  }
+}
+
+// GET /proyectos/:id/campos-extra-schema — Claves únicas de campos_extra del proyecto
+async function obtenerCamposExtraSchema(req, res, next) {
+  try {
+    const claves = await etapasQueries.obtenerCamposExtraSchema(req.params.id);
+    res.json({ datos: claves, mensaje: 'Schema de campos extra obtenido' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { listarPorProyecto, obtenerPorId, crear, actualizar, eliminar, patchCampo, obtenerCamposExtraSchema };

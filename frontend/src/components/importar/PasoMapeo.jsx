@@ -24,9 +24,15 @@ const CAMPOS_NIVEL_BASE = [
   { value: 'responsable', label: 'Responsable' },
   { value: 'entregable', label: 'Entregable' },
   { value: 'estado', label: 'Estado' },
+  { value: 'estado_original', label: 'Estado original (texto libre)' },
   { value: 'peso', label: 'Peso' },
   { value: 'orden', label: 'Orden' },
   { value: 'dependencia_externa', label: 'Dependencia externa' },
+  { value: 'entidad_federativa', label: '🗺️ Entidad federativa' },
+  { value: 'municipio', label: '🗺️ Municipio' },
+  { value: 'semaforo_explicito', label: '🚦 Semaforización' },
+  { value: 'porcentaje_avance', label: '📊 % de avance' },
+  { value: '_extra', label: '➕ Campo extra personalizado...' },
 ];
 
 const CAMPOS_LABELS = Object.fromEntries(CAMPOS_NIVEL_BASE.filter(c => c.value).map(c => [c.value, c.label]));
@@ -76,6 +82,14 @@ export default function PasoMapeo({ headers, superHeaders, sampleRows, config, t
   const inicial = useMemo(() => separarBlocks(config.pivotBlocks), []);
 
   const [columnMap, setColumnMap] = useState(() => config.columnMap || {});
+  const [extraNames, setExtraNames] = useState(() => {
+    // Initialize from existing columnMap entries that start with _extra:
+    const names = {};
+    for (const [k, v] of Object.entries(config.columnMap || {})) {
+      if (String(v).startsWith('_extra:')) names[k] = v.replace('_extra:', '');
+    }
+    return names;
+  });
   const [acciones, setAcciones] = useState(() => inicial.acciones);
   const [subsPorAccion, setSubsPorAccion] = useState(() => inicial.subsPorAccion);
   const [errorValidacion, setErrorValidacion] = useState(null);
@@ -202,11 +216,22 @@ export default function PasoMapeo({ headers, superHeaders, sampleRows, config, t
     const nuevo = { ...columnMap };
     if (campo === '') {
       delete nuevo[colIdx];
+      setExtraNames(prev => { const n = { ...prev }; delete n[colIdx]; return n; });
+    } else if (campo === '_extra') {
+      // Set placeholder, user will type the name
+      nuevo[colIdx] = '_extra:';
+      setExtraNames(prev => ({ ...prev, [colIdx]: '' }));
     } else {
       nuevo[colIdx] = campo;
+      setExtraNames(prev => { const n = { ...prev }; delete n[colIdx]; return n; });
     }
     setColumnMap(nuevo);
     setErrorValidacion(null);
+  };
+
+  const actualizarExtraName = (colIdx, nombre) => {
+    setExtraNames(prev => ({ ...prev, [colIdx]: nombre }));
+    setColumnMap(prev => ({ ...prev, [colIdx]: `_extra:${nombre}` }));
   };
 
   const agregarAccion = () => {
@@ -333,15 +358,26 @@ export default function PasoMapeo({ headers, superHeaders, sampleRows, config, t
                         {enAccion ? (
                           <span className="text-xs text-amber-600 italic">→ en acción</span>
                         ) : (
-                          <select
-                            value={columnMap[i] || ''}
-                            onChange={e => actualizarMapeo(i, e.target.value)}
-                            className="w-full border rounded px-2 py-1 text-xs"
-                          >
-                            {CAMPOS_NIVEL_BASE.map(c => (
-                              <option key={c.value} value={c.value}>{c.label}</option>
-                            ))}
-                          </select>
+                          <div className="flex gap-1 items-center">
+                            <select
+                              value={extraNames[i] !== undefined ? '_extra' : (columnMap[i] || '')}
+                              onChange={e => actualizarMapeo(i, e.target.value)}
+                              className="border rounded px-2 py-1 text-xs flex-shrink-0"
+                            >
+                              {CAMPOS_NIVEL_BASE.map(c => (
+                                <option key={c.value} value={c.value}>{c.label}</option>
+                              ))}
+                            </select>
+                            {extraNames[i] !== undefined && (
+                              <input
+                                type="text"
+                                value={extraNames[i]}
+                                onChange={e => actualizarExtraName(i, e.target.value)}
+                                placeholder="Nombre del campo"
+                                className="border rounded px-2 py-1 text-xs w-28"
+                              />
+                            )}
+                          </div>
                         )}
                       </td>
                     </tr>

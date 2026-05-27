@@ -258,6 +258,26 @@ async function obtenerIndicadores(req, res, next) {
   }
 }
 
+// PATCH /acciones/:id/campo — Actualizar un solo campo (para inline editing en DataGrid)
+async function patchCampo(req, res, next) {
+  try {
+    const { campo, valor } = req.body;
+    if (!campo) return res.status(400).json({ error: true, mensaje: 'Se requiere "campo"' });
+
+    const accion = await accionesQueries.patchCampoAccion(req.params.id, campo, valor);
+    if (!accion) {
+      return res.status(404).json({ error: true, mensaje: 'Acción no encontrada', codigo: 'NO_ENCONTRADO' });
+    }
+
+    res.json({ datos: accion, mensaje: `Campo "${campo}" actualizado` });
+  } catch (err) {
+    if (err.message?.startsWith('Campo no permitido')) {
+      return res.status(400).json({ error: true, mensaje: err.message });
+    }
+    next(err);
+  }
+}
+
 module.exports = {
   listarPorEtapa,
   listarDirectasProyecto,
@@ -271,5 +291,6 @@ module.exports = {
   agenda,
   importarCSV,
   actualizarIndicadores,
-  obtenerIndicadores
+  obtenerIndicadores,
+  patchCampo
 };

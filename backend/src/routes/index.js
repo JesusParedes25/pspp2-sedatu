@@ -45,6 +45,7 @@ const indicadoresController = require('../controllers/indicadores.controller');
 const proyectosStatsController = require('../controllers/proyectos.stats.controller');
 const bloqueosController = require('../controllers/bloqueos.controller');
 const estadoController = require('../controllers/estado.controller');
+const geografiaController = require('../controllers/geografia.controller');
 
 const router = Router();
 
@@ -132,5 +133,14 @@ router.put('/estado', estadoController.cambiarEstado);
 
 // Agenda del usuario autenticado
 router.get('/agenda', accionesController.agenda);
+
+// Campos extra schema (para DataGrid dinámico)
+router.get('/proyectos/:id/campos-extra-schema', etapasController.obtenerCamposExtraSchema);
+
+// Cobertura geográfica
+router.get('/cobertura/:tipo/:id', geografiaController.obtenerCobertura);
+router.post('/cobertura/:tipo/:id', geografiaController.agregarCobertura);
+router.delete('/cobertura/:id', geografiaController.eliminarCobertura);
+router.get('/proyectos/:id/cobertura', geografiaController.obtenerCoberturaProyecto);
 
 module.exports = router;
