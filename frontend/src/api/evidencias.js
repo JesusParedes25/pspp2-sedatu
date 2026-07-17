@@ -18,6 +18,29 @@ export async function obtenerEvidenciasAccion(accionId) {
   return data;
 }
 
+export async function obtenerEvidenciasEtapa(etapaId) {
+  const { data } = await client.get(`/etapas/${etapaId}/evidencias`);
+  return data;
+}
+
+export async function subirEvidenciaEtapa(etapaId, archivo, metadatos = {}) {
+  const formData = new FormData();
+  formData.append('archivo', archivo);
+  if (metadatos.categoria) formData.append('categoria', metadatos.categoria);
+  if (metadatos.notas) formData.append('notas', metadatos.notas);
+  const { data } = await client.post(`/etapas/${etapaId}/evidencias`, formData);
+  return data;
+}
+
+export async function registrarLinkEtapa(etapaId, url, metadatos = {}) {
+  const { data } = await client.post(`/etapas/${etapaId}/evidencias`, {
+    url,
+    categoria: metadatos.categoria || 'Otro',
+    notas: metadatos.notas || null,
+  });
+  return data;
+}
+
 export async function obtenerEvidenciasRiesgo(riesgoId) {
   const { data } = await client.get(`/riesgos/${riesgoId}/evidencias`);
   return data;
@@ -34,8 +57,16 @@ export async function subirEvidenciaAccion(accionId, archivo, metadatos = {}) {
   if (metadatos.categoria) formData.append('categoria', metadatos.categoria);
   if (metadatos.notas) formData.append('notas', metadatos.notas);
   if (metadatos.fecha_generacion) formData.append('fecha_generacion', metadatos.fecha_generacion);
-
   const { data } = await client.post(`/acciones/${accionId}/evidencias`, formData);
+  return data;
+}
+
+export async function registrarLinkAccion(accionId, url, metadatos = {}) {
+  const { data } = await client.post(`/acciones/${accionId}/evidencias`, {
+    url,
+    categoria: metadatos.categoria || 'Otro',
+    notas: metadatos.notas || null,
+  });
   return data;
 }
 

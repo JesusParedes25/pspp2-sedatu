@@ -35,10 +35,13 @@ const catalogosRoutes = require('./catalogos.routes');
 const bloqueosRoutes = require('./bloqueos.routes');
 const importarRoutes = require('./importar.routes');
 const plantillasRoutes = require('./plantillas.routes');
+const adminRoutes = require('./admin.routes');
+const tareasRoutes = require('./tareas.routes');
 
 // Importar controllers para rutas anidadas
 const etapasController = require('../controllers/etapas.controller');
 const accionesController = require('../controllers/acciones.controller');
+const tareasController = require('../controllers/tareas.controller');
 const evidenciasController = require('../controllers/evidencias.controller');
 const riesgosController = require('../controllers/riesgos.controller');
 const indicadoresController = require('../controllers/indicadores.controller');
@@ -46,6 +49,12 @@ const proyectosStatsController = require('../controllers/proyectos.stats.control
 const bloqueosController = require('../controllers/bloqueos.controller');
 const estadoController = require('../controllers/estado.controller');
 const geografiaController = require('../controllers/geografia.controller');
+const dashboardController = require('../controllers/dashboard.controller');
+const aportacionesController = require('../controllers/aportaciones.controller');
+const miembrosController = require('../controllers/miembros.controller');
+const nodoMiembrosController = require('../controllers/nodo-miembros.controller');
+const inicioController = require('../controllers/inicio.controller');
+const panoramaController = require('../controllers/panorama.controller');
 
 const router = Router();
 
@@ -69,13 +78,16 @@ router.use('/riesgos', riesgosRoutes);
 router.use('/notificaciones', notificacionesRoutes);
 router.use('/catalogos', catalogosRoutes);
 router.use('/bloqueos', bloqueosRoutes);
+router.use('/tareas', tareasRoutes);
 router.use('/importar', importarRoutes);
 router.use('/plantillas-importacion', plantillasRoutes);
+router.use('/admin', adminRoutes);
 
 // ─── Rutas anidadas (conectan controllers de diferentes recursos) ─
 
 // Etapas de un proyecto
 router.get('/proyectos/:id/etapas', etapasController.listarPorProyecto);
+router.get('/proyectos/:id/arbol', etapasController.obtenerArbol);
 router.post('/proyectos/:id/etapas', etapasController.crear);
 
 // Acciones de una etapa
@@ -98,7 +110,13 @@ router.put('/acciones/:id/indicadores', accionesController.actualizarIndicadores
 // Importar estructura desde CSV
 router.post('/proyectos/:id/importar-csv', accionesController.importarCSV);
 
-// Evidencias de acciones, riesgos y subacciones
+// Tareas de una acción
+router.get('/acciones/:id/tareas', tareasController.listar);
+router.post('/acciones/:id/tareas', tareasController.crear);
+
+// Evidencias de etapas, acciones, riesgos y subacciones
+router.get('/etapas/:id/evidencias', evidenciasController.listarPorEtapa);
+router.post('/etapas/:id/evidencias', upload.single('archivo'), evidenciasController.subirParaEtapa);
 router.get('/acciones/:id/evidencias', evidenciasController.listarPorAccion);
 router.post('/acciones/:id/evidencias', upload.single('archivo'), evidenciasController.subirParaAccion);
 router.get('/riesgos/:id/evidencias', evidenciasController.listarPorRiesgo);
@@ -118,9 +136,22 @@ router.get('/proyectos/:id/indicadores', indicadoresController.listarPorProyecto
 router.get('/proyectos/:id/indicadores/todos', indicadoresController.listarTodosPorProyecto);
 router.post('/proyectos/:id/indicadores', indicadoresController.crear);
 router.get('/etapas/:id/indicadores', indicadoresController.listarPorEtapa);
+router.get('/indicadores/publicos', indicadoresController.listarPublicables);
 router.put('/indicadores/:id', indicadoresController.actualizar);
 router.delete('/indicadores/:id', indicadoresController.eliminar);
 router.get('/indicadores/:id/resumen-aportaciones', indicadoresController.resumenAportaciones);
+router.patch('/indicadores/:id/publicar', indicadoresController.togglePublicable);
+
+// Aportaciones a indicadores
+router.get('/indicadores/:id/aportaciones', aportacionesController.listar);
+router.post('/indicadores/:id/aportaciones', aportacionesController.crear);
+router.patch('/aportaciones/:id', aportacionesController.actualizar);
+router.delete('/aportaciones/:id', aportacionesController.eliminar);
+router.get('/etapas/:id/aportaciones', aportacionesController.listarPorNodo);
+router.get('/acciones/:id/aportaciones', aportacionesController.listarPorNodo);
+
+// Indicadores con valor realizado (dashboard-ready)
+router.get('/proyectos/:id/indicadores/resumen', indicadoresController.resumenConValores);
 
 // Estadísticas del proyecto (para el resumen/dashboard)
 router.get('/proyectos/:id/stats', proyectosStatsController.obtenerStats);
@@ -142,5 +173,38 @@ router.get('/cobertura/:tipo/:id', geografiaController.obtenerCobertura);
 router.post('/cobertura/:tipo/:id', geografiaController.agregarCobertura);
 router.delete('/cobertura/:id', geografiaController.eliminarCobertura);
 router.get('/proyectos/:id/cobertura', geografiaController.obtenerCoberturaProyecto);
+router.get('/proyectos/:id/cobertura-detallada', geografiaController.obtenerCoberturaDetallada);
+
+// Módulo cartográfico territorial
+router.get('/mapa/resumen-estados', geografiaController.resumenPorEstados);
+router.get('/mapa/estado/:id', geografiaController.resumenTerritorial);
+
+// Dashboard ejecutivo
+router.get('/dashboard', dashboardController.obtenerDashboard);
+
+// Dashboard personalizado del usuario
+router.get('/inicio', inicioController.obtenerInicio);
+
+// Panorama del proyecto (tab Panorama)
+router.get('/proyectos/:id/panorama', panoramaController.obtenerPanorama);
+
+// Miembros de etapas y acciones (nodo_miembros)
+router.get('/etapas/:etapaId/miembros-nodo', nodoMiembrosController.listar);
+router.post('/etapas/:etapaId/miembros-nodo', nodoMiembrosController.agregar);
+router.put('/etapas/:etapaId/miembros-nodo/:userId', nodoMiembrosController.actualizar);
+router.delete('/etapas/:etapaId/miembros-nodo/:userId', nodoMiembrosController.eliminar);
+router.get('/acciones/:accionId/miembros-nodo', nodoMiembrosController.listar);
+router.post('/acciones/:accionId/miembros-nodo', nodoMiembrosController.agregar);
+router.put('/acciones/:accionId/miembros-nodo/:userId', nodoMiembrosController.actualizar);
+router.delete('/acciones/:accionId/miembros-nodo/:userId', nodoMiembrosController.eliminar);
+
+// Miembros e invitaciones de proyecto
+router.get('/proyectos/:id/miembros', miembrosController.listarMiembros);
+router.post('/proyectos/:id/miembros', miembrosController.agregarMiembro);
+router.delete('/proyectos/:id/miembros/:userId', miembrosController.eliminarMiembro);
+router.get('/proyectos/:id/invitaciones', miembrosController.listarInvitaciones);
+router.post('/proyectos/:id/invitaciones', miembrosController.crearInvitacion);
+router.post('/invitaciones/:token/aceptar', miembrosController.aceptarInvitacion);
+router.delete('/invitaciones/:id', miembrosController.cancelarInvitacion);
 
 module.exports = router;

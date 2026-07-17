@@ -170,18 +170,28 @@ async function crearAccionEnEtapa(etapaId, datos) {
     const resultado = await client.query(`
       INSERT INTO acciones (
         nombre, descripcion, tipo, fecha_inicio, fecha_fin,
-        id_etapa, id_proyecto, id_subproyecto, id_dg, id_direccion_area, id_responsable
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        id_etapa, id_proyecto, id_subproyecto, id_dg, id_direccion_area, id_responsable,
+        prioridad, fecha_limite, instancia_responsable, enlace_responsable, observaciones
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
       RETURNING *
     `, [
       datos.nombre, emptyToNull(datos.descripcion), datos.tipo || 'Accion_programada',
       datos.fecha_inicio, datos.fecha_fin,
       etapaId, proyectoId, emptyToNull(subproyectoId),
-      emptyToNull(datos.id_dg), emptyToNull(datos.id_direccion_area), emptyToNull(datos.id_responsable)
+      emptyToNull(datos.id_dg), emptyToNull(datos.id_direccion_area), emptyToNull(datos.id_responsable),
+      emptyToNull(datos.prioridad), emptyToNull(datos.fecha_limite),
+      emptyToNull(datos.instancia_responsable), emptyToNull(datos.enlace_responsable),
+      emptyToNull(datos.observaciones)
     ]);
 
     const accion = resultado.rows[0];
     await vincularIndicadores(client, accion.id, datos.indicadores_asociados);
+
+    // Leaf→container transition: clear avance override on parent etapa
+    await client.query(
+      `UPDATE etapas SET avance_actual = NULL, avance_override = FALSE WHERE id = $1 AND avance_override = TRUE`,
+      [etapaId]
+    );
 
     await client.query('COMMIT');
     await recalcularEtapa(etapaId);
@@ -205,13 +215,17 @@ async function crearAccionEnProyecto(proyectoId, datos) {
     const resultado = await client.query(`
       INSERT INTO acciones (
         nombre, descripcion, tipo, fecha_inicio, fecha_fin,
-        id_proyecto, id_dg, id_direccion_area, id_responsable
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        id_proyecto, id_dg, id_direccion_area, id_responsable,
+        prioridad, fecha_limite, instancia_responsable, enlace_responsable, observaciones
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
       RETURNING *
     `, [
       datos.nombre, emptyToNull(datos.descripcion), datos.tipo || 'Accion_programada',
       datos.fecha_inicio, datos.fecha_fin,
-      proyectoId, emptyToNull(datos.id_dg), emptyToNull(datos.id_direccion_area), emptyToNull(datos.id_responsable)
+      proyectoId, emptyToNull(datos.id_dg), emptyToNull(datos.id_direccion_area), emptyToNull(datos.id_responsable),
+      emptyToNull(datos.prioridad), emptyToNull(datos.fecha_limite),
+      emptyToNull(datos.instancia_responsable), emptyToNull(datos.enlace_responsable),
+      emptyToNull(datos.observaciones)
     ]);
 
     const accion = resultado.rows[0];
@@ -240,7 +254,10 @@ async function actualizarAccionCampos(accionId, datos, client) {
     datos.porcentaje_avance !== undefined || datos.fecha_fin_real ||
     datos.fecha_inicio || datos.fecha_fin ||
     datos.id_responsable !== undefined || datos.id_dg !== undefined ||
-    datos.id_direccion_area !== undefined || datos.tipo;
+    datos.id_direccion_area !== undefined || datos.tipo ||
+    datos.prioridad !== undefined || datos.fecha_limite !== undefined ||
+    datos.instancia_responsable !== undefined || datos.enlace_responsable !== undefined ||
+    datos.observaciones !== undefined;
   if (!tienesCampos) {
     const actual = await db.query('SELECT * FROM acciones WHERE id = $1', [accionId]);
     return actual.rows[0] || null;
@@ -248,17 +265,22 @@ async function actualizarAccionCampos(accionId, datos, client) {
 
   const resultado = await db.query(`
     UPDATE acciones SET
-      nombre              = COALESCE($1, nombre),
-      descripcion         = COALESCE($2, descripcion),
-      porcentaje_avance   = COALESCE($3, porcentaje_avance),
-      fecha_fin_real      = COALESCE($4, fecha_fin_real),
-      fecha_inicio        = COALESCE($5, fecha_inicio),
-      fecha_fin           = COALESCE($6, fecha_fin),
-      id_responsable      = COALESCE($7, id_responsable),
-      id_dg               = COALESCE($8, id_dg),
-      id_direccion_area   = COALESCE($9, id_direccion_area),
-      tipo                = COALESCE($10, tipo),
-      updated_at          = NOW()
+      nombre                = COALESCE($1, nombre),
+      descripcion           = COALESCE($2, descripcion),
+      porcentaje_avance     = COALESCE($3, porcentaje_avance),
+      fecha_fin_real        = COALESCE($4, fecha_fin_real),
+      fecha_inicio          = COALESCE($5, fecha_inicio),
+      fecha_fin             = COALESCE($6, fecha_fin),
+      id_responsable        = COALESCE($7, id_responsable),
+      id_dg                 = COALESCE($8, id_dg),
+      id_direccion_area     = COALESCE($9, id_direccion_area),
+      tipo                  = COALESCE($10, tipo),
+      prioridad             = $12,
+      fecha_limite          = $13,
+      instancia_responsable = $14,
+      enlace_responsable    = $15,
+      observaciones         = $16,
+      updated_at            = NOW()
     WHERE id = $11
     RETURNING *
   `, [
@@ -272,7 +294,12 @@ async function actualizarAccionCampos(accionId, datos, client) {
     datos.id_dg !== undefined ? (datos.id_dg || null) : null,
     datos.id_direccion_area !== undefined ? (datos.id_direccion_area || null) : null,
     datos.tipo || null,
-    accionId
+    accionId,
+    datos.prioridad !== undefined ? (datos.prioridad || null) : null,
+    datos.fecha_limite !== undefined ? (datos.fecha_limite || null) : null,
+    datos.instancia_responsable !== undefined ? (datos.instancia_responsable || null) : null,
+    datos.enlace_responsable !== undefined ? (datos.enlace_responsable || null) : null,
+    datos.observaciones !== undefined ? (datos.observaciones || null) : null,
   ]);
 
   return resultado.rows[0] || null;
@@ -352,6 +379,12 @@ async function crearSubaccion(accionPadreId, datos) {
 
     // Vincular indicadores si se proporcionaron (con validación de meta)
     await vincularIndicadores(client, resultado.rows[0].id, datos.indicadores_asociados);
+
+    // Leaf→container transition: clear avance override on parent accion
+    await client.query(
+      `UPDATE acciones SET avance_actual = NULL, avance_override = FALSE WHERE id = $1 AND avance_override = TRUE`,
+      [accionPadreId]
+    );
 
     // Recalcular pesos de subacciones del padre
     await recalcularPesosSubacciones(accionPadreId, client);

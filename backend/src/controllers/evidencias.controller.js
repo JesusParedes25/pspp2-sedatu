@@ -15,6 +15,29 @@
 const { Client: MinioClient } = require('minio');
 const { v4: uuidv4 } = require('uuid');
 const evidenciasQueries = require('../db/queries/evidencias.queries');
+const { registrarActividad } = require('../utils/actividad-log');
+const pool = require('../db/pool');
+
+// Helper: resolver id_proyecto desde entidad
+async function resolverProyectoId(tipo, id) {
+  if (tipo === 'etapa') {
+    const { rows } = await pool.query('SELECT id_proyecto FROM etapas WHERE id = $1', [id]);
+    return rows[0]?.id_proyecto;
+  }
+  if (tipo === 'accion' || tipo === 'subaccion') {
+    const { rows } = await pool.query('SELECT id_proyecto, id_etapa FROM acciones WHERE id = $1', [id]);
+    if (rows[0]?.id_proyecto) return rows[0].id_proyecto;
+    if (rows[0]?.id_etapa) {
+      const { rows: e } = await pool.query('SELECT id_proyecto FROM etapas WHERE id = $1', [rows[0].id_etapa]);
+      return e[0]?.id_proyecto;
+    }
+  }
+  if (tipo === 'riesgo') {
+    const { rows } = await pool.query('SELECT id_proyecto FROM riesgos WHERE id = $1', [id]);
+    return rows[0]?.id_proyecto;
+  }
+  return null;
+}
 
 // Inicializar cliente MinIO
 const minioClient = new MinioClient({
@@ -56,6 +79,58 @@ async function listarPorRiesgo(req, res, next) {
   try {
     const evidencias = await evidenciasQueries.obtenerEvidenciasPorRiesgo(req.params.id);
     res.json({ datos: evidencias, mensaje: 'Evidencias obtenidas' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /etapas/:id/evidencias — Listar evidencias de una etapa
+async function listarPorEtapa(req, res, next) {
+  try {
+    const evidencias = await evidenciasQueries.obtenerEvidenciasPorEtapa(req.params.id);
+    res.json({ datos: evidencias, mensaje: 'Evidencias de etapa obtenidas' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /etapas/:id/evidencias — Subir evidencia (archivo o link) a una etapa
+async function subirParaEtapa(req, res, next) {
+  try {
+    const { url, categoria, notas } = req.body;
+    const tipoMedio = url ? 'link' : 'archivo';
+
+    if (tipoMedio === 'archivo' && !req.file) {
+      return res.status(400).json({ error: true, mensaje: 'No se proporcionó archivo ni URL', codigo: 'ARCHIVO_REQUERIDO' });
+    }
+
+    let datosEvidencia = {
+      categoria: categoria || 'Otro',
+      notas: notas || null,
+      id_etapa: req.params.id,
+      id_autor: req.usuario.id,
+      tipo_medio: tipoMedio,
+    };
+
+    if (tipoMedio === 'link') {
+      datosEvidencia.url = url;
+      datosEvidencia.nombre_original = url;
+    } else {
+      const archivo = req.file;
+      const nombreUnico = `${uuidv4()}_${archivo.originalname}`;
+      const rutaMinio = `evidencias/etapas/${req.params.id}/${nombreUnico}`;
+      await minioClient.putObject(BUCKET, rutaMinio, archivo.buffer, archivo.size, { 'Content-Type': archivo.mimetype });
+      datosEvidencia.nombre_archivo = nombreUnico;
+      datosEvidencia.nombre_original = archivo.originalname;
+      datosEvidencia.ruta_minio = rutaMinio;
+      datosEvidencia.tipo_archivo = archivo.mimetype;
+      datosEvidencia.tamano_bytes = archivo.size;
+    }
+
+    const evidencia = await evidenciasQueries.crearEvidencia(datosEvidencia);
+    const pId = await resolverProyectoId('etapa', req.params.id);
+    if (pId) await registrarActividad({ id_proyecto: pId, id_usuario: req.usuario.id, tipo: 'evidencia', titulo: `Evidencia subida a etapa`, entidad_tipo: 'etapa', entidad_id: req.params.id });
+    res.status(201).json({ datos: evidencia, mensaje: tipoMedio === 'link' ? 'Link registrado exitosamente' : 'Evidencia subida exitosamente' });
   } catch (err) {
     next(err);
   }
@@ -118,41 +193,43 @@ async function listarPorProyecto(req, res, next) {
   }
 }
 
-// POST /acciones/:id/evidencias — Subir evidencia a una acción
+// POST /acciones/:id/evidencias — Subir evidencia (archivo o link) a una acción
 async function subirParaAccion(req, res, next) {
   try {
-    if (!req.file) {
-      return res.status(400).json({
-        error: true,
-        mensaje: 'No se proporcionó archivo',
-        codigo: 'ARCHIVO_REQUERIDO'
-      });
+    const { url, categoria, notas } = req.body;
+    const tipoMedio = url ? 'link' : 'archivo';
+
+    if (tipoMedio === 'archivo' && !req.file) {
+      return res.status(400).json({ error: true, mensaje: 'No se proporcionó archivo ni URL', codigo: 'ARCHIVO_REQUERIDO' });
     }
 
-    const archivo = req.file;
-    const nombreUnico = `${uuidv4()}_${archivo.originalname}`;
-    const rutaMinio = `evidencias/acciones/${req.params.id}/${nombreUnico}`;
-
-    // Subir archivo a MinIO
-    await minioClient.putObject(BUCKET, rutaMinio, archivo.buffer, archivo.size, {
-      'Content-Type': archivo.mimetype
-    });
-
-    // Registrar en la BD
-    const evidencia = await evidenciasQueries.crearEvidencia({
-      nombre_archivo: nombreUnico,
-      nombre_original: archivo.originalname,
-      ruta_minio: rutaMinio,
-      tipo_archivo: archivo.mimetype,
-      categoria: req.body.categoria || 'Otro',
-      tamano_bytes: archivo.size,
-      notas: req.body.notas,
-      fecha_generacion: req.body.fecha_generacion,
+    let datosEvidencia = {
+      categoria: categoria || 'Otro',
+      notas: notas || null,
       id_accion: req.params.id,
-      id_autor: req.usuario.id
-    });
+      id_autor: req.usuario.id,
+      tipo_medio: tipoMedio,
+    };
 
-    res.status(201).json({ datos: evidencia, mensaje: 'Evidencia subida exitosamente' });
+    if (tipoMedio === 'link') {
+      datosEvidencia.url = url;
+      datosEvidencia.nombre_original = url;
+    } else {
+      const archivo = req.file;
+      const nombreUnico = `${uuidv4()}_${archivo.originalname}`;
+      const rutaMinio = `evidencias/acciones/${req.params.id}/${nombreUnico}`;
+      await minioClient.putObject(BUCKET, rutaMinio, archivo.buffer, archivo.size, { 'Content-Type': archivo.mimetype });
+      datosEvidencia.nombre_archivo = nombreUnico;
+      datosEvidencia.nombre_original = archivo.originalname;
+      datosEvidencia.ruta_minio = rutaMinio;
+      datosEvidencia.tipo_archivo = archivo.mimetype;
+      datosEvidencia.tamano_bytes = archivo.size;
+    }
+
+    const evidencia = await evidenciasQueries.crearEvidencia(datosEvidencia);
+    const pId = await resolverProyectoId('accion', req.params.id);
+    if (pId) await registrarActividad({ id_proyecto: pId, id_usuario: req.usuario.id, tipo: 'evidencia', titulo: `Evidencia subida a acción`, entidad_tipo: 'accion', entidad_id: req.params.id });
+    res.status(201).json({ datos: evidencia, mensaje: tipoMedio === 'link' ? 'Link registrado exitosamente' : 'Evidencia subida exitosamente' });
   } catch (err) {
     next(err);
   }
@@ -195,7 +272,7 @@ async function subirParaRiesgo(req, res, next) {
   }
 }
 
-// GET /evidencias/:id/descargar — Descargar archivo desde MinIO
+// GET /evidencias/:id/descargar — Descargar archivo desde MinIO o redirigir a link
 async function descargar(req, res, next) {
   try {
     const evidencia = await evidenciasQueries.obtenerEvidenciaPorId(req.params.id);
@@ -208,9 +285,18 @@ async function descargar(req, res, next) {
       });
     }
 
+    // Si es un link, redirigir
+    if (evidencia.tipo_medio === 'link' && evidencia.url) {
+      return res.redirect(evidencia.url);
+    }
+
+    if (!evidencia.ruta_minio) {
+      return res.status(404).json({ error: true, mensaje: 'Archivo no disponible' });
+    }
+
     // Configurar headers de descarga
     res.setHeader('Content-Type', evidencia.tipo_archivo || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${evidencia.nombre_original}"`);
+    res.setHeader('Content-Disposition', `inline; filename="${evidencia.nombre_original}"`);
 
     // Stream directo desde MinIO al response
     const stream = await minioClient.getObject(BUCKET, evidencia.ruta_minio);
@@ -265,10 +351,12 @@ async function listarTodas(req, res, next) {
 
 module.exports = {
   listarPorAccion,
+  listarPorEtapa,
   listarPorRiesgo,
   listarPorSubaccion,
   listarPorProyecto,
   subirParaAccion,
+  subirParaEtapa,
   subirParaRiesgo,
   subirParaSubaccion,
   descargar,

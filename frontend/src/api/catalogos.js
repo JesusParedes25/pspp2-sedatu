@@ -34,3 +34,13 @@ export async function obtenerDireccionesArea(idDg) {
   const { data } = await client.get('/catalogos/direcciones-area', { params });
   return data;
 }
+
+export async function obtenerValoresCatalogo(tipo) {
+  const { data } = await client.get('/catalogos/valores', { params: { tipo } });
+  return data;
+}
+
+export async function agregarValorCatalogo(tipo, valor) {
+  const { data } = await client.post('/catalogos/valores', { tipo, valor });
+  return data;
+}

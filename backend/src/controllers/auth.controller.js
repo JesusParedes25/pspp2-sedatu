@@ -137,4 +137,34 @@ async function obtenerUsuarioActual(req, res, next) {
   }
 }
 
-module.exports = { login, obtenerUsuarioActual };
+// POST /auth/activar-cuenta — Establece password usando token de activación
+async function activarCuenta(req, res, next) {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) {
+      return res.status(400).json({ error: true, mensaje: 'token y password son requeridos' });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ error: true, mensaje: 'La contraseña debe tener al menos 8 caracteres' });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT ta.id, ta.id_usuario, ta.expira_en, ta.usado
+       FROM tokens_activacion ta
+       WHERE ta.token = $1`,
+      [token]
+    );
+    const ta = rows[0];
+    if (!ta) return res.status(404).json({ error: true, mensaje: 'Token inválido o no encontrado' });
+    if (ta.usado) return res.status(400).json({ error: true, mensaje: 'Este enlace ya fue utilizado' });
+    if (new Date(ta.expira_en) < new Date()) return res.status(400).json({ error: true, mensaje: 'El enlace ha expirado' });
+
+    const hash = await bcrypt.hash(password, 10);
+    await pool.query('UPDATE usuarios SET password_hash = $1 WHERE id = $2', [hash, ta.id_usuario]);
+    await pool.query('UPDATE tokens_activacion SET usado = true WHERE id = $1', [ta.id]);
+
+    res.json({ mensaje: 'Contraseña establecida correctamente. Ya puedes iniciar sesión.' });
+  } catch (err) { next(err); }
+}
+
+module.exports = { login, obtenerUsuarioActual, activarCuenta };

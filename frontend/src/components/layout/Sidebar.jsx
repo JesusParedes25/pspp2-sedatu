@@ -16,7 +16,7 @@ import { useUI } from '../../context/UIContext';
 import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard, FolderKanban, CalendarDays, Bell,
-  PlusCircle, ChevronLeft, ChevronRight, LogOut, FileText
+  PlusCircle, ChevronLeft, ChevronRight, LogOut, FileText, Map, Shield
 } from 'lucide-react';
 
 // Definición de items del menú principal
@@ -25,9 +25,11 @@ const menuItems = [
   { to: '/', icono: LayoutDashboard, etiqueta: 'Inicio', end: true },
   { to: '/proyectos', icono: FolderKanban, etiqueta: 'Proyectos' },
   { to: '/proyectos/nuevo', icono: PlusCircle, etiqueta: 'Nuevo proyecto', requiereCrear: true },
+  { to: '/mapa', icono: Map, etiqueta: 'Mapa territorial' },
   { to: '/agenda', icono: CalendarDays, etiqueta: 'Agenda' },
   { to: '/evidencias', icono: FileText, etiqueta: 'Evidencias' },
   { to: '/notificaciones', icono: Bell, etiqueta: 'Notificaciones' },
+  { to: '/admin/catalogos', icono: Shield, etiqueta: 'Administración', requiereRol: 'superadmin' },
 ];
 
 export default function Sidebar() {
@@ -51,7 +53,11 @@ export default function Sidebar() {
 
       {/* Navegación principal */}
       <nav className="flex-1 py-4 space-y-1 px-2">
-        {menuItems.filter(item => !item.requiereCrear || usuario?.rol !== 'Operativo').map(item => (
+        {menuItems.filter(item => {
+          if (item.requiereRol && usuario?.rol !== item.requiereRol) return false;
+          if (item.requiereCrear && usuario?.rol === 'Operativo') return false;
+          return true;
+        }).map(item => (
           <NavLink
             key={item.to}
             to={item.to}

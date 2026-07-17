@@ -59,6 +59,20 @@ async function obtenerEvidenciasPorSubaccion(subaccionId) {
   return resultado.rows;
 }
 
+// Obtiene evidencias de una etapa
+async function obtenerEvidenciasPorEtapa(etapaId) {
+  const resultado = await pool.query(`
+    SELECT
+      ev.*,
+      u.nombre_completo AS autor_nombre
+    FROM evidencias ev
+    LEFT JOIN usuarios u ON u.id = ev.id_autor
+    WHERE ev.id_etapa = $1
+    ORDER BY ev.created_at DESC
+  `, [etapaId]);
+  return resultado.rows;
+}
+
 // Obtiene todas las evidencias de un proyecto (a través de sus acciones)
 async function obtenerEvidenciasPorProyecto(proyectoId) {
   const resultado = await pool.query(`
@@ -92,21 +106,23 @@ async function obtenerEvidenciaPorId(evidenciaId) {
   return resultado.rows[0] || null;
 }
 
-// Crea un registro de evidencia (después de subir el archivo a MinIO)
+// Crea un registro de evidencia (archivo MinIO o link externo)
 async function crearEvidencia(datos) {
   const resultado = await pool.query(`
     INSERT INTO evidencias (
       nombre_archivo, nombre_original, ruta_minio, tipo_archivo,
       categoria, tamano_bytes, notas, fecha_generacion,
-      id_accion, id_riesgo, id_subaccion, id_autor
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      id_accion, id_riesgo, id_subaccion, id_autor, id_etapa,
+      url, tipo_medio
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
     RETURNING *
   `, [
-    datos.nombre_archivo, datos.nombre_original, datos.ruta_minio,
-    datos.tipo_archivo, datos.categoria || 'Otro', datos.tamano_bytes,
-    datos.notas, datos.fecha_generacion,
+    datos.nombre_archivo || null, datos.nombre_original || null, datos.ruta_minio || null,
+    datos.tipo_archivo || null, datos.categoria || 'Otro', datos.tamano_bytes || null,
+    datos.notas || null, datos.fecha_generacion || null,
     datos.id_accion || null, datos.id_riesgo || null,
-    datos.id_subaccion || null, datos.id_autor
+    datos.id_subaccion || null, datos.id_autor, datos.id_etapa || null,
+    datos.url || null, datos.tipo_medio || 'archivo'
   ]);
 
   return resultado.rows[0];
@@ -177,6 +193,7 @@ async function obtenerTodasEvidencias(filtros = {}) {
 
 module.exports = {
   obtenerEvidenciasPorAccion,
+  obtenerEvidenciasPorEtapa,
   obtenerEvidenciasPorRiesgo,
   obtenerEvidenciasPorSubaccion,
   obtenerEvidenciasPorProyecto,

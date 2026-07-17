@@ -3,19 +3,22 @@
  * PROPÓSITO: Lógica central de importación universal.
  *
  * Responsabilidades:
- * - Aplicar config (columnMap, pivotBlocks, valueMap, hierarchy) a filas crudas
+ * - Aplicar config (columnMap, parentColumn, valueMap) a filas crudas
  * - Generar jerarquía de entidades (etapas, acciones, subacciones)
+ * - Resolución geográfica estricta por clave INEGI
+ * - Inserción relacional: evidencias y comentarios
+ * - Resolución de padres por nombre de columna
  * - Detectar duplicados contra BD
  * - Ejecutar inserción transaccional (todo o nada)
  * - Preview sin tocar BD
  */
 const pool = require('../db/pool');
 const { recalcularPesosEtapa } = require('../db/queries/acciones.queries');
-const { limpiarValorGeografico, fuzzyMatch } = require('../utils/limpieza-geo');
+const { recalcularEtapa } = require('../utils/recalculos');
 const { calcularSemaforo } = require('../utils/semaforo');
-const geografiaQueries = require('../db/queries/geografia.queries');
 
 const ESTADOS_VALIDOS = ['Pendiente', 'En_proceso', 'Bloqueada', 'Completada', 'Cancelada'];
+const SEMAFOROS_VALIDOS = ['verde', 'amarillo', 'naranja', 'rojo', 'gris', 'azul', 'negro'];
 
 // ─── Utilidades ────────────────────────────────────────────────
 
@@ -27,15 +30,12 @@ function emptyToNull(v) {
 function toDate(v) {
   if (!v || String(v).trim() === '') return null;
   const limpio = String(v).trim();
-  // Aceptar YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(limpio)) return limpio;
-  // Aceptar DD/MM/YYYY
   const m = limpio.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
   if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
-  // Aceptar fechas tipo Date object stringified
   const d = new Date(limpio);
   if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
-  return null; // No lanzar error, marcar como warning
+  return null;
 }
 
 function normalizarTexto(t) {
@@ -46,31 +46,139 @@ function mapearValor(valor, campo, valueMap) {
   if (!valueMap || !valueMap[campo]) return valor;
   const mapa = valueMap[campo];
   const normalizado = String(valor || '').trim();
-  // Buscar exacto primero
   if (mapa[normalizado] !== undefined) return mapa[normalizado];
-  // Buscar case-insensitive
   for (const [k, v] of Object.entries(mapa)) {
     if (normalizarTexto(k) === normalizarTexto(normalizado)) return v;
   }
   return normalizado;
 }
 
+function toNumber(v) {
+  if (v == null || v === '') return null;
+  const n = parseFloat(String(v).replace(/[,%]/g, '').trim());
+  return isNaN(n) ? null : n;
+}
+
+// ─── Resolución geográfica FLEXIBLE (clave INEGI o nombre) ─────
+
+async function resolverGeografiaEstricta(entidades) {
+  const geoWarnings = [];
+
+  // Pre-cargar catálogos
+  const { rows: estadosRows } = await pool.query('SELECT id, clave, nombre FROM cat_entidades_federativas');
+  const estadosPorClave = {};
+  const estadosPorNombre = {};
+  for (const e of estadosRows) {
+    estadosPorClave[e.clave] = e;
+    estadosPorNombre[normalizarTexto(e.nombre)] = e;
+  }
+
+  const { rows: municipiosRows } = await pool.query('SELECT id, clave, clave_mun, nombre, id_entidad FROM cat_municipios');
+  const municipiosPorClave = {};
+  const municipiosPorClaveMun = {};
+  const municipiosPorNombreEdo = {}; // idEntidad:nombreNorm → municipio
+  for (const m of municipiosRows) {
+    municipiosPorClave[m.clave] = m;
+    municipiosPorClaveMun[`${m.id_entidad}:${m.clave_mun}`] = m;
+    const key = `${m.id_entidad}:${normalizarTexto(m.nombre)}`;
+    municipiosPorNombreEdo[key] = m;
+  }
+
+  function esNumerico(v) {
+    return /^\d+$/.test(String(v).trim());
+  }
+
+  function resolverEstado(valor) {
+    const v = String(valor).trim();
+    if (esNumerico(v)) {
+      const clave = v.padStart(2, '0');
+      return estadosPorClave[clave] || null;
+    }
+    // Búsqueda por nombre normalizado
+    const norm = normalizarTexto(v);
+    if (estadosPorNombre[norm]) return estadosPorNombre[norm];
+    // Fuzzy: buscar por inclusión parcial
+    for (const [key, edo] of Object.entries(estadosPorNombre)) {
+      if (key.includes(norm) || norm.includes(key)) return edo;
+    }
+    return null;
+  }
+
+  function resolverMunicipio(valor, estadoId, estadoClave) {
+    const v = String(valor).trim();
+    if (esNumerico(v)) {
+      const claveMun = v.padStart(3, '0');
+      const cvegeo = `${estadoClave}${claveMun}`;
+      return municipiosPorClave[cvegeo] || municipiosPorClaveMun[`${estadoId}:${claveMun}`] || null;
+    }
+    // Búsqueda por nombre normalizado dentro del estado
+    const norm = normalizarTexto(v);
+    const key = `${estadoId}:${norm}`;
+    if (municipiosPorNombreEdo[key]) return municipiosPorNombreEdo[key];
+    // Fuzzy parcial
+    for (const [k, mun] of Object.entries(municipiosPorNombreEdo)) {
+      if (!k.startsWith(`${estadoId}:`)) continue;
+      const munNorm = k.split(':')[1];
+      if (munNorm.includes(norm) || norm.includes(munNorm)) return mun;
+    }
+    return null;
+  }
+
+  function resolverEntidad(ent) {
+    const entFed = ent.campos.entidad_federativa;
+    const mun = ent.campos.municipio;
+
+    if (!entFed && !mun) {
+      for (const hijo of ent.hijos || []) resolverEntidad(hijo);
+      return;
+    }
+
+    ent.campos._cobertura = [];
+
+    if (entFed) {
+      const estado = resolverEstado(entFed);
+      if (estado) {
+        if (mun) {
+          const municipio = resolverMunicipio(mun, estado.id, estado.clave);
+          if (municipio) {
+            ent.campos._cobertura.push({ id_estado: estado.id, id_municipio: municipio.id });
+          } else {
+            ent.campos._cobertura.push({ id_estado: estado.id, id_municipio: null });
+            geoWarnings.push({
+              fila: ent.filaOrigen,
+              mensaje: `Municipio "${mun}" no encontrado en ${estado.nombre}`,
+            });
+          }
+        } else {
+          ent.campos._cobertura.push({ id_estado: estado.id, id_municipio: null });
+        }
+      } else {
+        geoWarnings.push({
+          fila: ent.filaOrigen,
+          mensaje: `Entidad federativa "${entFed}" no encontrada en catálogo`,
+        });
+      }
+    }
+
+    // Limpiar campos temporales de geografía
+    delete ent.campos.entidad_federativa;
+    delete ent.campos.municipio;
+
+    for (const hijo of ent.hijos || []) resolverEntidad(hijo);
+  }
+
+  for (const ent of entidades) resolverEntidad(ent);
+  return geoWarnings;
+}
+
 // ─── Transformar filas crudas a entidades PSPP ─────────────────
 
-/**
- * Transforma filas crudas + config en un array de entidades jerárquicas.
- * NO toca la BD. Es puro cálculo.
- * @param {any[][]} dataRows - Filas de datos (arrays de valores)
- * @param {object} config - Configuración de la plantilla
- * @param {string[]} headers - Encabezados detectados
- * @returns {{ entidades: object[], errores: object[], warnings: object[] }}
- */
 function transformarFilas(dataRows, config, headers) {
-  const entidades = []; // { nivel, nombre, campos, hijos[], filaOrigen, warnings[] }
+  const entidades = [];
   const errores = [];
   const warnings = [];
 
-  const { columnMap, pivotBlocks, valueMap, hierarchy, rowLevel } = config;
+  const { columnMap, valueMap, rowLevel, parentColumn } = config;
 
   // Mapa inverso: índice de columna → campo PSPP
   const colToField = {};
@@ -80,57 +188,32 @@ function transformarFilas(dataRows, config, headers) {
     }
   }
 
-  // Determinar nivel base de cada fila
   const nivelBase = (rowLevel || 'etapa').toLowerCase();
-
-  // Contexto para jerarquía
-  let etapaActual = null;
-  let accionActual = null;
 
   for (let i = 0; i < dataRows.length; i++) {
     const fila = dataRows[i];
-    const filaNum = i + 1; // 1-indexed para mensajes
+    const filaNum = i + 1;
 
-    // Saltar filas completamente vacías
     if (!fila || fila.every(c => !c || String(c).trim() === '')) continue;
-
-    // Determinar nivel de esta fila
-    let nivel;
-    if (hierarchy && hierarchy.enabled && hierarchy.column != null) {
-      const valorNivel = String(fila[hierarchy.column] || '').trim().toUpperCase();
-      const mapped = hierarchy.valueMap || {};
-      // Buscar en valueMap del hierarchy
-      nivel = null;
-      for (const [k, v] of Object.entries(mapped)) {
-        if (k.toUpperCase() === valorNivel) { nivel = v; break; }
-      }
-      if (!nivel) {
-        // Intentar por normalización
-        if (valorNivel.includes('SUB')) nivel = 'subaccion';
-        else if (valorNivel.includes('ACC') || valorNivel.includes('ACCI')) nivel = 'accion';
-        else if (valorNivel.includes('ETA')) nivel = 'etapa';
-        else {
-          warnings.push({ fila: filaNum, mensaje: `Nivel no reconocido: "${fila[hierarchy.column]}", se asume "${nivelBase}"` });
-          nivel = nivelBase;
-        }
-      }
-    } else {
-      nivel = nivelBase;
-    }
 
     // Extraer campos planos de la fila según columnMap
     const campos = {};
     for (const [colIdx, field] of Object.entries(colToField)) {
       const idx = parseInt(colIdx);
       let valor = idx < fila.length ? fila[idx] : '';
-      // Aplicar valueMap si corresponde
       if (valueMap && valueMap[field]) {
         valor = mapearValor(valor, field, valueMap);
       }
       campos[field] = emptyToNull(valor);
     }
 
-    // Validar estado si está mapeado
+    // Extraer parentName si hay parentColumn configurada
+    let parentName = null;
+    if (parentColumn != null) {
+      parentName = emptyToNull(parentColumn < fila.length ? fila[parentColumn] : '');
+    }
+
+    // Validar estado
     if (campos.estado && !ESTADOS_VALIDOS.includes(campos.estado)) {
       warnings.push({
         fila: filaNum,
@@ -139,17 +222,36 @@ function transformarFilas(dataRows, config, headers) {
       campos.estado = 'Pendiente';
     }
 
-    // Calcular semáforo si hay datos para ello
-    if (campos.semaforo_explicito || campos.estado || campos.porcentaje_avance) {
-      const semaforoCalculado = calcularSemaforo({
-        semaforoExplicito: campos.semaforo_explicito,
-        estado: campos.estado_original || campos.estado,
+    // Validar semáforo explícito
+    if (campos.semaforo_explicito) {
+      const semNorm = String(campos.semaforo_explicito).toLowerCase().trim();
+      if (SEMAFOROS_VALIDOS.includes(semNorm)) {
+        campos._semaforo = semNorm;
+      } else {
+        // Intentar calcular desde el valor textual
+        const calculado = calcularSemaforo({
+          semaforoExplicito: campos.semaforo_explicito,
+          estado: campos.estado,
+          porcentaje: campos.porcentaje_avance,
+        });
+        if (calculado) campos._semaforo = calculado;
+      }
+      delete campos.semaforo_explicito;
+    } else if (campos.estado || campos.porcentaje_avance) {
+      const calculado = calcularSemaforo({
+        estado: campos.estado,
         porcentaje: campos.porcentaje_avance,
       });
-      if (semaforoCalculado) campos._semaforo = semaforoCalculado;
+      if (calculado) campos._semaforo = calculado;
     }
 
-    // Procesar campos extra (claves que empiezan con _extra:)
+    // Procesar porcentaje_avance
+    if (campos.porcentaje_avance) {
+      const num = toNumber(campos.porcentaje_avance);
+      campos.porcentaje_avance = num != null ? Math.min(100, Math.max(0, num)) : null;
+    }
+
+    // Procesar campos extra (_extra:clave → _campos_extra.clave)
     const camposExtra = {};
     for (const [k, v] of Object.entries(campos)) {
       if (k.startsWith('_extra:') && v != null) {
@@ -158,6 +260,12 @@ function transformarFilas(dataRows, config, headers) {
       }
     }
     if (Object.keys(camposExtra).length > 0) campos._campos_extra = camposExtra;
+
+    // Extraer campos relacionales (se procesan al insertar)
+    const evidenciaLink = campos.evidencia_link || null;
+    const comentario = campos.comentario || null;
+    delete campos.evidencia_link;
+    delete campos.comentario;
 
     // Parsear fechas
     for (const campoFecha of ['fecha_inicio', 'fecha_fin']) {
@@ -170,118 +278,31 @@ function transformarFilas(dataRows, config, headers) {
       }
     }
 
-    // Construir entidad base
-    const nombre = campos.nombre || campos.nombre_accion || `Fila ${filaNum}`;
+    // Derivar estado desde porcentaje si no hay estado explícito
+    if (campos.porcentaje_avance != null && !campos.estado) {
+      const pct = campos.porcentaje_avance;
+      if (pct >= 100) campos.estado = 'Completada';
+      else if (pct > 0) campos.estado = 'En_proceso';
+    }
+
+    const nombre = campos.nombre || `Fila ${filaNum}`;
     const entidad = {
-      nivel,
+      nivel: nivelBase,
       nombre,
       campos,
+      parentName,
+      evidenciaLink,
+      comentario,
       hijos: [],
       filaOrigen: filaNum,
       warnings: [],
     };
 
-    // Validar nombre
     if (!nombre || nombre === `Fila ${filaNum}`) {
       entidad.warnings.push('Sin nombre detectado');
     }
 
-    // Procesar pivot blocks → generar acciones/subacciones hijas
-    if (pivotBlocks && pivotBlocks.length > 0) {
-      // Función helper para extraer campos de un pivot block
-      const extraerCamposPivot = (block) => {
-        const hijoCampos = {};
-        let tieneData = false;
-        for (const [colIdx, field] of Object.entries(block.fieldMap)) {
-          const idx = parseInt(colIdx);
-          let valor = idx < fila.length ? fila[idx] : '';
-          if (valor && String(valor).trim()) tieneData = true;
-          if (valueMap && valueMap[field]) {
-            valor = mapearValor(valor, field, valueMap);
-          }
-          hijoCampos[field] = emptyToNull(valor);
-        }
-        // Validar estado
-        if (hijoCampos.estado && !ESTADOS_VALIDOS.includes(hijoCampos.estado)) {
-          warnings.push({
-            fila: filaNum,
-            mensaje: `Estado "${hijoCampos.estado}" en bloque "${block.name}" no es válido. Se usará "Pendiente".`,
-          });
-          hijoCampos.estado = 'Pendiente';
-        }
-        // Parsear fechas
-        for (const campoFecha of ['fecha_inicio', 'fecha_fin']) {
-          if (hijoCampos[campoFecha]) {
-            hijoCampos[campoFecha] = toDate(hijoCampos[campoFecha]);
-          }
-        }
-        return { hijoCampos, tieneData };
-      };
-
-      // Paso 1: crear hijos de nivel acción (directos de la entidad)
-      const accionesPorNombre = {};
-      for (const block of pivotBlocks) {
-        if ((block.createsLevel || 'accion') === 'subaccion') continue;
-        const { hijoCampos, tieneData } = extraerCamposPivot(block);
-        if (tieneData) {
-          const hijo = {
-            nivel: block.createsLevel || 'accion',
-            nombre: block.name,
-            campos: hijoCampos,
-            hijos: [],
-            filaOrigen: filaNum,
-            warnings: [],
-          };
-          entidad.hijos.push(hijo);
-          accionesPorNombre[block.name] = hijo;
-        }
-      }
-
-      // Paso 2: crear hijos de nivel subacción, anidándolos bajo su acción padre
-      for (const block of pivotBlocks) {
-        if ((block.createsLevel || 'accion') !== 'subaccion') continue;
-        const { hijoCampos, tieneData } = extraerCamposPivot(block);
-        if (tieneData) {
-          const hijo = {
-            nivel: 'subaccion',
-            nombre: block.name,
-            campos: hijoCampos,
-            filaOrigen: filaNum,
-            warnings: [],
-          };
-          // Anidar bajo acción padre si se indica parentBlockName
-          const padre = block.parentBlockName && accionesPorNombre[block.parentBlockName];
-          if (padre) {
-            padre.hijos.push(hijo);
-          } else {
-            // Sin padre explícito: agregar como hijo directo de la entidad
-            entidad.hijos.push(hijo);
-          }
-        }
-      }
-    }
-
-    // Registrar en jerarquía
-    if (nivel === 'etapa') {
-      etapaActual = entidad;
-      accionActual = null;
-      entidades.push(entidad);
-    } else if (nivel === 'accion') {
-      accionActual = entidad;
-      if (etapaActual && hierarchy && hierarchy.enabled) {
-        // Hierarchy mode: acciones son hijas de la última etapa
-        etapaActual.hijos.push(entidad);
-      } else {
-        // Flat mode: acciones van al nivel raíz (padre se asigna después)
-        entidades.push(entidad);
-      }
-    } else if (nivel === 'subaccion') {
-      if (accionActual && hierarchy && hierarchy.enabled) {
-        accionActual.hijos.push(entidad);
-      } else {
-        entidades.push(entidad);
-      }
-    }
+    entidades.push(entidad);
   }
 
   return { entidades, errores, warnings };
@@ -289,19 +310,17 @@ function transformarFilas(dataRows, config, headers) {
 
 // ─── Detección de duplicados ───────────────────────────────────
 
-async function detectarDuplicados(entidades, proyectoId, parentEntityId) {
+async function detectarDuplicados(entidades, proyectoId) {
   const duplicados = [];
 
-  // Cargar etapas existentes del proyecto
   const { rows: etapasExistentes } = await pool.query(
     'SELECT id, nombre FROM etapas WHERE id_proyecto = $1',
     [proyectoId]
   );
   const nombresEtapas = new Set(etapasExistentes.map(e => normalizarTexto(e.nombre)));
 
-  // Cargar acciones existentes del proyecto
   const { rows: accionesExistentes } = await pool.query(
-    'SELECT id, nombre, id_etapa, id_accion_padre FROM acciones WHERE id_proyecto = $1',
+    'SELECT id, nombre, id_accion_padre FROM acciones WHERE id_proyecto = $1',
     [proyectoId]
   );
 
@@ -312,27 +331,32 @@ async function detectarDuplicados(entidades, proyectoId, parentEntityId) {
           fila: ent.filaOrigen,
           nivel: 'etapa',
           nombre: ent.nombre,
-          mensaje: `Etapa "${ent.nombre}" ya existe en el proyecto.`,
+          mensaje: `Componente "${ent.nombre}" ya existe en el proyecto.`,
         });
       }
-    }
-
-    // Chequear hijos pivotados o jerárquicos
-    for (const hijo of ent.hijos || []) {
-      if (hijo.nivel === 'accion') {
-        // Para acciones del pivot, chequear si ya existe una con el mismo nombre
-        // bajo alguna etapa del proyecto
-        const existe = accionesExistentes.some(a =>
-          normalizarTexto(a.nombre) === normalizarTexto(hijo.nombre) && !a.id_accion_padre
-        );
-        if (existe) {
-          duplicados.push({
-            fila: hijo.filaOrigen,
-            nivel: 'accion',
-            nombre: hijo.nombre,
-            mensaje: `Acción "${hijo.nombre}" ya existe en el proyecto.`,
-          });
-        }
+    } else if (ent.nivel === 'accion') {
+      const existe = accionesExistentes.some(a =>
+        normalizarTexto(a.nombre) === normalizarTexto(ent.nombre) && !a.id_accion_padre
+      );
+      if (existe) {
+        duplicados.push({
+          fila: ent.filaOrigen,
+          nivel: 'accion',
+          nombre: ent.nombre,
+          mensaje: `Acción "${ent.nombre}" ya existe en el proyecto.`,
+        });
+      }
+    } else if (ent.nivel === 'subaccion') {
+      const existe = accionesExistentes.some(a =>
+        normalizarTexto(a.nombre) === normalizarTexto(ent.nombre) && a.id_accion_padre
+      );
+      if (existe) {
+        duplicados.push({
+          fila: ent.filaOrigen,
+          nivel: 'subaccion',
+          nombre: ent.nombre,
+          mensaje: `Tarea "${ent.nombre}" ya existe en el proyecto.`,
+        });
       }
     }
   }
@@ -340,94 +364,19 @@ async function detectarDuplicados(entidades, proyectoId, parentEntityId) {
   return duplicados;
 }
 
-// ─── Resolución geográfica ────────────────────────────────────
-
-/**
- * Resuelve campos geográficos (entidad_federativa, municipio) contra el catálogo.
- * Modifica las entidades in-place añadiendo _cobertura y _geo_matches.
- */
-async function resolverGeografia(entidades) {
-  // Cargar catálogos una sola vez
-  const estados = await geografiaQueries.obtenerEstados();
-  const geoWarnings = [];
-
-  async function resolverEntidad(ent) {
-    const entFed = ent.campos.entidad_federativa;
-    const mun = ent.campos.municipio;
-
-    if (!entFed && !mun) {
-      // Resolver hijos también
-      for (const hijo of ent.hijos || []) await resolverEntidad(hijo);
-      return;
-    }
-
-    ent.campos._cobertura = [];
-    ent.campos._geo_matches = {};
-
-    // Limpiar y resolver entidad federativa
-    if (entFed) {
-      const valores = limpiarValorGeografico(entFed);
-      const valoresArray = Array.isArray(valores) ? valores : (valores ? [valores] : []);
-
-      for (const val of valoresArray) {
-        const match = fuzzyMatch(val, estados);
-        if (match) {
-          ent.campos._geo_matches.estado = { input: val, ...match };
-
-          // Resolver municipio si existe
-          if (mun) {
-            const munValores = limpiarValorGeografico(mun);
-            const munArray = Array.isArray(munValores) ? munValores : (munValores ? [munValores] : []);
-            const municipios = await geografiaQueries.obtenerMunicipios(match.id);
-
-            for (const munVal of munArray) {
-              const munMatch = fuzzyMatch(munVal, municipios);
-              if (munMatch) {
-                ent.campos._cobertura.push({ id_estado: match.id, id_municipio: munMatch.id });
-                ent.campos._geo_matches.municipio = { input: munVal, ...munMatch };
-              } else {
-                // Estado matched pero municipio no
-                ent.campos._cobertura.push({ id_estado: match.id, id_municipio: null });
-                geoWarnings.push({
-                  fila: ent.filaOrigen,
-                  mensaje: `Municipio "${munVal}" no encontrado en ${match.nombre}`,
-                });
-              }
-            }
-          } else {
-            // Solo estado, sin municipio
-            ent.campos._cobertura.push({ id_estado: match.id, id_municipio: null });
-          }
-        } else {
-          geoWarnings.push({
-            fila: ent.filaOrigen,
-            mensaje: `Entidad "${val}" no encontrada en catálogo`,
-          });
-        }
-      }
-    }
-
-    // Resolver hijos recursivamente
-    for (const hijo of ent.hijos || []) await resolverEntidad(hijo);
-  }
-
-  for (const ent of entidades) await resolverEntidad(ent);
-  return geoWarnings;
-}
-
 // ─── Preview (no toca BD) ──────────────────────────────────────
 
 async function generarPreview(dataRows, config, headers, proyectoId) {
   const { entidades, errores, warnings } = transformarFilas(dataRows, config, headers);
-  const duplicados = await detectarDuplicados(entidades, proyectoId, config.parentEntityId);
+  const duplicados = await detectarDuplicados(entidades, proyectoId);
 
-  // Resolver geografía si hay campos mapeados
+  // Resolver geografía estricta si hay campos mapeados
   const tieneGeo = Object.values(config.columnMap || {}).some(f =>
     f === 'entidad_federativa' || f === 'municipio'
   );
   let geoWarnings = [];
   if (tieneGeo) {
-    geoWarnings = await resolverGeografia(entidades);
+    geoWarnings = await resolverGeografiaEstricta(entidades);
   }
 
   // Contar entidades
@@ -457,21 +406,21 @@ async function generarPreview(dataRows, config, headers, proyectoId) {
 // ─── Confirmar importación (transaccional) ─────────────────────
 
 async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDuplicados = true) {
-  const { entidades, errores, warnings } = transformarFilas(dataRows, config, headers);
+  const { entidades, errores } = transformarFilas(dataRows, config, headers);
 
   if (errores.length > 0) {
     throw new Error(`Hay ${errores.length} error(es) que impiden la importación. Use preview primero.`);
   }
 
-  // Resolver geografía antes de insertar
+  // Resolver geografía estricta antes de insertar
   const tieneGeo = Object.values(config.columnMap || {}).some(f =>
     f === 'entidad_federativa' || f === 'municipio'
   );
   if (tieneGeo) {
-    await resolverGeografia(entidades);
+    await resolverGeografiaEstricta(entidades);
   }
 
-  const duplicados = await detectarDuplicados(entidades, proyectoId, config.parentEntityId);
+  const duplicados = await detectarDuplicados(entidades, proyectoId);
 
   const client = await pool.connect();
   try {
@@ -488,59 +437,102 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
       etapas_creadas: 0,
       acciones_creadas: 0,
       subacciones_creadas: 0,
+      evidencias_creadas: 0,
+      comentarios_creados: 0,
       duplicados_saltados: 0,
     };
 
     const dupSet = new Set(duplicados.map(d => `${d.nivel}:${normalizarTexto(d.nombre)}`));
-
-    // Resolver parentEntityId si rowLevel no es etapa
-    let parentEtapaId = null;
-    let parentAccionId = null;
     const rowLevel = (config.rowLevel || 'etapa').toLowerCase();
 
-    if (rowLevel === 'accion' && config.parentEntityId) {
-      parentEtapaId = config.parentEntityId;
-    } else if (rowLevel === 'subaccion' && config.parentEntityId) {
-      parentAccionId = config.parentEntityId;
-      // Obtener etapa del padre
-      const { rows } = await client.query('SELECT id_etapa FROM acciones WHERE id = $1', [config.parentEntityId]);
-      if (rows[0]) parentEtapaId = rows[0].id_etapa;
-    }
+    // Pre-cargar etapas y acciones existentes para resolver padres por nombre
+    const { rows: etapasExistentes } = await client.query(
+      'SELECT id, nombre FROM etapas WHERE id_proyecto = $1',
+      [proyectoId]
+    );
+    const etapaPorNombre = {};
+    for (const e of etapasExistentes) etapaPorNombre[normalizarTexto(e.nombre)] = e.id;
+
+    const { rows: accionesExistentes } = await client.query(
+      'SELECT id, nombre FROM acciones WHERE id_proyecto = $1 AND id_accion_padre IS NULL',
+      [proyectoId]
+    );
+    const accionPorNombre = {};
+    for (const a of accionesExistentes) accionPorNombre[normalizarTexto(a.nombre)] = a.id;
 
     // Set para trackear IDs de etapas que necesitan recálculo de pesos
     const etapasParaRecalculo = new Set();
 
-    async function insertarEntidad(ent, padreEtapaId, padreAccionId) {
-      const key = `${ent.nivel}:${normalizarTexto(ent.nombre)}`;
+    // userId para evidencias y comentarios (usamos null si no disponible)
+    // Note: req.usuario.id would be ideal but service doesn't have access;
+    // the controller should pass it. For now, we use a project creator fallback.
+    const { rows: proyectoRows } = await client.query(
+      'SELECT id_creador FROM proyectos WHERE id = $1', [proyectoId]
+    );
+    const userId = proyectoRows[0]?.id_creador || null;
 
+    // ─── Helper: insertar evidencia relacional ─────────────
+    async function insertarEvidencia(entidadId, link) {
+      if (!link) return;
+      const linkStr = String(link).trim();
+      if (!linkStr) return;
+      await client.query(`
+        INSERT INTO evidencias (nombre_archivo, nombre_original, ruta_minio, tipo_archivo, categoria, id_accion, id_autor)
+        VALUES ($1, $2, $3, 'link', 'Otro', $4, $5)
+      `, [linkStr, linkStr, linkStr, entidadId, userId]);
+      resultado.evidencias_creadas++;
+    }
+
+    // ─── Helper: insertar comentario relacional ────────────
+    async function insertarComentario(entidadTipo, entidadId, contenido) {
+      if (!contenido) return;
+      const contenidoStr = String(contenido).trim();
+      if (!contenidoStr) return;
+      await client.query(`
+        INSERT INTO comentarios (entidad_tipo, entidad_id, contenido, id_autor)
+        VALUES ($1, $2, $3, $4)
+      `, [entidadTipo, entidadId, contenidoStr, userId]);
+      resultado.comentarios_creados++;
+    }
+
+    // ─── Insertar entidad según nivel ──────────────────────
+    for (const ent of entidades) {
+      const key = `${ent.nivel}:${normalizarTexto(ent.nombre)}`;
       if (skipDuplicados && dupSet.has(key)) {
         resultado.duplicados_saltados++;
-        return null;
+        continue;
       }
 
       if (ent.nivel === 'etapa') {
         ordenEtapa++;
+        const porcentaje = ent.campos.porcentaje_avance != null
+          ? ent.campos.porcentaje_avance : 0;
+
         const { rows } = await client.query(`
           INSERT INTO etapas (nombre, descripcion, orden, tipo_meta, id_proyecto,
-                              fecha_inicio, fecha_fin, estado, semaforo, campos_extra)
-          VALUES ($1, $2, $3, 'Sin_meta', $4, $5, $6, $7, $8, $9)
+                              fecha_inicio, fecha_fin, estado, semaforo, porcentaje_calculado, campos_extra)
+          VALUES ($1, $2, $3, 'Sin_meta', $4, $5, $6, $7, $8, $9, $10)
           RETURNING id
         `, [
           ent.nombre,
           emptyToNull(ent.campos.descripcion),
           ordenEtapa,
           proyectoId,
-          toDate(ent.campos.fecha_inicio),
-          toDate(ent.campos.fecha_fin),
+          ent.campos.fecha_inicio || null,
+          ent.campos.fecha_fin || null,
           ent.campos.estado || 'Pendiente',
           ent.campos._semaforo || null,
+          porcentaje,
           JSON.stringify(ent.campos._campos_extra || {}),
         ]);
         const etapaId = rows[0].id;
         resultado.etapas_creadas++;
 
-        // Insertar cobertura geográfica si existe
-        if (ent.campos._cobertura && ent.campos._cobertura.length > 0) {
+        // Register for parent resolution
+        etapaPorNombre[normalizarTexto(ent.nombre)] = etapaId;
+
+        // Cobertura geográfica
+        if (ent.campos._cobertura) {
           for (const cob of ent.campos._cobertura) {
             await client.query(
               `INSERT INTO cobertura_geografica (tipo_entidad, id_entidad, id_estado, id_municipio)
@@ -550,24 +542,41 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
           }
         }
 
-        // Insertar hijos (acciones pivotadas o jerárquicas)
-        for (const hijo of ent.hijos || []) {
-          await insertarEntidad(hijo, etapaId, null);
+        // Comentario relacional
+        if (ent.comentario) {
+          await insertarComentario('Etapa', etapaId, ent.comentario);
         }
 
         etapasParaRecalculo.add(etapaId);
-        return etapaId;
 
       } else if (ent.nivel === 'accion') {
-        const etapaId = padreEtapaId || parentEtapaId;
-        const fechaInicio = toDate(ent.campos.fecha_inicio);
-        const fechaFin = toDate(ent.campos.fecha_fin);
+        // Resolver padre (componente) por nombre
+        let etapaId = null;
+        if (ent.parentName) {
+          etapaId = etapaPorNombre[normalizarTexto(ent.parentName)] || null;
+          // Si no existe, crear componente padre automáticamente
+          if (!etapaId) {
+            ordenEtapa++;
+            const { rows: newEtapa } = await client.query(`
+              INSERT INTO etapas (nombre, orden, tipo_meta, id_proyecto, estado)
+              VALUES ($1, $2, 'Sin_meta', $3, 'Pendiente')
+              RETURNING id
+            `, [ent.parentName, ordenEtapa, proyectoId]);
+            etapaId = newEtapa[0].id;
+            etapaPorNombre[normalizarTexto(ent.parentName)] = etapaId;
+            resultado.etapas_creadas++;
+            etapasParaRecalculo.add(etapaId);
+          }
+        }
+
+        const fechaInicio = ent.campos.fecha_inicio;
+        const fechaFin = ent.campos.fecha_fin;
 
         const { rows } = await client.query(`
           INSERT INTO acciones (
             nombre, descripcion, tipo, fecha_inicio, fecha_fin,
-            estado, id_etapa, id_proyecto, semaforo, campos_extra
-          ) VALUES ($1, $2, 'Accion_programada', $3, $4, $5, $6, $7, $8, $9)
+            estado, porcentaje_avance, id_etapa, id_proyecto, semaforo, campos_extra
+          ) VALUES ($1, $2, 'Accion_programada', $3, $4, $5, $6, $7, $8, $9, $10)
           RETURNING id
         `, [
           ent.nombre,
@@ -575,6 +584,7 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
           fechaInicio || new Date().toISOString().split('T')[0],
           fechaFin || fechaInicio || new Date().toISOString().split('T')[0],
           ent.campos.estado || 'Pendiente',
+          ent.campos.porcentaje_avance || 0,
           etapaId,
           proyectoId,
           ent.campos._semaforo || null,
@@ -583,8 +593,11 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
         const accionId = rows[0].id;
         resultado.acciones_creadas++;
 
-        // Insertar cobertura geográfica si existe
-        if (ent.campos._cobertura && ent.campos._cobertura.length > 0) {
+        // Register for parent resolution (tareas)
+        accionPorNombre[normalizarTexto(ent.nombre)] = accionId;
+
+        // Cobertura geográfica
+        if (ent.campos._cobertura) {
           for (const cob of ent.campos._cobertura) {
             await client.query(
               `INSERT INTO cobertura_geografica (tipo_entidad, id_entidad, id_estado, id_municipio)
@@ -594,52 +607,105 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
           }
         }
 
-        if (etapaId) etapasParaRecalculo.add(etapaId);
-
-        // Insertar sub-hijos (subacciones)
-        for (const hijo of ent.hijos || []) {
-          await insertarEntidad(hijo, etapaId, accionId);
+        // Evidencia relacional
+        if (ent.evidenciaLink) {
+          await insertarEvidencia(accionId, ent.evidenciaLink);
         }
 
-        return accionId;
+        // Comentario relacional
+        if (ent.comentario) {
+          await insertarComentario('Accion', accionId, ent.comentario);
+        }
+
+        if (etapaId) etapasParaRecalculo.add(etapaId);
 
       } else if (ent.nivel === 'subaccion') {
-        const etapaId = padreEtapaId || parentEtapaId;
-        const accionPadreId = padreAccionId || parentAccionId;
-        const fechaInicio = toDate(ent.campos.fecha_inicio);
-        const fechaFin = toDate(ent.campos.fecha_fin);
+        // Resolver padre (acción) por nombre
+        let accionPadreId = null;
+        let etapaId = null;
+        if (ent.parentName) {
+          accionPadreId = accionPorNombre[normalizarTexto(ent.parentName)] || null;
+          if (accionPadreId) {
+            // Obtener etapa de la acción padre
+            const { rows: padreRows } = await client.query(
+              'SELECT id_etapa FROM acciones WHERE id = $1', [accionPadreId]
+            );
+            etapaId = padreRows[0]?.id_etapa || null;
+          }
+          // Si no existe la acción padre, crear automáticamente
+          if (!accionPadreId) {
+            // Necesitamos una etapa; usar o crear una por defecto
+            let etapaDefault = etapaPorNombre[normalizarTexto('General')] || null;
+            if (!etapaDefault) {
+              ordenEtapa++;
+              const { rows: newE } = await client.query(`
+                INSERT INTO etapas (nombre, orden, tipo_meta, id_proyecto, estado)
+                VALUES ('General', $1, 'Sin_meta', $2, 'Pendiente')
+                RETURNING id
+              `, [ordenEtapa, proyectoId]);
+              etapaDefault = newE[0].id;
+              etapaPorNombre[normalizarTexto('General')] = etapaDefault;
+              resultado.etapas_creadas++;
+              etapasParaRecalculo.add(etapaDefault);
+            }
+            etapaId = etapaDefault;
+            const { rows: newA } = await client.query(`
+              INSERT INTO acciones (nombre, tipo, fecha_inicio, fecha_fin, estado, id_etapa, id_proyecto)
+              VALUES ($1, 'Accion_programada', $2, $3, 'Pendiente', $4, $5)
+              RETURNING id
+            `, [ent.parentName, new Date().toISOString().split('T')[0], new Date().toISOString().split('T')[0], etapaId, proyectoId]);
+            accionPadreId = newA[0].id;
+            accionPorNombre[normalizarTexto(ent.parentName)] = accionPadreId;
+            resultado.acciones_creadas++;
+          }
+        }
 
-        await client.query(`
+        const fechaInicio = ent.campos.fecha_inicio;
+        const fechaFin = ent.campos.fecha_fin;
+
+        const { rows } = await client.query(`
           INSERT INTO acciones (
             nombre, descripcion, tipo, fecha_inicio, fecha_fin,
-            estado, id_accion_padre, id_etapa, id_proyecto, semaforo, campos_extra
-          ) VALUES ($1, $2, 'Accion_programada', $3, $4, $5, $6, $7, $8, $9, $10)
+            estado, porcentaje_avance, id_accion_padre, id_etapa, id_proyecto, semaforo, campos_extra
+          ) VALUES ($1, $2, 'Accion_programada', $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          RETURNING id
         `, [
           ent.nombre,
           emptyToNull(ent.campos.descripcion),
           fechaInicio || new Date().toISOString().split('T')[0],
           fechaFin || fechaInicio || new Date().toISOString().split('T')[0],
           ent.campos.estado || 'Pendiente',
+          ent.campos.porcentaje_avance || 0,
           accionPadreId,
           etapaId,
           proyectoId,
           ent.campos._semaforo || null,
           JSON.stringify(ent.campos._campos_extra || {}),
         ]);
+        const subaccionId = rows[0].id;
         resultado.subacciones_creadas++;
-        return null;
+
+        // Evidencia relacional
+        if (ent.evidenciaLink) {
+          await insertarEvidencia(subaccionId, ent.evidenciaLink);
+        }
+
+        // Comentario relacional
+        if (ent.comentario) {
+          await insertarComentario('Accion', subaccionId, ent.comentario);
+        }
       }
     }
 
-    // Insertar todas las entidades raíz
-    for (const ent of entidades) {
-      await insertarEntidad(ent, null, null);
-    }
-
-    // Recalcular pesos de todas las etapas afectadas
+    // Recalcular pesos y progreso de todas las etapas afectadas
     for (const etapaId of etapasParaRecalculo) {
       await recalcularPesosEtapa(etapaId, client);
+      await recalcularEtapa(etapaId, client);
     }
+
+    // Recalcular indicadores auto-calculados del proyecto
+    const { recalcularIndicadoresProyecto } = require('../db/queries/indicadores.queries');
+    await recalcularIndicadoresProyecto(proyectoId, client);
 
     await client.query('COMMIT');
     return resultado;
@@ -652,11 +718,353 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
   }
 }
 
+// ─── Multi-hoja: importación formato universal ──────────────
+
+// Traducción de estatus UI → estatus interno BD
+const TRADUCCION_ESTATUS = {
+  'no iniciado':          'Pendiente',
+  'pendiente':            'Pendiente',
+  'sin iniciar':          'Pendiente',
+  'en proceso':           'En_proceso',
+  'en progreso':          'En_proceso',
+  'en curso':             'En_proceso',
+  'en espera':            'Bloqueada',
+  'bloqueado':            'Bloqueada',
+  'bloqueada':            'Bloqueada',
+  'en espera/bloqueado':  'Bloqueada',
+  'concluido':            'Completada',
+  'concluida':            'Completada',
+  'completado':           'Completada',
+  'completada':           'Completada',
+  'terminado':            'Completada',
+  'terminada':            'Completada',
+  'finalizado':           'Completada',
+  'no aplica':            'Cancelada',
+  'cancelado':            'Cancelada',
+  'cancelada':            'Cancelada',
+};
+
+function traducirEstatus(valor) {
+  if (!valor) return { estado: 'Pendiente', warning: null };
+  const limpio = String(valor).trim();
+  if (ESTADOS_VALIDOS.includes(limpio)) return { estado: limpio, warning: null };
+  const norm = normalizarTexto(limpio);
+  const traducido = TRADUCCION_ESTATUS[norm];
+  if (traducido) return { estado: traducido, warning: null };
+  return { estado: 'Pendiente', warning: `Estatus no reconocido: "${limpio}" → se usará "Pendiente"` };
+}
+
+/**
+ * Trunca un string para que quepa en un varchar(n).
+ */
+function truncar(valor, maxLen) {
+  if (!valor) return valor;
+  return String(valor).length > maxLen ? String(valor).substring(0, maxLen) : valor;
+}
+
+/**
+ * Extrae un valor de una fila usando el mapeo.
+ * mapeo es { propKey: colIndex }
+ */
+function valorMapeado(fila, mapeo, propKey) {
+  const idx = mapeo[propKey];
+  if (idx === undefined || idx === -1 || idx >= fila.length) return null;
+  const v = fila[idx];
+  return v != null ? String(v).trim() : null;
+}
+
+/**
+ * Genera preview para formato multi-hoja con mapeo completo.
+ */
+async function generarPreviewMultiHoja(hojas, configMultiHoja, proyectoId) {
+  const hojasConfig = configMultiHoja.hojas;
+  const arbol = [];
+  const warnings = [];
+
+  // Compatibilidad: usar mapeo si existe, sino caer a idCol/nombreCol/refCol
+  function getMapeo(hCfg) {
+    if (hCfg.mapeo) return hCfg.mapeo;
+    const m = {};
+    if (hCfg.idCol !== undefined && hCfg.idCol !== -1) m.id_enlace = hCfg.idCol;
+    if (hCfg.nombreCol !== undefined && hCfg.nombreCol !== -1) m.nombre = hCfg.nombreCol;
+    if (hCfg.refCol !== undefined && hCfg.refCol !== -1) m.id_padre = hCfg.refCol;
+    return m;
+  }
+
+  // Hoja 1: Etapas / Contenedores
+  const h1 = hojasConfig[0];
+  const m1 = getMapeo(h1);
+  const datosEtapas = hojas[h1.indice];
+  const etapasMap = {};
+
+  for (let i = 0; i < datosEtapas.filas.length; i++) {
+    const fila = datosEtapas.filas[i];
+    const id = valorMapeado(fila, m1, 'id_enlace') || '';
+    const nombre = valorMapeado(fila, m1, 'nombre') || `Etapa ${i + 1}`;
+    if (!id) { warnings.push({ hoja: h1.nombre, fila: i + 2, mensaje: 'Fila sin ID, se omitirá.' }); continue; }
+
+    const estatusRaw = valorMapeado(fila, m1, 'estatus');
+    const { estado, warning: wEst } = traducirEstatus(estatusRaw);
+    if (wEst) warnings.push({ hoja: h1.nombre, fila: i + 2, mensaje: wEst });
+
+    etapasMap[id] = { nombre, fila, acciones: [] };
+    arbol.push({
+      id, nombre, nivel: 'etapa', acciones: [],
+      estatus: estado,
+      prioridad: valorMapeado(fila, m1, 'prioridad'),
+      categoria: valorMapeado(fila, m1, 'categoria'),
+    });
+  }
+
+  // Hoja 2: Acciones / Ítems
+  if (hojasConfig.length >= 2) {
+    const h2 = hojasConfig[1];
+    const m2 = getMapeo(h2);
+    const datosAcciones = hojas[h2.indice];
+    const accionesMap = {};
+
+    for (let i = 0; i < datosAcciones.filas.length; i++) {
+      const fila = datosAcciones.filas[i];
+      const id = valorMapeado(fila, m2, 'id_enlace') || `acc_${i}`;
+      const ref = valorMapeado(fila, m2, 'id_padre') || '';
+      const nombre = valorMapeado(fila, m2, 'nombre') || `Acción ${i + 1}`;
+
+      if (!ref || !etapasMap[ref]) {
+        warnings.push({ hoja: h2.nombre, fila: i + 2, mensaje: `Referencia "${ref}" no encontrada en etapas.` });
+        continue;
+      }
+
+      const estatusRaw = valorMapeado(fila, m2, 'estatus');
+      const { estado, warning: wEst } = traducirEstatus(estatusRaw);
+      if (wEst) warnings.push({ hoja: h2.nombre, fila: i + 2, mensaje: wEst });
+
+      const nodoAcc = { id, nombre, nivel: 'accion', tareas: [], estatus: estado };
+      accionesMap[id] = { nombre, ref, fila, tareas: [] };
+      const nodoEtapa = arbol.find(e => e.id === ref);
+      if (nodoEtapa) nodoEtapa.acciones.push(nodoAcc);
+    }
+
+    // Hoja 3: Tareas / Sub-ítems (opcional)
+    if (hojasConfig.length >= 3) {
+      const h3 = hojasConfig[2];
+      const m3 = getMapeo(h3);
+      const datosTareas = hojas[h3.indice];
+
+      for (let i = 0; i < datosTareas.filas.length; i++) {
+        const fila = datosTareas.filas[i];
+        const ref = valorMapeado(fila, m3, 'id_padre') || '';
+        const nombre = valorMapeado(fila, m3, 'nombre') || `Tarea ${i + 1}`;
+
+        if (!ref || !accionesMap[ref]) {
+          warnings.push({ hoja: h3.nombre, fila: i + 2, mensaje: `Referencia "${ref}" no encontrada en acciones.` });
+          continue;
+        }
+        accionesMap[ref].tareas.push({ nombre, nivel: 'subaccion' });
+        // Actualizar árbol
+        for (const etapa of arbol) {
+          const acc = etapa.acciones.find(a => a.id === ref);
+          if (acc) { acc.tareas.push({ nombre, nivel: 'subaccion' }); break; }
+        }
+      }
+    }
+
+    // Calcular conteo de tareas
+    var totalTareas = 0;
+    for (const e of arbol) for (const a of e.acciones) totalTareas += (a.tareas?.length || 0);
+
+    return {
+      arbol,
+      conteo: {
+        etapas: Object.keys(etapasMap).length,
+        acciones: Object.keys(accionesMap).length,
+        subacciones: totalTareas,
+      },
+      warnings,
+    };
+  }
+
+  // Solo 1 hoja
+  return { arbol, conteo: { etapas: Object.keys(etapasMap).length, acciones: 0, subacciones: 0 }, warnings };
+}
+
+/**
+ * Ejecuta importación transaccional para formato multi-hoja con mapeo completo.
+ */
+async function ejecutarImportacionMultiHoja(hojas, configMultiHoja, proyectoId) {
+  const hojasConfig = configMultiHoja.hojas;
+
+  function getMapeo(hCfg) {
+    if (hCfg.mapeo) return hCfg.mapeo;
+    const m = {};
+    if (hCfg.idCol !== undefined && hCfg.idCol !== -1) m.id_enlace = hCfg.idCol;
+    if (hCfg.nombreCol !== undefined && hCfg.nombreCol !== -1) m.nombre = hCfg.nombreCol;
+    if (hCfg.refCol !== undefined && hCfg.refCol !== -1) m.id_padre = hCfg.refCol;
+    return m;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const resultado = { etapas_creadas: 0, acciones_creadas: 0, subacciones_creadas: 0 };
+
+    const { rows: [{ max_orden }] } = await client.query(
+      'SELECT COALESCE(MAX(orden), 0) AS max_orden FROM etapas WHERE id_proyecto = $1', [proyectoId]
+    );
+    let ordenEtapa = max_orden;
+
+    const etapaIdMap = {};
+    const accionIdMap = {};
+    const etapasParaRecalculo = new Set();
+
+    // ─── Hoja 1: Etapas / Contenedores ──────────────
+    const h1 = hojasConfig[0];
+    const m1 = getMapeo(h1);
+    const datosEtapas = hojas[h1.indice];
+
+    for (let i = 0; i < datosEtapas.filas.length; i++) {
+      const fila = datosEtapas.filas[i];
+      const idLocal = valorMapeado(fila, m1, 'id_enlace') || '';
+      if (!idLocal) continue;
+
+      const nombre = valorMapeado(fila, m1, 'nombre') || `Etapa ${i + 1}`;
+      const descripcion = emptyToNull(valorMapeado(fila, m1, 'descripcion'));
+      const fechaInicio = toDate(valorMapeado(fila, m1, 'fecha_inicio'));
+      const fechaFin = toDate(valorMapeado(fila, m1, 'fecha_final'));
+      const { estado } = traducirEstatus(valorMapeado(fila, m1, 'estatus'));
+      const prioridad = truncar(emptyToNull(valorMapeado(fila, m1, 'prioridad')), 50);
+      const categoria = emptyToNull(valorMapeado(fila, m1, 'categoria'));
+      const instrumento = emptyToNull(valorMapeado(fila, m1, 'instrumento'));
+      const escalaTerritorial = emptyToNull(valorMapeado(fila, m1, 'escala_territorial'));
+      const enlaceResponsable = emptyToNull(valorMapeado(fila, m1, 'enlace_responsable'));
+      const observaciones = emptyToNull(valorMapeado(fila, m1, 'comentarios'));
+
+      ordenEtapa++;
+      const { rows } = await client.query(`
+        INSERT INTO etapas (nombre, descripcion, orden, tipo_meta, id_proyecto,
+          fecha_inicio, fecha_fin, estado, prioridad, enlace_responsable, observaciones)
+        VALUES ($1, $2, $3, 'Sin_meta', $4, $5, $6, $7, $8, $9, $10)
+        RETURNING id
+      `, [nombre, descripcion, ordenEtapa, proyectoId, fechaInicio, fechaFin, estado,
+          prioridad, enlaceResponsable, observaciones]);
+
+      etapaIdMap[idLocal] = rows[0].id;
+      etapasParaRecalculo.add(rows[0].id);
+      resultado.etapas_creadas++;
+    }
+
+    // ─── Hoja 2: Acciones / Ítems ───────────────────
+    if (hojasConfig.length >= 2) {
+      const h2 = hojasConfig[1];
+      const m2 = getMapeo(h2);
+      const datosAcciones = hojas[h2.indice];
+
+      for (let i = 0; i < datosAcciones.filas.length; i++) {
+        const fila = datosAcciones.filas[i];
+        const idLocal = valorMapeado(fila, m2, 'id_enlace') || `acc_${i}`;
+        const refEtapa = valorMapeado(fila, m2, 'id_padre') || '';
+        const etapaBdId = etapaIdMap[refEtapa];
+        if (!etapaBdId) continue;
+
+        const nombre = valorMapeado(fila, m2, 'nombre') || `Acción ${i + 1}`;
+        const descripcion = emptyToNull(valorMapeado(fila, m2, 'descripcion'));
+        const { estado } = traducirEstatus(valorMapeado(fila, m2, 'estatus'));
+        const prioridad = truncar(emptyToNull(valorMapeado(fila, m2, 'prioridad')), 50);
+        const tipo = truncar(emptyToNull(valorMapeado(fila, m2, 'tipo')) || 'Accion_programada', 50);
+        const responsable = emptyToNull(valorMapeado(fila, m2, 'responsable'));
+        const fechaInicio = toDate(valorMapeado(fila, m2, 'fecha_inicio')) || new Date().toISOString().split('T')[0];
+        const fechaFin = toDate(valorMapeado(fila, m2, 'fecha_limite')) || fechaInicio;
+        const enlaceResponsable = emptyToNull(valorMapeado(fila, m2, 'enlace_responsable'));
+        const observaciones = emptyToNull(valorMapeado(fila, m2, 'riesgos'));
+
+        const { rows } = await client.query(`
+          INSERT INTO acciones (nombre, descripcion, tipo, fecha_inicio, fecha_fin, estado,
+            porcentaje_avance, id_etapa, id_proyecto, prioridad, enlace_responsable, observaciones)
+          VALUES ($1, $2, $3, $4, $5, $6, 0, $7, $8, $9, $10, $11)
+          RETURNING id
+        `, [nombre, descripcion, tipo, fechaInicio, fechaFin, estado,
+            etapaBdId, proyectoId, prioridad, enlaceResponsable, observaciones]);
+
+        accionIdMap[idLocal] = rows[0].id;
+        etapasParaRecalculo.add(etapaBdId);
+        resultado.acciones_creadas++;
+      }
+    }
+
+    // ─── Hoja 3: Tareas / Sub-ítems (opcional) ──────
+    if (hojasConfig.length >= 3) {
+      const h3 = hojasConfig[2];
+      const m3 = getMapeo(h3);
+      const datosTareas = hojas[h3.indice];
+
+      for (let i = 0; i < datosTareas.filas.length; i++) {
+        const fila = datosTareas.filas[i];
+        const refAccion = valorMapeado(fila, m3, 'id_padre') || '';
+        const accionBdId = accionIdMap[refAccion];
+        if (!accionBdId) continue;
+
+        const nombre = valorMapeado(fila, m3, 'nombre') || `Tarea ${i + 1}`;
+        const descripcion = emptyToNull(valorMapeado(fila, m3, 'descripcion'));
+        const { estado } = traducirEstatus(valorMapeado(fila, m3, 'estatus'));
+        const prioridad = truncar(emptyToNull(valorMapeado(fila, m3, 'prioridad')), 50);
+        const fechaInicio = toDate(valorMapeado(fila, m3, 'fecha_inicio')) || new Date().toISOString().split('T')[0];
+        const fechaFin = toDate(valorMapeado(fila, m3, 'fecha_limite')) || fechaInicio;
+
+        const { rows: padreRows } = await client.query('SELECT id_etapa FROM acciones WHERE id = $1', [accionBdId]);
+        const etapaId = padreRows[0]?.id_etapa || null;
+
+        await client.query(`
+          INSERT INTO acciones (nombre, descripcion, tipo, fecha_inicio, fecha_fin, estado,
+            porcentaje_avance, id_accion_padre, id_etapa, id_proyecto, prioridad)
+          VALUES ($1, $2, 'Accion_programada', $3, $4, $5, 0, $6, $7, $8, $9)
+        `, [nombre, descripcion, fechaInicio, fechaFin, estado, accionBdId, etapaId, proyectoId, prioridad]);
+
+        resultado.subacciones_creadas++;
+      }
+    }
+
+    // Recalcular
+    for (const etapaId of etapasParaRecalculo) {
+      await recalcularPesosEtapa(etapaId, client);
+      await recalcularEtapa(etapaId, client);
+    }
+
+    const { recalcularIndicadoresProyecto } = require('../db/queries/indicadores.queries');
+    await recalcularIndicadoresProyecto(proyectoId, client);
+
+    await client.query('COMMIT');
+    return resultado;
+
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Extrae campos de una fila basándose en los headers, excluyendo ciertos campos.
+ */
+function extraerCamposPorHeader(headers, fila, excluir = []) {
+  const campos = {};
+  const excluirSet = new Set(excluir.map(e => normalizarTexto(e)));
+  for (let i = 0; i < headers.length; i++) {
+    const h = normalizarTexto(headers[i]);
+    if (excluirSet.has(h) || !h) continue;
+    const valor = fila[i] != null ? String(fila[i]).trim() : '';
+    if (valor) campos[h] = valor;
+  }
+  return campos;
+}
+
 module.exports = {
   transformarFilas,
   detectarDuplicados,
   generarPreview,
   ejecutarImportacion,
+  generarPreviewMultiHoja,
+  ejecutarImportacionMultiHoja,
   normalizarTexto,
   ESTADOS_VALIDOS,
 };

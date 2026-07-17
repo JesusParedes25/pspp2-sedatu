@@ -71,11 +71,68 @@ async function eliminarCobertura(req, res, next) {
   }
 }
 
+// GET /proyectos/:id/cobertura-detallada — coverage per entity for VistaLista chips
+async function obtenerCoberturaDetallada(req, res, next) {
+  try {
+    const datos = await geografiaQueries.obtenerCoberturaDetalladaProyecto(req.params.id);
+    res.json({ datos });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /mapa/resumen-estados — coropletas para el mapa territorial
+async function resumenPorEstados(req, res, next) {
+  try {
+    const filtros = {};
+    if (req.query.id_dg) filtros.id_dg = req.query.id_dg;
+    const datos = await geografiaQueries.obtenerResumenPorEstados(filtros);
+    res.json({ datos });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /mapa/estado/:id — drill-down territorial rico
+async function resumenTerritorial(req, res, next) {
+  try {
+    const filtros = {};
+    if (req.query.id_dg) filtros.id_dg = req.query.id_dg;
+    const datos = await geografiaQueries.obtenerResumenTerritorial(req.params.id, filtros);
+    res.json({ datos });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /catalogos/zonas-metropolitanas
+async function obtenerZonasMetropolitanas(req, res, next) {
+  try {
+    const zm = await geografiaQueries.obtenerZonasMetropolitanas();
+    res.json({ datos: zm, mensaje: 'Zonas metropolitanas obtenidas' });
+  } catch (err) { next(err); }
+}
+
+// GET /catalogos/municipios-por-clave?cve_ent=XX
+async function obtenerMunicipiosPorClave(req, res, next) {
+  try {
+    const { cve_ent } = req.query;
+    if (!cve_ent) return res.status(400).json({ error: true, mensaje: 'Se requiere cve_ent' });
+    const municipios = await geografiaQueries.obtenerMunicipiosPorEstadoClave(cve_ent);
+    res.json({ datos: municipios, mensaje: 'Municipios obtenidos' });
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   obtenerEstados,
   obtenerMunicipios,
+  obtenerMunicipiosPorClave,
+  obtenerZonasMetropolitanas,
   obtenerCobertura,
   obtenerCoberturaProyecto,
   agregarCobertura,
   eliminarCobertura,
+  obtenerCoberturaDetallada,
+  resumenPorEstados,
+  resumenTerritorial,
 };

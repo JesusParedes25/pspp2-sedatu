@@ -15,7 +15,7 @@ import {
   getFilteredRowModel,
   flexRender,
 } from '@tanstack/react-table';
-import { ArrowUpDown, SlidersHorizontal } from 'lucide-react';
+import { ArrowUpDown, SlidersHorizontal, MapPin } from 'lucide-react';
 import client from '../../api/client';
 import SemaforoChip from '../common/SemaforoChip';
 
@@ -95,6 +95,7 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
   const [globalFilter, setGlobalFilter] = useState('');
   const [showColSelector, setShowColSelector] = useState(false);
   const [cargando, setCargando] = useState(true);
+  const [coberturaMap, setCoberturaMap] = useState({});
 
   // Cargar acciones de todas las etapas
   useEffect(() => {
@@ -108,11 +109,25 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
     });
   }, [etapas]);
 
-  // Cargar schema de campos extra
+  // Cargar schema de campos extra + cobertura geográfica
   useEffect(() => {
     if (!proyectoId) return;
     client.get(`/proyectos/${proyectoId}/campos-extra-schema`)
       .then(({ data }) => setCamposExtraKeys(data.datos || []))
+      .catch(() => {});
+    client.get(`/proyectos/${proyectoId}/cobertura-detallada`)
+      .then(({ data }) => {
+        const map = {};
+        for (const row of (data.datos || [])) {
+          const key = row.id_entidad;
+          if (!map[key]) map[key] = [];
+          const label = row.municipio_nombre
+            ? `${row.municipio_nombre}, ${row.estado_nombre}`
+            : row.estado_nombre;
+          if (label && !map[key].includes(label)) map[key].push(label);
+        }
+        setCoberturaMap(map);
+      })
       .catch(() => {});
   }, [proyectoId]);
 
@@ -130,6 +145,7 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
         fecha_fin: etapa.fecha_fin,
         porcentaje_avance: etapa.porcentaje_avance,
         campos_extra: etapa.campos_extra || {},
+        ubicacion: coberturaMap[etapa.id] || [],
         _raw: etapa,
       });
       for (const accion of (acciones || []).filter(a => a.id_etapa === etapa.id && !a.id_accion_padre)) {
@@ -143,12 +159,13 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
           fecha_fin: accion.fecha_fin,
           porcentaje_avance: accion.porcentaje_avance,
           campos_extra: accion.campos_extra || {},
+          ubicacion: coberturaMap[accion.id] || [],
           _raw: accion,
         });
       }
     }
     return filas;
-  }, [etapas, acciones]);
+  }, [etapas, acciones, coberturaMap]);
 
   // Handler para guardar inline edits
   const actualizarCelda = useCallback(async (row, columnId, value) => {
@@ -208,6 +225,29 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
         accessorKey: 'fecha_fin',
         size: 110,
         cell: CeldaEditable,
+      },
+      {
+        id: 'ubicacion',
+        header: 'Ubicación',
+        accessorFn: row => (row.ubicacion || []).join(', '),
+        size: 160,
+        cell: ({ row }) => {
+          const locs = row.original.ubicacion || [];
+          if (locs.length === 0) return <span className="text-gray-300 text-xs">—</span>;
+          return (
+            <div className="flex flex-wrap gap-1">
+              {locs.slice(0, 2).map((loc, i) => (
+                <span key={i} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 text-[10px] font-medium">
+                  <MapPin size={9} />{loc}
+                </span>
+              ))}
+              {locs.length > 2 && (
+                <span className="text-[10px] text-gray-400">+{locs.length - 2}</span>
+              )}
+            </div>
+          );
+        },
+        enableSorting: false,
       },
       {
         id: 'porcentaje_avance',

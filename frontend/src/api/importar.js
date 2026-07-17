@@ -39,3 +39,17 @@ export async function sugerirPlantilla(headers, superHeaders) {
   const { data } = await client.post('/importar/sugerir', { headers, superHeaders });
   return data;
 }
+
+export async function previewMultiHoja({ fileId, configMultiHoja, proyectoId }) {
+  const { data } = await client.post('/importar/preview-multihoja', {
+    fileId, configMultiHoja, proyectoId,
+  });
+  return data;
+}
+
+export async function confirmarMultiHoja({ fileId, configMultiHoja, proyectoId }) {
+  const { data } = await client.post('/importar/confirmar-multihoja', {
+    fileId, configMultiHoja, proyectoId,
+  });
+  return data;
+}

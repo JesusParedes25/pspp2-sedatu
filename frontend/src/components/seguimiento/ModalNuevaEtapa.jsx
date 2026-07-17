@@ -19,6 +19,7 @@ import { useState, useEffect } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
 import * as catalogosApi from '../../api/catalogos';
 import { useAuth } from '../../context/AuthContext';
+import CatalogSelector from '../common/CatalogSelector';
 
 export default function ModalNuevaEtapa({ proyecto, etapas, onGuardar, onCerrar }) {
   const { usuario } = useAuth();
@@ -40,6 +41,12 @@ export default function ModalNuevaEtapa({ proyecto, etapas, onGuardar, onCerrar 
     meta_unidad: '',
     indicadores_asociados: [],
     indicadores_nuevos: [],
+    tipo: '',
+    prioridad: '',
+    fecha_limite: '',
+    instancia_responsable: '',
+    enlace_responsable: '',
+    observaciones: '',
   });
 
   useEffect(() => {
@@ -216,6 +223,38 @@ export default function ModalNuevaEtapa({ proyecto, etapas, onGuardar, onCerrar 
               </select>
             </div>
           )}
+
+          {/* ─── Clasificación ─── */}
+          <div className="border-t border-gray-100 pt-4 mt-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Clasificación</p>
+            <div className="grid grid-cols-2 gap-3">
+              <CatalogSelector tipo="tipo_item" value={datos.tipo} onChange={v => actualizar('tipo', v)} label="Tipo" />
+              <CatalogSelector tipo="prioridad" value={datos.prioridad} onChange={v => actualizar('prioridad', v)} label="Prioridad" />
+              <CatalogSelector tipo="unidad_responsable" value={datos.instancia_responsable} onChange={v => actualizar('instancia_responsable', v)} label="Instancia responsable" />
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Enlace responsable</label>
+                <input type="text" value={datos.enlace_responsable} onChange={e => actualizar('enlace_responsable', e.target.value)}
+                  className="input-base text-sm" placeholder="Nombre del enlace" />
+              </div>
+            </div>
+          </div>
+
+          {/* ─── Seguimiento ─── */}
+          <div className="border-t border-gray-100 pt-4 mt-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Seguimiento</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Fecha límite</label>
+                <input type="date" value={datos.fecha_limite} onChange={e => actualizar('fecha_limite', e.target.value)}
+                  className="input-base text-sm" />
+              </div>
+            </div>
+            <div className="mt-3">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Observaciones</label>
+              <textarea value={datos.observaciones} onChange={e => actualizar('observaciones', e.target.value)}
+                rows={2} className="input-base text-sm resize-none" placeholder="Observaciones de esta etapa…" />
+            </div>
+          </div>
 
           {/* ═══ A) Vinculación con indicadores del proyecto ═══ */}
           {indicadores.length > 0 && (

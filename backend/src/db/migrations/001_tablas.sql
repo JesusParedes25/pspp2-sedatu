@@ -204,19 +204,23 @@ CREATE TABLE acciones (
 -- Tabla 13: evidencias
 CREATE TABLE evidencias (
   id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  nombre_archivo   VARCHAR(500) NOT NULL,
-  nombre_original  VARCHAR(500) NOT NULL,
-  ruta_minio       VARCHAR(500) NOT NULL,
+  nombre_archivo   VARCHAR(500),
+  nombre_original  VARCHAR(500),
+  ruta_minio       VARCHAR(500),
   tipo_archivo     VARCHAR(100),
   categoria        VARCHAR(30) NOT NULL DEFAULT 'Otro'
                    CHECK (categoria IN (
-                     'Planos','Oficios','Minutas','Estudios','Fotografias',
-                     'Contratos','Geoespacial','Scripts','Reportes','Otro'
+                     'Documento','Fotografía','Capa geográfica',
+                     'Paquete de capas geográficas','Video',
+                     'Repositorio','Audio','Otro'
                    )),
   tamano_bytes     BIGINT,
   version          INT DEFAULT 1,
   notas            TEXT,
   fecha_generacion DATE,
+  url              TEXT,
+  tipo_medio       VARCHAR(10) DEFAULT 'archivo'
+                   CHECK (tipo_medio IN ('archivo','link')),
   id_accion        UUID REFERENCES acciones(id),
   id_riesgo        UUID,
   id_autor         UUID REFERENCES usuarios(id),

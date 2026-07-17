@@ -48,3 +48,14 @@ export async function obtenerTodosIndicadoresProyecto(proyectoId) {
   const { data } = await client.get(`/proyectos/${proyectoId}/indicadores/todos`);
   return data;
 }
+
+export async function patchEtapa(id, datos) {
+  const { data } = await client.patch(`/etapas/${id}`, datos);
+  return data;
+}
+
+export async function obtenerArbol(proyectoId, idDg) {
+  const params = idDg ? { id_dg: idDg } : {};
+  const { data } = await client.get(`/proyectos/${proyectoId}/arbol`, { params });
+  return data;
+}

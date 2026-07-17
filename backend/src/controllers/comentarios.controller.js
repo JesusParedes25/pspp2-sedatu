@@ -14,6 +14,25 @@
  */
 const comentariosQueries = require('../db/queries/comentarios.queries');
 const { crearNotificacion } = require('../utils/notificaciones');
+const { registrarActividad } = require('../utils/actividad-log');
+const pool = require('../db/pool');
+
+async function resolverProyectoIdComentario(entidad_tipo, entidad_id) {
+  if (entidad_tipo === 'proyecto') return entidad_id;
+  if (entidad_tipo === 'etapa') {
+    const { rows } = await pool.query('SELECT id_proyecto FROM etapas WHERE id = $1', [entidad_id]);
+    return rows[0]?.id_proyecto;
+  }
+  if (entidad_tipo === 'accion' || entidad_tipo === 'subaccion') {
+    const { rows } = await pool.query('SELECT id_proyecto, id_etapa FROM acciones WHERE id = $1', [entidad_id]);
+    if (rows[0]?.id_proyecto) return rows[0].id_proyecto;
+    if (rows[0]?.id_etapa) {
+      const { rows: e } = await pool.query('SELECT id_proyecto FROM etapas WHERE id = $1', [rows[0].id_etapa]);
+      return e[0]?.id_proyecto;
+    }
+  }
+  return null;
+}
 
 // GET /comentarios?entidad_tipo=X&entidad_id=UUID — Listar comentarios
 async function listar(req, res, next) {
@@ -54,6 +73,9 @@ async function crear(req, res, next) {
       contenido,
       id_autor: req.usuario.id
     });
+
+    const pId = await resolverProyectoIdComentario(entidad_tipo, entidad_id);
+    if (pId) await registrarActividad({ id_proyecto: pId, id_usuario: req.usuario.id, tipo: 'comentario', titulo: 'Comentario publicado', descripcion: contenido.substring(0, 200), entidad_tipo, entidad_id });
 
     res.status(201).json({ datos: comentario, mensaje: 'Comentario creado' });
   } catch (err) {

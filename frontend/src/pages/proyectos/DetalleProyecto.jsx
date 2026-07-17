@@ -16,9 +16,9 @@
  * - Los riesgos se asignan por etapa con acción asociada.
  * ─────────────────────────────────────────────────────────────────
  */
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Star, FileText, Settings, BarChart3, Clock, UsersRound, LayoutDashboard, Search, Plus, Pencil, X, FileSpreadsheet, Trash2, AlertTriangle, Table2, MapPin } from 'lucide-react';
+import { ArrowLeft, Star, FileText, Settings, BarChart3, Clock, UsersRound, LayoutDashboard, Search, Plus, Pencil, X, FileSpreadsheet, Trash2, AlertTriangle, Table2, MapPin, Columns, CheckSquare } from 'lucide-react';
 import { useProyecto } from '../../hooks/useProyectos';
 import { useEtapas } from '../../hooks/useEtapas';
 import { useAuth } from '../../context/AuthContext';
@@ -28,18 +28,20 @@ import EstadoChip from '../../components/common/EstadoChip';
 import SelectorEstado from '../../components/common/SelectorEstado';
 import EtapaCard from '../../components/seguimiento/EtapaCard';
 import GanttCronograma from '../../components/seguimiento/GanttCronograma';
-import ActividadReciente from '../../components/seguimiento/ActividadReciente';
-import EquipoProyecto from '../../components/seguimiento/EquipoProyecto';
-import ResumenProyecto from '../../components/seguimiento/ResumenProyecto';
+import PanoramaProyecto from '../../components/seguimiento/PanoramaProyecto';
 import SelectorDG from '../../components/proyectos/SelectorDG';
 import EvidenciaRow from '../../components/evidencias/EvidenciaRow';
 import EmptyState from '../../components/common/EmptyState';
 import ModalNuevaEtapa from '../../components/seguimiento/ModalNuevaEtapa';
 import ModalNuevaAccion from '../../components/seguimiento/ModalNuevaAccion';
 import ImportarWizard from '../../components/importar/ImportarWizard';
+import EtapasAvancesMD from '../../components/seguimiento/EtapasAvancesMD';
 import ModalEditarProyecto from '../../components/proyectos/ModalEditarProyecto';
 import VistaLista from '../../components/seguimiento/VistaLista';
+import VistaKanban from '../../components/seguimiento/VistaKanban';
+import VistaChecklist from '../../components/seguimiento/VistaChecklist';
 import MapaCobertura from '../../components/seguimiento/MapaCobertura';
+import PanelAccionInline from '../../components/seguimiento/PanelAccionInline';
 import * as evidenciasApi from '../../api/evidencias';
 import * as etapasApi from '../../api/etapas';
 import * as accionesApi from '../../api/acciones';
@@ -47,7 +49,7 @@ import * as proyectosApi from '../../api/proyectos';
 
 // Pestañas principales: Resumen, Seguimiento, Evidencias
 const PESTANAS = [
-  { id: 'resumen', etiqueta: 'Resumen', icono: LayoutDashboard },
+  { id: 'resumen', etiqueta: 'Panorama del proyecto', icono: LayoutDashboard },
   { id: 'seguimiento', etiqueta: 'Seguimiento', icono: Settings },
   { id: 'evidencias', etiqueta: 'Evidencias', icono: FileText },
 ];
@@ -56,11 +58,43 @@ const PESTANAS = [
 const SUBSECCIONES = [
   { id: 'etapas', etiqueta: 'Etapas y avances', icono: Settings },
   { id: 'lista', etiqueta: 'Vista lista', icono: Table2 },
+  { id: 'kanban', etiqueta: 'Kanban', icono: Columns },
+  { id: 'checklist', etiqueta: 'Checklist', icono: CheckSquare },
   { id: 'mapa', etiqueta: 'Mapa', icono: MapPin },
   { id: 'cronograma', etiqueta: 'Cronograma', icono: BarChart3 },
-  { id: 'actividad', etiqueta: 'Actividad reciente', icono: Clock },
-  { id: 'equipo', etiqueta: 'Equipo', icono: UsersRound },
 ];
+
+function DescripcionColapsable({ texto }) {
+  const [expandida, setExpandida] = useState(false);
+  const refTexto = useRef(null);
+  const [necesitaToggle, setNecesitaToggle] = useState(false);
+
+  useEffect(() => {
+    const el = refTexto.current;
+    if (el) setNecesitaToggle(el.scrollHeight > el.clientHeight + 1);
+  }, [texto]);
+
+  return (
+    <div className="mb-2">
+      <p
+        ref={refTexto}
+        className="text-sm text-gray-500"
+        style={expandida ? {} : { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+      >
+        {texto}
+      </p>
+      {necesitaToggle && (
+        <button
+          type="button"
+          onClick={() => setExpandida(v => !v)}
+          className="text-xs text-guinda-600 hover:text-guinda-800 font-medium mt-0.5 cursor-pointer"
+        >
+          {expandida ? 'Ver menos' : 'Ver más'}
+        </button>
+      )}
+    </div>
+  );
+}
 
 export default function DetalleProyecto() {
   const { id } = useParams();
@@ -70,6 +104,9 @@ export default function DetalleProyecto() {
   const permisos = usePermisosProyecto(proyecto);
   const [dgSeleccionada, setDgSeleccionada] = useState(null);
   const { etapas, cargando: cargandoEtapas, recargar: recargarEtapas, recargarSilencioso: recargarEtapasSilencioso } = useEtapas(id, dgSeleccionada);
+  const [accionesDirectas, setAccionesDirectas] = useState([]);
+  const [cargandoDirectas, setCargandoDirectas] = useState(false);
+  const [accionDirectaExpandida, setAccionDirectaExpandida] = useState(null);
   const [pestanaActiva, setPestanaActiva] = useState('resumen');
   const [subseccionActiva, setSubseccionActiva] = useState('etapas');
 
@@ -153,9 +190,35 @@ export default function DetalleProyecto() {
       mostrarToast('Acción creada exitosamente', 'exito');
       setModalAccion(null);
       recargarEtapas();
+      cargarAccionesDirectas();
       incrementarStats();
     } catch (err) {
       mostrarToast(err.response?.data?.mensaje || 'Error al crear acción', 'error');
+    }
+  }
+
+  // Cargar acciones directas del proyecto (sin etapa)
+  const cargarAccionesDirectas = useCallback(async () => {
+    if (!id) return;
+    setCargandoDirectas(true);
+    try {
+      const res = await accionesApi.obtenerAccionesDirectas(id);
+      setAccionesDirectas(res.datos || []);
+    } catch { /* silenciar */ }
+    finally { setCargandoDirectas(false); }
+  }, [id]);
+
+  useEffect(() => { cargarAccionesDirectas(); }, [cargarAccionesDirectas]);
+
+  async function eliminarAccionDirecta(accionId, nombre) {
+    if (!confirm(`¿Eliminar la acción "${nombre}"?`)) return;
+    try {
+      await accionesApi.eliminarAccion(accionId);
+      mostrarToast('Acción eliminada', 'exito');
+      cargarAccionesDirectas();
+      incrementarStats();
+    } catch (err) {
+      mostrarToast(err.response?.data?.mensaje || 'Error al eliminar acción', 'error');
     }
   }
 
@@ -204,9 +267,7 @@ export default function DetalleProyecto() {
               <h1 className="text-2xl font-bold text-gray-900">{proyecto.nombre}</h1>
               {proyecto.es_prioritario && <Star size={20} className="text-yellow-500 fill-yellow-500" />}
             </div>
-            {proyecto.descripcion && (
-              <p className="text-sm text-gray-500 mb-2">{proyecto.descripcion}</p>
-            )}
+            {proyecto.descripcion && <DescripcionColapsable texto={proyecto.descripcion} />}
             <div className="flex items-center gap-3 text-sm text-gray-500">
               <span className="font-medium text-guinda-600">{proyecto.dg_lider_siglas}</span>
               {proyecto.direccion_area_lider_siglas && <span>/ {proyecto.direccion_area_lider_siglas}</span>}
@@ -269,9 +330,9 @@ export default function DetalleProyecto() {
         </div>
       </div>
 
-      {/* ═══ PESTAÑA RESUMEN ═══ */}
+      {/* ═══ PESTAÑA PANORAMA DEL PROYECTO ═══ */}
       {pestanaActiva === 'resumen' && (
-        <ResumenProyecto proyecto={proyecto} etapas={etapas} proyectoId={id} refreshKey={statsKey} />
+        <PanoramaProyecto proyecto={proyecto} etapas={etapas} proyectoId={id} refreshKey={statsKey} />
       )}
 
       {/* ═══ PESTAÑA SEGUIMIENTO ═══ */}
@@ -297,47 +358,24 @@ export default function DetalleProyecto() {
 
           {/* Contenido de la subsección activa */}
 
-          {/* 1. Etapas y avances */}
+          {/* 1. Etapas y avances — Maestro-Detalle */}
           {subseccionActiva === 'etapas' && (
             <div className="space-y-3">
-              {/* Barra de acciones */}
-              {permisos.puedeCrearEtapa && (
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setModalEtapa(true)}
-                    className="btn-primary text-sm flex items-center gap-1.5">
-                    <Plus size={14} /> Nueva etapa / subproyecto
-                  </button>
-                  {permisos.puedeCrearAccion && (
-                    <button onClick={() => setModalAccion('proyecto')}
-                      className="btn-secondary text-sm flex items-center gap-1.5">
-                      <Plus size={14} /> Accion directa
-                    </button>
-                  )}
-                  <button onClick={() => setModalCSV(true)}
-                    className="btn-secondary text-sm flex items-center gap-1.5">
-                    <FileSpreadsheet size={14} /> Importar CSV
-                  </button>
-                </div>
-              )}
+              {/* Barra de acciones superior */}
+              <div className="flex items-center gap-2">
+                <button onClick={() => setModalCSV(true)}
+                  className="btn-secondary text-sm flex items-center gap-1.5">
+                  <FileSpreadsheet size={14} /> Importar
+                </button>
+              </div>
 
-              {cargandoEtapas ? (
-                <p className="text-sm text-gray-400 text-center py-8">Cargando etapas...</p>
-              ) : etapas.length === 0 ? (
-                <EmptyState titulo="Sin etapas" subtitulo="Agrega la primera etapa para comenzar el seguimiento." />
-              ) : (
-                etapas.map(etapa => (
-                  <EtapaCard
-                    key={etapa.id}
-                    etapa={etapa}
-                    proyecto={proyecto}
-                    etapas={etapas}
-                    soloLectura={permisos.esSoloLectura}
-                    onAccionCreada={(etapaId) => setModalAccion(etapaId)}
-                    onEtapaActualizada={() => { recargarEtapasSilencioso(); incrementarStats(); }}
-                    onStatsChange={incrementarStats}
-                  />
-                ))
-              )}
+              <EtapasAvancesMD
+                proyectoId={id}
+                proyecto={proyecto}
+                permisos={permisos}
+                dgSeleccionada={dgSeleccionada}
+                onStatsChange={() => { recargarEtapasSilencioso(); incrementarStats(); }}
+              />
             </div>
           )}
 
@@ -350,7 +388,25 @@ export default function DetalleProyecto() {
             />
           )}
 
-          {/* 3. Mapa de cobertura */}
+          {/* 3. Kanban */}
+          {subseccionActiva === 'kanban' && (
+            <VistaKanban
+              etapas={etapas}
+              proyectoId={id}
+              onRefresh={() => { recargarEtapasSilencioso(); incrementarStats(); }}
+            />
+          )}
+
+          {/* 4. Checklist */}
+          {subseccionActiva === 'checklist' && (
+            <VistaChecklist
+              etapas={etapas}
+              proyectoId={id}
+              onRefresh={() => { recargarEtapasSilencioso(); incrementarStats(); }}
+            />
+          )}
+
+          {/* 5. Mapa de cobertura */}
           {subseccionActiva === 'mapa' && (
             <MapaCobertura proyectoId={id} />
           )}
@@ -364,18 +420,6 @@ export default function DetalleProyecto() {
             />
           )}
 
-          {/* 3. Actividad reciente */}
-          {subseccionActiva === 'actividad' && (
-            <div className="card p-5">
-              <h3 className="text-sm font-semibold text-gray-700 mb-4">Actividad del proyecto</h3>
-              <ActividadReciente proyectoId={id} />
-            </div>
-          )}
-
-          {/* 4. Equipo */}
-          {subseccionActiva === 'equipo' && (
-            <EquipoProyecto proyecto={proyecto} etapas={etapas} />
-          )}
         </div>
       )}
 

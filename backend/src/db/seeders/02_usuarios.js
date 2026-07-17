@@ -35,17 +35,39 @@ async function seedUsuarios() {
     const idDGPV = dgpv.rows[0].id;
     const idDAOT = daot.rows[0].id;
 
+    // IDs de DGs adicionales
+    const dgicam  = await client.query("SELECT id FROM direcciones_generales WHERE siglas = 'DGICAM'");
+    const dggird  = await client.query("SELECT id FROM direcciones_generales WHERE siglas = 'DGGIRDCC'");
+    const dgtic   = await client.query("SELECT id FROM direcciones_generales WHERE siglas = 'DGTIC'");
+    const dgptm   = await client.query("SELECT id FROM direcciones_generales WHERE siglas = 'DGPTM'");
+    const dgimrc  = await client.query("SELECT id FROM direcciones_generales WHERE siglas = 'DGIMRC'");
+    const dgpp    = await client.query("SELECT id FROM direcciones_generales WHERE siglas = 'DGPP'");
+    const dgie    = await client.query("SELECT id FROM direcciones_generales WHERE siglas = 'DGIE'");
+    const dgtn    = await client.query("SELECT id FROM direcciones_generales WHERE siglas = 'DGTN'");
+    const dgrpe   = await client.query("SELECT id FROM direcciones_generales WHERE siglas = 'DGRPE'");
+
+    const idDGICAM  = dgicam.rows[0]?.id  || null;
+    const idDGGIRD  = dggird.rows[0]?.id  || null;
+    const idDGTIC   = dgtic.rows[0]?.id   || null;
+    const idDGPTM   = dgptm.rows[0]?.id   || null;
+    const idDGIMRC  = dgimrc.rows[0]?.id  || null;
+    const idDGPP    = dgpp.rows[0]?.id    || null;
+    const idDGIE    = dgie.rows[0]?.id    || null;
+    const idDGTN    = dgtn.rows[0]?.id    || null;
+    const idDGRPE   = dgrpe.rows[0]?.id   || null;
+
     const usuarios = [
+      // ─── Usuarios originales ───────────────────────────────────
       {
         nombre_completo: 'Jesús Paredes',
         correo: 'jesus.paredes@sedatu.gob.mx',
         cargo: 'Subdirector de Tecnologías para la Sistematización y Análisis Territorial',
-        rol: 'Responsable',
+        rol: 'superadmin',
         id_dg: idDGOTU,
         id_direccion_area: idDAOT
       },
       {
-        nombre_completo: 'Pablo (Director DAOT)',
+        nombre_completo: 'Pablo Hernández Rivas',
         correo: 'pablo.director@sedatu.gob.mx',
         cargo: 'Director de Análisis en Ordenamiento Territorial',
         rol: 'Directivo',
@@ -53,15 +75,15 @@ async function seedUsuarios() {
         id_direccion_area: idDAOT
       },
       {
-        nombre_completo: 'Enlace DGOMR',
+        nombre_completo: 'Laura Méndez Castillo',
         correo: 'enlace.dgomr@sedatu.gob.mx',
-        cargo: 'Analista de Ordenamiento Metropolitano',
+        cargo: 'Subdirectora de Análisis Metropolitano',
         rol: 'Responsable',
         id_dg: idDGOMR,
         id_direccion_area: null
       },
       {
-        nombre_completo: 'Enlace DGPV',
+        nombre_completo: 'Roberto Sánchez Fuentes',
         correo: 'enlace.dgpv@sedatu.gob.mx',
         cargo: 'Analista de Política de Vivienda',
         rol: 'Responsable',
@@ -69,7 +91,7 @@ async function seedUsuarios() {
         id_direccion_area: null
       },
       {
-        nombre_completo: 'Enlace RAN',
+        nombre_completo: 'Mónica Torres Vega',
         correo: 'enlace.ran@sedatu.gob.mx',
         cargo: 'Técnico de Información Agraria',
         rol: 'Operativo',
@@ -77,11 +99,93 @@ async function seedUsuarios() {
         id_direccion_area: null
       },
       {
-        nombre_completo: 'Subsecretario SOTUV',
+        nombre_completo: 'Alejandro Ríos Montoya',
         correo: 'subsecretario@sedatu.gob.mx',
         cargo: 'Subsecretario de Ordenamiento Territorial, Urbano y Vivienda',
         rol: 'Ejecutivo',
         id_dg: idDGOTU,
+        id_direccion_area: null
+      },
+
+      // ─── Usuarios ficticios adicionales ────────────────────────
+      {
+        nombre_completo: 'Claudia Ramírez Ortega',
+        correo: 'c.ramirez@sedatu.gob.mx',
+        cargo: 'Directora General de Política Territorial y Movilidad',
+        rol: 'Directivo',
+        id_dg: idDGPTM,
+        id_direccion_area: null
+      },
+      {
+        nombre_completo: 'Fernando Espinoza Leal',
+        correo: 'f.espinoza@sedatu.gob.mx',
+        cargo: 'Subdirector de Gestión de Riesgos',
+        rol: 'Responsable',
+        id_dg: idDGGIRD,
+        id_direccion_area: null
+      },
+      {
+        nombre_completo: 'Adriana Vázquez Moreno',
+        correo: 'a.vazquez@sedatu.gob.mx',
+        cargo: 'Analista de Modernización Catastral',
+        rol: 'Operativo',
+        id_dg: idDGIMRC,
+        id_direccion_area: null
+      },
+      {
+        nombre_completo: 'Carlos Jiménez Peña',
+        correo: 'c.jimenez@sedatu.gob.mx',
+        cargo: 'Subdirector de Infraestructura y Equipamiento',
+        rol: 'Responsable',
+        id_dg: idDGIE,
+        id_direccion_area: null
+      },
+      {
+        nombre_completo: 'Sofía Gutiérrez Ávila',
+        correo: 's.gutierrez@sedatu.gob.mx',
+        cargo: 'Coordinadora de Tecnologías de la Información',
+        rol: 'Ejecutivo',
+        id_dg: idDGTIC,
+        id_direccion_area: null
+      },
+      {
+        nombre_completo: 'Diego Morales Ibáñez',
+        correo: 'd.morales@sedatu.gob.mx',
+        cargo: 'Analista de Programación y Presupuesto',
+        rol: 'Operativo',
+        id_dg: idDGPP,
+        id_direccion_area: null
+      },
+      {
+        nombre_completo: 'Valeria Campos Duarte',
+        correo: 'v.campos@sedatu.gob.mx',
+        cargo: 'Subdirectora de Concertación Agraria',
+        rol: 'Responsable',
+        id_dg: idDGICAM,
+        id_direccion_area: null
+      },
+      {
+        nombre_completo: 'Héctor Reyes Blanco',
+        correo: 'h.reyes@sedatu.gob.mx',
+        cargo: 'Analista de Terrenos Nacionales',
+        rol: 'Operativo',
+        id_dg: idDGTN,
+        id_direccion_area: null
+      },
+      {
+        nombre_completo: 'Patricia Luna Serrano',
+        correo: 'p.luna@sedatu.gob.mx',
+        cargo: 'Directora de Resoluciones Presidenciales',
+        rol: 'Directivo',
+        id_dg: idDGRPE,
+        id_direccion_area: null
+      },
+      {
+        nombre_completo: 'Iván Castillo Domínguez',
+        correo: 'i.castillo@sedatu.gob.mx',
+        cargo: 'Subdirector de Ordenamiento Regional',
+        rol: 'Responsable',
+        id_dg: idDGOMR,
         id_direccion_area: null
       },
     ];

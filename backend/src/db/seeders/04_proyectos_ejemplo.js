@@ -98,18 +98,18 @@ async function seedProyectosEjemplo() {
     // ─── Indicadores del Proyecto 1 (tabla indicadores) ──────
     await client.query(`
       INSERT INTO indicadores (id_proyecto, nombre, tipo, unidad, unidad_personalizada,
-        acumulacion, meta_global, valor_actual, temporalidad, orden, descripcion)
+        meta_global, valor_actual, temporalidad, orden, descripcion)
       VALUES ($1, 'Zonas metropolitanas con análisis de aptitud terminado',
         'Avance_fisico', 'Numero', 'zonas metropolitanas',
-        'Suma', 92, 16, 'Global', 1,
+        92, 16, 'Global', 1,
         'Cuenta de ZMs con análisis de restricción territorial completado por DAOT')
     `, [p1]);
     await client.query(`
       INSERT INTO indicadores (id_proyecto, nombre, tipo, unidad, unidad_personalizada,
-        acumulacion, meta_global, valor_actual, temporalidad, orden, descripcion)
+        meta_global, valor_actual, temporalidad, orden, descripcion)
       VALUES ($1, 'Hectáreas aptas para vivienda identificadas',
         'Cobertura', 'Numero', 'hectáreas',
-        'Suma', 5000, 275.91, 'Global', 2,
+        5000, 275.91, 'Global', 2,
         'Superficie total viable determinada por DGPV tras evaluación multifactorial')
     `, [p1]);
 
@@ -187,22 +187,22 @@ async function seedProyectosEjemplo() {
     // Evidencias de Etapa 1
     await client.query(`
       INSERT INTO evidencias (nombre_archivo, nombre_original, ruta_minio, tipo_archivo, categoria, notas, id_accion, id_autor)
-      VALUES ('ZP_metropolitana_16_metropolis.zip', 'ZP_metropolitana_16_metropolis.zip', 'evidencias/p1/e1/ZP_metropolitana_16_metropolis.zip', 'application/zip', 'Geoespacial', '16 metrópolis con ZPZM', $1, $2)
+      VALUES ('ZP_metropolitana_16_metropolis.zip', 'ZP_metropolitana_16_metropolis.zip', 'evidencias/p1/e1/ZP_metropolitana_16_metropolis.zip', 'application/zip', 'Capa geográfica', '16 metrópolis con ZPZM', $1, $2)
     `, [a1_1, jesus]);
 
     await client.query(`
       INSERT INTO evidencias (nombre_archivo, nombre_original, ruta_minio, tipo_archivo, categoria, id_accion, id_autor)
-      VALUES ('ZP_municipal_PUMOT_SITU.zip', 'ZP_municipal_PUMOT_SITU.zip', 'evidencias/p1/e1/ZP_municipal_PUMOT_SITU.zip', 'application/zip', 'Geoespacial', $1, $2)
+      VALUES ('ZP_municipal_PUMOT_SITU.zip', 'ZP_municipal_PUMOT_SITU.zip', 'evidencias/p1/e1/ZP_municipal_PUMOT_SITU.zip', 'application/zip', 'Capa geográfica', $1, $2)
     `, [a1_2, jesus]);
 
     await client.query(`
       INSERT INTO evidencias (nombre_archivo, nombre_original, ruta_minio, tipo_archivo, categoria, notas, id_accion, id_autor)
-      VALUES ('diagnostico_instrumentos_OT_92ZMs.pdf', 'diagnostico_instrumentos_OT_92ZMs.pdf', 'evidencias/p1/e1/diagnostico_instrumentos_OT_92ZMs.pdf', 'application/pdf', 'Estudios', '57 sin instrumento, 16 con ZPZM DGOMR, 18 con ZPZM SITU, 5 con ambos', $1, $2)
+      VALUES ('diagnostico_instrumentos_OT_92ZMs.pdf', 'diagnostico_instrumentos_OT_92ZMs.pdf', 'evidencias/p1/e1/diagnostico_instrumentos_OT_92ZMs.pdf', 'application/pdf', 'Documento', '57 sin instrumento, 16 con ZPZM DGOMR, 18 con ZPZM SITU, 5 con ambos', $1, $2)
     `, [a1_3, jesus]);
 
     await client.query(`
       INSERT INTO evidencias (nombre_archivo, nombre_original, ruta_minio, tipo_archivo, categoria, notas, id_accion, id_autor)
-      VALUES ('nucleos_agrarios_metropolis_RAN.zip', 'nucleos_agrarios_metropolis_RAN.zip', 'evidencias/p1/e1/nucleos_agrarios_metropolis_RAN.zip', 'application/zip', 'Geoespacial', '7,402 núcleos agrarios totales, 22,381,204.75 ha', $1, $2)
+      VALUES ('nucleos_agrarios_metropolis_RAN.zip', 'nucleos_agrarios_metropolis_RAN.zip', 'evidencias/p1/e1/nucleos_agrarios_metropolis_RAN.zip', 'application/zip', 'Capa geográfica', '7,402 núcleos agrarios totales, 22,381,204.75 ha', $1, $2)
     `, [a1_4, jesus]);
 
     // ─── ETAPA 2: Capas de restricción territorial ─────────────
@@ -238,7 +238,7 @@ async function seedProyectosEjemplo() {
 
       await client.query(`
         INSERT INTO evidencias (nombre_archivo, nombre_original, ruta_minio, tipo_archivo, categoria, notas, id_accion, id_autor)
-        VALUES ($1, $1, $2, 'image/tiff', 'Geoespacial', $3, $4, $5)
+        VALUES ($1, $1, $2, 'image/tiff', 'Capa geográfica', $3, $4, $5)
       `, [accion.evidencia, `evidencias/p1/e2/${accion.evidencia}`, accion.notas, accionId, jesus]);
     }
 
@@ -255,9 +255,9 @@ async function seedProyectosEjemplo() {
     `, [p1, dgotu, daot, jesus])).rows[0].id;
 
     const accionesE3 = [
-      { nombre: 'Diseño del flujo de procesamiento geoespacial', fi: '2025-04-26', ff: '2025-05-10', evidencia: 'diagrama_flujo_procesamiento.pdf', cat: 'Estudios' },
-      { nombre: 'Implementación y pruebas del script Python', fi: '2025-05-11', ff: '2025-06-15', evidencia: 'script_aptitud_vivienda_v1.py', cat: 'Scripts', notas: 'Automatiza el procesamiento de las 9 capas de restricción' },
-      { nombre: 'Validación del script con 4 ZMs de Oaxaca', fi: '2025-06-16', ff: '2025-06-30', evidencia: 'validacion_oaxaca_4ZMs.pdf', cat: 'Estudios' },
+      { nombre: 'Diseño del flujo de procesamiento geoespacial', fi: '2025-04-26', ff: '2025-05-10', evidencia: 'diagrama_flujo_procesamiento.pdf', cat: 'Documento' },
+      { nombre: 'Implementación y pruebas del script Python', fi: '2025-05-11', ff: '2025-06-15', evidencia: 'script_aptitud_vivienda_v1.py', cat: 'Repositorio', notas: 'Automatiza el procesamiento de las 9 capas de restricción' },
+      { nombre: 'Validación del script con 4 ZMs de Oaxaca', fi: '2025-06-16', ff: '2025-06-30', evidencia: 'validacion_oaxaca_4ZMs.pdf', cat: 'Documento' },
     ];
 
     for (const accion of accionesE3) {
@@ -311,7 +311,7 @@ async function seedProyectosEjemplo() {
 
       await client.query(`
         INSERT INTO evidencias (nombre_archivo, nombre_original, ruta_minio, tipo_archivo, categoria, notas, id_accion, id_autor)
-        VALUES ($1, $1, $2, 'application/zip', 'Geoespacial', $3, $4, $5)
+        VALUES ($1, $1, $2, 'application/zip', 'Capa geográfica', $3, $4, $5)
       `, [grupo.evidencia, `evidencias/p1/e4/${grupo.evidencia}`, grupo.notas, accionId, jesus]);
     }
 
@@ -366,7 +366,7 @@ async function seedProyectosEjemplo() {
     await client.query(`
       INSERT INTO evidencias (nombre_archivo, nombre_original, ruta_minio, tipo_archivo, categoria, id_accion, id_autor)
       VALUES ('RAN_cruce_parcelas_grupo1_oaxaca.zip', 'RAN_cruce_parcelas_grupo1_oaxaca.zip',
-        'evidencias/p1/e5/RAN_cruce_parcelas_grupo1_oaxaca.zip', 'application/zip', 'Geoespacial', $1, $2)
+        'evidencias/p1/e5/RAN_cruce_parcelas_grupo1_oaxaca.zip', 'application/zip', 'Capa geográfica', $1, $2)
     `, [a5_1, enlaceRAN]);
 
     // Acciones RAN grupos 2-9 completadas (sin evidencia detallada)
@@ -411,7 +411,7 @@ async function seedProyectosEjemplo() {
     await client.query(`
       INSERT INTO evidencias (nombre_archivo, nombre_original, ruta_minio, tipo_archivo, categoria, notas, id_accion, id_autor)
       VALUES ('DGPV_viabilidad_oaxaca_4ZMs.pdf', 'DGPV_viabilidad_oaxaca_4ZMs.pdf',
-        'evidencias/p1/e6/DGPV_viabilidad_oaxaca_4ZMs.pdf', 'application/pdf', 'Estudios',
+        'evidencias/p1/e6/DGPV_viabilidad_oaxaca_4ZMs.pdf', 'application/pdf', 'Documento',
         '676 parcelas y 47 solares. 275.91 ha viables. 617.29 ha con consideraciones', $1, $2)
     `, [a6_1, enlaceDGPV]);
 
@@ -559,10 +559,10 @@ async function seedProyectosEjemplo() {
     // ─── Indicadores del Proyecto 2 (tabla indicadores) ──────
     await client.query(`
       INSERT INTO indicadores (id_proyecto, nombre, tipo, unidad, unidad_personalizada,
-        acumulacion, meta_global, valor_actual, temporalidad, orden, descripcion)
+        meta_global, valor_actual, temporalidad, orden, descripcion)
       VALUES ($1, 'Localidades analizadas',
         'Avance_fisico', 'Numero', 'localidades',
-        'Suma', 500, 215, 'Global', 1,
+        500, 215, 'Global', 1,
         'Localidades rurales sin conectividad procesadas con análisis de aptitud territorial')
     `, [p2]);
 
@@ -590,9 +590,9 @@ async function seedProyectosEjemplo() {
     `, [p2, dgotu, daot, jesus])).rows[0].id;
 
     const accionesP2E1 = [
-      { nombre: 'Revisión bibliográfica de criterios de aptitud', fi: '2025-02-01', ff: '2025-02-15', evidencia: 'revision_bibliografica_telecom.pdf', cat: 'Estudios' },
-      { nombre: 'Definición de variables de restricción y ponderación', fi: '2025-02-16', ff: '2025-03-10', evidencia: 'variables_restriccion_telecom.pdf', cat: 'Estudios' },
-      { nombre: 'Validación metodológica con DGOMR', fi: '2025-03-11', ff: '2025-03-31', evidencia: 'validacion_metodologica_DGOMR.pdf', cat: 'Minutas' },
+      { nombre: 'Revisión bibliográfica de criterios de aptitud', fi: '2025-02-01', ff: '2025-02-15', evidencia: 'revision_bibliografica_telecom.pdf', cat: 'Documento' },
+      { nombre: 'Definición de variables de restricción y ponderación', fi: '2025-02-16', ff: '2025-03-10', evidencia: 'variables_restriccion_telecom.pdf', cat: 'Documento' },
+      { nombre: 'Validación metodológica con DGOMR', fi: '2025-03-11', ff: '2025-03-31', evidencia: 'validacion_metodologica_DGOMR.pdf', cat: 'Documento' },
     ];
 
     for (const accion of accionesP2E1) {

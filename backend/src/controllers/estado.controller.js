@@ -18,6 +18,10 @@ const {
   verificarAutoCompletarPadre
 } = require('../utils/validaciones-estado');
 const { recalcularEtapa, recalcularProyecto } = require('../utils/recalculos');
+const { recalcularIndicadoresProyecto } = require('../db/queries/indicadores.queries');
+const { recalcularAportacionesProyecto } = require('../db/queries/aportaciones.queries');
+const { registrarActividad } = require('../utils/actividad-log');
+const { obtenerProyectoId } = require('../utils/avance-semaforo');
 
 /**
  * PUT /api/v1/estado
@@ -50,6 +54,34 @@ async function cambiarEstado(req, res) {
 
     // Recalcular porcentajes en cascada tras cambio de estado
     await recalcularTrasEstado(entidad_tipo, entidad_id, client);
+
+    // Registrar actividad
+    let proyectoId = null;
+    if (entidad_tipo === 'Proyecto') proyectoId = entidad_id;
+    else if (entidad_tipo === 'Etapa') {
+      const e = await client.query('SELECT id_proyecto FROM etapas WHERE id = $1', [entidad_id]);
+      proyectoId = e.rows[0]?.id_proyecto;
+    } else {
+      proyectoId = await obtenerProyectoId('accion', entidad_id, client);
+    }
+    if (proyectoId) {
+      const { rows: [ent] } = await client.query(
+        `SELECT nombre FROM ${
+          entidad_tipo === 'Proyecto' ? 'proyectos' : entidad_tipo === 'Etapa' ? 'etapas' : 'acciones'
+        } WHERE id = $1`, [entidad_id]
+      );
+      await registrarActividad({
+        id_proyecto: proyectoId,
+        id_usuario: idUsuario,
+        tipo: 'estado',
+        titulo: `${entidad_tipo} "${ent?.nombre || ''}" cambió a ${estado}`,
+        descripcion: `Estado anterior: ${resultado.estadoAnterior}`,
+        entidad_tipo,
+        entidad_id,
+        metadata: { estado_anterior: resultado.estadoAnterior, estado_nuevo: resultado.estadoNuevo },
+        client
+      });
+    }
 
     await client.query('COMMIT');
 
@@ -127,6 +159,22 @@ async function recalcularTrasEstado(entidadTipo, entidadId, client) {
   // Proyecto: recalcular el propio proyecto
   if (entidadTipo === 'Proyecto') {
     await recalcularProyecto(entidadId, client);
+  }
+
+  // Recalcular indicadores auto-calculados del proyecto afectado
+  let proyectoId = null;
+  if (entidadTipo === 'Proyecto') {
+    proyectoId = entidadId;
+  } else if (entidadTipo === 'Etapa') {
+    const e = await client.query('SELECT id_proyecto FROM etapas WHERE id = $1', [entidadId]);
+    proyectoId = e.rows[0]?.id_proyecto;
+  } else if (entidadTipo === 'Accion' || entidadTipo === 'Subaccion') {
+    const a = await client.query('SELECT id_proyecto FROM acciones WHERE id = $1', [entidadId]);
+    proyectoId = a.rows[0]?.id_proyecto;
+  }
+  if (proyectoId) {
+    await recalcularIndicadoresProyecto(proyectoId, client);
+    await recalcularAportacionesProyecto(proyectoId, client);
   }
 }
 

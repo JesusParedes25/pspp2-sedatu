@@ -23,5 +23,9 @@ router.get('/programas', catalogosController.obtenerProgramas);
 router.get('/direcciones-area', catalogosController.obtenerDireccionesArea);
 router.get('/estados', geografiaController.obtenerEstados);
 router.get('/municipios', geografiaController.obtenerMunicipios);
+router.get('/municipios-por-clave', geografiaController.obtenerMunicipiosPorClave);
+router.get('/zonas-metropolitanas', geografiaController.obtenerZonasMetropolitanas);
+router.get('/valores', catalogosController.obtenerValores);
+router.post('/valores', catalogosController.agregarValor);
 
 module.exports = router;

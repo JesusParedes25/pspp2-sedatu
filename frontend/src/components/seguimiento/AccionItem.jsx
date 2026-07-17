@@ -20,6 +20,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useRef } from 'react';
+import { calcularColorSemaforo } from '../../utils/semaforoColor';
 import { Lock, FileText, Upload, Download, Trash2, ChevronDown, Plus, Paperclip, MessageSquare } from 'lucide-react';
 import HiloComentarios from '../comentarios/HiloComentarios';
 import SubaccionItem from './SubaccionItem';
@@ -227,8 +228,8 @@ export default function AccionItem({ accion, soloLectura, expandida, onToggleExp
         </div>
 
         {/* Porcentaje */}
-        {tieneSubs ? (
-          <span className={`text-[11px] font-semibold tabular-nums flex-shrink-0 w-10 text-right ${pctColor}`}>
+        {(() => { const sem = calcularColorSemaforo(pct, accion.fecha_inicio, accion.fecha_fin); return tieneSubs ? (
+          <span className="text-[11px] font-semibold tabular-nums flex-shrink-0 w-10 text-right" style={{ color: sem.color }} title={sem.tooltip || undefined}>
             {pct.toFixed(0)}%
             <span className="text-[9px] font-normal text-gray-300 ml-0.5">auto</span>
           </span>
@@ -237,15 +238,17 @@ export default function AccionItem({ accion, soloLectura, expandida, onToggleExp
             <input
               type="number" min="0" max="100" value={pct}
               onChange={e => onPorcentajeCambio(accion.id, parseFloat(e.target.value) || 0)}
-              className={`w-9 text-[11px] text-right font-semibold bg-transparent border-b border-dashed border-gray-300 focus:border-guinda-400 outline-none tabular-nums py-0 ${pctColor}`}
+              className="w-9 text-[11px] text-right font-semibold bg-transparent border-b border-dashed border-gray-300 focus:border-guinda-400 outline-none tabular-nums py-0"
+              style={{ color: sem.color }}
+              title={sem.tooltip || undefined}
             />
             <span className="text-[10px] text-gray-300 ml-0.5">%</span>
           </div>
         ) : (
-          <span className={`text-[11px] font-semibold tabular-nums flex-shrink-0 w-10 text-right ${pctColor}`}>
+          <span className="text-[11px] font-semibold tabular-nums flex-shrink-0 w-10 text-right" style={{ color: sem.color }} title={sem.tooltip || undefined}>
             {pct.toFixed(0)}%
           </span>
-        )}
+        ); })()}
 
         {/* Íconos de metadata */}
         <div className="flex items-center gap-1.5 flex-shrink-0">

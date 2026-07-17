@@ -67,6 +67,9 @@ async function upload(req, res, next) {
     // Preview de las primeras filas para el wizard
     const vistaPrevia = parser.obtenerVistaPrevia(rawData, 10);
 
+    // Detectar formato multi-hoja universal
+    const multiHoja = parser.parsearMultiHoja(buffer, originalname);
+
     res.json({
       datos: {
         fileId,
@@ -74,6 +77,7 @@ async function upload(req, res, next) {
         sheetNames,
         totalRows,
         vistaPrevia,
+        multiHoja, // null si no es formato universal, o { formato, hojas }
       },
       mensaje: 'Archivo subido y parseado correctamente.',
     });
@@ -275,10 +279,96 @@ async function extraerHeaders(req, res, next) {
   }
 }
 
+// ─── POST /importar/preview-multihoja ─────────────────────────
+
+async function previewMultiHoja(req, res, next) {
+  try {
+    const { fileId, configMultiHoja, proyectoId } = req.body;
+
+    if (!fileId || !configMultiHoja || !proyectoId) {
+      return res.status(400).json({
+        error: true,
+        mensaje: 'Se requiere fileId, configMultiHoja y proyectoId.',
+        codigo: 'DATOS_INVALIDOS',
+      });
+    }
+
+    const entry = fileStore.get(fileId);
+    if (!entry) {
+      return res.status(404).json({
+        error: true,
+        mensaje: 'Archivo no encontrado o expirado. Vuelva a subirlo.',
+        codigo: 'ARCHIVO_EXPIRADO',
+      });
+    }
+
+    const hojas = parser.extraerDatosMultiHoja(entry.buffer, entry.filename);
+    const resultado = await service.generarPreviewMultiHoja(hojas, configMultiHoja, proyectoId);
+
+    res.json({
+      datos: resultado,
+      mensaje: 'Preview multi-hoja generado correctamente.',
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ─── POST /importar/confirmar-multihoja ───────────────────────
+
+async function confirmarMultiHoja(req, res, next) {
+  try {
+    const { fileId, configMultiHoja, proyectoId } = req.body;
+
+    if (!fileId || !configMultiHoja || !proyectoId) {
+      return res.status(400).json({
+        error: true,
+        mensaje: 'Se requiere fileId, configMultiHoja y proyectoId.',
+        codigo: 'DATOS_INVALIDOS',
+      });
+    }
+
+    // Verificar proyecto
+    const pool = require('../db/pool');
+    const { rows } = await pool.query('SELECT id FROM proyectos WHERE id = $1', [proyectoId]);
+    if (rows.length === 0) {
+      return res.status(404).json({
+        error: true,
+        mensaje: 'Proyecto no encontrado.',
+        codigo: 'PROYECTO_NO_ENCONTRADO',
+      });
+    }
+
+    const entry = fileStore.get(fileId);
+    if (!entry) {
+      return res.status(404).json({
+        error: true,
+        mensaje: 'Archivo no encontrado o expirado. Vuelva a subirlo.',
+        codigo: 'ARCHIVO_EXPIRADO',
+      });
+    }
+
+    const hojas = parser.extraerDatosMultiHoja(entry.buffer, entry.filename);
+    const resultado = await service.ejecutarImportacionMultiHoja(hojas, configMultiHoja, proyectoId);
+
+    // Limpiar archivo
+    fileStore.delete(fileId);
+
+    res.status(201).json({
+      datos: resultado,
+      mensaje: 'Importación multi-hoja completada exitosamente.',
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   upload,
   preview,
   confirmar,
   sugerir,
   extraerHeaders,
+  previewMultiHoja,
+  confirmarMultiHoja,
 };

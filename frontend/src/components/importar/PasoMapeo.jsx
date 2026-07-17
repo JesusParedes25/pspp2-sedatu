@@ -1,383 +1,273 @@
 /**
  * ARCHIVO: PasoMapeo.jsx
- * PROPÓSITO: Paso 3 del wizard — Mapeo de columnas con UX de 2 secciones + subacciones anidadas.
+ * PROPÓSITO: Paso 3 del wizard — Mapeo de Propiedades.
  *
- * Sección A: Campos del nivel base (etapa/acción/subacción por fila).
- * Sección B: Acciones derivadas (pivot blocks) con subacciones anidadas.
- * Vista previa jerárquica en tiempo real al final.
+ * Presenta un dropdown por cada columna del Excel con:
+ *   1. Propiedades universales (hardcoded)
+ *   2. Propiedades existentes de campos_extra (dinámicas, del backend)
+ *   3. Opción "Crear nueva propiedad (Campo extra)"
  *
- * Produce el mismo JSON (columnMap + pivotBlocks) que consume el backend.
- * Las subacciones se almacenan como pivotBlocks con createsLevel="subaccion"
- * y parentBlockName referenciando la acción padre.
+ * Produce un columnMap JSON para el backend.
  */
-import { useState, useMemo, useCallback } from 'react';
-import { ChevronRight, Plus, Info, CheckCircle2 } from 'lucide-react';
-import TarjetaAccion from './TarjetaAccion';
+import { useState, useEffect, useMemo } from 'react';
+import { ChevronRight, Info, CheckCircle2, Plus, Loader2 } from 'lucide-react';
+import client from '../../api/client';
 
-const CAMPOS_NIVEL_BASE = [
-  { value: '', label: '— No usar —' },
-  { value: 'nombre', label: 'Nombre' },
-  { value: 'descripcion', label: 'Descripción' },
-  { value: 'clave', label: 'Clave' },
-  { value: 'fecha_inicio', label: 'Fecha inicio' },
-  { value: 'fecha_fin', label: 'Fecha fin' },
-  { value: 'responsable', label: 'Responsable' },
-  { value: 'entregable', label: 'Entregable' },
-  { value: 'estado', label: 'Estado' },
-  { value: 'estado_original', label: 'Estado original (texto libre)' },
-  { value: 'peso', label: 'Peso' },
-  { value: 'orden', label: 'Orden' },
-  { value: 'dependencia_externa', label: 'Dependencia externa' },
-  { value: 'entidad_federativa', label: '🗺️ Entidad federativa' },
-  { value: 'municipio', label: '🗺️ Municipio' },
-  { value: 'semaforo_explicito', label: '🚦 Semaforización' },
-  { value: 'porcentaje_avance', label: '📊 % de avance' },
-  { value: '_extra', label: '➕ Campo extra personalizado...' },
+// ─── Propiedades universales (hardcoded) ─────────────────────────
+const PROPIEDADES_UNIVERSALES = [
+  { value: '', label: '— No usar —', grupo: null },
+  { value: 'nombre', label: 'Nombre', grupo: 'Datos básicos' },
+  { value: 'descripcion', label: 'Descripción', grupo: 'Datos básicos' },
+  { value: '_extra:clave_folio', label: 'Clave, Folio o identificador', grupo: 'Datos básicos' },
+  { value: 'fecha_inicio', label: 'Fecha de inicio', grupo: 'Fechas' },
+  { value: 'fecha_fin', label: 'Fecha de entrega', grupo: 'Fechas' },
+  { value: 'responsable', label: 'Responsable', grupo: 'Asignación' },
+  { value: 'estado', label: 'Estatus', grupo: 'Estado' },
+  { value: '_extra:estado_original', label: 'Estado original (texto libre)', grupo: 'Estado' },
+  { value: 'entidad_federativa', label: 'Entidad Federativa (nombre o clave)', grupo: 'Geografía' },
+  { value: 'municipio', label: 'Municipio (nombre o clave)', grupo: 'Geografía' },
+  { value: 'semaforo_explicito', label: 'Semaforización', grupo: 'Avance' },
+  { value: 'porcentaje_avance', label: '% de avance', grupo: 'Avance' },
+  { value: 'evidencia_link', label: 'Evidencia link', grupo: 'Relacional' },
+  { value: 'comentario', label: 'Comentarios', grupo: 'Relacional' },
+  { value: '_extra:indicador', label: 'Indicador', grupo: 'Avance' },
 ];
 
-const CAMPOS_LABELS = Object.fromEntries(CAMPOS_NIVEL_BASE.filter(c => c.value).map(c => [c.value, c.label]));
-
 const ETIQUETAS_NIVEL = {
-  etapa: 'etapa',
+  etapa: 'componente',
   accion: 'acción',
-  subaccion: 'subacción',
+  subaccion: 'tarea',
 };
 
-// ─── Helpers para separar acciones y subacciones de pivotBlocks ──
-function separarBlocks(pivotBlocks) {
-  const acciones = [];
-  const subsPorAccion = {}; // accionName → [subBlock, ...]
-  for (const block of (pivotBlocks || [])) {
-    if ((block.createsLevel || 'accion') === 'subaccion') {
-      const parent = block.parentBlockName || '__sin_padre__';
-      if (!subsPorAccion[parent]) subsPorAccion[parent] = [];
-      subsPorAccion[parent].push(block);
-    } else {
-      acciones.push(block);
-    }
-  }
-  return { acciones, subsPorAccion };
-}
-
-function aplanarBlocks(acciones, subsPorAccion) {
-  const resultado = [];
-  for (const accion of acciones) {
-    resultado.push(accion);
-    const subs = subsPorAccion[accion.name] || [];
-    for (const sub of subs) {
-      resultado.push({ ...sub, parentBlockName: accion.name });
-    }
-  }
-  // Subacciones huérfanas (sin padre válido)
-  for (const [parent, subs] of Object.entries(subsPorAccion)) {
-    if (!acciones.some(a => a.name === parent)) {
-      resultado.push(...subs);
-    }
-  }
-  return resultado;
-}
-
-export default function PasoMapeo({ headers, superHeaders, sampleRows, config, totalDataRows: totalDataRowsProp, onCambiar, onAvanzar }) {
-  // Separar acciones y subacciones del config.pivotBlocks inicial
-  const inicial = useMemo(() => separarBlocks(config.pivotBlocks), []);
-
+export default function PasoMapeo({ headers, superHeaders, sampleRows, config, totalDataRows: totalDataRowsProp, onCambiar, onAvanzar, proyectoId }) {
   const [columnMap, setColumnMap] = useState(() => config.columnMap || {});
   const [extraNames, setExtraNames] = useState(() => {
-    // Initialize from existing columnMap entries that start with _extra:
     const names = {};
     for (const [k, v] of Object.entries(config.columnMap || {})) {
-      if (String(v).startsWith('_extra:')) names[k] = v.replace('_extra:', '');
+      if (String(v).startsWith('_extra:') && !PROPIEDADES_UNIVERSALES.some(p => p.value === v)) {
+        names[k] = v.replace('_extra:', '');
+      }
     }
     return names;
   });
-  const [acciones, setAcciones] = useState(() => inicial.acciones);
-  const [subsPorAccion, setSubsPorAccion] = useState(() => inicial.subsPorAccion);
+  const [newPropInputs, setNewPropInputs] = useState({});
   const [errorValidacion, setErrorValidacion] = useState(null);
 
+  // Campos extra existentes cargados dinámicamente
+  const [camposExtraExistentes, setCamposExtraExistentes] = useState([]);
+  const [cargandoSchema, setCargandoSchema] = useState(false);
+
   const rowLevel = config.rowLevel || 'etapa';
-  const etiquetaNivel = ETIQUETAS_NIVEL[rowLevel] || 'etapa';
+  const etiquetaNivel = ETIQUETAS_NIVEL[rowLevel] || 'componente';
 
-  // ─── Todas las columnas usadas por subacciones (flat set) ──────
-  const columnasEnSubacciones = useMemo(() => {
-    const set = new Set();
-    for (const subs of Object.values(subsPorAccion)) {
-      for (const sub of subs) {
-        for (const col of (sub.columns || [])) set.add(col);
-      }
+  // Cargar campos_extra existentes del proyecto
+  useEffect(() => {
+    if (!proyectoId) return;
+    setCargandoSchema(true);
+    client.get(`/proyectos/${proyectoId}/campos-extra-schema`)
+      .then(res => {
+        const claves = res.data?.datos || [];
+        setCamposExtraExistentes(claves);
+      })
+      .catch(() => {})
+      .finally(() => setCargandoSchema(false));
+  }, [proyectoId]);
+
+  // Construir lista completa de opciones para el dropdown
+  const opcionesDropdown = useMemo(() => {
+    const opciones = [...PROPIEDADES_UNIVERSALES];
+
+    // Agregar campos_extra existentes que no estén ya en las universales
+    const valoresUniversales = new Set(PROPIEDADES_UNIVERSALES.map(p => p.value));
+    const extraExistentes = camposExtraExistentes
+      .filter(clave => !valoresUniversales.has(`_extra:${clave}`))
+      .map(clave => ({
+        value: `_extra:${clave}`,
+        label: clave,
+        grupo: 'Propiedades existentes',
+      }));
+
+    if (extraExistentes.length > 0) {
+      opciones.push(...extraExistentes);
     }
-    return set;
-  }, [subsPorAccion]);
 
-  // ─── Columnas asignadas en Sección A ───────────────────────────
-  const columnasSeccionA = useMemo(() => {
-    return new Set(Object.keys(columnMap).map(Number));
-  }, [columnMap]);
-
-  // ─── Columnas usadas en acciones + subacciones (Sección B) ────
-  const columnasSeccionB = useMemo(() => {
-    const set = new Set();
-    for (const block of acciones) {
-      for (const col of (block.columns || [])) set.add(col);
-    }
-    for (const col of columnasEnSubacciones) set.add(col);
-    return set;
-  }, [acciones, columnasEnSubacciones]);
-
-  // ─── Columnas disponibles para Sección B (no usadas en A) ─────
-  const columnasParaAcciones = useMemo(() => {
-    return headers
-      .map((_, i) => i)
-      .filter(i => !columnasSeccionA.has(i));
-  }, [headers, columnasSeccionA]);
-
-  // ─── Columnas disponibles para una acción específica ───────────
-  // Excluye columnas usadas por OTRAS acciones y ALL subacciones de OTRAS acciones
-  const columnasParaAccion = useCallback((accionIdx) => {
-    const usadasPorOtras = new Set();
-    acciones.forEach((block, idx) => {
-      if (idx !== accionIdx) {
-        for (const col of (block.columns || [])) usadasPorOtras.add(col);
-      }
+    // Opción para crear nueva propiedad
+    opciones.push({
+      value: '__nueva_propiedad__',
+      label: '➕ Crear nueva propiedad (Campo extra)',
+      grupo: 'Nuevo',
     });
-    // Excluir subacciones de OTRAS acciones
-    const thisName = acciones[accionIdx]?.name;
-    for (const [parent, subs] of Object.entries(subsPorAccion)) {
-      if (parent !== thisName) {
-        for (const sub of subs) {
-          for (const col of (sub.columns || [])) usadasPorOtras.add(col);
-        }
-      }
-    }
-    return columnasParaAcciones.filter(i => !usadasPorOtras.has(i));
-  }, [acciones, subsPorAccion, columnasParaAcciones]);
 
-  // ─── Columnas disponibles para una subacción específica ────────
-  // Excluye cols de: Section A, other actions, parent action's own fieldMap, other subs
-  const columnasParaSubaccionFactory = useCallback((accionIdx) => {
-    return (subIdx) => {
-      const accion = acciones[accionIdx];
-      if (!accion) return [];
-      // Columnas del pool de esta acción (no usadas en A ni otras acciones)
-      const poolAccion = columnasParaAccion(accionIdx);
-      // Excluir columnas usadas por la acción misma
-      const usadasPorAccion = new Set(Object.keys(accion.fieldMap || {}).map(Number));
-      // Excluir columnas usadas por OTRAS subacciones de esta acción
-      const subs = subsPorAccion[accion.name] || [];
-      const usadasPorOtrasSubs = new Set();
-      subs.forEach((sub, idx) => {
-        if (idx !== subIdx) {
-          for (const col of (sub.columns || [])) usadasPorOtrasSubs.add(col);
-        }
-      });
-      return poolAccion.filter(i => !usadasPorAccion.has(i) && !usadasPorOtrasSubs.has(i));
-    };
-  }, [acciones, subsPorAccion, columnasParaAccion]);
+    return opciones;
+  }, [camposExtraExistentes]);
+
+  // Agrupar opciones para <optgroup>
+  const gruposDropdown = useMemo(() => {
+    const grupos = {};
+    for (const opt of opcionesDropdown) {
+      if (!opt.grupo) {
+        if (!grupos['_sin_grupo']) grupos['_sin_grupo'] = [];
+        grupos['_sin_grupo'].push(opt);
+        continue;
+      }
+      if (!grupos[opt.grupo]) grupos[opt.grupo] = [];
+      grupos[opt.grupo].push(opt);
+    }
+    return grupos;
+  }, [opcionesDropdown]);
 
   // ─── Validaciones ──────────────────────────────────────────────
   const tieneNombre = Object.values(columnMap).includes('nombre');
-
-  const erroresAcciones = useMemo(() => {
-    const errores = {};
-    const nombres = new Set();
-    acciones.forEach((block, idx) => {
-      if (!block.name || !block.name.trim()) {
-        errores[idx] = 'El nombre es obligatorio';
-      } else if (nombres.has(block.name.trim().toLowerCase())) {
-        errores[idx] = 'Nombre duplicado';
-      }
-      nombres.add((block.name || '').trim().toLowerCase());
-    });
-    return errores;
-  }, [acciones]);
-
-  const erroresSubaccionesPorAccion = useMemo(() => {
-    const resultado = {};
-    for (const [parent, subs] of Object.entries(subsPorAccion)) {
-      const errores = {};
-      const nombres = new Set();
-      subs.forEach((sub, idx) => {
-        if (!sub.name || !sub.name.trim()) {
-          errores[idx] = 'El nombre es obligatorio';
-        } else if (nombres.has(sub.name.trim().toLowerCase())) {
-          errores[idx] = 'Nombre duplicado';
-        }
-        nombres.add((sub.name || '').trim().toLowerCase());
-      });
-      if (Object.keys(errores).length > 0) resultado[parent] = errores;
-    }
-    return resultado;
-  }, [subsPorAccion]);
-
-  const tieneErroresSubs = Object.keys(erroresSubaccionesPorAccion).length > 0;
-  const puedeAvanzar = tieneNombre && Object.keys(erroresAcciones).length === 0 && !tieneErroresSubs;
+  const puedeAvanzar = tieneNombre;
 
   // ─── Handlers ──────────────────────────────────────────────────
-  const actualizarMapeo = (colIdx, campo) => {
+  const actualizarMapeo = (colIdx, valor) => {
     const nuevo = { ...columnMap };
-    if (campo === '') {
+
+    if (valor === '') {
       delete nuevo[colIdx];
+      setNewPropInputs(prev => { const n = { ...prev }; delete n[colIdx]; return n; });
       setExtraNames(prev => { const n = { ...prev }; delete n[colIdx]; return n; });
-    } else if (campo === '_extra') {
-      // Set placeholder, user will type the name
-      nuevo[colIdx] = '_extra:';
-      setExtraNames(prev => ({ ...prev, [colIdx]: '' }));
+    } else if (valor === '__nueva_propiedad__') {
+      // Mostrar input para nombre de la nueva propiedad, default al header
+      const defaultName = headers[colIdx] || '';
+      nuevo[colIdx] = `_extra:${defaultName}`;
+      setNewPropInputs(prev => ({ ...prev, [colIdx]: defaultName }));
     } else {
-      nuevo[colIdx] = campo;
+      nuevo[colIdx] = valor;
+      setNewPropInputs(prev => { const n = { ...prev }; delete n[colIdx]; return n; });
       setExtraNames(prev => { const n = { ...prev }; delete n[colIdx]; return n; });
     }
     setColumnMap(nuevo);
     setErrorValidacion(null);
   };
 
-  const actualizarExtraName = (colIdx, nombre) => {
-    setExtraNames(prev => ({ ...prev, [colIdx]: nombre }));
+  const actualizarNombreNuevaProp = (colIdx, nombre) => {
+    setNewPropInputs(prev => ({ ...prev, [colIdx]: nombre }));
     setColumnMap(prev => ({ ...prev, [colIdx]: `_extra:${nombre}` }));
-  };
-
-  const agregarAccion = () => {
-    setAcciones([...acciones, {
-      name: '',
-      columns: [],
-      fieldMap: {},
-      createsLevel: 'accion',
-    }]);
-  };
-
-  const actualizarAccion = (idx, block) => {
-    const oldName = acciones[idx]?.name;
-    const newName = block.name;
-    const copia = [...acciones];
-    copia[idx] = block;
-    setAcciones(copia);
-    // Si el nombre cambió, actualizar parentBlockName en subacciones
-    if (oldName && oldName !== newName && subsPorAccion[oldName]) {
-      const nuevoSubs = { ...subsPorAccion };
-      nuevoSubs[newName] = (nuevoSubs[oldName] || []).map(s => ({ ...s, parentBlockName: newName }));
-      delete nuevoSubs[oldName];
-      setSubsPorAccion(nuevoSubs);
-    }
-  };
-
-  const eliminarAccion = (idx) => {
-    const nombre = acciones[idx]?.name;
-    setAcciones(acciones.filter((_, i) => i !== idx));
-    // Eliminar subacciones de esta acción
-    if (nombre && subsPorAccion[nombre]) {
-      const nuevoSubs = { ...subsPorAccion };
-      delete nuevoSubs[nombre];
-      setSubsPorAccion(nuevoSubs);
-    }
-  };
-
-  const actualizarSubaccionesDeAccion = (accionName, subs) => {
-    setSubsPorAccion(prev => ({ ...prev, [accionName]: subs }));
   };
 
   const guardar = () => {
     if (!tieneNombre) {
-      setErrorValidacion('Debes asignar al menos una columna al campo "Nombre".');
+      setErrorValidacion('Debes asignar al menos una columna a la propiedad "Nombre".');
       return;
     }
-    if (Object.keys(erroresAcciones).length > 0 || tieneErroresSubs) {
-      setErrorValidacion('Corrige los errores en las acciones/subacciones antes de continuar.');
-      return;
-    }
-    const pivotBlocks = aplanarBlocks(acciones, subsPorAccion);
-    onCambiar({ columnMap, pivotBlocks });
+    // Limpiar pivotBlocks (ya no se usan)
+    onCambiar({ columnMap, pivotBlocks: [] });
     onAvanzar();
   };
 
-  // ─── Vista previa dinámica (jerárquica) ────────────────────────
+  // ─── Calcular resumen ──────────────────────────────────────────
   const camposAsignados = Object.values(columnMap)
-    .map(v => CAMPOS_LABELS[v])
+    .map(v => {
+      const opt = opcionesDropdown.find(o => o.value === v);
+      if (opt) return opt.label;
+      if (v.startsWith('_extra:')) return v.replace('_extra:', '');
+      return v;
+    })
     .filter(Boolean);
 
-  const accionesResumen = acciones
-    .filter(b => b.name && b.name.trim())
-    .map(b => {
-      const campos = Object.values(b.fieldMap || {})
-        .map(v => CAMPOS_LABELS[v] || v)
-        .filter(Boolean);
-      const subs = (subsPorAccion[b.name] || [])
-        .filter(s => s.name && s.name.trim())
-        .map(s => ({
-          nombre: s.name,
-          campos: Object.values(s.fieldMap || {}).map(v => CAMPOS_LABELS[v] || v).filter(Boolean),
-        }));
-      return { nombre: b.name, campos, subs };
-    });
-
-  const totalSubacciones = accionesResumen.reduce((sum, a) => sum + a.subs.length, 0);
   const totalDataRows = totalDataRowsProp || sampleRows?.length || 0;
+
+  // ─── Determinar el valor actual del select para cada columna ───
+  const getSelectValue = (colIdx) => {
+    if (newPropInputs[colIdx] !== undefined) return '__nueva_propiedad__';
+    const mapped = columnMap[colIdx];
+    if (!mapped) return '';
+    // Si es un _extra: que no está en las opciones de dropdown, es una nueva
+    if (mapped.startsWith('_extra:')) {
+      const existeEnDropdown = opcionesDropdown.some(o => o.value === mapped);
+      if (!existeEnDropdown) return '__nueva_propiedad__';
+    }
+    return mapped;
+  };
 
   return (
     <div className="space-y-6">
-      {/* ═══ SECCIÓN A ═══ */}
       <section>
         <h3 className="text-sm font-semibold text-gray-800">
-          Datos de la {etiquetaNivel} de cada fila
+          Mapeo de propiedades
         </h3>
         <p className="text-xs text-gray-500 mt-1 flex items-start gap-1.5">
           <Info size={12} className="text-blue-400 mt-0.5 flex-shrink-0" />
           <span>
-            Las columnas que selecciones aquí describen la {etiquetaNivel} que se creará por cada
-            fila del archivo. Las que dejes en "No usar" las puedes asignar más abajo a acciones.
+            Asigna cada columna de tu archivo a una propiedad del sistema.
+            Las que dejes en «No usar» se ignorarán.
+            {cargandoSchema && <Loader2 size={12} className="inline animate-spin ml-1" />}
           </span>
         </p>
 
         <div className="mt-3 border rounded-lg overflow-hidden">
-          <div className="max-h-56 overflow-y-auto">
+          <div className="max-h-[420px] overflow-y-auto">
             <table className="w-full text-xs">
               <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
-                  <th className="px-3 py-1.5 text-left font-medium text-gray-500">Columna</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-500 w-40">Columna del archivo</th>
                   {superHeaders && (
-                    <th className="px-3 py-1.5 text-left font-medium text-gray-500">Grupo</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-500 w-28">Grupo</th>
                   )}
-                  <th className="px-3 py-1.5 text-left font-medium text-gray-500">Ejemplo</th>
-                  <th className="px-3 py-1.5 text-left font-medium text-gray-500 w-44">Asignar a</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-500 w-36">Ejemplo</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-500">Asignar a propiedad</th>
                 </tr>
               </thead>
               <tbody>
                 {headers.map((h, i) => {
-                  const enAccion = columnasSeccionB.has(i);
+                  const selectVal = getSelectValue(i);
+                  const esNuevaProp = newPropInputs[i] !== undefined;
+                  const estaAsignado = columnMap[i] && columnMap[i] !== '';
+
                   return (
-                    <tr key={i} className={`border-t ${enAccion ? 'bg-amber-50/50' : ''}`}>
-                      <td className="px-3 py-1.5 font-medium text-gray-700">
-                        {h || <span className="italic text-gray-400">Col {i}</span>}
+                    <tr key={i} className={`border-t ${estaAsignado ? 'bg-green-50/40' : ''}`}>
+                      <td className="px-3 py-2 font-medium text-gray-700">
+                        {h || <span className="italic text-gray-400">Columna {i + 1}</span>}
                       </td>
                       {superHeaders && (
-                        <td className="px-3 py-1.5 text-purple-600 text-xs">
+                        <td className="px-3 py-2 text-purple-600 text-xs">
                           {superHeaders[i] || '—'}
                         </td>
                       )}
-                      <td className="px-3 py-1.5 text-gray-500 max-w-28 truncate">
+                      <td className="px-3 py-2 text-gray-500 max-w-36 truncate" title={sampleRows[0]?.[i] || ''}>
                         {sampleRows[0]?.[i] || '—'}
                       </td>
-                      <td className="px-3 py-1.5">
-                        {enAccion ? (
-                          <span className="text-xs text-amber-600 italic">→ en acción</span>
-                        ) : (
-                          <div className="flex gap-1 items-center">
-                            <select
-                              value={extraNames[i] !== undefined ? '_extra' : (columnMap[i] || '')}
-                              onChange={e => actualizarMapeo(i, e.target.value)}
-                              className="border rounded px-2 py-1 text-xs flex-shrink-0"
-                            >
-                              {CAMPOS_NIVEL_BASE.map(c => (
-                                <option key={c.value} value={c.value}>{c.label}</option>
-                              ))}
-                            </select>
-                            {extraNames[i] !== undefined && (
-                              <input
-                                type="text"
-                                value={extraNames[i]}
-                                onChange={e => actualizarExtraName(i, e.target.value)}
-                                placeholder="Nombre del campo"
-                                className="border rounded px-2 py-1 text-xs w-28"
-                              />
-                            )}
-                          </div>
+                      <td className="px-3 py-2">
+                        <div className="flex gap-1.5 items-center">
+                          <select
+                            value={selectVal}
+                            onChange={e => actualizarMapeo(i, e.target.value)}
+                            className={`border rounded px-2 py-1.5 text-xs flex-1 min-w-0 ${
+                              estaAsignado ? 'border-green-300 bg-green-50' : ''
+                            }`}
+                          >
+                            {Object.entries(gruposDropdown).map(([grupo, opts]) => {
+                              if (grupo === '_sin_grupo') {
+                                return opts.map(o => (
+                                  <option key={o.value} value={o.value}>{o.label}</option>
+                                ));
+                              }
+                              return (
+                                <optgroup key={grupo} label={grupo}>
+                                  {opts.map(o => (
+                                    <option key={o.value} value={o.value}>{o.label}</option>
+                                  ))}
+                                </optgroup>
+                              );
+                            })}
+                          </select>
+                          {esNuevaProp && (
+                            <input
+                              type="text"
+                              value={newPropInputs[i]}
+                              onChange={e => actualizarNombreNuevaProp(i, e.target.value)}
+                              placeholder="Nombre de la propiedad"
+                              className="border border-blue-300 rounded px-2 py-1.5 text-xs w-36 bg-blue-50"
+                              autoFocus
+                            />
+                          )}
+                        </div>
+                        {esNuevaProp && (
+                          <p className="text-[10px] text-blue-500 mt-0.5 ml-0.5">
+                            Esta propiedad se guardará como campo extra y estará disponible para todos en futuras importaciones.
+                          </p>
                         )}
                       </td>
                     </tr>
@@ -388,113 +278,38 @@ export default function PasoMapeo({ headers, superHeaders, sampleRows, config, t
           </div>
         </div>
 
-        {!tieneNombre && errorValidacion && (
+        {errorValidacion && (
           <p className="text-xs text-red-500 mt-2 font-medium">{errorValidacion}</p>
         )}
       </section>
 
-      {/* ═══ SECCIÓN B — Acciones con subacciones anidadas ═══ */}
-      <section>
-        <h3 className="text-sm font-semibold text-gray-800">
-          (Opcional) Crear acciones automáticamente
-        </h3>
-        <p className="text-xs text-gray-500 mt-1 flex items-start gap-1.5">
-          <Info size={12} className="text-blue-400 mt-0.5 flex-shrink-0" />
-          <span>
-            Si tu archivo tiene columnas agrupadas que representan acciones dentro de cada {etiquetaNivel}
-            (por ejemplo, fases de un proceso con su propio estado y fechas), créalas aquí.
-            Dentro de cada acción puedes crear subacciones si necesitas un nivel más de detalle.
-          </span>
-        </p>
-
-        <div className="mt-3 space-y-2">
-          {acciones.map((block, idx) => (
-            <TarjetaAccion
-              key={idx}
-              accion={block}
-              index={idx}
-              columnasDisponibles={columnasParaAccion(idx)}
-              headers={headers}
-              subacciones={subsPorAccion[block.name] || []}
-              onSubaccionesChange={(subs) => actualizarSubaccionesDeAccion(block.name, subs)}
-              columnasParaSubaccion={columnasParaSubaccionFactory(idx)}
-              erroresSubacciones={erroresSubaccionesPorAccion[block.name] || {}}
-              onChange={(b) => actualizarAccion(idx, b)}
-              onDelete={() => eliminarAccion(idx)}
-              errorNombre={erroresAcciones[idx] || null}
-            />
-          ))}
-
-          <button
-            onClick={agregarAccion}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-blue-600 border border-dashed border-blue-300 rounded-lg hover:bg-blue-50 w-full justify-center"
-          >
-            <Plus size={14} /> Agregar acción
-          </button>
-        </div>
-      </section>
-
-      {/* ═══ VISTA PREVIA DINÁMICA (JERÁRQUICA) ═══ */}
+      {/* ═══ RESUMEN ═══ */}
       <section className="bg-gray-50 border rounded-lg p-4">
         <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
-          Vista previa de lo que se importará por cada fila
+          Resumen del mapeo
         </h4>
         <div className="space-y-1 text-sm">
           {tieneNombre ? (
             <>
               <p className="flex items-center gap-1.5 text-green-700">
                 <CheckCircle2 size={14} />
-                1 {etiquetaNivel} con campos: {camposAsignados.join(', ')}
+                Se creará 1 {etiquetaNivel} por fila con: {camposAsignados.join(', ')}
               </p>
-              {accionesResumen.length > 0 && (
-                <>
-                  <p className="flex items-center gap-1.5 text-green-700">
-                    <CheckCircle2 size={14} />
-                    {accionesResumen.length} {accionesResumen.length === 1 ? 'acción derivada' : 'acciones derivadas'}:
-                  </p>
-                  <ul className="ml-7 text-xs text-gray-600 space-y-1">
-                    {accionesResumen.map((a, i) => (
-                      <li key={i}>
-                        <span>• {a.nombre} ({a.campos.length > 0 ? a.campos.join(', ') : 'sin campos'})</span>
-                        {a.subs.length > 0 && (
-                          <ul className="ml-4 mt-0.5 space-y-0.5 text-indigo-600">
-                            <li className="text-xs">└─ {a.subs.length} {a.subs.length === 1 ? 'subacción' : 'subacciones'}:</li>
-                            {a.subs.map((s, j) => (
-                              <li key={j} className="ml-5 text-xs text-gray-500">
-                                • {s.nombre} ({s.campos.length > 0 ? s.campos.join(', ') : 'sin campos'})
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
               {totalDataRows > 0 && (
                 <p className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-200">
-                  Total estimado al importar: <strong>{totalDataRows} {etiquetaNivel}s</strong>
-                  {accionesResumen.length > 0 && (
-                    <> + <strong>{totalDataRows * accionesResumen.length} acciones</strong></>
-                  )}
-                  {totalSubacciones > 0 && (
-                    <> + <strong>{totalDataRows * totalSubacciones} subacciones</strong></>
-                  )}
+                  Total estimado: <strong>{totalDataRows} {etiquetaNivel}(s)</strong>
                 </p>
               )}
             </>
           ) : (
             <p className="text-gray-400 italic text-xs">
-              Asigna al menos una columna a "Nombre" para ver la vista previa.
+              Asigna al menos una columna a «Nombre» para continuar.
             </p>
           )}
         </div>
       </section>
 
       {/* ═══ BOTÓN SIGUIENTE ═══ */}
-      {errorValidacion && (
-        <p className="text-xs text-red-500 font-medium">{errorValidacion}</p>
-      )}
       <div className="flex justify-end pt-1">
         <button
           onClick={guardar}

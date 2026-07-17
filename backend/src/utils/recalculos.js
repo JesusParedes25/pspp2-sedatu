@@ -15,57 +15,73 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const pool = require('../db/pool');
+const { derivarEstadoContenedor, calcularSemaforo } = require('./avance-semaforo');
 
-// Recalcula el % de avance y las fechas de una etapa desde sus acciones
+// Recalcula avance, estado, semaforo y fechas de una etapa desde sus acciones directas
 async function recalcularEtapa(etapaId, client) {
   const db = client || pool;
 
-  // Solo acciones no canceladas contribuyen al avance
+  // Solo acciones directas (no sub-acciones) no canceladas
   const resultado = await db.query(`
-    SELECT porcentaje_avance, fecha_inicio, fecha_fin
+    SELECT porcentaje_avance, estado, fecha_inicio, fecha_fin
     FROM acciones
-    WHERE id_etapa = $1 AND estado != 'Cancelada'
+    WHERE id_etapa = $1 AND id_accion_padre IS NULL AND estado != 'Cancelada'
   `, [etapaId]);
 
   const acciones = resultado.rows;
 
-  if (acciones.length === 0) {
-    await db.query(
-      `UPDATE etapas SET porcentaje_calculado = 0,
-       fecha_inicio = NULL, fecha_fin = NULL WHERE id = $1`,
-      [etapaId]
-    );
-    return;
-  }
-
-  // Promedio de porcentajes de las acciones activas
-  const suma = acciones.reduce((total, a) => total + parseFloat(a.porcentaje_avance), 0);
-  const promedio = suma / acciones.length;
-
-  // Fecha más temprana entre las acciones
-  const fechaInicio = acciones.map(a => a.fecha_inicio).sort()[0];
-  // Fecha más tardía entre las acciones
-  const fechaFin = acciones.map(a => a.fecha_fin).sort().reverse()[0];
-
-  await db.query(`
-    UPDATE etapas
-    SET porcentaje_calculado = $1,
-        fecha_inicio = $2,
-        fecha_fin = $3
-    WHERE id = $4
-  `, [promedio.toFixed(2), fechaInicio, fechaFin, etapaId]);
-
-  // Después de actualizar la etapa, recalculamos el proyecto padre
-  const etapa = await db.query(
-    'SELECT id_proyecto, id_subproyecto FROM etapas WHERE id = $1', [etapaId]
+  // Metadatos de la etapa para semaforo
+  const { rows: [etapaMeta] } = await db.query(
+    'SELECT id_proyecto, id_subproyecto, fecha_limite, prioridad, semaforo_override FROM etapas WHERE id = $1',
+    [etapaId]
   );
 
-  if (etapa.rows[0]?.id_subproyecto) {
-    await recalcularSubproyecto(etapa.rows[0].id_subproyecto, db);
+  if (acciones.length === 0) {
+    if (!etapaMeta?.semaforo_override) {
+      const sem = calcularSemaforo('Pendiente', etapaMeta?.fecha_limite, etapaMeta?.prioridad);
+      await db.query(
+        `UPDATE etapas SET porcentaje_calculado = 0, estado = 'Pendiente', semaforo = $1,
+         fecha_inicio = NULL, fecha_fin = NULL WHERE id = $2`,
+        [sem, etapaId]
+      );
+    } else {
+      await db.query(
+        `UPDATE etapas SET porcentaje_calculado = 0, estado = 'Pendiente',
+         fecha_inicio = NULL, fecha_fin = NULL WHERE id = $1`,
+        [etapaId]
+      );
+    }
+  } else {
+    const suma = acciones.reduce((total, a) => total + parseFloat(a.porcentaje_avance || 0), 0);
+    const promedio = Math.round(suma / acciones.length);
+    const estadoEtapa = derivarEstadoContenedor(acciones.map(a => a.estado));
+    const fechaInicio = acciones.map(a => a.fecha_inicio).filter(Boolean).sort()[0] || null;
+    const fechaFin = acciones.map(a => a.fecha_fin).filter(Boolean).sort().reverse()[0] || null;
+
+    if (!etapaMeta?.semaforo_override) {
+      const sem = calcularSemaforo(estadoEtapa, etapaMeta?.fecha_limite, etapaMeta?.prioridad);
+      await db.query(`
+        UPDATE etapas
+        SET porcentaje_calculado = $1, estado = $2, semaforo = $3,
+            fecha_inicio = $4, fecha_fin = $5
+        WHERE id = $6
+      `, [promedio, estadoEtapa, sem, fechaInicio, fechaFin, etapaId]);
+    } else {
+      await db.query(`
+        UPDATE etapas
+        SET porcentaje_calculado = $1, estado = $2,
+            fecha_inicio = $3, fecha_fin = $4
+        WHERE id = $5
+      `, [promedio, estadoEtapa, fechaInicio, fechaFin, etapaId]);
+    }
   }
 
-  if (etapa.rows[0]?.id_proyecto) {
-    await recalcularProyecto(etapa.rows[0].id_proyecto, db);
+  // Cascade a proyecto/subproyecto
+  if (etapaMeta?.id_subproyecto) {
+    await recalcularSubproyecto(etapaMeta.id_subproyecto, db);
+  }
+  if (etapaMeta?.id_proyecto) {
+    await recalcularProyecto(etapaMeta.id_proyecto, db);
   }
 }
 

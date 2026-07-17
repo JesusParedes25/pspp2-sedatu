@@ -17,6 +17,7 @@
 import { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Lock, Paperclip, MessageSquare, Calendar, User, AlertCircle } from 'lucide-react';
+import { calcularColorSemaforo } from '../../utils/semaforoColor';
 
 // ── Config por estado ────────────────────────────────────────────
 const ECFG = {
@@ -48,7 +49,9 @@ function TooltipAccion({ accion }) {
       <div>
         <div className="flex items-center gap-2 mb-1 flex-wrap">
           <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${cfg.badge}`}>{cfg.label}</span>
-          <span className={`text-[11px] font-black tabular-nums ${cfg.text}`}>{pct.toFixed(0)}%</span>
+          {(() => { const sem = calcularColorSemaforo(pct, accion.fecha_inicio, accion.fecha_fin); return (
+            <span className="text-[11px] font-black tabular-nums" style={{ color: sem.color }} title={sem.tooltip || undefined}>{pct.toFixed(0)}%</span>
+          ); })()}
           {estaVencida && (
             <span className="text-[9px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full font-bold border border-orange-200 flex items-center gap-0.5">
               <AlertCircle size={8} /> -{diasAtraso}d

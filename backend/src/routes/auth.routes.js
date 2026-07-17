@@ -18,6 +18,7 @@ const router = Router();
 
 // Ruta pública — no requiere token
 router.post('/login', authController.login);
+router.post('/activar-cuenta', authController.activarCuenta);
 
 // Ruta protegida — requiere token válido
 router.get('/me', verificarToken, authController.obtenerUsuarioActual);

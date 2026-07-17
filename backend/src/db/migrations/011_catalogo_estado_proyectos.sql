@@ -14,29 +14,27 @@
 --   En_proceso → En_proceso (sin cambio)
 -- ═══════════════════════════════════════════════════════════════
 
--- 1. Migrar datos existentes
+-- 1. Eliminar constraints antiguos PRIMERO (antes de migrar datos)
+ALTER TABLE proyectos DROP CONSTRAINT IF EXISTS proyectos_estado_check;
+ALTER TABLE subproyectos DROP CONSTRAINT IF EXISTS subproyectos_estado_check;
+
+-- 2. Migrar datos existentes
 UPDATE proyectos SET estado = 'Pendiente'  WHERE estado IN ('Programado', 'Pausado');
 UPDATE proyectos SET estado = 'Completada' WHERE estado = 'Concluido';
 UPDATE proyectos SET estado = 'Cancelada'  WHERE estado = 'Cancelado';
 
--- 2. Eliminar constraint antiguo (nombre autogenerado por CHECK inline)
-ALTER TABLE proyectos DROP CONSTRAINT IF EXISTS proyectos_estado_check;
+UPDATE subproyectos SET estado = 'Pendiente'  WHERE estado IN ('Programado', 'Pausado');
+UPDATE subproyectos SET estado = 'Completada' WHERE estado = 'Concluido';
+UPDATE subproyectos SET estado = 'Cancelada'  WHERE estado = 'Cancelado';
 
 -- 3. Recrear con catálogo unificado
 ALTER TABLE proyectos ADD CONSTRAINT proyectos_estado_check CHECK (
   estado IN ('Pendiente', 'En_proceso', 'Bloqueada', 'Completada', 'Cancelada')
 );
-
--- 4. Cambiar valor por defecto
-ALTER TABLE proyectos ALTER COLUMN estado SET DEFAULT 'Pendiente';
-
--- También unificar subproyectos (misma estructura que proyectos)
-UPDATE subproyectos SET estado = 'Pendiente'  WHERE estado IN ('Programado', 'Pausado');
-UPDATE subproyectos SET estado = 'Completada' WHERE estado = 'Concluido';
-UPDATE subproyectos SET estado = 'Cancelada'  WHERE estado = 'Cancelado';
-
-ALTER TABLE subproyectos DROP CONSTRAINT IF EXISTS subproyectos_estado_check;
 ALTER TABLE subproyectos ADD CONSTRAINT subproyectos_estado_check CHECK (
   estado IN ('Pendiente', 'En_proceso', 'Bloqueada', 'Completada', 'Cancelada')
 );
+
+-- 4. Cambiar valores por defecto
+ALTER TABLE proyectos ALTER COLUMN estado SET DEFAULT 'Pendiente';
 ALTER TABLE subproyectos ALTER COLUMN estado SET DEFAULT 'Pendiente';

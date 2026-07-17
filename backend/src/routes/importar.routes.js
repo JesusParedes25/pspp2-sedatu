@@ -18,5 +18,7 @@ router.post('/extraer-headers', ctrl.extraerHeaders);
 router.post('/preview', ctrl.preview);
 router.post('/confirmar', ctrl.confirmar);
 router.post('/sugerir', ctrl.sugerir);
+router.post('/preview-multihoja', ctrl.previewMultiHoja);
+router.post('/confirmar-multihoja', ctrl.confirmarMultiHoja);
 
 module.exports = router;

@@ -65,12 +65,39 @@ async function actualizar(req, res, next) {
   }
 }
 
-// DELETE /indicadores/:id
+// DELETE /indicadores/:id?confirmar=true
 async function eliminar(req, res, next) {
   try {
-    const resultado = await indicadoresQueries.eliminar(req.params.id);
-    if (!resultado) {
-      return res.status(404).json({ error: true, mensaje: 'Indicador no encontrado' });
+    const pool = require('../db/pool');
+    const id = req.params.id;
+
+    // Count linked items
+    const countAport = await pool.query(
+      'SELECT COUNT(*)::int AS n FROM indicador_aportaciones WHERE id_indicador = $1', [id]
+    );
+    const countMetas = await pool.query(
+      'SELECT COUNT(*)::int AS n FROM indicador_metas_anuales WHERE id_indicador = $1', [id]
+    );
+    const nAport = countAport.rows[0].n;
+    const nMetas = countMetas.rows[0].n;
+
+    // If has linked items and no confirm, return warning
+    if ((nAport > 0 || nMetas > 0) && req.query.confirmar !== 'true') {
+      return res.json({
+        requiere_confirmacion: true,
+        n_aportaciones: nAport,
+        n_metas_anuales: nMetas,
+        mensaje: `Este indicador tiene ${nAport} aportaciones y ${nMetas} metas anuales ligadas; se eliminarán también.`
+      });
+    }
+
+    // Hard delete so FK ON DELETE CASCADE cleans up aportaciones + metas
+    if (nAport > 0 || nMetas > 0) {
+      const del = await pool.query('DELETE FROM indicadores WHERE id = $1 RETURNING id', [id]);
+      if (!del.rows[0]) return res.status(404).json({ error: true, mensaje: 'Indicador no encontrado' });
+    } else {
+      const resultado = await indicadoresQueries.eliminar(id);
+      if (!resultado) return res.status(404).json({ error: true, mensaje: 'Indicador no encontrado' });
     }
     res.json({ mensaje: 'Indicador eliminado' });
   } catch (err) {
@@ -91,4 +118,56 @@ async function resumenAportaciones(req, res, next) {
   }
 }
 
-module.exports = { listarPorProyecto, listarPorEtapa, listarTodosPorProyecto, crear, actualizar, eliminar, resumenAportaciones };
+// GET /indicadores/publicos — para plataforma externa
+async function listarPublicables(req, res, next) {
+  try {
+    const filtros = {};
+    if (req.query.id_dg) filtros.id_dg = req.query.id_dg;
+    const datos = await indicadoresQueries.listarPublicables(filtros);
+    res.json({ datos });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// PATCH /indicadores/:id/publicar — toggle es_publicable
+async function togglePublicable(req, res, next) {
+  try {
+    const { es_publicable } = req.body;
+    const pool = require('../db/pool');
+    const result = await pool.query(
+      'UPDATE indicadores SET es_publicable = $1, updated_at = NOW() WHERE id = $2 RETURNING id, es_publicable',
+      [!!es_publicable, req.params.id]
+    );
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: true, mensaje: 'Indicador no encontrado' });
+    }
+    res.json({ datos: result.rows[0], mensaje: es_publicable ? 'Indicador publicado' : 'Indicador despublicado' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /proyectos/:id/indicadores/resumen — con valores realizados y warnings
+async function resumenConValores(req, res, next) {
+  try {
+    const aportacionesQueries = require('../db/queries/aportaciones.queries');
+    const indicadores = await indicadoresQueries.listarPorProyecto(req.params.id);
+
+    const resultado = [];
+    for (const ind of indicadores) {
+      const { total, porAnio } = await aportacionesQueries.calcularValorRealizado(ind.id);
+      const warnings = await aportacionesQueries.detectarDobleConteo(ind.id);
+      resultado.push({
+        ...ind,
+        valor_realizado_total: total,
+        valor_realizado_por_anio: porAnio,
+        warnings
+      });
+    }
+
+    res.json({ datos: resultado });
+  } catch (err) { next(err); }
+}
+
+module.exports = { listarPorProyecto, listarPorEtapa, listarTodosPorProyecto, crear, actualizar, eliminar, resumenAportaciones, listarPublicables, togglePublicable, resumenConValores };

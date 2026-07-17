@@ -82,8 +82,9 @@ async function crearEtapa(proyectoId, datos) {
       INSERT INTO etapas (
         nombre, descripcion, orden, tipo_meta, meta_descripcion,
         meta_valor, meta_unidad, depende_de,
-        id_proyecto, id_subproyecto, id_dg, id_direccion_area, id_responsable
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        id_proyecto, id_subproyecto, id_dg, id_direccion_area, id_responsable,
+        tipo, prioridad, fecha_limite, instancia_responsable, enlace_responsable, observaciones
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
       RETURNING *
     `, [
       datos.nombre, emptyToNull(datos.descripcion),
@@ -93,7 +94,10 @@ async function crearEtapa(proyectoId, datos) {
       emptyToNull(datos.depende_de),
       proyectoId, emptyToNull(datos.id_subproyecto),
       emptyToNull(datos.id_dg), emptyToNull(datos.id_direccion_area),
-      emptyToNull(datos.id_responsable)
+      emptyToNull(datos.id_responsable),
+      emptyToNull(datos.tipo), emptyToNull(datos.prioridad),
+      emptyToNull(datos.fecha_limite), emptyToNull(datos.instancia_responsable),
+      emptyToNull(datos.enlace_responsable), emptyToNull(datos.observaciones)
     ]);
 
     const etapa = resultado.rows[0];
@@ -141,16 +145,23 @@ async function actualizarEtapa(etapaId, datos, externalClient) {
 
     const resultado = await client.query(`
       UPDATE etapas SET
-        nombre            = COALESCE($1, nombre),
-        descripcion       = $2,
-        id_dg             = $3,
-        id_direccion_area = $4,
-        id_responsable    = $5,
-        depende_de        = $6,
-        tipo_meta         = COALESCE($7, tipo_meta),
-        meta_descripcion  = $8,
-        meta_valor        = $9,
-        meta_unidad       = $10
+        nombre                = COALESCE($1, nombre),
+        descripcion           = $2,
+        id_dg                 = $3,
+        id_direccion_area     = $4,
+        id_responsable        = $5,
+        depende_de            = $6,
+        tipo_meta             = COALESCE($7, tipo_meta),
+        meta_descripcion      = $8,
+        meta_valor            = $9,
+        meta_unidad           = $10,
+        tipo                  = $12,
+        prioridad             = $13,
+        fecha_limite          = $14,
+        instancia_responsable = $15,
+        enlace_responsable    = $16,
+        observaciones         = $17,
+        updated_at            = NOW()
       WHERE id = $11
       RETURNING *
     `, [
@@ -165,6 +176,9 @@ async function actualizarEtapa(etapaId, datos, externalClient) {
       n(datos.meta_valor),
       n(datos.meta_unidad),
       etapaId,
+      n(datos.tipo), n(datos.prioridad),
+      n(datos.fecha_limite), n(datos.instancia_responsable),
+      n(datos.enlace_responsable), n(datos.observaciones),
     ]);
 
     const etapa = resultado.rows[0];
@@ -195,13 +209,54 @@ async function actualizarEtapa(etapaId, datos, externalClient) {
   }
 }
 
-// Elimina una etapa y sus acciones en cascada (por FK ON DELETE CASCADE)
+// Elimina una etapa y sus dependencias en cascada
 async function eliminarEtapa(etapaId) {
-  const resultado = await pool.query(
-    'DELETE FROM etapas WHERE id = $1 RETURNING id, id_proyecto',
-    [etapaId]
-  );
-  return resultado.rows[0] || null;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // Desconectar etapas que dependen de ésta
+    await client.query(
+      'UPDATE etapas SET depende_de = NULL WHERE depende_de = $1',
+      [etapaId]
+    );
+    // Eliminar indicador_etapas vinculados
+    await client.query(
+      'DELETE FROM indicador_etapas WHERE id_etapa = $1',
+      [etapaId]
+    );
+    // Eliminar indicadores propios de la etapa
+    await client.query(
+      'DELETE FROM indicadores WHERE id_etapa = $1',
+      [etapaId]
+    );
+    // Eliminar evidencias de acciones/subacciones de esta etapa
+    await client.query(
+      `DELETE FROM evidencias WHERE id_accion IN (SELECT id FROM acciones WHERE id_etapa = $1)`,
+      [etapaId]
+    );
+    // Eliminar cobertura geográfica vinculada
+    await client.query(
+      `DELETE FROM cobertura_geografica WHERE (tipo_entidad = 'etapa' AND id_entidad = $1)
+        OR (tipo_entidad = 'accion' AND id_entidad IN (SELECT id FROM acciones WHERE id_etapa = $1))`,
+      [etapaId]
+    );
+    // Eliminar acciones de esta etapa
+    await client.query(
+      'DELETE FROM acciones WHERE id_etapa = $1',
+      [etapaId]
+    );
+    const resultado = await client.query(
+      'DELETE FROM etapas WHERE id = $1 RETURNING id, id_proyecto',
+      [etapaId]
+    );
+    await client.query('COMMIT');
+    return resultado.rows[0] || null;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 // Actualiza un solo campo de una etapa (para inline editing en DataGrid)

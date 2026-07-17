@@ -54,9 +54,11 @@ export default function PasoPreview({ fileId, config, proyectoId, sheetIndex, on
         </div>
         <h3 className="text-lg font-semibold text-gray-800">Importación completada</h3>
         <div className="text-sm text-gray-600 space-y-1">
-          <p><strong>{resultado.etapas_creadas}</strong> etapas creadas</p>
-          <p><strong>{resultado.acciones_creadas}</strong> acciones creadas</p>
-          <p><strong>{resultado.subacciones_creadas}</strong> subacciones creadas</p>
+          {resultado.etapas_creadas > 0 && <p><strong>{resultado.etapas_creadas}</strong> componente(s) creados</p>}
+          {resultado.acciones_creadas > 0 && <p><strong>{resultado.acciones_creadas}</strong> acción(es) creadas</p>}
+          {resultado.subacciones_creadas > 0 && <p><strong>{resultado.subacciones_creadas}</strong> tarea(s) creadas</p>}
+          {resultado.evidencias_creadas > 0 && <p><strong>{resultado.evidencias_creadas}</strong> evidencia(s) vinculadas</p>}
+          {resultado.comentarios_creados > 0 && <p><strong>{resultado.comentarios_creados}</strong> comentario(s) creados</p>}
           {resultado.duplicados_saltados > 0 && (
             <p className="text-amber-600"><strong>{resultado.duplicados_saltados}</strong> duplicados saltados</p>
           )}
@@ -113,7 +115,7 @@ export default function PasoPreview({ fileId, config, proyectoId, sheetIndex, on
       <div className="flex items-center gap-4 p-3 bg-blue-50 rounded-lg">
         <div className="text-center">
           <span className="text-lg font-bold text-blue-700">{conteo.etapas}</span>
-          <p className="text-xs text-blue-600">Etapas</p>
+          <p className="text-xs text-blue-600">Componentes</p>
         </div>
         <div className="text-center">
           <span className="text-lg font-bold text-blue-700">{conteo.acciones}</span>
@@ -121,7 +123,7 @@ export default function PasoPreview({ fileId, config, proyectoId, sheetIndex, on
         </div>
         <div className="text-center">
           <span className="text-lg font-bold text-blue-700">{conteo.subacciones}</span>
-          <p className="text-xs text-blue-600">Subacciones</p>
+          <p className="text-xs text-blue-600">Tareas</p>
         </div>
         <div className="ml-auto text-xs text-gray-500">
           Total: {conteo.etapas + conteo.acciones + conteo.subacciones} entidades a crear

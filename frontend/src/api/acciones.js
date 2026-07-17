@@ -83,6 +83,11 @@ export async function actualizarIndicadoresAccion(accionId, indicadoresAsociados
   return data;
 }
 
+export async function patchAccion(id, datos) {
+  const { data } = await client.patch(`/acciones/${id}`, datos);
+  return data;
+}
+
 export async function obtenerAgenda(params = {}) {
   const { data } = await client.get('/agenda', { params });
   return data;

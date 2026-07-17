@@ -372,6 +372,17 @@ export default function PanelAccionInline({ accion, soloLectura, onActualizado, 
                 Vence {diasRestantesAccion === 0 ? 'hoy' : `en ${diasRestantesAccion}d`}
               </span>
             )}
+            {accion.prioridad && (
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold border ${
+                accion.prioridad === 'Muy Alta' ? 'bg-red-50 text-red-700 border-red-200'
+                : accion.prioridad === 'Alta' ? 'bg-orange-50 text-orange-700 border-orange-200'
+                : accion.prioridad === 'Media' ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                : 'bg-gray-50 text-gray-600 border-gray-200'
+              }`}>{accion.prioridad}</span>
+            )}
+            {accion.instancia_responsable && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-blue-50 text-blue-700 border border-blue-200">{accion.instancia_responsable}</span>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-gray-400">
             {accion.responsable_nombre && (

@@ -42,11 +42,16 @@ const MAPA_ENTIDAD = {
   Accion: {
     tabla: 'acciones',
     hijos: [
-      { tabla: 'acciones', fk: 'id_accion_padre', tipo: 'Subaccion', filtro: '' }
+      { tabla: 'acciones', fk: 'id_accion_padre', tipo: 'Subaccion', filtro: '' },
+      { tabla: 'tareas', fk: 'id_accion', tipo: 'Tarea', filtro: '' }
     ]
   },
   Subaccion: {
     tabla: 'acciones',
+    hijos: []
+  },
+  Tarea: {
+    tabla: 'tareas',
     hijos: []
   }
 };
@@ -83,6 +88,9 @@ function tipoRealAccion(fila) {
  * Retorna { padreId, padreTipo } o null si es raíz.
  */
 function obtenerPadreInfo(entidadTipo, entidad) {
+  if (entidadTipo === 'Tarea') {
+    return { padreId: entidad.id_accion, padreTipo: 'Accion' };
+  }
   if (entidadTipo === 'Subaccion') {
     return { padreId: entidad.id_accion_padre, padreTipo: 'Accion' };
   }
@@ -131,6 +139,21 @@ async function cambiarEstado(entidadTipo, entidadId, estadoNuevo, opciones, clie
 
   const entidad = await obtenerEntidad(entidadTipo, entidadId, db);
   const estadoAnterior = entidad.estado;
+
+  // ── Contenedor check: rechazar cambio de estado en contenedores ──
+  const avanceSemaforo = require('./avance-semaforo');
+  if (entidadTipo === 'Etapa') {
+    const esHoja = await avanceSemaforo.esEtapaHoja(entidadId, db);
+    if (!esHoja) {
+      throw _error('El estatus de un contenedor se calcula automáticamente a partir de sus partes. Para avanzar, actualiza las tareas/acciones que contiene.', 400);
+    }
+  }
+  if (entidadTipo === 'Accion' || entidadTipo === 'Subaccion') {
+    const esHoja = await avanceSemaforo.esNodoHoja(entidadId, db);
+    if (!esHoja) {
+      throw _error('El estatus de un contenedor se calcula automáticamente a partir de sus partes. Para avanzar, actualiza las tareas/acciones que contiene.', 400);
+    }
+  }
 
   if (estadoAnterior === estadoNuevo) {
     throw _error(`La entidad ya está en estado ${estadoNuevo}`, 400);

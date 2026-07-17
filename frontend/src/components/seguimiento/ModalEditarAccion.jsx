@@ -15,6 +15,7 @@ import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import * as catalogosApi from '../../api/catalogos';
 import * as accionesApi from '../../api/acciones';
+import CatalogSelector from '../common/CatalogSelector';
 
 export default function ModalEditarAccion({ accion, onGuardado, onCerrar }) {
   const [dgs, setDgs] = useState([]);
@@ -34,6 +35,11 @@ export default function ModalEditarAccion({ accion, onGuardado, onCerrar }) {
     id_dg: accion.id_dg || '',
     id_direccion_area: accion.id_direccion_area || '',
     id_responsable: accion.id_responsable || '',
+    prioridad: accion.prioridad || '',
+    fecha_limite: accion.fecha_limite ? new Date(accion.fecha_limite).toISOString().split('T')[0] : '',
+    instancia_responsable: accion.instancia_responsable || '',
+    enlace_responsable: accion.enlace_responsable || '',
+    observaciones: accion.observaciones || '',
   });
 
   useEffect(() => {
@@ -172,6 +178,30 @@ export default function ModalEditarAccion({ accion, onGuardado, onCerrar }) {
                   <option key={u.id} value={u.id}>{u.nombre_completo} — {u.cargo}</option>
                 ))}
               </select>
+            </div>
+
+            {/* ─── Clasificación y seguimiento ─── */}
+            <div className="border-t border-gray-100 pt-4 mt-2">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Clasificación</p>
+              <div className="grid grid-cols-2 gap-3">
+                <CatalogSelector tipo="prioridad" value={datos.prioridad} onChange={v => actualizar('prioridad', v)} label="Prioridad" />
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Fecha límite</label>
+                  <input type="date" value={datos.fecha_limite} onChange={e => actualizar('fecha_limite', e.target.value)}
+                    className="input-base text-sm" />
+                </div>
+                <CatalogSelector tipo="unidad_responsable" value={datos.instancia_responsable} onChange={v => actualizar('instancia_responsable', v)} label="Instancia responsable" />
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Enlace responsable</label>
+                  <input type="text" value={datos.enlace_responsable} onChange={e => actualizar('enlace_responsable', e.target.value)}
+                    className="input-base text-sm" placeholder="Nombre del enlace" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Observaciones</label>
+                <textarea value={datos.observaciones} onChange={e => actualizar('observaciones', e.target.value)}
+                  rows={2} className="input-base text-sm resize-none" placeholder="Observaciones de esta acción…" />
+              </div>
             </div>
 
             {/* Botones */}

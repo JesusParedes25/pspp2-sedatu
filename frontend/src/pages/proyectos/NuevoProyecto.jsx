@@ -20,19 +20,21 @@ import { useAuth } from '../../context/AuthContext';
 import { usePermisosGlobales } from '../../hooks/usePermisos';
 import * as proyectosApi from '../../api/proyectos';
 import * as catalogosApi from '../../api/catalogos';
-import { ImagePlus, X } from 'lucide-react';
+import * as etapasApi from '../../api/etapas';
+import * as accionesApi from '../../api/acciones';
+import { ImagePlus, X, Plus, Trash2, ChevronDown } from 'lucide-react';
 
 const PASOS = [
   'Información general',
   'Clasificación y meta',
   'Indicadores y etiquetas',
+  'Estructura',
   'Revisión y crear'
 ];
 
 const TIPOS_INDICADOR = [
   { valor: 'Avance_fisico', etiqueta: 'Avance físico' },
   { valor: 'Avance_financiero', etiqueta: 'Avance financiero' },
-  { valor: 'Monto', etiqueta: 'Monto ($)' },
   { valor: 'Cobertura', etiqueta: 'Cobertura' },
   { valor: 'Beneficiarios', etiqueta: 'Beneficiarios' },
   { valor: 'Gestion', etiqueta: 'Gestión' },
@@ -45,15 +47,10 @@ const UNIDADES_INDICADOR = [
   { valor: 'Numero', etiqueta: 'Número (personalizable)' },
 ];
 
-const ACUMULACIONES = [
-  { valor: 'Suma', etiqueta: 'Suma — los valores se acumulan' },
-  { valor: 'Ultimo_valor', etiqueta: 'Último valor — solo cuenta el más reciente' },
-  { valor: 'Promedio', etiqueta: 'Promedio — media de los valores' },
-];
 
 const INDICADOR_NUEVO = () => ({
   nombre: '', tipo: 'Avance_fisico', unidad: 'Numero',
-  unidad_personalizada: '', acumulacion: 'Suma',
+  unidad_personalizada: '',
   meta_global: '', temporalidad: 'Global',
   anio_inicio: new Date().getFullYear(), anio_fin: new Date().getFullYear(),
   metas_anuales: [], descripcion: '', _abierto: true
@@ -91,6 +88,12 @@ export default function NuevoProyecto() {
     id_programa: '',
     etiquetas: [],
   });
+
+  // Estructura planificada (etapas + acciones locales, se crean tras POST proyecto)
+  const [etapasPlaneadas, setEtapasPlaneadas] = useState([]);
+  const [nuevaEtapaTexto, setNuevaEtapaTexto] = useState('');
+  const [nuevaAccionTexto, setNuevaAccionTexto] = useState({});
+  const [etapaExpandida, setEtapaExpandida] = useState(null);
 
   // Estado local para el input de etiquetas (texto crudo)
   const [textoEtiqueta, setTextoEtiqueta] = useState('');
@@ -159,6 +162,18 @@ export default function NuevoProyecto() {
         } catch (imgErr) {
           console.error('Error subiendo imagen de portada:', imgErr);
         }
+      }
+      // Crear etapas y acciones planificadas
+      for (const ep of etapasPlaneadas) {
+        try {
+          const resEtapa = await etapasApi.crearEtapa(nuevoId, { nombre: ep.nombre });
+          const etapaId = resEtapa.datos?.id;
+          if (etapaId && ep.acciones?.length) {
+            for (const acc of ep.acciones) {
+              try { await accionesApi.crearAccionEnEtapa(etapaId, { nombre: acc }); } catch {}
+            }
+          }
+        } catch {}
       }
       mostrarToast('Proyecto creado exitosamente', 'exito');
       navigate(`/proyectos/${nuevoId}`);
@@ -345,6 +360,7 @@ export default function NuevoProyecto() {
                   className="input-base" placeholder="Ej: Requiere aprobación de CONAGUA" />
               </div>
             )}
+
           </div>
         )}
 
@@ -431,6 +447,95 @@ export default function NuevoProyecto() {
 
         {pasoActual === 3 && (
           <div className="space-y-4">
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Estructura del proyecto</h2>
+            <p className="text-sm text-gray-500">Define las etapas y acciones iniciales. Podrás modificarlas después.</p>
+
+            {/* Etapas planificadas */}
+            {etapasPlaneadas.map((ep, idx) => (
+              <div key={idx} className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 cursor-pointer"
+                  onClick={() => setEtapaExpandida(etapaExpandida === idx ? null : idx)}>
+                  <span className="w-5 h-5 bg-guinda-500 text-white rounded text-[10px] font-bold flex items-center justify-center flex-shrink-0">{idx + 1}</span>
+                  <span className="flex-1 text-sm font-medium text-gray-800 truncate">{ep.nombre}</span>
+                  <span className="text-[10px] text-gray-400">{ep.acciones.length} acc.</span>
+                  <button type="button" onClick={e => { e.stopPropagation(); setEtapasPlaneadas(prev => prev.filter((_, i) => i !== idx)); }}
+                    className="text-gray-300 hover:text-red-500 p-0.5"><Trash2 size={13} /></button>
+                  <ChevronDown size={14} className={`text-gray-400 transition-transform ${etapaExpandida === idx ? 'rotate-180' : ''}`} />
+                </div>
+                {etapaExpandida === idx && (
+                  <div className="px-3 py-2 space-y-1 border-t border-gray-100">
+                    {ep.acciones.map((acc, ai) => (
+                      <div key={ai} className="flex items-center gap-2 py-1 pl-2 border-l-2 border-guinda-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />
+                        <span className="flex-1 text-xs text-gray-700 truncate">{acc}</span>
+                        <button type="button" onClick={() => {
+                          const copia = [...etapasPlaneadas];
+                          copia[idx] = { ...copia[idx], acciones: copia[idx].acciones.filter((_, j) => j !== ai) };
+                          setEtapasPlaneadas(copia);
+                        }} className="text-gray-300 hover:text-red-500 p-0.5"><Trash2 size={11} /></button>
+                      </div>
+                    ))}
+                    <div className="flex items-center gap-1.5 pt-1">
+                      <input type="text" value={nuevaAccionTexto[idx] || ''}
+                        onChange={e => setNuevaAccionTexto(prev => ({ ...prev, [idx]: e.target.value }))}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && (nuevaAccionTexto[idx] || '').trim()) {
+                            e.preventDefault();
+                            const copia = [...etapasPlaneadas];
+                            copia[idx] = { ...copia[idx], acciones: [...copia[idx].acciones, nuevaAccionTexto[idx].trim()] };
+                            setEtapasPlaneadas(copia);
+                            setNuevaAccionTexto(prev => ({ ...prev, [idx]: '' }));
+                          }
+                        }}
+                        className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 focus:border-guinda-400 outline-none"
+                        placeholder="+ Nueva acción…" />
+                      <button type="button" onClick={() => {
+                        if (!(nuevaAccionTexto[idx] || '').trim()) return;
+                        const copia = [...etapasPlaneadas];
+                        copia[idx] = { ...copia[idx], acciones: [...copia[idx].acciones, nuevaAccionTexto[idx].trim()] };
+                        setEtapasPlaneadas(copia);
+                        setNuevaAccionTexto(prev => ({ ...prev, [idx]: '' }));
+                      }} className="text-xs text-guinda-600 hover:text-guinda-700 font-medium px-1.5 py-1">
+                        <Plus size={13} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Quick-add etapa */}
+            <div className="flex items-center gap-2">
+              <input type="text" value={nuevaEtapaTexto}
+                onChange={e => setNuevaEtapaTexto(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && nuevaEtapaTexto.trim()) {
+                    e.preventDefault();
+                    setEtapasPlaneadas(prev => [...prev, { nombre: nuevaEtapaTexto.trim(), acciones: [] }]);
+                    setNuevaEtapaTexto('');
+                    setEtapaExpandida(etapasPlaneadas.length);
+                  }
+                }}
+                className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:border-guinda-400 outline-none"
+                placeholder="+ Nueva etapa…" />
+              <button type="button" onClick={() => {
+                if (!nuevaEtapaTexto.trim()) return;
+                setEtapasPlaneadas(prev => [...prev, { nombre: nuevaEtapaTexto.trim(), acciones: [] }]);
+                setNuevaEtapaTexto('');
+                setEtapaExpandida(etapasPlaneadas.length);
+              }} className="btn-secondary text-xs flex items-center gap-1">
+                <Plus size={13} /> Agregar
+              </button>
+            </div>
+
+            {etapasPlaneadas.length === 0 && (
+              <p className="text-xs text-gray-400 italic text-center py-3">Sin etapas. Puedes agregarlas ahora o después desde el proyecto.</p>
+            )}
+          </div>
+        )}
+
+        {pasoActual === 4 && (
+          <div className="space-y-4">
             <h2 className="text-lg font-semibold text-gray-900 mb-2">Revisión</h2>
             <p className="text-sm text-gray-500 mb-4">Verifica que la información sea correcta antes de crear el proyecto.</p>
             <div className="space-y-3 text-sm">
@@ -441,6 +546,7 @@ export default function NuevoProyecto() {
               <ResumenCampo titulo="Programa" valor={(() => { const p = programas.find(pr => String(pr.id) === String(datos.id_programa)); return p ? `${p.clave} — ${p.nombre}` : 'Sin programa específico'; })()} />
               <ResumenCampo titulo="Meta" valor={datos.meta_descripcion || 'Sin descripción'} />
               <ResumenCampo titulo="Indicadores" valor={datos.indicadores.length > 0 ? `${datos.indicadores.length} indicador(es)` : 'Ninguno'} />
+              <ResumenCampo titulo="Etapas" valor={etapasPlaneadas.length > 0 ? `${etapasPlaneadas.length} etapa(s), ${etapasPlaneadas.reduce((s, e) => s + e.acciones.length, 0)} acción(es)` : 'Sin estructura inicial'} />
               {datos.indicadores.map((ind, i) => (
                 <div key={i} className="pl-6 text-xs text-gray-500">
                   <span className="font-medium text-gray-700">{ind.nombre || '(sin nombre)'}:</span>{' '}
@@ -553,18 +659,10 @@ function FormIndicador({ indicador, indice, onChange, onEliminar, onToggle }) {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Meta global *</label>
-              <input type="number" step="any" value={indicador.meta_global} onChange={e => onChange('meta_global', e.target.value)}
-                className="input-base text-sm" placeholder={indicador.unidad === 'Porcentaje' ? '100' : indicador.unidad === 'Moneda_MXN' ? '150000000' : '500'} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Acumulación</label>
-              <select value={indicador.acumulacion} onChange={e => onChange('acumulacion', e.target.value)} className="input-base text-sm">
-                {ACUMULACIONES.map(a => <option key={a.valor} value={a.valor}>{a.etiqueta}</option>)}
-              </select>
-            </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Meta global (opcional)</label>
+            <input type="number" step="any" value={indicador.meta_global} onChange={e => onChange('meta_global', e.target.value)}
+              className="input-base text-sm" placeholder={indicador.unidad === 'Porcentaje' ? '100' : indicador.unidad === 'Moneda_MXN' ? '150000000' : '500'} />
           </div>
 
           {/* Temporalidad */}

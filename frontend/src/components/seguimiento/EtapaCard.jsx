@@ -13,6 +13,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useMemo } from 'react';
+import { calcularColorSemaforo } from '../../utils/semaforoColor';
 import { ChevronDown, Plus, AlertTriangle, Trash2, ListOrdered, CalendarClock, Flag, BarChart3, Pencil, SlidersHorizontal } from 'lucide-react';
 import PanelAccionInline from './PanelAccionInline';
 import HiloComentarios from '../comentarios/HiloComentarios';
@@ -114,7 +115,9 @@ export default function EtapaCard({ etapa, proyecto, etapas = [], soloLectura = 
           {/* Progreso + conteo */}
           <div className="flex items-center gap-3 flex-shrink-0">
             <div className="text-right hidden sm:block">
-              <span className="text-lg font-bold tabular-nums text-gray-700">{pctEtapa.toFixed(0)}%</span>
+              {(() => { const sem = calcularColorSemaforo(pctEtapa, etapa.fecha_inicio, etapa.fecha_fin); return (
+                <span className="text-lg font-bold tabular-nums" style={{ color: sem.color }} title={sem.tooltip || undefined}>{pctEtapa.toFixed(0)}%</span>
+              ); })()}
               <p className="text-[10px] text-gray-400 -mt-0.5">{completadas}/{totalAcc} acciones</p>
             </div>
             <ChevronDown size={18} className={`text-gray-300 transition-transform duration-200 ${expandida ? 'rotate-180' : ''}`} />
@@ -133,11 +136,32 @@ export default function EtapaCard({ etapa, proyecto, etapas = [], soloLectura = 
       {expandida && (
         <div className="px-4 pb-4">
           {/* Metadata compacta */}
-          {(etapa.descripcion || etapa.depende_de_nombre) && (
+          {(etapa.descripcion || etapa.depende_de_nombre || etapa.prioridad || etapa.tipo || etapa.instancia_responsable || etapa.fecha_limite) && (
             <div className="mb-3 text-xs text-gray-500 space-y-1">
               {etapa.descripcion && <p>{etapa.descripcion}</p>}
               {etapa.depende_de_nombre && (
                 <p className="text-orange-500">Depende de: {etapa.depende_de_nombre}</p>
+              )}
+              {(etapa.prioridad || etapa.tipo || etapa.instancia_responsable || etapa.fecha_limite) && (
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  {etapa.prioridad && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold border ${
+                      etapa.prioridad === 'Muy Alta' ? 'bg-red-50 text-red-700 border-red-200'
+                      : etapa.prioridad === 'Alta' ? 'bg-orange-50 text-orange-700 border-orange-200'
+                      : etapa.prioridad === 'Media' ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                      : 'bg-gray-50 text-gray-600 border-gray-200'
+                    }`}>{etapa.prioridad}</span>
+                  )}
+                  {etapa.tipo && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-indigo-50 text-indigo-600 border border-indigo-200">{etapa.tipo}</span>
+                  )}
+                  {etapa.instancia_responsable && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-blue-50 text-blue-700 border border-blue-200">{etapa.instancia_responsable}</span>
+                  )}
+                  {etapa.fecha_limite && (
+                    <span className="text-[10px] text-gray-500">Límite: {new Date(etapa.fecha_limite).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -280,9 +304,11 @@ export default function EtapaCard({ etapa, proyecto, etapas = [], soloLectura = 
                           </span>
                         )}
                         {/* Porcentaje */}
-                        <span className={`text-[11px] font-black tabular-nums w-9 text-right ${cfg.text}`}>
-                          {pct.toFixed(0)}%
-                        </span>
+                        {(() => { const sem = calcularColorSemaforo(pct, accion.fecha_inicio, accion.fecha_fin); return (
+                          <span className="text-[11px] font-black tabular-nums w-9 text-right" style={{ color: sem.color }} title={sem.tooltip || undefined}>
+                            {pct.toFixed(0)}%
+                          </span>
+                        ); })()}
                         {/* Fecha fin */}
                         {accion.fecha_fin && (
                           <span className={`text-[10px] tabular-nums w-16 text-right ${

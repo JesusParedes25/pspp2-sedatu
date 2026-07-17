@@ -30,26 +30,40 @@ async function obtenerDGs() {
   return resultado.rows;
 }
 
-// Lista usuarios, opcionalmente filtrados por DG
-async function obtenerUsuarios(idDg) {
+// Lista usuarios con filtros: DG, DA, nombre, excluir proyecto
+async function obtenerUsuarios(idDg, opciones = {}) {
+  const { id_direccion_area, nombre, excluir_proyecto } = opciones;
   const condiciones = ['u.activo = true'];
   const parametros = [];
 
   if (idDg) {
-    condiciones.push('u.id_dg = $1');
     parametros.push(idDg);
+    condiciones.push(`u.id_dg = $${parametros.length}`);
+  }
+  if (id_direccion_area) {
+    parametros.push(id_direccion_area);
+    condiciones.push(`u.id_direccion_area = $${parametros.length}`);
+  }
+  if (nombre) {
+    parametros.push(`%${nombre}%`);
+    condiciones.push(`u.nombre_completo ILIKE $${parametros.length}`);
+  }
+  if (excluir_proyecto) {
+    parametros.push(excluir_proyecto);
+    condiciones.push(`u.id NOT IN (SELECT id_usuario FROM proyecto_usuarios WHERE id_proyecto = $${parametros.length})`);
   }
 
   const resultado = await pool.query(`
     SELECT
       u.id, u.nombre_completo, u.correo, u.cargo, u.rol, u.id_dg,
-      dg.siglas AS dg_siglas,
-      da.siglas AS direccion_area_siglas
+      dg.nombre AS dg_nombre, dg.siglas AS dg_siglas,
+      u.id_direccion_area, da.nombre AS da_nombre, da.siglas AS direccion_area_siglas
     FROM usuarios u
     LEFT JOIN direcciones_generales dg ON dg.id = u.id_dg
     LEFT JOIN direcciones_area da ON da.id = u.id_direccion_area
     WHERE ${condiciones.join(' AND ')}
     ORDER BY u.nombre_completo
+    LIMIT 100
   `, parametros);
 
   return resultado.rows;

@@ -12,6 +12,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useRef } from 'react';
+import { calcularColorSemaforo } from '../../utils/semaforoColor';
 import { createPortal } from 'react-dom';
 import {
   Calendar, AlertTriangle, Shield, ChevronDown, BarChart3,
@@ -92,7 +93,9 @@ function TooltipAccion({ accion }) {
       <div>
         <div className="flex items-center gap-2 mb-1">
           <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${cfg.badge}`}>{cfg.label}</span>
-          <span className={`text-[11px] font-black tabular-nums ${cfg.text}`}>{pct.toFixed(0)}%</span>
+          {(() => { const sem = calcularColorSemaforo(pct, accion.fecha_inicio, accion.fecha_fin); return (
+            <span className="text-[11px] font-black tabular-nums" style={{ color: sem.color }} title={sem.tooltip || undefined}>{pct.toFixed(0)}%</span>
+          ); })()}
           {estaVencida && (
             <span className="text-[9px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full font-bold border border-orange-200">
               -{diasAtraso}d atraso
@@ -257,7 +260,9 @@ function TarjetaAccion({ accion, numero }) {
         </div>
       )}
       <div className="flex items-center justify-between mt-auto pt-1.5">
-        <span className={`text-[11px] font-black tabular-nums ${cfg.text}`}>{pct.toFixed(0)}%</span>
+        {(() => { const sem = calcularColorSemaforo(pct, accion.fecha_inicio, accion.fecha_fin); return (
+          <span className="text-[11px] font-black tabular-nums" style={{ color: sem.color }} title={sem.tooltip || undefined}>{pct.toFixed(0)}%</span>
+        ); })()}
         {accion.fecha_fin && (
           <span className={`text-[9px] ${estaVencida ? 'text-orange-500 font-semibold' : 'text-gray-400'}`}>
             {fmtCorto(accion.fecha_fin)}
@@ -323,7 +328,9 @@ function BloqueEtapa({ etapa, accionesDeEtapa, indice, abiertaInicial }) {
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
           <div className="hidden sm:block text-right">
-            <p className={`text-[15px] font-black tabular-nums ${cfg.text}`}>{pct.toFixed(0)}%</p>
+            {(() => { const sem = calcularColorSemaforo(pct, etapa.fecha_inicio, etapa.fecha_fin); return (
+              <p className="text-[15px] font-black tabular-nums" style={{ color: sem.color }} title={sem.tooltip || undefined}>{pct.toFixed(0)}%</p>
+            ); })()}
             <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden mt-0.5">
               <div className={`h-full rounded-full ${cfg.bar}`} style={{ width: `${Math.min(pct, 100)}%` }} />
             </div>

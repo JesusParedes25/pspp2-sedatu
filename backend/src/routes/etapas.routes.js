@@ -21,6 +21,7 @@ const router = Router();
 router.get('/:id/indicadores', indicadoresController.listarPorEtapa);
 router.get('/:id', etapasController.obtenerPorId);
 router.put('/:id', etapasController.actualizar);
+router.patch('/:id', etapasController.patchAvanceSemaforo);
 router.patch('/:id/campo', etapasController.patchCampo);
 router.delete('/:id', etapasController.eliminar);
 

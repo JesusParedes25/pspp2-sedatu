@@ -12,9 +12,44 @@
  * función login() de AuthContext.
  * ─────────────────────────────────────────────────────────────────
  */
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useUI } from '../context/UIContext';
+
+const DEMO_USERS = [
+  { correo: 'jesus.paredes@sedatu.gob.mx',     nombre: 'Jesús Paredes',           rol_global: 'superadmin', dg: 'DGOTU'    },
+  { correo: 'subsecretario@sedatu.gob.mx',      nombre: 'Alejandro Ríos Montoya',  rol_global: 'ejecutivo',  dg: 'DGOTU'    },
+  { correo: 'pablo.director@sedatu.gob.mx',     nombre: 'Pablo Hernández Rivas',   rol_global: 'direccion',  dg: 'DGOTU'    },
+  { correo: 'ana.garcia@sedatu.gob.mx',         nombre: 'Ana García López',        rol_global: 'direccion',  dg: 'DGTIC'    },
+  { correo: 'enlace.dgomr@sedatu.gob.mx',       nombre: 'Laura Méndez Castillo',   rol_global: 'enlace',     dg: 'DGOMR'    },
+  { correo: 'enlace.dgpv@sedatu.gob.mx',        nombre: 'Roberto Sánchez Fuentes', rol_global: 'enlace',     dg: 'DGPV'     },
+  { correo: 'enlace.ran@sedatu.gob.mx',         nombre: 'Mónica Torres Vega',      rol_global: 'enlace',     dg: 'DGOTU'    },
+  { correo: 'f.espinoza@sedatu.gob.mx',         nombre: 'Fernando Espinoza Leal',  rol_global: 'enlace',     dg: 'DGGIRDCC' },
+  { correo: 'c.jimenez@sedatu.gob.mx',          nombre: 'Carlos Jiménez Peña',     rol_global: 'enlace',     dg: 'DGIE'     },
+  { correo: 'i.castillo@sedatu.gob.mx',         nombre: 'Iván Castillo Domínguez', rol_global: 'enlace',     dg: 'DGOMR'    },
+  { correo: 'v.campos@sedatu.gob.mx',           nombre: 'Valeria Campos Duarte',   rol_global: 'enlace',     dg: 'DGICAM'   },
+  { correo: 'roberto.sanchez@sedatu.gob.mx',    nombre: 'Roberto Sánchez Medina',  rol_global: 'enlace',     dg: 'DGOTU'    },
+  { correo: 's.gutierrez@sedatu.gob.mx',        nombre: 'Sofía Gutiérrez Ávila',   rol_global: 'enlace',     dg: 'DGTIC'    },
+  { correo: 'c.ramirez@sedatu.gob.mx',          nombre: 'Claudia Ramírez Ortega',  rol_global: 'enlace',     dg: 'DGPTM'    },
+  { correo: 'miguel.reyes@sedatu.gob.mx',       nombre: 'Miguel Ángel Reyes',      rol_global: 'enlace',     dg: 'DGPTM'    },
+  { correo: 'p.luna@sedatu.gob.mx',             nombre: 'Patricia Luna Serrano',   rol_global: 'enlace',     dg: 'DGRPE'    },
+  { correo: 'a.vazquez@sedatu.gob.mx',          nombre: 'Adriana Vázquez Moreno',  rol_global: 'enlace',     dg: 'DGIMRC'   },
+  { correo: 'carlos.hernandez@sedatu.gob.mx',   nombre: 'Carlos Hernández Ruiz',   rol_global: 'enlace',     dg: 'DGPDI'    },
+  { correo: 'd.morales@sedatu.gob.mx',          nombre: 'Diego Morales Ibáñez',    rol_global: 'enlace',     dg: 'DGPP'     },
+  { correo: 'h.reyes@sedatu.gob.mx',            nombre: 'Héctor Reyes Blanco',     rol_global: 'enlace',     dg: 'DGTN'     },
+  { correo: 'laura.jimenez@sedatu.gob.mx',      nombre: 'Laura Jiménez Vega',      rol_global: 'enlace',     dg: 'DGPV'     },
+  { correo: 'maria.torres@sedatu.gob.mx',       nombre: 'María Fernanda Torres',   rol_global: 'enlace',     dg: 'DGCOR'    },
+  { correo: 'patricia.olvera@sedatu.gob.mx',    nombre: 'Patricia Olvera Díaz',    rol_global: 'enlace',     dg: 'DGOMR'    },
+  { correo: 'fernando.castillo@sedatu.gob.mx',  nombre: 'Fernando Castillo Mora',  rol_global: 'externo',    dg: 'DGGIRDCC' },
+];
+
+const ROL_CONFIG = {
+  superadmin: { label: 'Superadmin',  cls: 'bg-red-100 text-red-700'      },
+  ejecutivo:  { label: 'Ejecutivo',   cls: 'bg-purple-100 text-purple-700' },
+  direccion:  { label: 'Dirección',   cls: 'bg-blue-100 text-blue-700'     },
+  enlace:     { label: 'Enlace',      cls: 'bg-green-100 text-green-700'   },
+  externo:    { label: 'Externo',     cls: 'bg-orange-100 text-orange-700' },
+};
 
 export default function Login() {
   const { login } = useAuth();
@@ -23,6 +58,14 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
+  const [busqueda, setBusqueda] = useState('');
+
+  const usuariosFiltrados = useMemo(() => {
+    const q = busqueda.toLowerCase();
+    return DEMO_USERS.filter(u =>
+      !q || u.nombre.toLowerCase().includes(q) || u.dg.toLowerCase().includes(q) || u.rol_global.includes(q)
+    );
+  }, [busqueda]);
 
   async function manejarSubmit(e) {
     e.preventDefault();
@@ -128,37 +171,52 @@ export default function Login() {
           </form>
 
           {/* Selector rápido de usuarios de demostración */}
-          <div className="mt-8">
-            <p className="text-xs text-gray-400 text-center mb-3">Usuarios de demostración <span className="font-mono text-gray-500">(pass: demo2026)</span></p>
-            <div className="grid grid-cols-1 gap-1.5">
-              {[
-                { correo: 'jesus.paredes@sedatu.gob.mx', nombre: 'Jesús Paredes', rol: 'Responsable', dg: 'DGOTU / DAOT' },
-                { correo: 'pablo.director@sedatu.gob.mx', nombre: 'Pablo (Director)', rol: 'Directivo', dg: 'DGOTU / DAOT' },
-                { correo: 'enlace.dgomr@sedatu.gob.mx', nombre: 'Enlace DGOMR', rol: 'Responsable', dg: 'DGOMR' },
-                { correo: 'enlace.dgpv@sedatu.gob.mx', nombre: 'Enlace DGPV', rol: 'Responsable', dg: 'DGPV' },
-                { correo: 'enlace.ran@sedatu.gob.mx', nombre: 'Enlace RAN', rol: 'Operativo', dg: 'DGOTU' },
-                { correo: 'subsecretario@sedatu.gob.mx', nombre: 'Subsecretario SOTUV', rol: 'Ejecutivo', dg: 'DGOTU' },
-              ].map(u => (
-                <button
-                  key={u.correo}
-                  type="button"
-                  onClick={() => { setCorreo(u.correo); setPassword('demo2026'); }}
-                  className={`text-left px-3 py-2 rounded-lg border text-xs transition-colors ${
-                    correo === u.correo
-                      ? 'border-guinda-300 bg-guinda-50 text-guinda-700'
-                      : 'border-gray-200 hover:border-guinda-200 hover:bg-guinda-50/50 text-gray-600'
-                  }`}
-                >
-                  <span className="font-medium">{u.nombre}</span>
-                  <span className="text-gray-400 ml-1.5">{u.dg}</span>
-                  <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                    u.rol === 'Ejecutivo' ? 'bg-purple-100 text-purple-600' :
-                    u.rol === 'Directivo' ? 'bg-blue-100 text-blue-600' :
-                    u.rol === 'Responsable' ? 'bg-green-100 text-green-600' :
-                    'bg-gray-100 text-gray-500'
-                  }`}>{u.rol}</span>
-                </button>
-              ))}
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-gray-400">
+                Usuarios demo <span className="font-mono text-gray-500 bg-gray-100 px-1 rounded">demo2026</span>
+              </p>
+              <span className="text-[10px] text-gray-400">{DEMO_USERS.length} usuarios</span>
+            </div>
+
+            {/* Buscador */}
+            <input
+              type="text"
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              placeholder="Filtrar por nombre o DG…"
+              className="w-full text-xs border border-gray-200 rounded-lg px-3 py-1.5 mb-2 focus:outline-none focus:border-guinda-300 bg-gray-50"
+            />
+
+            {/* Lista scrollable */}
+            <div className="border border-gray-100 rounded-lg overflow-y-auto" style={{ maxHeight: 260 }}>
+              {usuariosFiltrados.map(u => {
+                const cfg = ROL_CONFIG[u.rol_global] || { label: u.rol_global, cls: 'bg-gray-100 text-gray-500' };
+                const activo = correo === u.correo;
+                return (
+                  <button
+                    key={u.correo}
+                    type="button"
+                    onClick={() => { setCorreo(u.correo); setPassword('demo2026'); }}
+                    className={`w-full flex items-center gap-2 text-left px-3 py-2 border-b last:border-0 text-xs transition-colors ${
+                      activo
+                        ? 'bg-guinda-50 border-l-2 border-l-guinda-500'
+                        : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 text-[10px] font-bold text-gray-600">
+                      {u.nombre.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`font-medium truncate ${activo ? 'text-guinda-700' : 'text-gray-700'}`}>{u.nombre}</p>
+                      <p className="text-gray-400 truncate">{u.dg}</p>
+                    </div>
+                    <span className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium ${cfg.cls}`}>
+                      {cfg.label}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

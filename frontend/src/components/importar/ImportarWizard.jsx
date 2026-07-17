@@ -1,27 +1,29 @@
 /**
  * ARCHIVO: ImportarWizard.jsx
- * PROPÓSITO: Contenedor principal del wizard de importación universal.
+ * PROPÓSITO: Contenedor principal del wizard de importación.
  *
- * Gestiona el estado global del wizard, la navegación entre pasos
- * (libre, no lineal), sugerencia de plantilla, y stepper visual.
+ * Flujo de 5 pasos:
+ *   1. Subir archivo (auto-detecta headers)
+ *   2. Nivel de la fila (Componentes / Acciones / Tareas)
+ *   3. Mapeo de propiedades
+ *   4. Relación jerárquica (solo si Acciones o Tareas)
+ *   5. Preview y confirmar
  */
-import { useState, useCallback, useEffect } from 'react';
-import { X, Upload, Table2, Layers, Map, Replace, Eye } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { X, Upload, Layers, Map, Link2, Eye, Sparkles } from 'lucide-react';
 import PasoUpload from './PasoUpload';
-import PasoEncabezados from './PasoEncabezados';
 import PasoNivel from './PasoNivel';
 import PasoMapeo from './PasoMapeo';
-import PasoValores from './PasoValores';
+import PasoRelacion from './PasoRelacion';
 import PasoPreview from './PasoPreview';
+import PasoMultiHoja from './PasoMultiHoja';
 import * as importarApi from '../../api/importar';
-import * as plantillasApi from '../../api/plantillas';
 
-const PASOS = [
+const PASOS_BASE = [
   { id: 'upload', etiqueta: 'Subir archivo', icono: Upload },
-  { id: 'encabezados', etiqueta: 'Encabezados', icono: Table2 },
-  { id: 'nivel', etiqueta: 'Nivel', icono: Layers },
-  { id: 'mapeo', etiqueta: 'Mapeo', icono: Map },
-  { id: 'valores', etiqueta: 'Valores', icono: Replace },
+  { id: 'nivel', etiqueta: 'Nivel de la fila', icono: Layers },
+  { id: 'mapeo', etiqueta: 'Mapeo de propiedades', icono: Map },
+  { id: 'relacion', etiqueta: 'Relación jerárquica', icono: Link2 },
   { id: 'preview', etiqueta: 'Preview', icono: Eye },
 ];
 
@@ -43,8 +45,7 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
     superHeaderRow: null,
     dataStartRow: 2,
     rowLevel: 'etapa',
-    parentEntityId: null,
-    hierarchy: { enabled: false, column: null, valueMap: {} },
+    parentColumn: null,
     columnMap: {},
     pivotBlocks: [],
     valueMap: {},
@@ -56,15 +57,23 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
   const [sampleRows, setSampleRows] = useState([]);
   const [totalDataRows, setTotalDataRows] = useState(0);
 
-  // Plantilla sugerida
-  const [sugerencia, setSugerencia] = useState(null);
-  const [plantillaAplicada, setPlantillaAplicada] = useState(null);
+  // Multi-hoja (formato universal)
+  const [multiHoja, setMultiHoja] = useState(null);
 
   // Loading / error
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState(null);
+  const [sugerencia, setSugerencia] = useState(null);
 
-  // Navegar a un paso
+  // Determinar si el paso Relación es necesario
+  const necesitaRelacion = config.rowLevel === 'accion' || config.rowLevel === 'subaccion';
+
+  // Pasos visibles (filtrar Relación si es Componentes)
+  const pasosVisibles = necesitaRelacion
+    ? PASOS_BASE
+    : PASOS_BASE.filter(p => p.id !== 'relacion');
+
+  // Navegar a un paso (por índice en pasosVisibles)
   const irAPaso = useCallback((idx) => {
     setPasoActivo(idx);
     setPasosVisitados(prev => new Set([...prev, idx]));
@@ -73,17 +82,43 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
   // Avanzar al siguiente paso
   const avanzar = useCallback(() => {
     const siguiente = pasoActivo + 1;
-    if (siguiente < PASOS.length) {
+    if (siguiente < pasosVisibles.length) {
       irAPaso(siguiente);
     }
-  }, [pasoActivo, irAPaso]);
+  }, [pasoActivo, irAPaso, pasosVisibles.length]);
 
   // Actualizar config parcialmente
   const actualizarConfig = useCallback((parcial) => {
     setConfig(prev => ({ ...prev, ...parcial }));
   }, []);
 
-  // Cuando se sube el archivo exitosamente
+  // Aplicar una plantilla sugerida: cargar su config completa y saltar a Preview
+  const aplicarPlantilla = useCallback((plantilla) => {
+    const c = plantilla.config;
+    const nuevoRowLevel = c.rowLevel || 'etapa';
+    const conRelacion = nuevoRowLevel === 'accion' || nuevoRowLevel === 'subaccion';
+    const nuevosPasos = conRelacion
+      ? PASOS_BASE
+      : PASOS_BASE.filter(p => p.id !== 'relacion');
+    const idxPreview = nuevosPasos.findIndex(p => p.id === 'preview');
+
+    setConfig({
+      headerRow: c.headerRow || 1,
+      superHeaderRow: c.superHeaderRow || null,
+      dataStartRow: c.dataStartRow || 2,
+      rowLevel: nuevoRowLevel,
+      parentColumn: c.parentColumn || null,
+      columnMap: c.columnMap || {},
+      pivotBlocks: c.pivotBlocks || [],
+      valueMap: c.valueMap || {},
+      duplicateKey: c.duplicateKey || null,
+      hierarchy: c.hierarchy || null,
+    });
+    setSugerencia(null);
+    irAPaso(idxPreview);
+  }, [irAPaso]);
+
+  // Cuando se sube el archivo exitosamente — auto-detecta headers
   const onUploadExitoso = useCallback(async (resultado) => {
     setFileId(resultado.fileId);
     setFilename(resultado.filename);
@@ -92,8 +127,13 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
     setVistaPrevia(resultado.vistaPrevia);
     setError(null);
 
+    // Si se detectó formato multi-hoja, activar flujo simplificado
+    if (resultado.multiHoja) {
+      setMultiHoja(resultado.multiHoja);
+      return; // No avanzar al wizard clásico
+    }
+
     // Heurística: detectar si fila 1 es super-header
-    // Indicadores: pocos valores únicos (agrupados/repetidos) vs fila 2 con más variedad
     const fila1 = resultado.vistaPrevia[0] || [];
     const fila2 = resultado.vistaPrevia[1] || [];
     const unicos1 = new Set(fila1.filter(c => c && String(c).trim()).map(c => String(c).trim())).size;
@@ -111,87 +151,46 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
         superHeaderRow: shRow,
         dataStartRow: dRow,
       });
-      const h = headersRes.datos.headers;
-      const sh = headersRes.datos.superHeaders;
-      setHeaders(h);
-      setSuperHeaders(sh);
+      setHeaders(headersRes.datos.headers);
+      setSuperHeaders(headersRes.datos.superHeaders);
       setSampleRows(headersRes.datos.sampleRows);
       setTotalDataRows(headersRes.datos.totalDataRows);
       actualizarConfig({ headerRow: hRow, superHeaderRow: shRow, dataStartRow: dRow });
 
-      // Intentar sugerir plantilla (incluir superHeaders para matching de templates pivotados)
-      const sug = await importarApi.sugerirPlantilla(h, sh);
-      if (sug.datos) {
-        setSugerencia(sug.datos);
+      // Intentar sugerir plantilla por coincidencia de headers
+      try {
+        const sugRes = await importarApi.sugerirPlantilla(
+          headersRes.datos.headers,
+          headersRes.datos.superHeaders
+        );
+        if (sugRes.datos) {
+          setSugerencia(sugRes.datos);
+        }
+      } catch (_) {
+        // No fatal — sin sugerencia, el wizard continúa normal
       }
     } catch (e) {
-      // No fatal — el usuario puede configurar manualmente
+      // No fatal — headers quedan vacíos pero el wizard sigue
     }
 
     avanzar();
   }, [avanzar, actualizarConfig]);
 
-  // Aplicar plantilla sugerida → saltar a preview
-  const aplicarPlantilla = useCallback((plantilla) => {
-    const c = plantilla.config;
-    setConfig(c);
-    setPlantillaAplicada(plantilla);
-    // Saltar directo a preview (paso 5)
-    irAPaso(5);
-    // Marcar todos los pasos como visitados
-    setPasosVisitados(new Set([0, 1, 2, 3, 4, 5]));
-  }, [irAPaso]);
-
-  // Extraer headers al cambiar configuración de encabezados
-  const reextraerHeaders = useCallback(async (headerRow, superHeaderRow, dataStartRow) => {
-    if (!fileId) return;
-    setCargando(true);
-    try {
-      const res = await importarApi.extraerHeaders({
-        fileId, headerRow, superHeaderRow, dataStartRow, sheetIndex,
-      });
-      setHeaders(res.datos.headers);
-      setSuperHeaders(res.datos.superHeaders);
-      setSampleRows(res.datos.sampleRows);
-      setTotalDataRows(res.datos.totalDataRows);
-      actualizarConfig({ headerRow, superHeaderRow, dataStartRow });
-    } catch (e) {
-      setError(e.response?.data?.mensaje || e.message);
-    } finally {
-      setCargando(false);
-    }
-  }, [fileId, sheetIndex, actualizarConfig]);
-
-  // Renderizar paso activo
+  // Renderizar paso activo (basado en pasosVisibles)
   const renderPaso = () => {
-    switch (pasoActivo) {
-      case 0:
+    const pasoId = pasosVisibles[pasoActivo]?.id;
+    switch (pasoId) {
+      case 'upload':
         return <PasoUpload onExito={onUploadExitoso} error={error} setError={setError} />;
-      case 1:
-        return (
-          <PasoEncabezados
-            vistaPrevia={vistaPrevia}
-            config={config}
-            headers={headers}
-            superHeaders={superHeaders}
-            sampleRows={sampleRows}
-            totalDataRows={totalDataRows}
-            onCambiar={reextraerHeaders}
-            onAvanzar={avanzar}
-            sugerencia={sugerencia}
-            onAplicarPlantilla={aplicarPlantilla}
-          />
-        );
-      case 2:
+      case 'nivel':
         return (
           <PasoNivel
             config={config}
             onCambiar={actualizarConfig}
             onAvanzar={avanzar}
-            proyectoId={proyectoId}
           />
         );
-      case 3:
+      case 'mapeo':
         return (
           <PasoMapeo
             headers={headers}
@@ -201,19 +200,20 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
             totalDataRows={totalDataRows}
             onCambiar={actualizarConfig}
             onAvanzar={avanzar}
+            proyectoId={proyectoId}
           />
         );
-      case 4:
+      case 'relacion':
         return (
-          <PasoValores
-            config={config}
+          <PasoRelacion
             headers={headers}
             sampleRows={sampleRows}
+            config={config}
             onCambiar={actualizarConfig}
             onAvanzar={avanzar}
           />
         );
-      case 5:
+      case 'preview':
         return (
           <PasoPreview
             fileId={fileId}
@@ -240,36 +240,67 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
           </button>
         </div>
 
-        {/* Stepper */}
-        <div className="px-6 py-3 border-b bg-gray-50">
-          <div className="flex items-center gap-1">
-            {PASOS.map((paso, idx) => {
-              const Icono = paso.icono;
-              const activo = idx === pasoActivo;
-              const visitado = pasosVisitados.has(idx);
-              const clickable = visitado || idx === 0;
+        {/* Stepper — oculto en modo multi-hoja */}
+        {!multiHoja && (
+          <div className="px-6 py-3 border-b bg-gray-50">
+            <div className="flex items-center gap-1">
+              {pasosVisibles.map((paso, idx) => {
+                const Icono = paso.icono;
+                const activo = idx === pasoActivo;
+                const visitado = pasosVisitados.has(idx);
+                const clickable = visitado || idx === 0;
 
-              return (
-                <button
-                  key={paso.id}
-                  onClick={() => clickable && irAPaso(idx)}
-                  disabled={!clickable}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    activo
-                      ? 'bg-blue-600 text-white'
-                      : visitado
-                        ? 'bg-blue-50 text-blue-700 hover:bg-blue-100 cursor-pointer'
-                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  }`}
-                >
-                  <Icono size={14} />
-                  <span className="hidden sm:inline">{paso.etiqueta}</span>
-                  <span className="sm:hidden">{idx + 1}</span>
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    key={paso.id}
+                    onClick={() => clickable && irAPaso(idx)}
+                    disabled={!clickable}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                      activo
+                        ? 'bg-blue-600 text-white'
+                        : visitado
+                          ? 'bg-blue-50 text-blue-700 hover:bg-blue-100 cursor-pointer'
+                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    <Icono size={14} />
+                    <span className="hidden sm:inline">{paso.etiqueta}</span>
+                    <span className="sm:hidden">{idx + 1}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
+        {multiHoja && (
+          <div className="px-6 py-2 border-b bg-green-50 flex items-center justify-between">
+            <p className="text-xs text-green-700 font-medium">
+              📊 Formato multi-hoja detectado — Importación rápida
+            </p>
+            <button
+              onClick={async () => {
+                setMultiHoja(null);
+                // Extraer headers si no se hizo antes
+                if (headers.length === 0 && fileId) {
+                  try {
+                    const headersRes = await importarApi.extraerHeaders({
+                      fileId, headerRow: 1, superHeaderRow: null, dataStartRow: 2,
+                    });
+                    setHeaders(headersRes.datos.headers);
+                    setSuperHeaders(headersRes.datos.superHeaders);
+                    setSampleRows(headersRes.datos.sampleRows);
+                    setTotalDataRows(headersRes.datos.totalDataRows);
+                    actualizarConfig({ headerRow: 1, superHeaderRow: null, dataStartRow: 2 });
+                  } catch (_) {}
+                }
+                avanzar();
+              }}
+              className="text-[11px] text-gray-500 hover:text-gray-700 underline"
+            >
+              Usar formato clásico
+            </button>
+          </div>
+        )}
 
         {/* Contenido del paso */}
         <div className="flex-1 overflow-auto p-6">
@@ -279,7 +310,46 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
               <span className="ml-2 text-sm text-gray-500">Procesando...</span>
             </div>
           )}
-          {!cargando && renderPaso()}
+          {!cargando && multiHoja && (
+            <PasoMultiHoja
+              fileId={fileId}
+              multiHoja={multiHoja}
+              proyectoId={proyectoId}
+              onImportado={onImportado}
+              onCerrar={onCerrar}
+            />
+          )}
+          {!cargando && !multiHoja && (
+            <>
+              {sugerencia && pasosVisibles[pasoActivo]?.id !== 'upload' && pasosVisibles[pasoActivo]?.id !== 'preview' && (
+                <div className="flex items-center gap-3 p-3 mb-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <Sparkles size={18} className="text-amber-500 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-amber-800">
+                      Plantilla sugerida: <strong>{sugerencia.plantilla.nombre}</strong> ({sugerencia.score}% coincidencia)
+                    </p>
+                    {sugerencia.plantilla.descripcion && (
+                      <p className="text-xs text-amber-600 mt-0.5">{sugerencia.plantilla.descripcion}</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => aplicarPlantilla(sugerencia.plantilla)}
+                    className="px-3 py-1.5 bg-amber-500 text-white text-xs font-medium rounded-md hover:bg-amber-600 shrink-0"
+                  >
+                    Aplicar y saltar a Preview
+                  </button>
+                  <button
+                    onClick={() => setSugerencia(null)}
+                    className="text-amber-400 hover:text-amber-600 shrink-0"
+                    title="Descartar sugerencia"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              )}
+              {renderPaso()}
+            </>
+          )}
         </div>
       </div>
     </div>

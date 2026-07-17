@@ -11,16 +11,17 @@
  * los existentes se actualizan vía PUT, y los eliminados vía DELETE.
  * ─────────────────────────────────────────────────────────────────
  */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Plus, Trash2, ChevronDown, ChevronUp, ImagePlus } from 'lucide-react';
 import * as catalogosApi from '../../api/catalogos';
 import * as proyectosApi from '../../api/proyectos';
 import * as indicadoresApi from '../../api/indicadores';
+import * as etapasApi from '../../api/etapas';
+import * as accionesApi from '../../api/acciones';
 
 const TIPOS_INDICADOR = [
   { valor: 'Avance_fisico', etiqueta: 'Avance físico' },
   { valor: 'Avance_financiero', etiqueta: 'Avance financiero' },
-  { valor: 'Monto', etiqueta: 'Monto ($)' },
   { valor: 'Cobertura', etiqueta: 'Cobertura' },
   { valor: 'Beneficiarios', etiqueta: 'Beneficiarios' },
   { valor: 'Gestion', etiqueta: 'Gestión' },
@@ -33,17 +34,12 @@ const UNIDADES_INDICADOR = [
   { valor: 'Numero', etiqueta: 'Número (personalizable)' },
 ];
 
-const ACUMULACIONES = [
-  { valor: 'Suma', etiqueta: 'Suma' },
-  { valor: 'Ultimo_valor', etiqueta: 'Último valor' },
-  { valor: 'Promedio', etiqueta: 'Promedio' },
-];
 
 const INDICADOR_NUEVO = () => ({
   _key: Date.now() + Math.random(),
   _esNuevo: true,
   nombre: '', tipo: 'Avance_fisico', unidad: 'Numero',
-  unidad_personalizada: '', acumulacion: 'Suma',
+  unidad_personalizada: '',
   meta_global: '', temporalidad: 'Global',
   anio_inicio: new Date().getFullYear(), anio_fin: new Date().getFullYear(),
   metas_anuales: [], descripcion: '', _abierto: true,
@@ -58,6 +54,13 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
   const [textoEtiqueta, setTextoEtiqueta]   = useState('');
   const [imagenPortada, setImagenPortada]   = useState(null);
   const [previewPortada, setPreviewPortada] = useState(proyecto.imagen_url || null);
+  const [estructuraEtapas, setEstructuraEtapas] = useState([]);
+  const [accionesPorEtapa, setAccionesPorEtapa] = useState({});
+  const [etapaExpandida, setEtapaExpandida] = useState(null);
+  const [nuevaEtapaNombre, setNuevaEtapaNombre] = useState('');
+  const [nuevaAccionNombre, setNuevaAccionNombre] = useState({});
+  const [creandoEtapa, setCreandoEtapa] = useState(false);
+  const [creandoAccion, setCreandoAccion] = useState({});
   const refEtiqueta = useRef(null);
   const refImagen   = useRef(null);
 
@@ -110,6 +113,84 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
     }
     cargar();
   }, [proyecto.id]);
+
+  // ── Estructura: Etapas + Acciones ──
+  const cargarEstructura = useCallback(async () => {
+    try {
+      const res = await etapasApi.obtenerEtapasProyecto(proyecto.id);
+      setEstructuraEtapas(res.datos || []);
+    } catch { /* silenciar */ }
+  }, [proyecto.id]);
+
+  useEffect(() => { cargarEstructura(); }, [cargarEstructura]);
+
+  async function cargarAccionesEtapa(etapaId) {
+    try {
+      const res = await accionesApi.obtenerAccionesEtapa(etapaId);
+      setAccionesPorEtapa(prev => ({ ...prev, [etapaId]: res.datos || [] }));
+    } catch { /* silenciar */ }
+  }
+
+  async function agregarEtapaRapida() {
+    if (!nuevaEtapaNombre.trim() || creandoEtapa) return;
+    setCreandoEtapa(true);
+    try {
+      await etapasApi.crearEtapa(proyecto.id, { nombre: nuevaEtapaNombre.trim() });
+      setNuevaEtapaNombre('');
+      cargarEstructura();
+    } catch { /* silenciar */ }
+    finally { setCreandoEtapa(false); }
+  }
+
+  async function eliminarEtapaRapida(etapaId) {
+    if (!confirm('¿Eliminar esta etapa y todas sus acciones?')) return;
+    try {
+      await etapasApi.eliminarEtapa(etapaId);
+      cargarEstructura();
+    } catch { /* silenciar */ }
+  }
+
+  async function agregarAccionRapida(etapaId) {
+    const nombre = (nuevaAccionNombre[etapaId] || '').trim();
+    if (!nombre || creandoAccion[etapaId]) return;
+    setCreandoAccion(prev => ({ ...prev, [etapaId]: true }));
+    try {
+      await accionesApi.crearAccionEnEtapa(etapaId, { nombre });
+      setNuevaAccionNombre(prev => ({ ...prev, [etapaId]: '' }));
+      cargarAccionesEtapa(etapaId);
+    } catch { /* silenciar */ }
+    finally { setCreandoAccion(prev => ({ ...prev, [etapaId]: false })); }
+  }
+
+  async function eliminarAccionRapida(accionId, etapaId) {
+    if (!confirm('¿Eliminar esta acción?')) return;
+    try {
+      await accionesApi.eliminarAccion(accionId);
+      cargarAccionesEtapa(etapaId);
+      cargarEstructura();
+    } catch { /* silenciar */ }
+  }
+
+  async function agregarAccionDirectaRapida() {
+    const nombre = (nuevaAccionNombre['directa'] || '').trim();
+    if (!nombre || creandoAccion['directa']) return;
+    setCreandoAccion(prev => ({ ...prev, directa: true }));
+    try {
+      await accionesApi.crearAccionEnProyecto(proyecto.id, { nombre });
+      setNuevaAccionNombre(prev => ({ ...prev, directa: '' }));
+      cargarAccionesDirectasModal();
+    } catch { /* silenciar */ }
+    finally { setCreandoAccion(prev => ({ ...prev, directa: false })); }
+  }
+
+  const [accionesDirectasModal, setAccionesDirectasModal] = useState([]);
+  const cargarAccionesDirectasModal = useCallback(async () => {
+    try {
+      const res = await accionesApi.obtenerAccionesDirectas(proyecto.id);
+      setAccionesDirectasModal(res.datos || []);
+    } catch { /* silenciar */ }
+  }, [proyecto.id]);
+  useEffect(() => { cargarAccionesDirectasModal(); }, [cargarAccionesDirectasModal]);
 
   async function obtenerIndicadoresProyecto(proyectoId) {
     try {
@@ -175,20 +256,31 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
     if (!datos.nombre.trim() || enviando) return;
     setEnviando(true);
     try {
+      // 1. Verificar cascade deletes antes de proceder
+      const eliminados = datos.indicadores.filter(i => i._eliminado && !i._esNuevo);
+      for (const ind of eliminados) {
+        const check = await indicadoresApi.eliminarIndicadorConConfirm(ind.id, false);
+        if (check.requiere_confirmacion) {
+          const ok = confirm(check.mensaje + '\n\n¿Deseas continuar?');
+          if (!ok) { setEnviando(false); return; }
+        }
+      }
+
+      // 2. Actualizar proyecto (solo campos de proyecto, no indicadores)
       await proyectosApi.actualizarProyecto(proyecto.id, {
         ...datos,
         indicadores: undefined,
       });
 
-      // Imagen
+      // 3. Imagen
       if (imagenPortada) {
         await proyectosApi.subirImagenProyecto(proyecto.id, imagenPortada);
       }
 
-      // Indicadores: crear nuevos, actualizar existentes, eliminar marcados
+      // 4. Indicadores: eliminar confirmados, crear nuevos, actualizar existentes
       for (const ind of datos.indicadores) {
         if (ind._eliminado && !ind._esNuevo) {
-          await indicadoresApi.eliminarIndicador(ind.id);
+          await indicadoresApi.eliminarIndicadorConConfirm(ind.id, true);
         } else if (ind._esNuevo && !ind._eliminado && ind.nombre.trim()) {
           await indicadoresApi.crearIndicador(proyecto.id, ind);
         } else if (!ind._esNuevo && !ind._eliminado && ind.nombre.trim()) {
@@ -399,6 +491,102 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
               </div>
             </Section>
 
+            {/* ── SECCIÓN: Estructura ── */}
+            <Section titulo="Estructura del proyecto">
+              <p className="text-xs text-gray-400 mb-1">Administra las etapas y acciones del proyecto.</p>
+
+              {/* Etapas existentes */}
+              {estructuraEtapas.map((et, idx) => (
+                <div key={et.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 cursor-pointer"
+                    onClick={() => {
+                      const abrir = etapaExpandida !== et.id;
+                      setEtapaExpandida(abrir ? et.id : null);
+                      if (abrir && !accionesPorEtapa[et.id]) cargarAccionesEtapa(et.id);
+                    }}>
+                    <span className="w-5 h-5 bg-guinda-500 text-white rounded text-[10px] font-bold flex items-center justify-center flex-shrink-0">{idx + 1}</span>
+                    <span className="flex-1 text-sm font-medium text-gray-800 truncate">{et.nombre}</span>
+                    <span className="text-[10px] text-gray-400">{et.total_acciones || 0} acc.</span>
+                    <button type="button" onClick={e => { e.stopPropagation(); eliminarEtapaRapida(et.id); }}
+                      className="text-gray-300 hover:text-red-500 p-0.5"><Trash2 size={13} /></button>
+                    <ChevronDown size={14} className={`text-gray-400 transition-transform ${etapaExpandida === et.id ? 'rotate-180' : ''}`} />
+                  </div>
+                  {etapaExpandida === et.id && (
+                    <div className="px-3 py-2 space-y-1 border-t border-gray-100">
+                      {(accionesPorEtapa[et.id] || []).map(acc => (
+                        <div key={acc.id} className="flex items-center gap-2 py-1 pl-2 border-l-2 border-guinda-200">
+                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                            acc.estado === 'Completada' ? 'bg-emerald-500' : acc.estado === 'En_proceso' ? 'bg-orange-400' : 'bg-gray-300'
+                          }`} />
+                          <span className="flex-1 text-xs text-gray-700 truncate">{acc.nombre}</span>
+                          <span className="text-[10px] text-gray-400">{parseFloat(acc.porcentaje_avance || 0).toFixed(0)}%</span>
+                          <button type="button" onClick={() => eliminarAccionRapida(acc.id, et.id)}
+                            className="text-gray-300 hover:text-red-500 p-0.5"><Trash2 size={11} /></button>
+                        </div>
+                      ))}
+                      {/* Quick-add acción */}
+                      <div className="flex items-center gap-1.5 pt-1">
+                        <input type="text" value={nuevaAccionNombre[et.id] || ''}
+                          onChange={e => setNuevaAccionNombre(prev => ({ ...prev, [et.id]: e.target.value }))}
+                          onKeyDown={e => e.key === 'Enter' && agregarAccionRapida(et.id)}
+                          className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 focus:border-guinda-400 outline-none"
+                          placeholder="+ Nueva acción…" />
+                        <button type="button" onClick={() => agregarAccionRapida(et.id)}
+                          disabled={creandoAccion[et.id]}
+                          className="text-xs text-guinda-600 hover:text-guinda-700 font-medium px-1.5 py-1">
+                          <Plus size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Quick-add etapa */}
+              <div className="flex items-center gap-2">
+                <input type="text" value={nuevaEtapaNombre}
+                  onChange={e => setNuevaEtapaNombre(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && agregarEtapaRapida()}
+                  className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:border-guinda-400 outline-none"
+                  placeholder="+ Nueva etapa…" />
+                <button type="button" onClick={agregarEtapaRapida} disabled={creandoEtapa}
+                  className="btn-secondary text-xs flex items-center gap-1">
+                  <Plus size={13} /> Agregar
+                </button>
+              </div>
+
+              {/* Acciones directas */}
+              {accionesDirectasModal.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Acciones directas</p>
+                  {accionesDirectasModal.map(acc => (
+                    <div key={acc.id} className="flex items-center gap-2 py-1 pl-2 border-l-2 border-orange-200">
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                        acc.estado === 'Completada' ? 'bg-emerald-500' : acc.estado === 'En_proceso' ? 'bg-orange-400' : 'bg-gray-300'
+                      }`} />
+                      <span className="flex-1 text-xs text-gray-700 truncate">{acc.nombre}</span>
+                      <button type="button" onClick={async () => {
+                        if (!confirm('¿Eliminar esta acción directa?')) return;
+                        try { await accionesApi.eliminarAccion(acc.id); cargarAccionesDirectasModal(); } catch {}
+                      }} className="text-gray-300 hover:text-red-500 p-0.5"><Trash2 size={11} /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center gap-1.5">
+                <input type="text" value={nuevaAccionNombre['directa'] || ''}
+                  onChange={e => setNuevaAccionNombre(prev => ({ ...prev, directa: e.target.value }))}
+                  onKeyDown={e => e.key === 'Enter' && agregarAccionDirectaRapida()}
+                  className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 focus:border-guinda-400 outline-none"
+                  placeholder="+ Acción directa (sin etapa)…" />
+                <button type="button" onClick={agregarAccionDirectaRapida}
+                  disabled={creandoAccion['directa']}
+                  className="text-xs text-guinda-600 hover:text-guinda-700 font-medium px-1.5 py-1">
+                  <Plus size={13} />
+                </button>
+              </div>
+            </Section>
+
             {/* ── SECCIÓN: Etiquetas ── */}
             <Section titulo="Etiquetas">
               <div className="flex flex-wrap gap-1.5 p-2 input-base min-h-[42px] cursor-text"
@@ -520,18 +708,10 @@ function FilaIndicador({ indicador, onCambio, onToggle, onEliminar, onRangoAnual
                 className="input-base text-sm" placeholder="Ej: viviendas, ZMs, hectáreas…" />
             </div>
           )}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Meta global *</label>
-              <input type="number" step="any" value={indicador.meta_global} onChange={e => onCambio('meta_global', e.target.value)}
-                className="input-base text-sm" placeholder="0" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Acumulación</label>
-              <select value={indicador.acumulacion} onChange={e => onCambio('acumulacion', e.target.value)} className="input-base text-sm">
-                {ACUMULACIONES.map(a => <option key={a.valor} value={a.valor}>{a.etiqueta}</option>)}
-              </select>
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Meta global (opcional)</label>
+            <input type="number" step="any" value={indicador.meta_global} onChange={e => onCambio('meta_global', e.target.value)}
+              className="input-base text-sm" placeholder="0" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Temporalidad</label>

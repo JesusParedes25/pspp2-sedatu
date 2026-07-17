@@ -21,18 +21,25 @@ import DetalleProyecto from '../pages/proyectos/DetalleProyecto';
 import Agenda from '../pages/Agenda';
 import Evidencias from '../pages/Evidencias';
 import Notificaciones from '../pages/Notificaciones';
+import MapaTerritorial from '../pages/MapaTerritorial';
+import AdminCatalogos from '../pages/AdminCatalogos';
+import ActivarCuenta from '../pages/ActivarCuenta';
 
 export default function AppRouter() {
   return (
     <Routes>
+      {/* Ruta pública fuera del layout autenticado */}
+      <Route path="activar-cuenta" element={<ActivarCuenta />} />
       <Route element={<Layout />}>
         <Route index element={<Inicio />} />
         <Route path="proyectos" element={<ListadoProyectos />} />
         <Route path="proyectos/nuevo" element={<NuevoProyecto />} />
         <Route path="proyectos/:id" element={<DetalleProyecto />} />
+        <Route path="mapa" element={<MapaTerritorial />} />
         <Route path="agenda" element={<Agenda />} />
         <Route path="evidencias" element={<Evidencias />} />
         <Route path="notificaciones" element={<Notificaciones />} />
+        <Route path="admin/catalogos" element={<AdminCatalogos />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

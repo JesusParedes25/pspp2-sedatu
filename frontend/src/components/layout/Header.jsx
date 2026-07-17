@@ -20,6 +20,7 @@ const nombresRutas = {
   '': 'Inicio',
   'proyectos': 'Proyectos',
   'nuevo': 'Nuevo proyecto',
+  'mapa': 'Mapa territorial',
   'agenda': 'Agenda',
   'notificaciones': 'Notificaciones',
 };

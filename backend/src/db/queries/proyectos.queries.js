@@ -128,8 +128,10 @@ async function crearProyecto(datos, creadorId) {
         tiene_indicador,
         es_prioritario, ciclo_anual, dependencia_externa, descripcion_dependencia,
         tiene_subproyectos, fecha_inicio, fecha_limite,
-        id_dg_lider, id_direccion_area_lider, id_creador, id_programa
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+        id_dg_lider, id_direccion_area_lider, id_creador, id_programa,
+        categoria, instrumento, escala_territorial, fase_actual,
+        financiamiento, ejercicio_fiscal, instancia_solicitante, prioridad, observaciones
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
       RETURNING *
     `, [
       datos.nombre, emptyToNull(datos.descripcion), datos.tipo, emptyToNull(datos.meta_descripcion),
@@ -140,7 +142,12 @@ async function crearProyecto(datos, creadorId) {
       emptyToNull(datos.id_dg_lider),
       emptyToNull(datos.id_direccion_area_lider),
       creadorId,
-      emptyToNull(datos.id_programa)
+      emptyToNull(datos.id_programa),
+      emptyToNull(datos.categoria), emptyToNull(datos.instrumento),
+      emptyToNull(datos.escala_territorial), emptyToNull(datos.fase_actual),
+      emptyToNull(datos.financiamiento), emptyToNull(datos.ejercicio_fiscal),
+      emptyToNull(datos.instancia_solicitante), emptyToNull(datos.prioridad),
+      emptyToNull(datos.observaciones)
     ]);
 
     const proyecto = resultado.rows[0];
@@ -211,6 +218,15 @@ async function actualizarProyecto(proyectoId, datos, externalClient) {
         id_dg_lider             = $13,
         id_direccion_area_lider = $14,
         id_programa             = $15,
+        categoria               = $17,
+        instrumento             = $18,
+        escala_territorial      = $19,
+        fase_actual             = $20,
+        financiamiento          = $21,
+        ejercicio_fiscal        = $22,
+        instancia_solicitante   = $23,
+        prioridad               = $24,
+        observaciones           = $25,
         updated_at              = NOW()
       WHERE id = $16 AND deleted_at IS NULL
       RETURNING *
@@ -231,6 +247,11 @@ async function actualizarProyecto(proyectoId, datos, externalClient) {
       n(datos.id_direccion_area_lider),
       n(datos.id_programa),
       proyectoId,
+      n(datos.categoria), n(datos.instrumento),
+      n(datos.escala_territorial), n(datos.fase_actual),
+      n(datos.financiamiento), n(datos.ejercicio_fiscal),
+      n(datos.instancia_solicitante), n(datos.prioridad),
+      n(datos.observaciones),
     ]);
 
     const proyecto = resultado.rows[0];

@@ -54,8 +54,8 @@ async function listarPorProyecto(proyectoId) {
 async function crear(proyectoId, datos, client = null) {
   const db = client || pool;
 
-  // Sanitizar campos numéricos: convertir "" a null o 0
-  const metaGlobal = datos.meta_global === '' || datos.meta_global == null ? 0 : parseFloat(datos.meta_global);
+  // Sanitizar campos numéricos: convertir "" a null
+  const metaGlobal = datos.meta_global === '' || datos.meta_global == null ? null : parseFloat(datos.meta_global);
   const anioInicio = datos.anio_inicio === '' || datos.anio_inicio == null ? null : parseInt(datos.anio_inicio);
   const anioFin = datos.anio_fin === '' || datos.anio_fin == null ? null : parseInt(datos.anio_fin);
   const orden = datos.orden === '' || datos.orden == null ? 1 : parseInt(datos.orden);
@@ -64,14 +64,14 @@ async function crear(proyectoId, datos, client = null) {
   const resultado = await db.query(`
     INSERT INTO indicadores (
       id_proyecto, id_etapa, nombre, tipo, unidad, unidad_personalizada,
-      acumulacion, meta_global, temporalidad, anio_inicio, anio_fin,
+      etiqueta_unidad, meta_global, temporalidad, anio_inicio, anio_fin,
       descripcion, orden
     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
     RETURNING *
   `, [
     proyectoId, idEtapa, datos.nombre, datos.tipo, datos.unidad,
     datos.unidad_personalizada || null,
-    datos.acumulacion || 'Suma', metaGlobal,
+    datos.etiqueta_unidad || datos.unidad_personalizada || null, metaGlobal,
     datos.temporalidad || 'Global',
     anioInicio, anioFin,
     datos.descripcion || null, orden
@@ -102,10 +102,11 @@ async function actualizar(indicadorId, datos) {
   try {
     await client.query('BEGIN');
 
+    const metaGlobal = datos.meta_global === '' || datos.meta_global == null ? null : parseFloat(datos.meta_global);
     const resultado = await client.query(`
       UPDATE indicadores SET
         nombre = $1, tipo = $2, unidad = $3,
-        unidad_personalizada = $4, acumulacion = $5,
+        unidad_personalizada = $4, etiqueta_unidad = $5,
         meta_global = $6, temporalidad = $7,
         anio_inicio = $8, anio_fin = $9,
         descripcion = $10, updated_at = NOW()
@@ -114,8 +115,8 @@ async function actualizar(indicadorId, datos) {
     `, [
       datos.nombre, datos.tipo, datos.unidad,
       datos.unidad_personalizada || null,
-      datos.acumulacion || 'Suma', datos.meta_global,
-      datos.temporalidad || 'Global',
+      datos.etiqueta_unidad || datos.unidad_personalizada || null,
+      metaGlobal, datos.temporalidad || 'Global',
       datos.anio_inicio || null, datos.anio_fin || null,
       datos.descripcion || null, indicadorId
     ]);
@@ -235,6 +236,135 @@ async function obtenerResumenAportaciones(indicadorId) {
   };
 }
 
+/**
+ * Recalcula valor_actual de un indicador según su modo_calculo.
+ * - contar_completadas: cuenta acciones con estado='Completada' vinculadas
+ * - porcentaje_promedio: promedio de porcentaje_avance de acciones vinculadas
+ * - suma_manual: suma de accion_indicador.valor_aportado (comportamiento legacy)
+ *
+ * Si id_etapa no es null, solo cuenta acciones de esa etapa.
+ */
+async function recalcularIndicador(indicadorId, client = null) {
+  const db = client || pool;
+  const ind = await db.query(
+    'SELECT id, modo_calculo, id_proyecto, id_etapa FROM indicadores WHERE id = $1',
+    [indicadorId]
+  );
+  if (!ind.rows[0]) return null;
+  const { modo_calculo, id_proyecto, id_etapa } = ind.rows[0];
+
+  let valor = 0;
+  if (modo_calculo === 'contar_completadas') {
+    const filtroEtapa = id_etapa ? 'AND a.id_etapa = $2' : '';
+    const params = id_etapa ? [id_proyecto, id_etapa] : [id_proyecto];
+    const res = await db.query(`
+      SELECT COUNT(*)::int AS total
+      FROM acciones a
+      WHERE a.id_proyecto = $1 AND a.estado = 'Completada'
+        AND a.id_accion_padre IS NULL ${filtroEtapa}
+    `, params);
+    valor = res.rows[0].total;
+  } else if (modo_calculo === 'porcentaje_promedio') {
+    const filtroEtapa = id_etapa ? 'AND a.id_etapa = $2' : '';
+    const params = id_etapa ? [id_proyecto, id_etapa] : [id_proyecto];
+    const res = await db.query(`
+      SELECT COALESCE(AVG(a.porcentaje_avance), 0)::numeric AS promedio
+      FROM acciones a
+      WHERE a.id_proyecto = $1 AND a.id_accion_padre IS NULL
+        AND a.estado != 'Cancelada' ${filtroEtapa}
+    `, params);
+    valor = parseFloat(res.rows[0].promedio) || 0;
+  } else {
+    // suma_manual — legacy behavior
+    const res = await db.query(`
+      SELECT COALESCE(SUM(ai.valor_aportado), 0)::numeric AS total
+      FROM accion_indicador ai WHERE ai.id_indicador = $1
+    `, [indicadorId]);
+    valor = parseFloat(res.rows[0].total) || 0;
+  }
+
+  await db.query(
+    'UPDATE indicadores SET valor_actual = $1, updated_at = NOW() WHERE id = $2',
+    [valor, indicadorId]
+  );
+  return valor;
+}
+
+/**
+ * Recalcula TODOS los indicadores auto-calculados de un proyecto.
+ * Se invoca cuando cambia el estado de una acción.
+ */
+async function recalcularIndicadoresProyecto(proyectoId, client = null) {
+  const db = client || pool;
+  const res = await db.query(
+    `SELECT id FROM indicadores
+     WHERE id_proyecto = $1 AND activo = true AND modo_calculo != 'suma_manual'`,
+    [proyectoId]
+  );
+  for (const row of res.rows) {
+    await recalcularIndicador(row.id, db);
+  }
+}
+
+/**
+ * Lista indicadores publicables para la plataforma externa.
+ * Opcionalmente filtra por id_dg.
+ */
+async function listarPublicables(filtros = {}) {
+  let where = "i.es_publicable = true AND i.activo = true";
+  const params = [];
+  if (filtros.id_dg) {
+    params.push(filtros.id_dg);
+    where += ` AND p.id_dg_lider = $${params.length}`;
+  }
+  const res = await pool.query(`
+    SELECT
+      i.id,
+      i.nombre,
+      i.tipo,
+      i.unidad,
+      i.unidad_personalizada,
+      i.meta_global,
+      i.valor_actual,
+      i.modo_calculo,
+      i.temporalidad,
+      i.updated_at,
+      p.id AS proyecto_id,
+      p.nombre AS proyecto_nombre,
+      dg.siglas AS dg_siglas,
+      dg.nombre AS dg_nombre
+    FROM indicadores i
+    JOIN proyectos p ON p.id = i.id_proyecto
+    LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
+    WHERE ${where}
+    ORDER BY dg.siglas, p.nombre, i.nombre
+  `, params);
+
+  return res.rows.map(r => {
+    const meta = parseFloat(r.meta_global) || 0;
+    const valor = parseFloat(r.valor_actual) || 0;
+    const pct = meta > 0 ? Math.min(100, (valor / meta) * 100) : 0;
+    const unidadLabel = r.unidad === 'Porcentaje' ? '%'
+      : r.unidad === 'Moneda_MXN' ? '$MXN'
+      : r.unidad_personalizada || '#';
+    return {
+      id: r.id,
+      proyecto_id: r.proyecto_id,
+      proyecto: r.proyecto_nombre,
+      dg: r.dg_siglas,
+      dg_nombre: r.dg_nombre,
+      indicador: r.nombre,
+      tipo: r.tipo,
+      meta: meta,
+      valor_actual: valor,
+      porcentaje: parseFloat(pct.toFixed(2)),
+      unidad: unidadLabel,
+      modo_calculo: r.modo_calculo,
+      ultima_actualizacion: r.updated_at,
+    };
+  });
+}
+
 module.exports = {
   listarPorProyecto,
   listarPorEtapa,
@@ -242,5 +372,8 @@ module.exports = {
   crear,
   actualizar,
   eliminar,
-  obtenerResumenAportaciones
+  obtenerResumenAportaciones,
+  recalcularIndicador,
+  recalcularIndicadoresProyecto,
+  listarPublicables
 };

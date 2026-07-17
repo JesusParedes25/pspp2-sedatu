@@ -24,6 +24,7 @@ import * as catalogosApi from '../../api/catalogos';
 import * as etapasApi from '../../api/etapas';
 import * as indicadoresApi from '../../api/indicadores';
 import { useAuth } from '../../context/AuthContext';
+import CatalogSelector from '../common/CatalogSelector';
 
 // ── Componente de tarjeta de indicador reutilizable ─────────────
 // Se usa tanto en ModalNuevaAccion como en DrawerAccion (subacciones)
@@ -146,6 +147,11 @@ export default function ModalNuevaAccion({ proyecto, etapaId, onGuardar, onCerra
     id_direccion_area: usuario?.id_direccion_area || '',
     id_responsable: usuario?.id || '',
     indicadores_asociados: [],
+    prioridad: '',
+    fecha_limite: '',
+    instancia_responsable: '',
+    enlace_responsable: '',
+    observaciones: '',
   });
 
   const [indicadoresEtapa, setIndicadoresEtapa] = useState([]);
@@ -338,6 +344,30 @@ export default function ModalNuevaAccion({ proyecto, etapaId, onGuardar, onCerra
                 <option key={u.id} value={u.id}>{u.nombre_completo} — {u.cargo}</option>
               ))}
             </select>
+          </div>
+
+          {/* ─── Clasificación y seguimiento ─── */}
+          <div className="border-t border-gray-100 pt-4 mt-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Clasificación</p>
+            <div className="grid grid-cols-2 gap-3">
+              <CatalogSelector tipo="prioridad" value={datos.prioridad} onChange={v => actualizar('prioridad', v)} label="Prioridad" />
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Fecha límite</label>
+                <input type="date" value={datos.fecha_limite} onChange={e => actualizar('fecha_limite', e.target.value)}
+                  className="input-base text-sm" />
+              </div>
+              <CatalogSelector tipo="unidad_responsable" value={datos.instancia_responsable} onChange={v => actualizar('instancia_responsable', v)} label="Instancia responsable" />
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Enlace responsable</label>
+                <input type="text" value={datos.enlace_responsable} onChange={e => actualizar('enlace_responsable', e.target.value)}
+                  className="input-base text-sm" placeholder="Nombre del enlace" />
+              </div>
+            </div>
+            <div className="mt-3">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Observaciones</label>
+              <textarea value={datos.observaciones} onChange={e => actualizar('observaciones', e.target.value)}
+                rows={2} className="input-base text-sm resize-none" placeholder="Observaciones de esta acción…" />
+            </div>
           </div>
 
           {/* ── Aporte a indicadores en cascada ── */}

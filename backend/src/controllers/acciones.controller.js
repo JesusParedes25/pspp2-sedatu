@@ -16,6 +16,9 @@ const accionesQueries = require('../db/queries/acciones.queries');
 const pool = require('../db/pool');
 const { cambiarEstado: cambiarEstadoUtil, tipoRealAccion, verificarAutoCompletarPadre } = require('../utils/validaciones-estado');
 const { recalcularEtapa, recalcularProyecto } = require('../utils/recalculos');
+const avanceSemaforo = require('../utils/avance-semaforo');
+const { recalcularAportacionesProyecto } = require('../db/queries/aportaciones.queries');
+const { recalcularIndicadoresProyecto } = require('../db/queries/indicadores.queries');
 
 // GET /etapas/:id/acciones — Listar acciones de una etapa
 async function listarPorEtapa(req, res, next) {
@@ -278,6 +281,175 @@ async function patchCampo(req, res, next) {
   }
 }
 
+// PATCH /acciones/:id — Actualizar avance/semáforo/estatus/prioridad/fecha_limite
+async function patchAvanceSemaforo(req, res, next) {
+  const accionId = req.params.id;
+  const { avance_actual, semaforo, estado, prioridad, fecha_limite, fecha_inicio,
+          escala_territorial, instrumento, cve_ent, cve_mun, id_zm, tipo, id_responsable, nombre, descripcion, observaciones } = req.body;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rows } = await client.query('SELECT * FROM acciones WHERE id = $1', [accionId]);
+    if (!rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: true, mensaje: 'Acción no encontrada' });
+    }
+    const accion = rows[0];
+    const esHoja = await avanceSemaforo.esNodoHoja(accionId, client);
+
+    // ── Contenedor: rechazar avance y estado ──
+    if (!esHoja) {
+      if (avance_actual !== undefined) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          error: true,
+          mensaje: 'El avance de un contenedor se calcula automáticamente a partir de sus partes.'
+        });
+      }
+      if (estado !== undefined) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          error: true,
+          mensaje: 'El estatus de un contenedor se calcula automáticamente a partir de sus partes.'
+        });
+      }
+    }
+
+    const sets = [];
+    const params = [];
+    let idx = 1;
+
+    // ── Estado (solo hojas) ──
+    if (estado !== undefined && esHoja) {
+      sets.push(`estado = $${idx}`);
+      params.push(estado); idx++;
+      // Completada → avance = 100
+      if (estado === 'Completada') {
+        sets.push(`avance_actual = 100, avance_override = TRUE, porcentaje_avance = 100`);
+      }
+      // Pendiente → avance = 0
+      if (estado === 'Pendiente') {
+        sets.push(`avance_actual = 0, avance_override = TRUE, porcentaje_avance = 0`);
+      }
+    }
+
+    // ── Avance actual (solo hojas) ──
+    if (avance_actual !== undefined && esHoja) {
+      // Determinar estado efectivo (puede venir en el mismo request)
+      const estadoEfectivo = estado || accion.estado;
+      if (estadoEfectivo === 'Completada') {
+        // Ignorar: avance fijo en 100
+      } else if (estadoEfectivo === 'Pendiente') {
+        // Ignorar: avance fijo en 0
+      } else if (estadoEfectivo === 'Bloqueada') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: true, mensaje: 'No se puede modificar el avance de un nodo bloqueado.' });
+      } else if (estadoEfectivo === 'Cancelada') {
+        // Ignorar
+      } else {
+        // En_proceso: editable 0-99
+        if (avance_actual === null) {
+          sets.push(`avance_actual = NULL, avance_override = FALSE`);
+        } else {
+          const v = parseInt(avance_actual);
+          if (isNaN(v) || v < 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: true, mensaje: 'avance_actual debe ser entre 0 y 99. Para llegar a 100 marca como Completada.' });
+          }
+          if (v >= 100) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: true, mensaje: 'Para llegar al 100% marca el nodo como Completada.' });
+          }
+          sets.push(`avance_actual = $${idx}, avance_override = TRUE, porcentaje_avance = $${idx + 1}`);
+          params.push(v); idx++;
+          params.push(v); idx++;
+        }
+      }
+    }
+
+    // Semáforo
+    if (semaforo !== undefined) {
+      if (semaforo === null) {
+        sets.push(`semaforo = NULL, semaforo_override = FALSE`);
+      } else {
+        if (!['verde', 'ambar', 'rojo', 'gris'].includes(semaforo)) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: true, mensaje: 'semaforo debe ser verde, ambar, rojo o gris' });
+        }
+        sets.push(`semaforo = $${idx}, semaforo_override = TRUE`);
+        params.push(semaforo); idx++;
+      }
+    }
+
+    // Prioridad
+    if (prioridad !== undefined) {
+      sets.push(`prioridad = $${idx}`);
+      params.push(prioridad); idx++;
+    }
+
+    // Fecha límite
+    if (fecha_limite !== undefined) {
+      sets.push(`fecha_limite = $${idx}`);
+      params.push(fecha_limite || null); idx++;
+    }
+    if (fecha_inicio !== undefined) {
+      sets.push(`fecha_inicio = $${idx}`);
+      params.push(fecha_inicio || null); idx++;
+    }
+    // Campos de catálogo
+    if (escala_territorial !== undefined) { sets.push(`escala_territorial = $${idx}`); params.push(escala_territorial || null); idx++; }
+    if (instrumento !== undefined) { sets.push(`instrumento = $${idx}`); params.push(instrumento || null); idx++; }
+    if (cve_ent !== undefined) { sets.push(`cve_ent = $${idx}`); params.push(cve_ent || null); idx++; }
+    if (cve_mun !== undefined) { sets.push(`cve_mun = $${idx}`); params.push(cve_mun || null); idx++; }
+    if (id_zm !== undefined) { sets.push(`id_zm = $${idx}`); params.push(id_zm || null); idx++; }
+    if (tipo !== undefined) { sets.push(`tipo = $${idx}`); params.push(tipo || null); idx++; }
+    if (id_responsable !== undefined) { sets.push(`id_responsable = $${idx}`); params.push(id_responsable || null); idx++; }
+    if (nombre !== undefined) { sets.push(`nombre = $${idx}`); params.push(nombre); idx++; }
+    if (descripcion !== undefined) { sets.push(`descripcion = $${idx}`); params.push(descripcion); idx++; }
+    if (observaciones !== undefined) { sets.push(`observaciones = $${idx}`); params.push(observaciones || null); idx++; }
+
+    if (sets.length > 0) {
+      sets.push('updated_at = NOW()');
+      params.push(accionId); idx++;
+      await client.query(`UPDATE acciones SET ${sets.join(', ')} WHERE id = $${idx - 1}`, params);
+    }
+
+    // Recalcular padres (avance + estado derivado en contenedores)
+    await avanceSemaforo.recalcularPadres('accion', accionId, client);
+
+    // Recalcular etapa y proyecto
+    if (accion.id_etapa) {
+      await recalcularEtapa(accion.id_etapa, client);
+    } else if (accion.id_proyecto) {
+      await recalcularProyecto(accion.id_proyecto, client);
+    }
+
+    // ── PART 2: Recalcular indicadores afectados ──
+    const proyectoId = await avanceSemaforo.obtenerProyectoId('accion', accionId, client);
+    if (proyectoId) {
+      await recalcularIndicadoresProyecto(proyectoId, client);
+      await recalcularAportacionesProyecto(proyectoId, client);
+    }
+
+    await client.query('COMMIT');
+
+    const actualizada = await accionesQueries.obtenerAccionPorId(accionId);
+    if (actualizada) {
+      actualizada.avance_efectivo = await avanceSemaforo.calcularAvanceEfectivoAccion(actualizada, pool);
+      actualizada.semaforo_efectivo = avanceSemaforo.semaforoEfectivo(actualizada);
+      actualizada.es_hoja = await avanceSemaforo.esNodoHoja(accionId, pool);
+    }
+    res.json({ datos: actualizada, mensaje: 'Acción actualizada' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   listarPorEtapa,
   listarDirectasProyecto,
@@ -292,5 +464,6 @@ module.exports = {
   importarCSV,
   actualizarIndicadores,
   obtenerIndicadores,
-  patchCampo
+  patchCampo,
+  patchAvanceSemaforo
 };
