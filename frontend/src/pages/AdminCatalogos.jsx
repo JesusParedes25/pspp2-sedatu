@@ -123,7 +123,7 @@ function TabCatalogos() {
 }
 
 // ─── Tab: Usuarios ───────────────────────────────────────────────
-const ROLES = ['superadmin', 'Directivo', 'Ejecutivo', 'Responsable', 'Operativo'];
+const ROLES = ['superadmin', 'ejecutivo', 'direccion', 'enlace', 'externo'];
 
 // Envía el correo de invitación vía EmailJS (se ejecuta desde el navegador).
 // Devuelve { enviado: true } o { enviado: false, motivo: string }.
@@ -208,7 +208,7 @@ function TabUsuarios({ dgs, das }) {
     finally { setPorEliminarU(null); }
   }
 
-  const rolColor = { superadmin: 'bg-guinda-100 text-guinda-700', Directivo: 'bg-purple-100 text-purple-700', Ejecutivo: 'bg-blue-100 text-blue-700', Responsable: 'bg-green-100 text-green-700', Operativo: 'bg-gray-100 text-gray-600' };
+  const rolColor = { superadmin: 'bg-guinda-100 text-guinda-700', ejecutivo: 'bg-purple-100 text-purple-700', direccion: 'bg-blue-100 text-blue-700', enlace: 'bg-green-100 text-green-700', externo: 'bg-gray-100 text-gray-600' };
 
   if (cargando) return <div className="flex justify-center py-10"><Loader2 size={24} className="animate-spin text-guinda-600" /></div>;
 
@@ -240,7 +240,7 @@ function TabUsuarios({ dgs, das }) {
       )}
 
       <div className="flex justify-end mb-4">
-        <button onClick={() => setModal({ modo: 'crear', datos: { nombre_completo: '', correo: '', cargo: '', rol: 'Operativo', id_dg: '', id_direccion_area: '' } })}
+        <button onClick={() => setModal({ modo: 'crear', datos: { nombre_completo: '', correo: '', cargo: '', rol: 'enlace', id_dg: '', id_direccion_area: '' } })}
           className="flex items-center gap-2 px-4 py-2 bg-guinda-700 text-white rounded-lg text-sm hover:bg-guinda-600">
           <Plus size={16} /> Nuevo usuario
         </button>
