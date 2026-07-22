@@ -32,6 +32,7 @@ router.get('/usuarios', adminController.listarUsuarios);
 router.post('/usuarios', adminController.crearUsuario);
 router.put('/usuarios/:id', adminController.editarUsuario);
 router.patch('/usuarios/:id/toggle', adminController.toggleUsuario);
+router.delete('/usuarios/:id', adminController.eliminarUsuario);
 router.post('/usuarios/:id/reenviar-invitacion', adminController.reenviarInvitacion);
 
 // Áreas

@@ -47,6 +47,11 @@ export async function restaurarProyecto(id) {
   return data;
 }
 
+export async function purgarProyecto(id) {
+  const { data } = await client.delete(`/proyectos/${id}/purgar`);
+  return data;
+}
+
 export async function obtenerDGsProyecto(id) {
   const { data } = await client.get(`/proyectos/${id}/dgs`);
   return data;

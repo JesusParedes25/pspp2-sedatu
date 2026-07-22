@@ -125,13 +125,36 @@ function TabCatalogos() {
 // ─── Tab: Usuarios ───────────────────────────────────────────────
 const ROLES = ['superadmin', 'Directivo', 'Ejecutivo', 'Responsable', 'Operativo'];
 
+// Envía el correo de invitación vía EmailJS (se ejecuta desde el navegador).
+// Devuelve { enviado: true } o { enviado: false, motivo: string }.
+async function enviarCorreoInvitacion(nombreUsuario, correoUsuario, inviteLink) {
+  try {
+    const res = await fetch('/api/v1/admin/config/publico');
+    const json = await res.json();
+    const cfg = json.datos || {};
+    if (cfg.emailjs_enabled !== 'true') return { enviado: false, motivo: 'correo_deshabilitado' };
+    const { emailjs_service_id: svcId, emailjs_template_id: tplId, emailjs_public_key: pubKey } = cfg;
+    if (!svcId || !tplId || !pubKey) return { enviado: false, motivo: 'sin_configuracion' };
+    await emailjs.send(svcId, tplId, {
+      to_name: nombreUsuario,
+      to_email: correoUsuario,
+      invite_link: inviteLink,
+    }, pubKey);
+    return { enviado: true };
+  } catch (err) {
+    console.error('EmailJS error:', err);
+    return { enviado: false, motivo: 'error_envio' };
+  }
+}
+
 function TabUsuarios({ dgs, das }) {
   const [usuarios, setUsuarios] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
   const [modal, setModal] = useState(null); // null | { modo: 'crear'|'editar', datos }
   const [enviando, setEnviando] = useState(false);
-  const [inviteLink, setInviteLink] = useState(null);
+  const [inviteLink, setInviteLink] = useState(null); // { usuario, invite_link, correoEnviado, motivoFallo }
+  const [porEliminarU, setPorEliminarU] = useState(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -149,7 +172,10 @@ function TabUsuarios({ dgs, das }) {
     try {
       if (modal.modo === 'crear') {
         const r = await adminApi.crearUsuarioAdmin(modal.datos);
-        setInviteLink({ usuario: r.datos, invite_link: r.datos.invite_link });
+        const link = r.datos.invite_link;
+        const resultado = await enviarCorreoInvitacion(r.datos.nombre_completo, r.datos.correo, link);
+        setInviteLink({ usuario: r.datos, invite_link: link, correoEnviado: resultado.enviado, motivoFallo: resultado.motivo });
+        setModal(null);
         cargar();
       } else {
         await adminApi.editarUsuarioAdmin(modal.datos.id, modal.datos);
@@ -163,13 +189,23 @@ function TabUsuarios({ dgs, das }) {
   async function reenviar(u) {
     try {
       const r = await adminApi.reenviarInvitacion(u.id);
-      setInviteLink({ usuario: u, invite_link: r.datos.invite_link });
+      const link = r.datos.invite_link;
+      const resultado = await enviarCorreoInvitacion(u.nombre_completo, u.correo, link);
+      setInviteLink({ usuario: u, invite_link: link, correoEnviado: resultado.enviado, motivoFallo: resultado.motivo });
     } catch (e) { setError(e.response?.data?.mensaje || 'Error'); }
   }
 
   async function toggleActivo(id) {
     try { await adminApi.toggleUsuarioAdmin(id); cargar(); }
     catch (e) { setError(e.response?.data?.mensaje || 'Error'); }
+  }
+
+  async function eliminarU(u) {
+    try {
+      await adminApi.eliminarUsuarioAdmin(u.id);
+      setUsuarios(prev => prev.filter(x => x.id !== u.id));
+    } catch (e) { setError(e.response?.data?.mensaje || 'Error al eliminar'); }
+    finally { setPorEliminarU(null); }
   }
 
   const rolColor = { superadmin: 'bg-guinda-100 text-guinda-700', Directivo: 'bg-purple-100 text-purple-700', Ejecutivo: 'bg-blue-100 text-blue-700', Responsable: 'bg-green-100 text-green-700', Operativo: 'bg-gray-100 text-gray-600' };
@@ -181,14 +217,25 @@ function TabUsuarios({ dgs, das }) {
       {error && <ErrorBanner msg={error} onClose={() => setError(null)} />}
 
       {inviteLink && (
-        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-          <p className="text-sm font-medium text-green-800 mb-1">✅ Usuario creado. Comparte este enlace de activación:</p>
+        <div className={`mb-4 p-4 rounded-lg border ${inviteLink.correoEnviado ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <div>
+              {inviteLink.correoEnviado
+                ? <p className="text-sm font-medium text-green-800">✅ Correo de invitación enviado a <strong>{inviteLink.usuario.correo}</strong></p>
+                : <p className="text-sm font-medium text-amber-800">⚠️ Usuario creado, pero el correo no pudo enviarse
+                    {inviteLink.motivoFallo === 'correo_deshabilitado' && ' (envío deshabilitado en Configuración)'}
+                    {inviteLink.motivoFallo === 'sin_configuracion' && ' (configura EmailJS en Configuración)'}
+                    {inviteLink.motivoFallo === 'error_envio' && ' (error de EmailJS — revisa las credenciales)'}
+                  </p>
+              }
+              <p className="text-xs text-gray-500 mt-0.5">Enlace válido por 30 días. Cópialo si necesitas enviarlo manualmente.</p>
+            </div>
+            <button onClick={() => setInviteLink(null)} className="text-gray-400 hover:text-gray-600 flex-shrink-0"><X size={14} /></button>
+          </div>
           <div className="flex gap-2 items-center">
             <input readOnly value={inviteLink.invite_link} className="input-base text-xs flex-1 bg-white" onClick={e => e.target.select()} />
-            <button onClick={() => { navigator.clipboard.writeText(inviteLink.invite_link); }} className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700">Copiar</button>
-            <button onClick={() => setInviteLink(null)} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
+            <button onClick={() => navigator.clipboard.writeText(inviteLink.invite_link)} className="text-xs px-3 py-1.5 bg-gray-700 text-white rounded-lg hover:bg-gray-600 whitespace-nowrap">Copiar enlace</button>
           </div>
-          <p className="text-xs text-green-600 mt-1">El enlace expira en 7 días. Recuerda enviarlo por correo con EmailJS.</p>
         </div>
       )}
 
@@ -215,6 +262,7 @@ function TabUsuarios({ dgs, das }) {
               <button onClick={() => toggleActivo(u.id)} className={u.activo ? 'text-green-500 hover:text-red-500' : 'text-gray-400 hover:text-green-500'} title={u.activo ? 'Desactivar' : 'Activar'}>
                 {u.activo ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
               </button>
+              <button onClick={() => setPorEliminarU(u)} className="text-gray-400 hover:text-red-600" title="Eliminar usuario permanentemente"><Trash2 size={15} /></button>
             </div>
           </div>
         ))}
@@ -267,6 +315,16 @@ function TabUsuarios({ dgs, das }) {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        abierto={!!porEliminarU}
+        titulo="Eliminar usuario permanentemente"
+        mensaje={porEliminarU ? `¿Eliminar a "${porEliminarU.nombre_completo}" (${porEliminarU.correo})? Se borrará de forma permanente e irreversible.` : ''}
+        textoConfirmar="Sí, eliminar"
+        variante="danger"
+        onConfirmar={() => eliminarU(porEliminarU)}
+        onCancelar={() => setPorEliminarU(null)}
+      />
     </div>
   );
 }
@@ -530,6 +588,8 @@ function TabPapelera() {
   const [cargando, setCargando] = useState(true);
   const [restaurando, setRestaurando] = useState(null);
   const [porRestaurar, setPorRestaurar] = useState(null);
+  const [porPurgar, setPorPurgar] = useState(null);
+  const [purgando, setPurgando] = useState(null);
   const [error, setError] = useState('');
 
   const cargar = useCallback(async () => {
@@ -555,6 +615,20 @@ function TabPapelera() {
     } finally {
       setRestaurando(null);
       setPorRestaurar(null);
+    }
+  }
+
+  async function purgar(p) {
+    setPurgando(p.id);
+    setError('');
+    try {
+      await proyectosApi.purgarProyecto(p.id);
+      setProyectos(prev => prev.filter(x => x.id !== p.id));
+    } catch (err) {
+      setError(err.response?.data?.mensaje || 'Error al eliminar');
+    } finally {
+      setPurgando(null);
+      setPorPurgar(null);
     }
   }
 
@@ -594,6 +668,14 @@ function TabPapelera() {
           >
             <RotateCcw size={12} /> Restaurar
           </button>
+          <button
+            onClick={() => setPorPurgar(p)}
+            disabled={purgando === p.id}
+            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 flex-shrink-0"
+            title="Eliminar permanentemente ahora"
+          >
+            <Trash2 size={12} /> Eliminar ya
+          </button>
         </div>
       ))}
 
@@ -605,6 +687,15 @@ function TabPapelera() {
         variante="normal"
         onConfirmar={() => restaurar(porRestaurar)}
         onCancelar={() => setPorRestaurar(null)}
+      />
+      <ConfirmDialog
+        abierto={!!porPurgar}
+        titulo="Eliminar permanentemente"
+        mensaje={porPurgar ? `Se eliminará "${porPurgar.nombre}" junto con todas sus etapas, acciones, archivos y comentarios. Esta acción es IRREVERSIBLE.` : ''}
+        textoConfirmar="Sí, eliminar para siempre"
+        variante="danger"
+        onConfirmar={() => purgar(porPurgar)}
+        onCancelar={() => setPorPurgar(null)}
       />
     </div>
   );

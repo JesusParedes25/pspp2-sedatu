@@ -27,6 +27,7 @@ router.post('/', proyectosController.crear);
 // interpretaría como un id de proyecto.
 router.get('/eliminados', requiereRol(['superadmin']), proyectosController.listarEliminados);
 router.patch('/:id/restaurar', requiereRol(['superadmin']), proyectosController.restaurar);
+router.delete('/:id/purgar', requiereRol(['superadmin']), proyectosController.eliminarDefinitivamente);
 
 router.get('/:id', proyectosController.obtenerPorId);
 router.put('/:id', proyectosController.actualizar);

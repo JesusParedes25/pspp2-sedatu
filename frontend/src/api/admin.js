@@ -69,6 +69,10 @@ export async function toggleUsuarioAdmin(id) {
   const { data } = await API.patch(`/admin/usuarios/${id}/toggle`);
   return data;
 }
+export async function eliminarUsuarioAdmin(id) {
+  const { data } = await API.delete(`/admin/usuarios/${id}`);
+  return data;
+}
 export async function reenviarInvitacion(id) {
   const { data } = await API.post(`/admin/usuarios/${id}/reenviar-invitacion`);
   return data;

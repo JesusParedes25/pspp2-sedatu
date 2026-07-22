@@ -74,6 +74,7 @@ services:
       MINIO_PASSWORD: ${MINIO_PASSWORD}
       MINIO_BUCKET: ${MINIO_BUCKET}
       GEOSERVER_URL: http://geoserver:8080/geoserver
+      FRONTEND_URL: ${FRONTEND_URL}
       PORT: 3000
     depends_on:
       postgres:

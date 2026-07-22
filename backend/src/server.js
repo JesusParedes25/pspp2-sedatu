@@ -20,6 +20,7 @@ const routes = require('./routes');
 const errorHandler = require('./middleware/errorHandler');
 const { ejecutarMigraciones } = require('./db/migrate');
 const ejecutarSeeders = require('./db/seeders/index');
+const asegurarSuperAdmin = require('./db/seeders/00_superadmin');
 const { iniciarPurgaAutomatica } = require('./utils/purgarProyectos');
 
 const app = express();
@@ -53,6 +54,7 @@ app.use(errorHandler);
 async function iniciar() {
   try {
     await ejecutarMigraciones();
+    await asegurarSuperAdmin();
     // CRÍTICO: los seeders insertan/actualizan usuarios de demo (contraseña
     // conocida "demo2026") y proyectos de ejemplo con ON CONFLICT DO UPDATE.
     // Antes esto corría en CADA arranque sin importar el entorno — en

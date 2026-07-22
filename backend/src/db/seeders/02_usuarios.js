@@ -198,8 +198,7 @@ async function seedUsuarios() {
         ON CONFLICT (correo) DO UPDATE SET
           nombre_completo = EXCLUDED.nombre_completo,
           cargo = EXCLUDED.cargo,
-          rol = EXCLUDED.rol,
-          password_hash = EXCLUDED.password_hash
+          rol = EXCLUDED.rol
         RETURNING id
       `, [
         usuario.nombre_completo,

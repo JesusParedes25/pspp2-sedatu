@@ -263,10 +263,10 @@ async function crearUsuario(req, res, next) {
     );
     const usuario = rows[0];
 
-    // Generar token de activación (7 días)
+    // Generar token de activación (30 días)
     const token = crypto.randomBytes(48).toString('hex');
     await pool.query(
-      `INSERT INTO tokens_activacion (id_usuario, token, expira_en) VALUES ($1, $2, NOW() + INTERVAL '7 days')`,
+      `INSERT INTO tokens_activacion (id_usuario, token, expira_en) VALUES ($1, $2, NOW() + INTERVAL '30 days')`,
       [usuario.id, token]
     );
 
@@ -312,6 +312,22 @@ async function toggleUsuario(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// DELETE /admin/usuarios/:id — eliminar usuario permanentemente (solo superadmin)
+async function eliminarUsuario(req, res, next) {
+  try {
+    const { id } = req.params;
+    if (req.usuario.id === id) {
+      return res.status(400).json({ error: true, mensaje: 'No puedes eliminar tu propia cuenta.' });
+    }
+    const { rows } = await pool.query(
+      'DELETE FROM usuarios WHERE id = $1 RETURNING id, nombre_completo, correo',
+      [id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: true, mensaje: 'Usuario no encontrado' });
+    res.json({ datos: rows[0], mensaje: 'Usuario eliminado permanentemente' });
+  } catch (err) { next(err); }
+}
+
 // POST /admin/usuarios/:id/reenviar-invitacion — generar nuevo token
 async function reenviarInvitacion(req, res, next) {
   try {
@@ -321,7 +337,7 @@ async function reenviarInvitacion(req, res, next) {
     await pool.query('UPDATE tokens_activacion SET usado = true WHERE id_usuario = $1', [id]);
     const token = crypto.randomBytes(48).toString('hex');
     await pool.query(
-      `INSERT INTO tokens_activacion (id_usuario, token, expira_en) VALUES ($1, $2, NOW() + INTERVAL '7 days')`,
+      `INSERT INTO tokens_activacion (id_usuario, token, expira_en) VALUES ($1, $2, NOW() + INTERVAL '30 days')`,
       [id, token]
     );
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -467,6 +483,7 @@ module.exports = {
   crearUsuario,
   editarUsuario,
   toggleUsuario,
+  eliminarUsuario,
   reenviarInvitacion,
   // Áreas
   listarDGs,

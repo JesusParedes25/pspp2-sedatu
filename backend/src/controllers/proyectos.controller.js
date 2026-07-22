@@ -296,6 +296,17 @@ async function eliminarDG(req, res, next) {
   }
 }
 
+// DELETE /proyectos/:id/purgar — Elimina permanentemente desde la papelera (solo superadmin)
+async function eliminarDefinitivamente(req, res, next) {
+  try {
+    const resultado = await proyectosQueries.purgarProyecto(req.params.id);
+    if (!resultado) {
+      return res.status(404).json({ error: true, mensaje: 'Proyecto no encontrado en la papelera', codigo: 'NO_ENCONTRADO' });
+    }
+    res.json({ datos: resultado, mensaje: 'Proyecto eliminado permanentemente' });
+  } catch (err) { next(err); }
+}
+
 // GET /proyectos/:id/etiquetas — Obtener etiquetas de un proyecto
 async function obtenerEtiquetas(req, res, next) {
   try {
@@ -330,4 +341,4 @@ async function servirImagen(req, res, next) {
   }
 }
 
-module.exports = { listar, obtenerPorId, crear, actualizar, eliminar, listarEliminados, restaurar, obtenerDGs, agregarDG, eliminarDG, obtenerEtiquetas, subirImagen, servirImagen };
+module.exports = { listar, obtenerPorId, crear, actualizar, eliminar, listarEliminados, restaurar, eliminarDefinitivamente, obtenerDGs, agregarDG, eliminarDG, obtenerEtiquetas, subirImagen, servirImagen };

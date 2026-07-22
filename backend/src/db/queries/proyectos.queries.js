@@ -319,6 +319,15 @@ async function restaurarProyecto(proyectoId) {
   return rows[0] || null;
 }
 
+// Elimina permanentemente un proyecto que ya está en la papelera (solo superadmin)
+async function purgarProyecto(proyectoId) {
+  const { rows } = await pool.query(
+    'DELETE FROM proyectos WHERE id = $1 AND deleted_at IS NOT NULL RETURNING id, nombre',
+    [proyectoId]
+  );
+  return rows[0] || null;
+}
+
 // Obtiene las DGs participantes de un proyecto
 async function obtenerDGsProyecto(proyectoId) {
   const resultado = await pool.query(`
@@ -389,6 +398,7 @@ module.exports = {
   eliminarProyecto,
   obtenerProyectosEliminados,
   restaurarProyecto,
+  purgarProyecto,
   obtenerDGsProyecto,
   agregarDGProyecto,
   eliminarDGProyecto,
