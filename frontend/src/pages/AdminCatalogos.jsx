@@ -129,8 +129,7 @@ const ROLES = ['superadmin', 'ejecutivo', 'direccion', 'enlace', 'externo'];
 // Devuelve { enviado: true } o { enviado: false, motivo: string }.
 async function enviarCorreoInvitacion(nombreUsuario, correoUsuario, inviteLink) {
   try {
-    const res = await fetch('/api/v1/admin/config/publico');
-    const json = await res.json();
+    const json = await adminApi.obtenerConfigPublico();
     const cfg = json.datos || {};
     if (cfg.emailjs_enabled !== 'true') return { enviado: false, motivo: 'correo_deshabilitado' };
     const { emailjs_service_id: svcId, emailjs_template_id: tplId, emailjs_public_key: pubKey } = cfg;
