@@ -20,11 +20,11 @@ export default function Layout() {
   const { sidebarAbierto } = useUI();
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
+    <div className="min-h-screen flex" style={{ backgroundColor: '#F5F5F0' }}>
       <Sidebar />
-      <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarAbierto ? 'ml-64' : 'ml-16'}`}>
+      <div className={`flex-1 min-w-0 flex flex-col transition-all duration-300 ${sidebarAbierto ? 'ml-64' : 'ml-16'}`}>
         <Header />
-        <main className="flex-1 p-6 overflow-auto">
+        <main className="flex-1 min-w-0 p-6 overflow-auto">
           <Outlet />
         </main>
       </div>

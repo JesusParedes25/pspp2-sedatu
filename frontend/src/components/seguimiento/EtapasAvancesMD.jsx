@@ -18,8 +18,9 @@ import { obtenerRiesgosEtapa, obtenerRiesgosAccion, crearRiesgo, actualizarRiesg
 import { obtenerComentarios, crearComentario } from '../../api/comentarios';
 import client from '../../api/client';
 import EstadoChip from '../common/EstadoChip';
-import SeccionAportaciones from './SeccionAportaciones';
+import TabIndicadores from './TabIndicadores';
 import SeccionMiembrosNodo from './SeccionMiembrosNodo';
+import FilePreviewModal from '../evidencias/FilePreviewModal';
 import { useUI } from '../../context/UIContext';
 
 // ─── Constantes ────────────────────────────────────────────────
@@ -73,6 +74,9 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
   const [cargando, setCargando] = useState(true);
   const [nodoSeleccionado, setNodoSeleccionado] = useState(null); // {tipo, id, data}
   const [expandidos, setExpandidos] = useState(new Set());
+
+  // Panel del árbol (hamburger en pantallas < lg)
+  const [treePanelAbierto, setTreePanelAbierto] = useState(false);
 
   // Filtros del árbol
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
@@ -167,6 +171,7 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
     const nodo = { tipo, id, data };
     setNodoSeleccionado(nodo);
     expandirHasta(nodo, arbol);
+    setTreePanelAbierto(false); // cerrar slide-over en móvil al seleccionar
     setSearchParams(prev => {
       prev.set('nodo', id);
       return prev;
@@ -215,12 +220,34 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
 
   return (
     <div className="flex gap-0 border border-gray-200 rounded-xl overflow-hidden bg-white" style={{ minHeight: '600px' }}>
+      {/* Overlay para árbol en móvil */}
+      {treePanelAbierto && (
+        <div className="fixed inset-0 bg-black/20 z-20 lg:hidden" onClick={() => setTreePanelAbierto(false)} />
+      )}
+
       {/* ─── Panel izquierdo: Árbol ─── */}
-      <div className="w-80 flex-shrink-0 border-r border-gray-200 flex flex-col bg-gray-50/50">
+      <div className={[
+        'flex-shrink-0 border-r border-gray-200 flex flex-col bg-gray-50/50',
+        /* Desktop: siempre visible como columna inline */
+        'lg:w-80 lg:relative lg:translate-x-0',
+        /* Móvil: slide-over controlado por estado */
+        treePanelAbierto
+          ? 'fixed left-0 top-0 bottom-0 w-80 z-30 shadow-2xl translate-x-0'
+          : 'fixed left-0 top-0 bottom-0 w-80 z-30 -translate-x-full lg:translate-x-0',
+        'transition-transform duration-200',
+      ].join(' ')}>
         {/* Cabecera */}
         <div className="px-3 py-2.5 border-b border-gray-200 flex items-center justify-between">
           <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Estructura del proyecto</h3>
           <div className="flex items-center gap-1">
+            {/* Cerrar slide-over en móvil */}
+            <button
+              onClick={() => setTreePanelAbierto(false)}
+              className="lg:hidden p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-200"
+              title="Cerrar"
+            >
+              <X size={13} />
+            </button>
             <button
               onClick={() => setMostrarFiltros(v => !v)}
               title="Filtros"
@@ -341,6 +368,16 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
 
       {/* ─── Panel derecho: Detalle ─── */}
       <div className="flex-1 min-w-0 flex flex-col">
+        {/* Barra de hamburger visible solo en móvil */}
+        {!nodoSeleccionado && (
+          <button
+            onClick={() => setTreePanelAbierto(v => !v)}
+            className="lg:hidden flex items-center gap-2 px-4 py-2 text-xs text-gray-500 border-b border-gray-100 hover:bg-gray-50"
+          >
+            <Layers size={13} />
+            <span>Ver estructura</span>
+          </button>
+        )}
         {!nodoSeleccionado ? (
           <div className="flex-1 flex items-center justify-center text-gray-400">
             <div className="text-center">
@@ -358,6 +395,7 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
             mostrarToast={mostrarToast}
             arbol={arbol}
             onSeleccionarNodo={seleccionarNodo}
+            onAbrirArbol={() => setTreePanelAbierto(true)}
           />
         )}
       </div>
@@ -507,10 +545,11 @@ function CrearInline({ tipo, padreId, proyectoId, onCreado }) {
 }
 
 // ─── Panel de detalle ──────────────────────────────────────────
-function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast, arbol, onSeleccionarNodo }) {
+function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast, arbol, onSeleccionarNodo, onAbrirArbol }) {
   const { tipo, id, data } = nodo;
   const [tabActiva, setTabActiva] = useState('subitems');
-  const [propiedadesAbiertas, setPropiedadesAbiertas] = useState(true);
+  const [railAbierto, setRailAbierto] = useState(false);
+  const [descExpandida, setDescExpandida] = useState(false);
 
   // Datos para pestañas
   const [evidencias, setEvidencias] = useState([]);
@@ -522,8 +561,18 @@ function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast,
     escalas: [], instrumentos: [], estados_geo: [], municipios: [], zm: [], usuarios: []
   });
   const [muniFilter, setMuniFilter] = useState(data.cve_ent || null);
+  const [modoTerritorio, setModoTerritorio] = useState(() => data.id_zm ? 'zm' : 'estado');
+  const [confirmCambioModo, setConfirmCambioModo] = useState(null);
 
-  useEffect(() => { setTabActiva('subitems'); setPropiedadesAbiertas(true); }, [id]);
+  useEffect(() => { setTabActiva('subitems'); setDescExpandida(false); setRailAbierto(false); }, [id]);
+  // El territorio depende de qué nodo está seleccionado — sin esto, al navegar
+  // de un nodo en modo ZM a uno en modo Estado (o viceversa) el rail se queda
+  // mostrando el modo del nodo anterior en vez de reflejar los datos reales.
+  useEffect(() => {
+    setModoTerritorio(data.id_zm ? 'zm' : 'estado');
+    setMuniFilter(data.cve_ent || null);
+    setConfirmCambioModo(null);
+  }, [id]);
 
   // Cargar catálogos una vez
   useEffect(() => {
@@ -532,8 +581,8 @@ function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast,
         const [escRes, instRes, estRes, zmRes, usrRes] = await Promise.all([
           client.get('/catalogos/valores', { params: { tipo: 'escala_territorial' } }),
           client.get('/catalogos/valores', { params: { tipo: 'instrumento' } }),
-          client.get('/catalogos/estados'),
-          client.get('/catalogos/zonas-metropolitanas'),
+          client.get('/geo/estados'),
+          client.get('/geo/zm'),
           client.get('/catalogos/usuarios'),
         ]);
         setCatalogs({
@@ -546,14 +595,14 @@ function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast,
         });
       } catch (e) { console.error('Error cargando catálogos:', e); }
     })();
-  }, []);
+  }, [])
 
   // Cargar municipios cuando cambia el estado geográfico
   useEffect(() => {
     if (!muniFilter) { setCatalogs(prev => ({ ...prev, municipios: [] })); return; }
     (async () => {
       try {
-        const res = await client.get('/catalogos/municipios-por-clave', { params: { cve_ent: muniFilter } });
+        const res = await client.get('/geo/municipios', { params: { cve_ent: muniFilter } });
         setCatalogs(prev => ({ ...prev, municipios: res.data.datos || [] }));
       } catch { setCatalogs(prev => ({ ...prev, municipios: [] })); }
     })();
@@ -600,13 +649,13 @@ function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast,
   const subItems = tipo === 'etapa' ? (data.acciones || []) : (data.tareas || []);
   const subItemLabel = tipo === 'etapa' ? 'Acciones' : 'Tareas';
 
-  // Tabs
+  // Tabs (Equipo movido al rail derecho como "Participantes")
   const tabs = [
-    { id: 'subitems', label: `${subItemLabel} (${subItems.length})`, icono: Layers },
-    { id: 'equipo', label: 'Equipo', icono: Users },
-    { id: 'archivos', label: `Archivos (${evidencias.length || 0})`, icono: FileText },
-    { id: 'riesgos', label: `Riesgos (${riesgos.length || 0})`, icono: AlertTriangle },
-    { id: 'comentarios', label: `Comentarios (${comentarios.length || 0})`, icono: MessageSquare },
+    { id: 'subitems',    label: `${subItemLabel} (${subItems.length})`, icono: Layers },
+    { id: 'archivos',   label: `Archivos (${evidencias.length})`,        icono: FileText },
+    { id: 'riesgos',    label: `Riesgos (${riesgos.length})`,            icono: AlertTriangle },
+    { id: 'comentarios',label: `Comentarios (${comentarios.length})`,    icono: MessageSquare },
+    { id: 'indicadores',label: 'Indicadores',                            icono: BarChart3 },
   ];
 
   // ─── PATCH handler ───
@@ -626,228 +675,384 @@ function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast,
     }
   }
 
-  return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="px-5 pt-4 pb-3 border-b border-gray-100">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-500 uppercase tracking-wider">
-            {tipoLabel}
-          </span>
-          <EstadoChip estado={data.estado || 'Pendiente'} />
-          {data.prioridad && (
-            <span className="text-[10px] text-gray-500">Prioridad: <strong>{data.prioridad}</strong></span>
-          )}
-        </div>
-        <CampoTextoInline
-          valor={data.nombre}
-          campo="nombre"
-          onGuardar={v => guardarCampo('nombre', v)}
-          soloLectura={permisos.esSoloLectura}
-          className="text-lg font-bold text-gray-900 leading-tight"
-        />
-        <CampoTextoInline
-          valor={data.descripcion || ''}
-          campo="descripcion"
-          onGuardar={v => guardarCampo('descripcion', v)}
-          soloLectura={permisos.esSoloLectura}
-          placeholder="Agregar descripción..."
-          className="text-xs text-gray-500 mt-1"
-          multiline
-        />
+  function requestCambioModo(nuevoModo) {
+    const tieneData = nuevoModo === 'zm' ? (data.cve_ent || data.cve_mun) : data.id_zm;
+    if (tieneData) { setConfirmCambioModo(nuevoModo); }
+    else { aplicarCambioModo(nuevoModo); }
+  }
+  function aplicarCambioModo(modo) {
+    setConfirmCambioModo(null);
+    setModoTerritorio(modo);
+    if (modo === 'zm') {
+      if (data.cve_ent) guardarCampo('cve_ent', null);
+      if (data.cve_mun) guardarCampo('cve_mun', null);
+      setMuniFilter(null);
+    } else {
+      if (data.id_zm) guardarCampo('id_zm', null);
+    }
+  }
 
-        {/* Barra de avance */}
-        <div className="mt-3 flex items-center gap-3">
-          <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-300"
-              style={{ width: `${Math.min(avance, 100)}%`, backgroundColor: COLORES_SEMAFORO[sem] }}
-            />
+  const tooltipCalculado = 'Se calcula a partir de sus partes. Actualiza las tareas/acciones que contiene.';
+
+  return (
+    <div className="flex flex-1 min-w-0 overflow-hidden h-full">
+
+      {/* ── COLUMNA CENTRAL ─────────────────────────────────────── */}
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+
+        {/* Cabecera pegajosa */}
+        <div className="flex-shrink-0 px-5 pt-4 border-b border-gray-100">
+          {/* Fila 1: chips de tipo, estado y toggle de propiedades */}
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#7B1C3E] text-white uppercase tracking-wider">
+              {tipoLabel}
+            </span>
+            <EstadoChip estado={data.estado || 'Pendiente'} />
+            {esContenedor && (
+              <span className="flex items-center gap-0.5 text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                <Lock size={9} /> calculado
+              </span>
+            )}
+            {data.prioridad && (
+              <span className="text-[10px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                {data.prioridad}
+              </span>
+            )}
+            {/* Botones responsive: hamburger árbol (< lg) y toggle rail (< xl) */}
+            <div className="ml-auto flex items-center gap-1">
+              <button
+                onClick={onAbrirArbol}
+                className="lg:hidden flex items-center gap-1 text-[10px] border border-gray-200 px-2 py-0.5 rounded text-gray-500 hover:bg-gray-50 transition-colors"
+                title="Ver estructura"
+              >
+                <Layers size={10} />
+              </button>
+              <button
+                onClick={() => setRailAbierto(v => !v)}
+                className="xl:hidden flex items-center gap-1 text-[10px] border border-gray-200 px-2 py-0.5 rounded text-gray-500 hover:bg-gray-50 transition-colors"
+              >
+                Propiedades {railAbierto ? <X size={10} /> : <ChevronRight size={10} />}
+              </button>
+            </div>
           </div>
-          <span className="text-sm font-bold tabular-nums" style={{ color: COLORES_SEMAFORO[sem] }}>
-            {Math.round(avance)}%
-          </span>
+
+          {/* Fila 2: título editable */}
+          <CampoTextoInline
+            valor={data.nombre}
+            campo="nombre"
+            onGuardar={v => guardarCampo('nombre', v)}
+            soloLectura={permisos.esSoloLectura}
+            className="text-xl font-bold text-gray-900 leading-tight"
+          />
+
+          {/* Fila 3: descripción con clamp */}
+          <div className="mt-1.5 mb-1">
+            {permisos.esSoloLectura ? (
+              <>
+                <p className={`text-xs text-gray-500 leading-relaxed ${descExpandida ? '' : 'line-clamp-2'}`}>
+                  {data.descripcion || <span className="italic text-gray-300">Sin descripción…</span>}
+                </p>
+                {(data.descripcion || '').length > 100 && (
+                  <button onClick={() => setDescExpandida(v => !v)} className="text-[10px] text-[#7B1C3E] hover:text-[#5a1430] font-medium">
+                    {descExpandida ? 'Ver menos' : 'Ver más'}
+                  </button>
+                )}
+              </>
+            ) : (
+              <CampoTextoInline
+                valor={data.descripcion || ''}
+                campo="descripcion"
+                onGuardar={v => guardarCampo('descripcion', v)}
+                soloLectura={false}
+                placeholder="Agregar descripción…"
+                className="text-xs text-gray-500"
+                multiline
+              />
+            )}
+          </div>
+
+          {/* Fila 4: barra de avance */}
+          <div className="mt-2 flex items-center gap-3">
+            <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-300"
+                style={{ width: `${Math.min(avance, 100)}%`, backgroundColor: COLORES_SEMAFORO[sem] }}
+              />
+            </div>
+            <span className="text-sm font-bold tabular-nums w-10 text-right" style={{ color: COLORES_SEMAFORO[sem] }}>
+              {Math.round(avance)}%
+            </span>
+          </div>
+
+          {/* Fila 5: pestañas */}
+          <div className="flex -mb-px mt-3">
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setTabActiva(tab.id)}
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors mr-0.5 whitespace-nowrap
+                  ${tabActiva === tab.id
+                    ? 'border-[#7B1C3E] text-[#7B1C3E]'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+              >
+                <tab.icono size={12} />{tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Contenido de pestaña */}
+        <div className="flex-1 overflow-y-auto">
+          {tabActiva === 'subitems' && (
+            <TabSubItems
+              items={subItems} tipo={tipo} padreId={id} proyectoId={proyectoId}
+              permisos={permisos} onActualizado={onActualizado} mostrarToast={mostrarToast}
+              onSeleccionarNodo={onSeleccionarNodo}
+            />
+          )}
+          {tabActiva === 'archivos' && (
+            <TabArchivos evidencias={evidencias} tipo={tipo} id={id} onRecargar={cargarEvidencias} permisos={permisos} />
+          )}
+          {tabActiva === 'riesgos' && (
+            <TabRiesgos riesgos={riesgos} tipo={tipo} id={id} onRecargar={cargarRiesgos} permisos={permisos} proyectoId={proyectoId} />
+          )}
+          {tabActiva === 'comentarios' && (
+            <TabComentarios comentarios={comentarios} tipo={tipo} id={id} onRecargar={cargarComentarios} />
+          )}
+          {tabActiva === 'indicadores' && (
+            <TabIndicadores
+              tipo={tipo} nodoId={id} proyectoId={proyectoId}
+              soloLectura={permisos.esSoloLectura}
+            />
+          )}
         </div>
       </div>
 
-      {/* Propiedades desplegables */}
-      <div className="border-b border-gray-100">
-        <button
-          onClick={() => setPropiedadesAbiertas(!propiedadesAbiertas)}
-          className="w-full flex items-center justify-between px-5 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
-        >
-          <span>Propiedades</span>
-          {propiedadesAbiertas ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        </button>
-        {propiedadesAbiertas && (<>
-          <div className="px-5 pb-3 grid grid-cols-3 gap-x-4 gap-y-2">
-            {/* Fila 1: Estado, Prioridad, Tipo */}
+      {/* ── RAIL DERECHO ────────────────────────────────────────── */}
+      {/* Overlay para slide-over en pantallas < xl */}
+      {railAbierto && (
+        <div
+          className="fixed inset-0 bg-black/20 z-20 xl:hidden"
+          onClick={() => setRailAbierto(false)}
+        />
+      )}
+      <aside
+        className={[
+          'flex-shrink-0 border-l border-gray-200 bg-white overflow-y-auto flex flex-col',
+          /* Desktop: siempre visible como columna inline */
+          'xl:w-[290px] xl:relative xl:translate-x-0',
+          /* Móvil/tablet: slide-over controlado por estado */
+          railAbierto
+            ? 'fixed right-0 top-0 bottom-0 w-[290px] z-30 shadow-2xl translate-x-0'
+            : 'fixed right-0 top-0 bottom-0 w-[290px] z-30 shadow-2xl translate-x-full xl:translate-x-0',
+          'transition-transform duration-200',
+        ].join(' ')}
+      >
+        {/* Botón de cierre visible solo en móvil */}
+        <div className="xl:hidden flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex-shrink-0">
+          <span className="text-xs font-semibold text-gray-600">Propiedades</span>
+          <button onClick={() => setRailAbierto(false)} className="p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-200">
+            <X size={14} />
+          </button>
+        </div>
+
+        {/* ── Tarjeta: Seguimiento ── */}
+        <RailCard title="Seguimiento" defaultOpen={true}>
+          {/* Estatus */}
+          <div className="mb-2">
+            <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">Estatus</span>
             {esContenedor ? (
-              <div>
-                <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">Estatus</span>
-                <div className="flex items-center gap-1.5">
-                  <Lock size={10} className="text-gray-400" />
-                  <span className="text-xs text-gray-500">{(data.estado || 'Pendiente').replace(/_/g, ' ')}</span>
-                </div>
-                <p className="text-[9px] text-gray-400 mt-0.5 italic">Se calcula desde sus partes</p>
+              <div className="flex items-center gap-1.5">
+                <Lock size={10} className="text-gray-400" />
+                <span className="text-xs text-gray-500">{(data.estado || 'Pendiente').replace(/_/g, ' ')}</span>
+                <span title={tooltipCalculado} className="w-3.5 h-3.5 rounded-full border border-gray-300 text-[9px] text-gray-400 flex items-center justify-center cursor-help font-bold flex-shrink-0">?</span>
               </div>
             ) : (
               <CampoSelect
-                label="Estatus"
-                valor={data.estado || 'Pendiente'}
-                opciones={ESTADOS}
+                valor={data.estado || 'Pendiente'} opciones={ESTADOS}
                 onChange={v => guardarCampo('estado', v)}
-                soloLectura={permisos.esSoloLectura}
-                formatLabel={v => v.replace(/_/g, ' ')}
+                soloLectura={permisos.esSoloLectura} formatLabel={v => v.replace(/_/g, ' ')}
               />
             )}
-            <CampoSelect
-              label="Prioridad"
-              valor={data.prioridad || ''}
-              opciones={PRIORIDADES}
-              onChange={v => guardarCampo('prioridad', v)}
+          </div>
+          {/* Avance */}
+          <div className="mb-2">
+            <CampoAvance
+              valor={data.avance_actual} avanceEfectivo={avance} esContenedor={esContenedor}
+              estado={data.estado} onChange={v => guardarCampo('avance_actual', v)}
               soloLectura={permisos.esSoloLectura}
             />
+          </div>
+          {/* Semáforo */}
+          <div className="mb-2">
+            <CampoSemaforo
+              valor={data.semaforo} override={data.semaforo_override} efectivo={sem}
+              onChange={v => guardarCampo('semaforo', v)} soloLectura={permisos.esSoloLectura}
+            />
+          </div>
+          {/* Prioridad */}
+          <div className="mb-2">
             <CampoSelect
-              label="Responsable"
-              valor={data.id_responsable || ''}
+              label="Prioridad" valor={data.prioridad || ''} opciones={PRIORIDADES}
+              onChange={v => guardarCampo('prioridad', v)} soloLectura={permisos.esSoloLectura}
+            />
+          </div>
+          {/* Responsable (siempre solo lectura) */}
+          <div className="mb-2">
+            <CampoSelect
+              label="Responsable" valor={data.id_responsable || ''}
               opciones={catalogs.usuarios.map(u => ({ value: u.id, label: `${u.nombre_completo}${u.dg_siglas ? ' — ' + u.dg_siglas : ''}` }))}
-              onChange={v => guardarCampo('id_responsable', v || null)}
-              soloLectura={permisos.esSoloLectura}
-              useObjects
+              onChange={() => {}} soloLectura={true} useObjects
             />
-            {/* Fila 2: Fechas */}
+          </div>
+          {/* Fechas */}
+          <div className="mb-2">
             <CampoFecha
               label="Fecha inicio"
               valor={data.fecha_inicio ? data.fecha_inicio.substring(0, 10) : ''}
               onChange={v => guardarCampo('fecha_inicio', v || null)}
               soloLectura={permisos.esSoloLectura}
             />
+          </div>
+          <div className="mb-2">
             <CampoFecha
               label="Fecha límite"
               valor={data.fecha_limite ? data.fecha_limite.substring(0, 10) : ''}
               onChange={v => guardarCampo('fecha_limite', v || null)}
               soloLectura={permisos.esSoloLectura}
             />
-            <CampoEditable
-              label="Última actualización"
-              valor={data.updated_at ? new Date(data.updated_at).toLocaleString('es-MX') : '—'}
-              soloLectura={true}
-            />
-            {/* Fila 3: Avance y Semáforo */}
-            <CampoAvance
-              valor={data.avance_actual}
-              avanceEfectivo={avance}
-              esContenedor={esContenedor}
-              estado={data.estado}
-              onChange={v => guardarCampo('avance_actual', v)}
+          </div>
+          {/* Última actualización */}
+          <div>
+            <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">Última actualización</span>
+            <span className="text-xs text-gray-400">
+              {data.updated_at ? new Date(data.updated_at).toLocaleString('es-MX') : '—'}
+            </span>
+          </div>
+        </RailCard>
+
+        {/* ── Tarjeta: Participantes ── */}
+        <RailCard title="Participantes" defaultOpen={true}>
+          <SeccionMiembrosNodo
+            tipo={tipo}
+            idNodo={id}
+            permisos={permisos}
+          />
+        </RailCard>
+
+        {/* ── Tarjetas solo para etapas y acciones ── */}
+        {tipo !== 'tarea' && (<>
+          <RailCard title="Clasificación" defaultOpen={false}>
+            <CampoSelect
+              label="Instrumento principal" valor={data.instrumento || ''}
+              opciones={catalogs.instrumentos}
+              onChange={v => guardarCampo('instrumento', v || null)}
               soloLectura={permisos.esSoloLectura}
             />
-            <CampoSemaforo
-              valor={data.semaforo}
-              override={data.semaforo_override}
-              efectivo={sem}
-              onChange={v => guardarCampo('semaforo', v)}
-              soloLectura={permisos.esSoloLectura}
-            />
-            {tipo !== 'tarea' && (
+            <div className="mt-2">
               <CampoSelect
-                label="Escala territorial"
-                valor={data.escala_territorial || ''}
+                label="Escala territorial" valor={data.escala_territorial || ''}
                 opciones={catalogs.escalas}
                 onChange={v => guardarCampo('escala_territorial', v || null)}
                 soloLectura={permisos.esSoloLectura}
               />
+            </div>
+          </RailCard>
+
+          <RailCard title="Territorio" defaultOpen={false}>
+            {confirmCambioModo && (
+              <div className="mb-3 p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-[11px] font-medium text-amber-800 mb-2">
+                  Cambiar de modo borrará el territorio actual. ¿Continuar?
+                </p>
+                <div className="flex gap-2">
+                  <button onClick={() => aplicarCambioModo(confirmCambioModo)}
+                    className="px-2.5 py-1 bg-amber-600 text-white rounded text-[11px] font-medium hover:bg-amber-700">
+                    Sí, cambiar
+                  </button>
+                  <button onClick={() => setConfirmCambioModo(null)}
+                    className="px-2.5 py-1 bg-white border border-gray-300 rounded text-[11px] hover:bg-gray-50">
+                    Cancelar
+                  </button>
+                </div>
+              </div>
             )}
-            {/* Fila 4: Catálogos */}
-            {tipo !== 'tarea' && (
-              <>
-                <CampoSelect
-                  label="Instrumento principal"
-                  valor={data.instrumento || ''}
-                  opciones={catalogs.instrumentos}
-                  onChange={v => guardarCampo('instrumento', v || null)}
-                  soloLectura={permisos.esSoloLectura}
-                />
-                <CampoSelect
-                  label="Estado (geográfico)"
-                  valor={data.cve_ent || ''}
-                  opciones={catalogs.estados_geo.map(e => ({ value: e.cve_ent || e.clave, label: e.nom_ent || e.nombre }))}
-                  onChange={v => { setMuniFilter(v || null); guardarCampo('cve_ent', v || null); }}
-                  soloLectura={permisos.esSoloLectura}
-                  useObjects
-                />
-                <CampoSelect
-                  label="Municipio"
-                  valor={data.cve_mun || ''}
-                  opciones={catalogs.municipios.map(m => ({ value: m.cve_mun || m.clave, label: m.nom_mun || m.nombre }))}
-                  onChange={v => guardarCampo('cve_mun', v || null)}
-                  soloLectura={permisos.esSoloLectura}
-                  useObjects
-                />
-              </>
-            )}
-          </div>
-          {/* Aportación a indicadores */}
-          {tipo !== 'tarea' && (
-            <SeccionAportaciones
-              tipo={tipo}
-              nodoId={id}
-              proyectoId={proyectoId}
-              avanceEfectivo={avance}
-              soloLectura={permisos.esSoloLectura}
-            />
-          )}
+
+            {/* Modo A: Estado + Municipio */}
+            <div
+              onClick={() => !permisos.esSoloLectura && modoTerritorio !== 'estado' && requestCambioModo('estado')}
+              className={`rounded-lg border-2 transition-all mb-2 ${modoTerritorio === 'estado' ? 'border-[#7B1C3E] bg-[#fbf3f6]' : 'border-gray-200 bg-gray-50/80 opacity-60 cursor-pointer hover:opacity-75'}`}
+            >
+              <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
+                <div className="flex items-center gap-2">
+                  <div className={`w-3 h-3 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${modoTerritorio === 'estado' ? 'border-[#7B1C3E] bg-[#7B1C3E]' : 'border-gray-400'}`}>
+                    {modoTerritorio === 'estado' && <div className="w-1 h-1 bg-white rounded-full"/>}
+                  </div>
+                  <span className="text-[11px] font-semibold text-gray-700">Modo A · Estado</span>
+                </div>
+                {modoTerritorio !== 'estado' && <span className="text-[9px] text-gray-400">🔒 Bloqueado</span>}
+              </div>
+              {modoTerritorio === 'estado' && (
+                <div className="px-3 pb-3 space-y-2">
+                  <p className="text-[10px] text-gray-400 leading-tight">Usar cuando el proyecto opera en un área específica de un estado.</p>
+                  <CampoSelect label="Estado" valor={data.cve_ent || ''}
+                    opciones={catalogs.estados_geo.map(e => ({ value: e.cve_ent, label: e.nombre }))}
+                    onChange={v => { setMuniFilter(v || null); guardarCampo('cve_ent', v || null); if (!v) guardarCampo('cve_mun', null); }}
+                    soloLectura={permisos.esSoloLectura} useObjects/>
+                  <CampoSelect label="Municipio (opcional)" valor={data.cve_mun || ''}
+                    opciones={catalogs.municipios.map(m => ({ value: m.cvegeo, label: m.nombre }))}
+                    onChange={v => guardarCampo('cve_mun', v || null)}
+                    soloLectura={permisos.esSoloLectura || !muniFilter} useObjects/>
+                </div>
+              )}
+            </div>
+
+            {/* Modo B: Zona Metropolitana */}
+            <div
+              onClick={() => !permisos.esSoloLectura && modoTerritorio !== 'zm' && requestCambioModo('zm')}
+              className={`rounded-lg border-2 transition-all ${modoTerritorio === 'zm' ? 'border-[#7B1C3E] bg-[#fbf3f6]' : 'border-gray-200 bg-gray-50/80 opacity-60 cursor-pointer hover:opacity-75'}`}
+            >
+              <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
+                <div className="flex items-center gap-2">
+                  <div className={`w-3 h-3 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${modoTerritorio === 'zm' ? 'border-[#7B1C3E] bg-[#7B1C3E]' : 'border-gray-400'}`}>
+                    {modoTerritorio === 'zm' && <div className="w-1 h-1 bg-white rounded-full"/>}
+                  </div>
+                  <span className="text-[11px] font-semibold text-gray-700">Modo B · Zona Metropolitana</span>
+                </div>
+                {modoTerritorio !== 'zm' && <span className="text-[9px] text-gray-400">🔒 Bloqueado</span>}
+              </div>
+              {modoTerritorio === 'zm' && (
+                <div className="px-3 pb-3 space-y-2">
+                  <p className="text-[10px] text-gray-400 leading-tight">La ZM ya contiene sus municipios y estados. No requiere elegir más.</p>
+                  <CampoSelect label="Zona Metropolitana" valor={data.id_zm ? String(data.id_zm) : ''}
+                    opciones={catalogs.zm.map(z => ({ value: String(z.gid), label: z.nombre }))}
+                    onChange={v => guardarCampo('id_zm', v ? parseInt(v, 10) : null)}
+                    soloLectura={permisos.esSoloLectura} useObjects/>
+                </div>
+              )}
+            </div>
+          </RailCard>
+
         </>)}
-      </div>
+      </aside>
+    </div>
+  );
+}
 
-      {/* Pestañas */}
-      <div className="flex border-b border-gray-200 px-5">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setTabActiva(tab.id)}
-            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors mr-1
-              ${tabActiva === tab.id
-                ? 'border-[#7B1C3E] text-[#7B1C3E]'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-          >
-            <tab.icono size={12} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Contenido de pestaña */}
-      <div className="flex-1 overflow-y-auto">
-        {tabActiva === 'subitems' && (
-          <TabSubItems
-            items={subItems}
-            tipo={tipo}
-            padreId={id}
-            proyectoId={proyectoId}
-            permisos={permisos}
-            onActualizado={onActualizado}
-            mostrarToast={mostrarToast}
-            onSeleccionarNodo={onSeleccionarNodo}
-          />
-        )}
-        {tabActiva === 'equipo' && (
-          <div className="px-5 py-4">
-            <SeccionMiembrosNodo tipo={tipo === 'tarea' ? 'accion' : tipo} idNodo={id} permisos={permisos} />
-          </div>
-        )}
-        {tabActiva === 'archivos' && (
-          <TabArchivos evidencias={evidencias} tipo={tipo} id={id} onRecargar={cargarEvidencias} permisos={permisos} />
-        )}
-        {tabActiva === 'riesgos' && (
-          <TabRiesgos riesgos={riesgos} tipo={tipo} id={id} onRecargar={cargarRiesgos} permisos={permisos} proyectoId={proyectoId} />
-        )}
-        {tabActiva === 'comentarios' && (
-          <TabComentarios comentarios={comentarios} tipo={tipo} id={id} onRecargar={cargarComentarios} />
-        )}
-      </div>
+// ─── Tarjeta colapsable del rail derecho ──────────────────────
+function RailCard({ title, children, defaultOpen = true }) {
+  const [abierto, setAbierto] = useState(defaultOpen);
+  return (
+    <div className="border-b border-gray-100">
+      <button
+        onClick={() => setAbierto(v => !v)}
+        className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+      >
+        <span>{title}</span>
+        {abierto ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+      </button>
+      {abierto && <div className="px-4 pb-3 pt-0.5">{children}</div>}
     </div>
   );
 }
@@ -1144,193 +1349,6 @@ function TabSubItems({ items, tipo, padreId, proyectoId, permisos, onActualizado
       )}
     </div>
   );
-}
-
-// ─── Modal de vista previa de archivos ────────────────────────
-function FilePreviewModal({ evidencia, onClose }) {
-  const [geoData, setGeoData] = useState(null);
-  const [geoError, setGeoError] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-  const nombre = evidencia.nombre_original || evidencia.nombre_archivo || '';
-  const ext = nombre.split('.').pop().toLowerCase();
-  const url = evidenciasApi.obtenerUrlDescarga(evidencia.id);
-
-  const esPdf = ext === 'pdf';
-  const esImagen = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
-  const esAudio = ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'].includes(ext);
-  const esTexto = ['txt', 'md', 'csv', 'json', 'xml', 'log'].includes(ext);
-  const esKml = ['kml', 'kmz'].includes(ext);
-  const esShp = ext === 'zip' && (evidencia.categoria || '').toLowerCase().includes('capa');
-
-  useEffect(() => {
-    if (!esKml && !esShp) return;
-    setLoading(true);
-    (async () => {
-      try {
-        if (esKml) {
-          const resp = await fetch(url);
-          let text;
-          if (ext === 'kmz') {
-            const JSZip = (await import('jszip')).default;
-            const zip = await JSZip.loadAsync(await resp.arrayBuffer());
-            const kmlFile = Object.keys(zip.files).find(f => f.endsWith('.kml'));
-            text = await zip.files[kmlFile].async('string');
-          } else {
-            text = await resp.text();
-          }
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(text, 'text/xml');
-          const features = [];
-          doc.querySelectorAll('Placemark').forEach(pm => {
-            const coords = pm.querySelector('coordinates');
-            if (!coords) return;
-            const parts = coords.textContent.trim().split(/\s+/).map(c => {
-              const [lng, lat] = c.split(',').map(Number);
-              return [lat, lng];
-            });
-            features.push({ name: pm.querySelector('name')?.textContent || '', coords: parts });
-          });
-          setGeoData(features);
-        } else {
-          const shp = await import('shpjs');
-          const resp = await fetch(url);
-          const buf = await resp.arrayBuffer();
-          const geojson = await shp.default(buf);
-          setGeoData(geojson);
-        }
-      } catch (err) {
-        console.error('Error cargando geodatos:', err);
-        setGeoError('No se pudo cargar la vista previa geográfica.');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl w-[90vw] max-w-4xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        {/* Title bar */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 bg-gray-50 rounded-t-xl">
-          <div className="flex items-center gap-2 min-w-0">
-            <FileText size={14} className="text-[#7B1C3E] flex-shrink-0" />
-            <span className="text-sm font-semibold text-gray-800 truncate">{nombre}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <a href={url} target="_blank" rel="noreferrer"
-              className="flex items-center gap-1 px-2.5 py-1 text-[10px] bg-[#7B1C3E] text-white rounded hover:bg-[#5a1430]">
-              <Upload size={10} className="rotate-180" /> Descargar
-            </a>
-            <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-200">
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-        {/* Content */}
-        <div className="flex-1 overflow-auto p-1 min-h-0">
-          {esPdf && (
-            <iframe src={url} className="w-full h-full min-h-[60vh] rounded" title={nombre} />
-          )}
-          {esImagen && (
-            <div className="flex items-center justify-center h-full p-4">
-              <img src={url} alt={nombre} className="max-w-full max-h-[70vh] object-contain rounded" />
-            </div>
-          )}
-          {(esKml || esShp) && loading && (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 size={24} className="animate-spin text-[#7B1C3E]" />
-              <span className="ml-2 text-sm text-gray-500">Cargando vista previa geográfica…</span>
-            </div>
-          )}
-          {(esKml || esShp) && geoError && (
-            <div className="flex flex-col items-center justify-center h-64 gap-2">
-              <AlertTriangle size={20} className="text-amber-500" />
-              <p className="text-sm text-gray-500">{geoError}</p>
-              <a href={url} target="_blank" rel="noreferrer" className="text-xs text-[#7B1C3E] underline">Descargar archivo</a>
-            </div>
-          )}
-          {(esKml || esShp) && geoData && !loading && !geoError && (
-            <GeoPreviewMap data={geoData} isGeoJSON={esShp} />
-          )}
-          {esAudio && (
-            <div className="flex items-center justify-center h-64 p-4">
-              <audio controls src={url} className="w-full max-w-md" />
-            </div>
-          )}
-          {esTexto && (
-            <iframe src={url} className="w-full h-full min-h-[60vh] rounded bg-gray-50 font-mono text-sm" title={nombre} />
-          )}
-          {!esPdf && !esImagen && !esKml && !esShp && !esAudio && !esTexto && (
-            <div className="flex flex-col items-center justify-center h-64 gap-3">
-              <FileText size={40} className="text-gray-300" />
-              <p className="text-sm text-gray-500">Vista previa no disponible para este tipo de archivo.</p>
-              <a href={url} target="_blank" rel="noreferrer"
-                className="flex items-center gap-1 px-4 py-2 bg-[#7B1C3E] text-white text-sm rounded-lg hover:bg-[#5a1430]">
-                <Upload size={14} className="rotate-180" /> Descargar archivo
-              </a>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function GeoPreviewMap({ data, isGeoJSON }) {
-  const mapRef = useRef(null);
-  const containerRef = useRef(null);
-
-  useEffect(() => {
-    if (mapRef.current || !containerRef.current) return;
-    let cancelled = false;
-
-    (async () => {
-      const L = (await import('leaflet')).default;
-      await import('leaflet/dist/leaflet.css');
-      if (cancelled || mapRef.current) return;
-
-      const map = L.map(containerRef.current).setView([23.6345, -102.5528], 5);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap'
-      }).addTo(map);
-
-      let layer;
-      if (isGeoJSON) {
-        layer = L.geoJSON(data, {
-          style: { color: '#7B1C3E', weight: 2, fillOpacity: 0.15 },
-          onEachFeature: (feature, lyr) => {
-            if (feature.properties) {
-              const props = Object.entries(feature.properties)
-                .filter(([, v]) => v != null && v !== '')
-                .map(([k, v]) => `<b>${k}:</b> ${v}`).join('<br/>');
-              if (props) lyr.bindPopup(`<div style="font-size:11px;max-height:200px;overflow:auto">${props}</div>`);
-            }
-          }
-        }).addTo(map);
-      } else {
-        layer = L.featureGroup();
-        (data || []).forEach(f => {
-          if (f.coords.length === 1) {
-            L.circleMarker(f.coords[0], { radius: 5, color: '#7B1C3E' }).bindPopup(f.name || '').addTo(layer);
-          } else {
-            L.polyline(f.coords, { color: '#7B1C3E', weight: 2 }).bindPopup(f.name || '').addTo(layer);
-          }
-        });
-        layer.addTo(map);
-      }
-
-      if (layer && layer.getBounds && layer.getLayers && layer.getLayers().length > 0) {
-        try { map.fitBounds(layer.getBounds(), { padding: [30, 30] }); } catch {}
-      }
-
-      mapRef.current = map;
-    })();
-
-    return () => { cancelled = true; if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } };
-  }, [data, isGeoJSON]);
-
-  return <div ref={containerRef} style={{ width: '100%', height: '60vh' }} />;
 }
 
 // ─── Tab: Archivos con formulario de subida (2 pasos) ────────

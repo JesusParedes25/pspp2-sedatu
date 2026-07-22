@@ -333,13 +333,13 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
       <div className="border rounded-lg overflow-hidden">
         <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-900 text-white sticky top-0 z-10">
+            <thead className="sticky top-0 z-10" style={{ backgroundColor: '#7B1C3E' }}>
               {table.getHeaderGroups().map(hg => (
                 <tr key={hg.id}>
                   {hg.headers.map(header => (
                     <th
                       key={header.id}
-                      className="px-2 py-2 text-left text-xs font-medium whitespace-nowrap select-none"
+                      className="px-2 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-white whitespace-nowrap select-none"
                       style={{ width: header.getSize() }}
                     >
                       {header.isPlaceholder ? null : (

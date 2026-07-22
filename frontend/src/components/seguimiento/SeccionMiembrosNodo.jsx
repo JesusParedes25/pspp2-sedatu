@@ -3,7 +3,7 @@
  * PROPÓSITO: Gestión de miembros (responsable/colaborador/invitado) de una etapa o acción.
  */
 import { useState, useEffect, useMemo } from 'react';
-import { UserPlus, X, ChevronDown, Search, Users } from 'lucide-react';
+import { UserPlus, X, Search, Lock } from 'lucide-react';
 import { obtenerUsuarios } from '../../api/catalogos';
 import {
   listarMiembrosNodo,
@@ -116,19 +116,28 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos }) {
       {cargando ? (
         <p className="text-xs text-gray-400 py-2">Cargando equipo...</p>
       ) : miembros.length === 0 ? (
-        <p className="text-xs text-gray-400 py-1">Sin miembros asignados.</p>
+        <p className="text-xs text-gray-400 py-1">Sin responsable ni miembros asignados.</p>
       ) : (
         <div className="space-y-1.5">
           {miembros.map(m => {
             const rc = rolConfig(m.rol);
+            const esPrincipal = m.es_responsable_principal;
             return (
-              <div key={m.id_usuario} className="flex items-center gap-2 group">
+              <div key={m.id_usuario}
+                className={`flex items-center gap-2 group rounded-lg px-1.5 py-0.5 ${
+                  esPrincipal ? 'bg-guinda-50 border border-guinda-100' : ''
+                }`}
+              >
                 <Iniciales nombre={m.nombre_completo} />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-gray-800 truncate">{m.nombre_completo}</p>
                   {m.dg_siglas && <p className="text-[10px] text-gray-400">{m.dg_siglas}</p>}
                 </div>
-                {permisos.puedeEditar ? (
+                {esPrincipal ? (
+                  <span className={`flex items-center gap-0.5 text-[10px] font-medium px-2 py-0.5 rounded-full ${rc.color}`}>
+                    <Lock size={9} />{rc.label}
+                  </span>
+                ) : permisos.puedeInvitar ? (
                   <select
                     value={m.rol}
                     onChange={e => cambiarRol(m.id_usuario, e.target.value)}
@@ -139,7 +148,7 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos }) {
                 ) : (
                   <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${rc.color}`}>{rc.label}</span>
                 )}
-                {permisos.puedeEditar && (
+                {!esPrincipal && permisos.puedeInvitar && (
                   <button
                     onClick={() => quitar(m.id_usuario)}
                     className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-400 hover:text-red-500 transition-all"
@@ -155,7 +164,7 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos }) {
       )}
 
       {/* Botón / Panel agregar */}
-      {permisos.puedeEditar && !mostrarPicker && (
+      {permisos.puedeInvitar && !mostrarPicker && (
         <button
           onClick={abrirPicker}
           className="flex items-center gap-1 text-xs text-guinda-600 hover:text-guinda-800 font-medium mt-1"

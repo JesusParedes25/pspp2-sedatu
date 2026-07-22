@@ -329,6 +329,7 @@ async function obtenerRiesgosDetalle(proyectoId) {
       r.estado,
       r.descripcion,
       r.entidad_tipo,
+      r.entidad_id,
       CASE
         WHEN r.entidad_tipo = 'Proyecto'  THEN p.nombre
         WHEN r.entidad_tipo = 'Etapa'     THEN et.nombre

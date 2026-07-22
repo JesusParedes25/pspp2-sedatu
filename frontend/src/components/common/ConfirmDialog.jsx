@@ -25,20 +25,24 @@ export default function ConfirmDialog({ abierto, titulo, mensaje, textoConfirmar
       <div className="absolute inset-0 bg-black/50" onClick={onCancelar} />
 
       {/* Contenido del diálogo */}
-      <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">{titulo}</h3>
-        <p className="text-sm text-gray-600 mb-6">{mensaje}</p>
+      <div className="relative bg-white max-w-md w-full mx-4 p-6" style={{ borderRadius: '8px', border: '1px solid #E5E5E5', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+        <h3 className="text-lg font-semibold mb-2" style={{ color: '#545454' }}>{titulo}</h3>
+        <p className="text-sm mb-6" style={{ color: '#98989A' }}>{mensaje}</p>
 
         <div className="flex justify-end space-x-3">
           <button
             onClick={onCancelar}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 text-sm font-semibold transition-colors"
+            style={{ color: '#545454', border: '1px solid #E5E5E5', borderRadius: '6px', backgroundColor: '#ffffff' }}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor='#F5F5F0'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor='#ffffff'}
           >
             {textoCancelar}
           </button>
           <button
             onClick={onConfirmar}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${estiloBoton}`}
+            className={`px-4 py-2 text-sm font-semibold transition-colors ${estiloBoton}`}
+            style={{ borderRadius: '6px' }}
           >
             {textoConfirmar}
           </button>

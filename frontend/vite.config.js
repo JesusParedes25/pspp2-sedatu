@@ -20,6 +20,11 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
-    proxy: { '/api': 'http://backend:3000' }
+    proxy: { '/api': 'http://backend:3000' },
+    // Docker Desktop en Windows no siempre propaga eventos de filesystem
+    // nativos al bind mount ./frontend/src → /app/src, así que chokidar se
+    // queda sin detectar cambios y Vite sirve una versión cacheada del
+    // módulo. Con polling forzamos a que revise el contenido en disco.
+    watch: { usePolling: true, interval: 300 }
   }
 })

@@ -23,7 +23,7 @@ async function agregarMiembro(req, res, next) {
     }
     // Only responsable or superadmin/Ejecutivo can add members
     const rolUsuario = await miembrosQueries.obtenerRolUsuario(req.params.id, req.usuario.id);
-    const puedeGestionar = rolUsuario === 'responsable' || req.usuario.rol === 'superadmin' || req.usuario.rol === 'Ejecutivo';
+    const puedeGestionar = rolUsuario === 'responsable' || req.usuario.rol === 'superadmin' || req.usuario.rol === 'ejecutivo';
     if (!puedeGestionar) {
       return res.status(403).json({ mensaje: 'No tienes permisos para gestionar miembros' });
     }
@@ -40,7 +40,7 @@ async function eliminarMiembro(req, res, next) {
     const { id, userId } = req.params;
     // Only responsable or superadmin/Ejecutivo can remove members
     const rolUsuario = await miembrosQueries.obtenerRolUsuario(id, req.usuario.id);
-    const puedeGestionar = rolUsuario === 'responsable' || req.usuario.rol === 'superadmin' || req.usuario.rol === 'Ejecutivo';
+    const puedeGestionar = rolUsuario === 'responsable' || req.usuario.rol === 'superadmin' || req.usuario.rol === 'ejecutivo';
     if (!puedeGestionar) {
       return res.status(403).json({ mensaje: 'No tienes permisos para eliminar miembros' });
     }
@@ -59,7 +59,7 @@ async function crearInvitacion(req, res, next) {
       return res.status(400).json({ mensaje: 'id_usuario es requerido' });
     }
     const rolUsuario = await miembrosQueries.obtenerRolUsuario(req.params.id, req.usuario.id);
-    const puedeInvitar = rolUsuario === 'responsable' || req.usuario.rol === 'superadmin' || req.usuario.rol === 'Ejecutivo';
+    const puedeInvitar = rolUsuario === 'responsable' || req.usuario.rol === 'superadmin' || req.usuario.rol === 'ejecutivo';
     if (!puedeInvitar) {
       return res.status(403).json({ mensaje: 'No tienes permisos para invitar usuarios' });
     }

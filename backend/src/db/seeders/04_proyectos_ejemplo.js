@@ -77,7 +77,6 @@ async function seedProyectosEjemplo() {
     const p1 = (await client.query(`
       INSERT INTO proyectos (
         nombre, descripcion, tipo, estado, meta_descripcion,
-        tiene_indicador,
         es_prioritario, dependencia_externa, descripcion_dependencia,
         tiene_subproyectos, fecha_inicio, fecha_limite,
         porcentaje_calculado, id_dg_lider, id_direccion_area_lider,
@@ -87,7 +86,6 @@ async function seedProyectosEjemplo() {
         'El flujo metodológico depende de tres instituciones en cadena: DAOT genera el análisis de restricción → RAN cruza con delimitación de parcelas y solares → DGPV determina viabilidad final por vocación. Cualquier retraso en RAN o DGPV impacta directamente el cronograma total. Adicionalmente, la DGOMR provee la zonificación primaria metropolitana y la DOOTU aporta la zonificación del SITU.',
         'Analisis_tecnico', 'En_proceso',
         'Identificar y delimitar el suelo potencialmente apto para vivienda dentro de los núcleos agrarios de las 92 zonas metropolitanas del país, mediante análisis de restricción territorial a escala 1:50,000, integrando criterios ambientales, de riesgo de desastres, crecimiento urbano y medio físico.',
-        true,
         true, true,
         'El flujo metodológico depende de tres instituciones en cadena: DAOT genera el análisis de restricción → RAN cruza con delimitación de parcelas y solares → DGPV determina viabilidad final por vocación. Cualquier retraso en RAN o DGPV impacta directamente el cronograma total.',
         false, '2025-01-15', '2027-03-01',
@@ -542,7 +540,6 @@ async function seedProyectosEjemplo() {
     const p2 = (await client.query(`
       INSERT INTO proyectos (
         nombre, tipo, estado, meta_descripcion,
-        tiene_indicador,
         es_prioritario, fecha_inicio, fecha_limite,
         porcentaje_calculado, id_dg_lider, id_direccion_area_lider,
         id_creador, id_programa
@@ -550,7 +547,6 @@ async function seedProyectosEjemplo() {
         'República Conectada — Análisis de aptitud territorial para infraestructura de telecomunicaciones',
         'Analisis_tecnico', 'En_proceso',
         'Identificar y priorizar 500 localidades rurales sin conectividad con mayor aptitud territorial para la instalación de infraestructura de telecomunicaciones, considerando restricciones ambientales, de riesgo y de conectividad vial.',
-        true,
         true, '2025-02-01', '2026-06-30',
         0, $1, $2, $3, $4
       ) RETURNING id

@@ -25,7 +25,7 @@ const menuItems = [
   { to: '/', icono: LayoutDashboard, etiqueta: 'Inicio', end: true },
   { to: '/proyectos', icono: FolderKanban, etiqueta: 'Proyectos' },
   { to: '/proyectos/nuevo', icono: PlusCircle, etiqueta: 'Nuevo proyecto', requiereCrear: true },
-  { to: '/mapa', icono: Map, etiqueta: 'Mapa territorial' },
+  { to: '/mapa', icono: Map, etiqueta: 'Territorio' },
   { to: '/agenda', icono: CalendarDays, etiqueta: 'Agenda' },
   { to: '/evidencias', icono: FileText, etiqueta: 'Evidencias' },
   { to: '/notificaciones', icono: Bell, etiqueta: 'Notificaciones' },
@@ -38,16 +38,27 @@ export default function Sidebar() {
 
   return (
     <aside className={`fixed top-0 left-0 h-screen bg-guinda-700 text-white flex flex-col transition-all duration-300 z-30 ${sidebarAbierto ? 'w-64' : 'w-16'}`}>
-      {/* Logo y título */}
-      <div className="flex items-center h-16 px-4 border-b border-guinda-600">
-        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center flex-shrink-0">
-          <span className="text-guinda-700 font-bold text-sm">PS</span>
-        </div>
-        {sidebarAbierto && (
-          <div className="ml-3 overflow-hidden">
-            <p className="font-bold text-sm leading-tight">PSPP v2.0</p>
-            <p className="text-guinda-200 text-xs">SEDATU</p>
-          </div>
+      {/* Logo SEDATU */}
+      <div className={`flex flex-col items-center justify-center border-b border-guinda-600 transition-all duration-300 ${
+        sidebarAbierto ? 'h-28 px-4 py-3' : 'h-16 px-2'
+      }`}>
+        {sidebarAbierto ? (
+          <>
+            <img
+              src="/sedatu-logo.png"
+              alt="SEDATU"
+              className="w-40 object-contain"
+              style={{ filter: 'brightness(0) invert(1)' }}
+            />
+            <p className="text-white text-[11px] mt-1" style={{ opacity: 0.7 }}>PSPP v2.0</p>
+          </>
+        ) : (
+          <img
+            src="/sedatu-logo.png"
+            alt="SEDATU"
+            className="w-10 object-contain"
+            style={{ filter: 'brightness(0) invert(1)' }}
+          />
         )}
       </div>
 
@@ -63,10 +74,10 @@ export default function Sidebar() {
             to={item.to}
             end={item.end}
             className={({ isActive }) =>
-              `flex items-center px-3 py-2.5 rounded-lg text-sm transition-colors ${
+              `flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${
                 isActive
-                  ? 'bg-guinda-500 text-white font-medium'
-                  : 'text-guinda-100 hover:bg-guinda-600 hover:text-white'
+                  ? 'bg-white/15 text-white border-l-2 border-white'
+                  : 'text-white/80 hover:bg-white/10 hover:text-white'
               }`
             }
           >
@@ -87,7 +98,7 @@ export default function Sidebar() {
         )}
         <button
           onClick={logout}
-          className="flex items-center w-full px-3 py-2 rounded-lg text-sm text-guinda-100 hover:bg-guinda-600 hover:text-white transition-colors"
+          className="flex items-center w-full px-3 py-2 rounded-md text-sm font-medium text-white/75 hover:bg-white/10 hover:text-white transition-colors"
         >
           <LogOut size={20} className="flex-shrink-0" />
           {sidebarAbierto && <span className="ml-3">Cerrar sesión</span>}

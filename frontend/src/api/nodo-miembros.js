@@ -1,7 +1,9 @@
 import client from './client';
 
 const base = (tipo, idNodo) =>
-  tipo === 'etapa' ? `/etapas/${idNodo}/miembros-nodo` : `/acciones/${idNodo}/miembros-nodo`;
+  tipo === 'etapa'  ? `/etapas/${idNodo}/miembros-nodo`  :
+  tipo === 'tarea'  ? `/tareas/${idNodo}/miembros-nodo`  :
+                      `/acciones/${idNodo}/miembros-nodo`;
 
 export async function listarMiembrosNodo(tipo, idNodo) {
   const { data } = await client.get(base(tipo, idNodo));

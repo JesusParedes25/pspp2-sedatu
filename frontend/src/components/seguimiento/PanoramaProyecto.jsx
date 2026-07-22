@@ -13,6 +13,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import { useAuth } from '../../context/AuthContext';
 import { usePermisosProyecto } from '../../hooks/usePermisos';
 import { obtenerPanorama, crearInvitacion, eliminarMiembro, cancelarInvitacion } from '../../api/miembros';
+import { agregarMiembroNodo } from '../../api/nodo-miembros';
 import { calcularColorSemaforo } from '../../utils/semaforoColor';
 import client from '../../api/client';
 
@@ -41,10 +42,10 @@ function rel(fecha) {
 // ─── Sección Card wrapper ─────────────────────────────────────
 function SeccionCard({ titulo, icono: Icono, children, className = '' }) {
   return (
-    <section className={`bg-white rounded-xl border border-gray-200 shadow-sm ${className}`}>
-      <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100">
-        {Icono && <Icono size={16} className="text-gray-500" />}
-        <h3 className="text-sm font-semibold text-gray-800">{titulo}</h3>
+    <section className={`bg-white ${className}`} style={{ borderRadius: '8px', border: '1px solid #E5E5E5', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+      <div className="flex items-center gap-2 px-5 py-3" style={{ borderBottom: '1px solid #E5E5E5' }}>
+        {Icono && <Icono size={16} style={{ color: '#7B1C3E' }} />}
+        <h3 className="text-sm font-semibold" style={{ color: '#7B1C3E' }}>{titulo}</h3>
       </div>
       <div className="p-5">{children}</div>
     </section>
@@ -52,7 +53,7 @@ function SeccionCard({ titulo, icono: Icono, children, className = '' }) {
 }
 
 // ─── Componente principal ─────────────────────────────────────
-export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refreshKey }) {
+export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refreshKey, onNavegarNodo }) {
   const { usuario } = useAuth();
   const permisos = usePermisosProyecto(proyecto);
   const [datos, setDatos] = useState(null);
@@ -122,43 +123,49 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
       </div>
 
       {/* ═══ PARTICIPANTES ═══ */}
-      <SeccionCard titulo="Participantes" icono={Users}>
-        <div className="space-y-2">
-          {miembros.map(m => (
-            <div key={m.id_usuario} className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-gray-50">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-full bg-guinda-100 flex items-center justify-center text-xs font-bold text-guinda-700">
-                  {m.nombre_completo?.charAt(0)}
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-800">{m.nombre_completo}</p>
-                  <p className="text-xs text-gray-500">{m.dg_siglas} · {m.rol}</p>
-                </div>
-              </div>
-              {permisos.puedeEditar && m.id_usuario !== usuario?.id && (
-                <button
-                  onClick={() => handleEliminarMiembro(m.id_usuario)}
-                  className="text-gray-400 hover:text-red-500 p-1"
-                  title="Eliminar del proyecto"
-                >
-                  <Trash2 size={14} />
-                </button>
-              )}
-            </div>
-          ))}
-          {miembros.length === 0 && (
-            <p className="text-xs text-gray-400 text-center py-2">Sin participantes registrados</p>
+      <section className="bg-white rounded-xl border border-gray-200 shadow-sm">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <Users size={16} className="text-gray-500" />
+            <h3 className="text-sm font-semibold text-gray-800">
+              Participantes del proyecto
+              <span className="ml-1.5 text-gray-400 font-normal text-xs">
+                ({miembros.length} persona{miembros.length !== 1 ? 's' : ''}
+                {(() => {
+                  const dgs = [...new Set(miembros.map(m => m.dg_siglas).filter(Boolean))];
+                  return dgs.length > 0 ? ` · ${dgs.length} DG${dgs.length !== 1 ? 's' : ''}` : '';
+                })()})
+              </span>
+            </h3>
+          </div>
+          {permisos.puedeInvitar && (
+            <button
+              onClick={() => setModalInvitar(true)}
+              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-guinda-200 text-guinda-700 hover:bg-guinda-50 transition"
+            >
+              <UserPlus size={14} /> Invitar usuario
+            </button>
           )}
         </div>
-        {permisos.puedeEditar && (
-          <button
-            onClick={() => setModalInvitar(true)}
-            className="mt-3 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-guinda-200 text-guinda-700 hover:bg-guinda-50 transition"
-          >
-            <UserPlus size={14} /> Invitar usuario
-          </button>
-        )}
-      </SeccionCard>
+
+        <div className="p-5">
+          {miembros.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-4">Sin participantes registrados</p>
+          ) : (
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              {miembros.map(m => (
+                <ParticipanteCard
+                  key={m.id_usuario}
+                  miembro={m}
+                  puedeEliminar={permisos.puedeInvitar && m.id_usuario !== usuario?.id && m.alcance === 'proyecto'}
+                  onEliminar={() => handleEliminarMiembro(m.id_usuario)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* ═══ INDICADORES ═══ */}
       {indicadores.length > 0 && (
@@ -196,14 +203,16 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
             <SeccionCard titulo={`Vencidas (${vencidos.length})`} icono={AlertTriangle}>
               <ul className="space-y-2">
                 {vencidos.slice(0, 8).map(a => (
-                  <li key={a.id} className="flex items-start gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5 flex-shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-sm text-gray-800 truncate">{a.nombre}</p>
-                      <p className="text-[11px] text-gray-500">
-                        {a.id_accion_padre ? 'Subacción' : 'Acción'} · -{a.dias_atraso}d atraso
-                      </p>
-                    </div>
+                  <li key={a.id}>
+                    <button onClick={() => onNavegarNodo?.(a.id)} className="w-full flex items-start gap-2 text-left p-1 -m-1 rounded hover:bg-red-50 transition-colors">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm text-gray-800 truncate">{a.nombre}</p>
+                        <p className="text-[11px] text-gray-500">
+                          {a.id_accion_padre ? 'Subacción' : 'Acción'} · -{a.dias_atraso}d atraso
+                        </p>
+                      </div>
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -213,14 +222,16 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
             <SeccionCard titulo={`Por vencer (${por_vencer.length})`} icono={Clock}>
               <ul className="space-y-2">
                 {por_vencer.slice(0, 8).map(a => (
-                  <li key={a.id} className="flex items-start gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 mt-1.5 flex-shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-sm text-gray-800 truncate">{a.nombre}</p>
-                      <p className="text-[11px] text-gray-500">
-                        {a.id_accion_padre ? 'Subacción' : 'Acción'} · {a.dias_restantes}d restantes
-                      </p>
-                    </div>
+                  <li key={a.id}>
+                    <button onClick={() => onNavegarNodo?.(a.id)} className="w-full flex items-start gap-2 text-left p-1 -m-1 rounded hover:bg-yellow-50 transition-colors">
+                      <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 mt-1.5 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm text-gray-800 truncate">{a.nombre}</p>
+                        <p className="text-[11px] text-gray-500">
+                          {a.id_accion_padre ? 'Subacción' : 'Acción'} · {a.dias_restantes}d restantes
+                        </p>
+                      </div>
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -234,16 +245,18 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
         <SeccionCard titulo={`Riesgos abiertos (${riesgos.length})`} icono={Shield}>
           <ul className="space-y-2">
             {riesgos.slice(0, 8).map(r => (
-              <li key={r.id} className="flex items-center gap-2 py-1">
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                  r.nivel === 'Critico' ? 'bg-red-600' :
-                  r.nivel === 'Alto' ? 'bg-orange-500' :
-                  r.nivel === 'Medio' ? 'bg-yellow-500' : 'bg-gray-400'
-                }`} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm text-gray-800 truncate">{r.titulo}</p>
-                  <p className="text-[11px] text-gray-500">{r.entidad_tipo} · {r.nivel}</p>
-                </div>
+              <li key={r.id}>
+                <button onClick={() => onNavegarNodo?.(r.entidad_id)} className="w-full flex items-center gap-2 py-1 px-1 -mx-1 rounded hover:bg-orange-50 transition-colors text-left">
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                    r.nivel === 'Critico' ? 'bg-red-600' :
+                    r.nivel === 'Alto' ? 'bg-orange-500' :
+                    r.nivel === 'Medio' ? 'bg-yellow-500' : 'bg-gray-400'
+                  }`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-gray-800 truncate">{r.titulo}</p>
+                    <p className="text-[11px] text-gray-500">{r.entidad_tipo} · {r.nivel}</p>
+                  </div>
+                </button>
               </li>
             ))}
           </ul>
@@ -255,20 +268,22 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
         <SeccionCard titulo="Actividad reciente" icono={Activity}>
           <ul className="space-y-3">
             {actividad.slice(0, 10).map((ev, i) => (
-              <li key={i} className="flex items-start gap-2.5">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  ev.tipo === 'comentario' ? 'bg-purple-100 text-purple-600' : 'bg-green-100 text-green-600'
-                }`}>
-                  {ev.tipo === 'comentario' ? <Activity size={12} /> : <TrendingUp size={12} />}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm text-gray-800">
-                    <span className="font-medium">{ev.actor}</span>
-                    {' '}<span className="text-gray-500">{ev.tipo === 'comentario' ? 'comentó' : 'subió evidencia'}:</span>
-                    {' '}<span className="text-gray-700 truncate">{ev.descripcion?.slice(0, 80)}</span>
-                  </p>
-                  <p className="text-[11px] text-gray-400 mt-0.5">{rel(ev.created_at)}</p>
-                </div>
+              <li key={i}>
+                <button onClick={() => onNavegarNodo?.(ev.entidad_id)} className="w-full flex items-start gap-2.5 text-left p-1 -m-1 rounded hover:bg-purple-50 transition-colors">
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    ev.tipo === 'comentario' ? 'bg-purple-100 text-purple-600' : 'bg-green-100 text-green-600'
+                  }`}>
+                    {ev.tipo === 'comentario' ? <Activity size={12} /> : <TrendingUp size={12} />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-gray-800">
+                      <span className="font-medium">{ev.actor}</span>
+                      {' '}<span className="text-gray-500">{ev.tipo === 'comentario' ? 'comentó' : 'subió evidencia'}:</span>
+                      {' '}<span className="text-gray-700 truncate">{ev.descripcion?.slice(0, 80)}</span>
+                    </p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">{rel(ev.created_at)}</p>
+                  </div>
+                </button>
               </li>
             ))}
           </ul>
@@ -279,6 +294,7 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
       {modalInvitar && (
         <ModalInvitar
           proyectoId={proyectoId}
+          etapas={etapas}
           onClose={() => setModalInvitar(false)}
           onInvitado={() => {
             setModalInvitar(false);
@@ -299,6 +315,85 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
       alert(e.response?.data?.mensaje || 'Error al eliminar miembro');
     }
   }
+}
+
+// ─── Participante Card ────────────────────────────────────────
+const ROL_CFG = {
+  responsable: { label: 'Responsable', bg: '#7B1C3E',  badgeCls: 'bg-guinda-100 text-guinda-700 border-guinda-200' },
+  colaborador:  { label: 'Colaborador', bg: '#1e40af',  badgeCls: 'bg-blue-100 text-blue-700 border-blue-200' },
+  invitado:     { label: 'Invitado',    bg: '#6b7280',  badgeCls: 'bg-gray-100 text-gray-600 border-gray-200' },
+};
+
+function iniciales(nombre) {
+  if (!nombre) return '?';
+  const parts = nombre.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+}
+
+function alcanceLabel(alcance, nodo_tipo, nodo_nombre) {
+  if (!alcance || alcance === 'proyecto') return null;
+  const tipo = nodo_tipo || alcance;
+  const tipoEs = tipo === 'etapa' ? 'etapa' : tipo === 'accion' ? 'acción' : 'tarea';
+  return `Asignado a: ${tipoEs}${nodo_nombre ? ` — ${nodo_nombre}` : ''}`;
+}
+
+function ParticipanteCard({ miembro: m, puedeEliminar, onEliminar }) {
+  const cfg = ROL_CFG[m.rol] || ROL_CFG.invitado;
+  const scopeText = alcanceLabel(m.alcance, m.nodo_tipo, m.nodo_nombre);
+
+  return (
+    <div className="relative group border border-gray-200 rounded-xl p-3 bg-white hover:shadow-sm transition-shadow flex flex-col gap-2">
+      {/* Botón eliminar (hover) */}
+      {puedeEliminar && (
+        <button
+          onClick={onEliminar}
+          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-400 hover:text-red-500 rounded"
+          title="Eliminar del proyecto"
+        >
+          <Trash2 size={13} />
+        </button>
+      )}
+
+      {/* Avatar + nombre + rol */}
+      <div className="flex items-center gap-2.5">
+        <div
+          className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
+          style={{ backgroundColor: cfg.bg }}
+        >
+          {iniciales(m.nombre_completo)}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-bold text-gray-900 truncate leading-tight">{m.nombre_completo}</p>
+          <span className={`inline-block text-[10px] font-medium px-1.5 py-0 rounded-full border mt-0.5 ${cfg.badgeCls}`}>
+            {cfg.label}
+          </span>
+        </div>
+      </div>
+
+      {/* DG / DA / Cargo */}
+      <div className="text-[11px] text-gray-400 leading-snug">
+        {[m.dg_siglas, m.da_siglas].filter(Boolean).join(' / ')}
+        {m.cargo && <span className="ml-1 italic">· {m.cargo}</span>}
+      </div>
+
+      {/* Email */}
+      {m.correo && (
+        <a
+          href={`mailto:${m.correo}`}
+          className="text-[11px] text-blue-600 hover:underline truncate block"
+          title={m.correo}
+        >
+          {m.correo}
+        </a>
+      )}
+
+      {/* Scope */}
+      {scopeText && (
+        <p className="text-[11px] text-amber-600 italic leading-tight">{scopeText}</p>
+      )}
+    </div>
+  );
 }
 
 // ─── Indicador Card ───────────────────────────────────────────
@@ -380,7 +475,7 @@ function IndicadorCard({ indicador }) {
 }
 
 // ─── Modal Invitar ────────────────────────────────────────────
-function ModalInvitar({ proyectoId, onClose, onInvitado }) {
+function ModalInvitar({ proyectoId, etapas, onClose, onInvitado }) {
   const [dgs, setDgs] = useState([]);
   const [das, setDas] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
@@ -390,6 +485,8 @@ function ModalInvitar({ proyectoId, onClose, onInvitado }) {
   const [rol, setRol] = useState('colaborador');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
+  const [alcance, setAlcance] = useState('proyecto');
+  const [nodosSeleccionados, setNodosSeleccionados] = useState(new Set());
 
   useEffect(() => {
     client.get('/catalogos/dgs').then(r => setDgs(r.data.datos || [])).catch(() => {});
@@ -418,12 +515,37 @@ function ModalInvitar({ proyectoId, onClose, onInvitado }) {
 
   useEffect(() => { buscarUsuarios(); }, [buscarUsuarios]);
 
+  function toggleNodo(tipo, id) {
+    const key = `${tipo}-${id}`;
+    setNodosSeleccionados(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
   async function handleInvitar(e) {
     e.preventDefault();
     if (!seleccionado) return;
+    if (alcance === 'nodos' && nodosSeleccionados.size === 0) {
+      setError('Selecciona al menos una etapa o acción');
+      return;
+    }
     setEnviando(true); setError('');
     try {
-      await crearInvitacion(proyectoId, seleccionado.id, rol);
+      if (alcance === 'proyecto') {
+        await crearInvitacion(proyectoId, seleccionado.id, rol);
+      } else {
+        const promesas = [];
+        nodosSeleccionados.forEach(key => {
+          const idx = key.indexOf('-');
+          const tipo = key.slice(0, idx);
+          const id = parseInt(key.slice(idx + 1));
+          promesas.push(agregarMiembroNodo(tipo, id, seleccionado.id, rol));
+        });
+        await Promise.all(promesas);
+      }
       onInvitado();
     } catch (err) {
       setError(err.response?.data?.mensaje || 'Error al agregar usuario');
@@ -495,15 +617,56 @@ function ModalInvitar({ proyectoId, onClose, onInvitado }) {
           </div>
 
           {seleccionado && (
-            <div className="p-3 bg-guinda-50 rounded-lg flex items-center gap-2">
-              <span className="text-sm text-guinda-700 flex-1 truncate">✓ {seleccionado.nombre_completo}</span>
-              <div>
-                <label className="text-xs text-gray-600 mr-1">Rol:</label>
-                <select value={rol} onChange={e => setRol(e.target.value)} className="text-xs border border-gray-300 rounded px-2 py-1">
-                  <option value="colaborador">Colaborador</option>
-                  <option value="responsable">Responsable</option>
-                </select>
+            <div className="space-y-2">
+              <div className="p-3 bg-guinda-50 rounded-lg flex items-center gap-2">
+                <span className="text-sm text-guinda-700 flex-1 truncate">✓ {seleccionado.nombre_completo}</span>
+                <div>
+                  <label className="text-xs text-gray-600 mr-1">Rol:</label>
+                  <select value={rol} onChange={e => setRol(e.target.value)} className="text-xs border border-gray-300 rounded px-2 py-1">
+                    <option value="colaborador">Colaborador</option>
+                    <option value="responsable">Responsable</option>
+                  </select>
+                </div>
               </div>
+
+              <div>
+                <p className="text-xs font-medium text-gray-600 mb-1.5">Agregar a:</p>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                    <input type="radio" name="alcance" value="proyecto" checked={alcance === 'proyecto'}
+                      onChange={() => { setAlcance('proyecto'); setNodosSeleccionados(new Set()); }} />
+                    <span>Todo el proyecto</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                    <input type="radio" name="alcance" value="nodos" checked={alcance === 'nodos'}
+                      onChange={() => setAlcance('nodos')} />
+                    <span>Etapas / acciones específicas</span>
+                  </label>
+                </div>
+              </div>
+
+              {alcance === 'nodos' && (
+                <div className="border border-gray-200 rounded-lg max-h-40 overflow-y-auto p-2 space-y-0.5 bg-gray-50">
+                  {(etapas || []).length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-2">Sin etapas disponibles</p>
+                  ) : (etapas || []).map(etapa => (
+                    <div key={etapa.id}>
+                      <label className="flex items-center gap-1.5 text-xs cursor-pointer font-medium py-0.5 hover:bg-white rounded px-1">
+                        <input type="checkbox" checked={nodosSeleccionados.has(`etapa-${etapa.id}`)}
+                          onChange={() => toggleNodo('etapa', etapa.id)} />
+                        <span className="text-gray-700 truncate">{etapa.nombre}</span>
+                      </label>
+                      {(etapa.acciones || []).map(accion => (
+                        <label key={accion.id} className="flex items-center gap-1.5 text-xs cursor-pointer ml-4 py-0.5 hover:bg-white rounded px-1">
+                          <input type="checkbox" checked={nodosSeleccionados.has(`accion-${accion.id}`)}
+                            onChange={() => toggleNodo('accion', accion.id)} />
+                          <span className="text-gray-600 truncate">{accion.nombre}</span>
+                        </label>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

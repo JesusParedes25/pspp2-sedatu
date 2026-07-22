@@ -85,7 +85,7 @@ async function obtenerRiesgosAbiertos(proyectoIds) {
   if (!proyectoIds || proyectoIds.length === 0) return [];
   const { rows } = await pool.query(`
     SELECT
-      r.id, r.titulo, r.nivel, r.estado AS estado_riesgo, r.entidad_tipo, r.created_at,
+      r.id, r.titulo, r.nivel, r.estado AS estado_riesgo, r.entidad_tipo, r.entidad_id, r.created_at,
       p.id AS proyecto_id, p.nombre AS proyecto_nombre
     FROM riesgos r
     JOIN proyectos p ON r.entidad_tipo = 'Proyecto' AND r.entidad_id = p.id
@@ -93,7 +93,7 @@ async function obtenerRiesgosAbiertos(proyectoIds) {
       AND p.id = ANY($1)
     UNION ALL
     SELECT
-      r.id, r.titulo, r.nivel, r.estado AS estado_riesgo, r.entidad_tipo, r.created_at,
+      r.id, r.titulo, r.nivel, r.estado AS estado_riesgo, r.entidad_tipo, r.entidad_id, r.created_at,
       p.id AS proyecto_id, p.nombre AS proyecto_nombre
     FROM riesgos r
     JOIN etapas et ON r.entidad_tipo = 'Etapa' AND r.entidad_id = et.id
@@ -102,7 +102,7 @@ async function obtenerRiesgosAbiertos(proyectoIds) {
       AND p.id = ANY($1)
     UNION ALL
     SELECT
-      r.id, r.titulo, r.nivel, r.estado AS estado_riesgo, r.entidad_tipo, r.created_at,
+      r.id, r.titulo, r.nivel, r.estado AS estado_riesgo, r.entidad_tipo, r.entidad_id, r.created_at,
       p.id AS proyecto_id, p.nombre AS proyecto_nombre
     FROM riesgos r
     JOIN acciones ac ON r.entidad_tipo IN ('Accion','Subaccion') AND r.entidad_id = ac.id

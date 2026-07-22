@@ -5,6 +5,8 @@
 const pool = require('../db/pool');
 const miembrosQueries = require('../db/queries/miembros.queries');
 const statsQueries = require('../db/queries/proyectos.stats.queries');
+const etapasQueries = require('../db/queries/etapas.queries');
+const inicioQueries = require('../db/queries/inicio.queries');
 
 // GET /proyectos/:id/panorama
 async function obtenerPanorama(req, res, next) {
@@ -32,7 +34,7 @@ async function obtenerPanorama(req, res, next) {
 
     // Fetch all panorama data in parallel
     const [miembros, indicadores, cobertura, vencidos, porVencer, riesgos, actividad] = await Promise.all([
-      miembrosQueries.listarMiembros(proyectoId),
+      obtenerTodosParticipantes(proyectoId),
       obtenerIndicadoresCompletos(proyectoId),
       obtenerCoberturaProyecto(proyectoId),
       statsQueries.obtenerAtrasadas(proyectoId),
@@ -145,4 +147,78 @@ async function obtenerCoberturaProyecto(proyectoId) {
   return rows;
 }
 
-module.exports = { obtenerPanorama };
+/**
+ * Retorna todos los participantes únicos del proyecto:
+ * miembros del proyecto + miembros de nodos (etapas, acciones y tareas).
+ * Prioriza rol del proyecto sobre rol de nodo.
+ * Incluye DA, cargo y nombre del nodo de alcance.
+ */
+async function obtenerTodosParticipantes(proyectoId) {
+  const { rows } = await pool.query(`
+    WITH fuentes AS (
+      SELECT pu.id_usuario, pu.rol, 'proyecto' AS alcance,
+             NULL::text AS nodo_nombre, NULL::text AS nodo_tipo
+      FROM proyecto_usuarios pu
+      WHERE pu.id_proyecto = $1
+      UNION ALL
+      SELECT nm.id_usuario, nm.rol, 'etapa' AS alcance,
+             e.nombre AS nodo_nombre, 'etapa' AS nodo_tipo
+      FROM nodo_miembros nm
+      JOIN etapas e ON nm.tipo_nodo = 'etapa' AND nm.id_nodo = e.id
+      WHERE e.id_proyecto = $1
+      UNION ALL
+      SELECT nm.id_usuario, nm.rol, 'accion' AS alcance,
+             a.nombre AS nodo_nombre, 'accion' AS nodo_tipo
+      FROM nodo_miembros nm
+      JOIN acciones a ON nm.tipo_nodo = 'accion' AND nm.id_nodo = a.id
+      WHERE a.id_proyecto = $1
+      UNION ALL
+      SELECT nm.id_usuario, nm.rol, 'tarea' AS alcance,
+             t.nombre AS nodo_nombre, 'tarea' AS nodo_tipo
+      FROM nodo_miembros nm
+      JOIN tareas t ON nm.tipo_nodo = 'tarea' AND nm.id_nodo = t.id
+      JOIN acciones a2 ON t.id_accion = a2.id
+      WHERE a2.id_proyecto = $1
+    )
+    SELECT DISTINCT ON (u.id)
+      u.id AS id_usuario, u.nombre_completo, u.correo, u.cargo,
+      dg.siglas AS dg_siglas,
+      da.siglas AS da_siglas,
+      f.rol, f.alcance, f.nodo_nombre, f.nodo_tipo
+    FROM fuentes f
+    JOIN usuarios u ON u.id = f.id_usuario
+    LEFT JOIN direcciones_generales dg ON dg.id = u.id_dg
+    LEFT JOIN direcciones_area da ON da.id = u.id_direccion_area
+    ORDER BY u.id,
+      CASE f.alcance WHEN 'proyecto' THEN 1 WHEN 'etapa' THEN 2 WHEN 'accion' THEN 3 ELSE 4 END
+  `, [proyectoId]);
+  return rows;
+}
+
+// GET /proyectos/:id/panorama-rapido — vista compacta para el hover de ProyectoCard
+// en Inicio: árbol de etapas (nivel superior) + últimas actividades del proyecto.
+// Deliberadamente ligero (sin subacciones/tareas anidadas) para que responda
+// rápido en un hover sin disparar N+1 queries pesadas.
+async function obtenerPanoramaRapido(req, res, next) {
+  try {
+    const proyectoId = req.params.id;
+    const [etapas, actividad] = await Promise.all([
+      etapasQueries.obtenerEtapasPorProyecto(proyectoId),
+      inicioQueries.obtenerActividadReciente([proyectoId]),
+    ]);
+
+    res.json({
+      datos: {
+        etapas: etapas.map(e => ({
+          id: e.id, nombre: e.nombre, estado: e.estado, semaforo: e.semaforo,
+          avance: e.avance_actual ?? Number(e.porcentaje_calculado) ?? 0,
+          total_acciones: Number(e.total_acciones) || 0,
+          acciones_completadas: Number(e.acciones_completadas) || 0,
+        })),
+        actividad: actividad.slice(0, 6),
+      },
+    });
+  } catch (err) { next(err); }
+}
+
+module.exports = { obtenerPanorama, obtenerPanoramaRapido };

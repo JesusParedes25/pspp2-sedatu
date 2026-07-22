@@ -53,7 +53,7 @@ async function obtenerRolUsuario(proyectoId, usuarioId) {
  */
 async function tieneAcceso(proyectoId, usuario) {
   if (!usuario) return false;
-  if (usuario.rol === 'superadmin' || usuario.rol === 'Ejecutivo') return true;
+  if (usuario.rol === 'superadmin' || usuario.rol === 'ejecutivo') return true;
 
   const { rows } = await pool.query(`
     SELECT 1 FROM proyecto_usuarios WHERE id_proyecto = $1 AND id_usuario = $2

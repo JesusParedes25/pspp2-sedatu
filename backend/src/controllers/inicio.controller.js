@@ -13,7 +13,7 @@ async function obtenerInicio(req, res, next) {
 
     // Determine project IDs the user has access to
     let proyectoIds = null;
-    if (usuario.rol === 'superadmin' || usuario.rol === 'Ejecutivo') {
+    if (usuario.rol === 'superadmin' || usuario.rol === 'ejecutivo') {
       // Fetch all active project IDs
       const { rows } = await pool.query(
         "SELECT id FROM proyectos WHERE deleted_at IS NULL AND estado != 'Cancelado'"

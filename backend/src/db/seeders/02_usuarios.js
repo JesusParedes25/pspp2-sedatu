@@ -70,7 +70,7 @@ async function seedUsuarios() {
         nombre_completo: 'Pablo Hernández Rivas',
         correo: 'pablo.director@sedatu.gob.mx',
         cargo: 'Director de Análisis en Ordenamiento Territorial',
-        rol: 'Directivo',
+        rol: 'direccion',
         id_dg: idDGOTU,
         id_direccion_area: idDAOT
       },
@@ -78,7 +78,7 @@ async function seedUsuarios() {
         nombre_completo: 'Laura Méndez Castillo',
         correo: 'enlace.dgomr@sedatu.gob.mx',
         cargo: 'Subdirectora de Análisis Metropolitano',
-        rol: 'Responsable',
+        rol: 'enlace',
         id_dg: idDGOMR,
         id_direccion_area: null
       },
@@ -86,7 +86,7 @@ async function seedUsuarios() {
         nombre_completo: 'Roberto Sánchez Fuentes',
         correo: 'enlace.dgpv@sedatu.gob.mx',
         cargo: 'Analista de Política de Vivienda',
-        rol: 'Responsable',
+        rol: 'enlace',
         id_dg: idDGPV,
         id_direccion_area: null
       },
@@ -94,7 +94,7 @@ async function seedUsuarios() {
         nombre_completo: 'Mónica Torres Vega',
         correo: 'enlace.ran@sedatu.gob.mx',
         cargo: 'Técnico de Información Agraria',
-        rol: 'Operativo',
+        rol: 'enlace',
         id_dg: idDGOTU,
         id_direccion_area: null
       },
@@ -102,7 +102,7 @@ async function seedUsuarios() {
         nombre_completo: 'Alejandro Ríos Montoya',
         correo: 'subsecretario@sedatu.gob.mx',
         cargo: 'Subsecretario de Ordenamiento Territorial, Urbano y Vivienda',
-        rol: 'Ejecutivo',
+        rol: 'ejecutivo',
         id_dg: idDGOTU,
         id_direccion_area: null
       },
@@ -112,7 +112,7 @@ async function seedUsuarios() {
         nombre_completo: 'Claudia Ramírez Ortega',
         correo: 'c.ramirez@sedatu.gob.mx',
         cargo: 'Directora General de Política Territorial y Movilidad',
-        rol: 'Directivo',
+        rol: 'direccion',
         id_dg: idDGPTM,
         id_direccion_area: null
       },
@@ -120,7 +120,7 @@ async function seedUsuarios() {
         nombre_completo: 'Fernando Espinoza Leal',
         correo: 'f.espinoza@sedatu.gob.mx',
         cargo: 'Subdirector de Gestión de Riesgos',
-        rol: 'Responsable',
+        rol: 'enlace',
         id_dg: idDGGIRD,
         id_direccion_area: null
       },
@@ -128,7 +128,7 @@ async function seedUsuarios() {
         nombre_completo: 'Adriana Vázquez Moreno',
         correo: 'a.vazquez@sedatu.gob.mx',
         cargo: 'Analista de Modernización Catastral',
-        rol: 'Operativo',
+        rol: 'enlace',
         id_dg: idDGIMRC,
         id_direccion_area: null
       },
@@ -136,7 +136,7 @@ async function seedUsuarios() {
         nombre_completo: 'Carlos Jiménez Peña',
         correo: 'c.jimenez@sedatu.gob.mx',
         cargo: 'Subdirector de Infraestructura y Equipamiento',
-        rol: 'Responsable',
+        rol: 'enlace',
         id_dg: idDGIE,
         id_direccion_area: null
       },
@@ -144,7 +144,7 @@ async function seedUsuarios() {
         nombre_completo: 'Sofía Gutiérrez Ávila',
         correo: 's.gutierrez@sedatu.gob.mx',
         cargo: 'Coordinadora de Tecnologías de la Información',
-        rol: 'Ejecutivo',
+        rol: 'ejecutivo',
         id_dg: idDGTIC,
         id_direccion_area: null
       },
@@ -152,7 +152,7 @@ async function seedUsuarios() {
         nombre_completo: 'Diego Morales Ibáñez',
         correo: 'd.morales@sedatu.gob.mx',
         cargo: 'Analista de Programación y Presupuesto',
-        rol: 'Operativo',
+        rol: 'enlace',
         id_dg: idDGPP,
         id_direccion_area: null
       },
@@ -160,7 +160,7 @@ async function seedUsuarios() {
         nombre_completo: 'Valeria Campos Duarte',
         correo: 'v.campos@sedatu.gob.mx',
         cargo: 'Subdirectora de Concertación Agraria',
-        rol: 'Responsable',
+        rol: 'enlace',
         id_dg: idDGICAM,
         id_direccion_area: null
       },
@@ -168,7 +168,7 @@ async function seedUsuarios() {
         nombre_completo: 'Héctor Reyes Blanco',
         correo: 'h.reyes@sedatu.gob.mx',
         cargo: 'Analista de Terrenos Nacionales',
-        rol: 'Operativo',
+        rol: 'enlace',
         id_dg: idDGTN,
         id_direccion_area: null
       },
@@ -176,7 +176,7 @@ async function seedUsuarios() {
         nombre_completo: 'Patricia Luna Serrano',
         correo: 'p.luna@sedatu.gob.mx',
         cargo: 'Directora de Resoluciones Presidenciales',
-        rol: 'Directivo',
+        rol: 'direccion',
         id_dg: idDGRPE,
         id_direccion_area: null
       },
@@ -184,7 +184,7 @@ async function seedUsuarios() {
         nombre_completo: 'Iván Castillo Domínguez',
         correo: 'i.castillo@sedatu.gob.mx',
         cargo: 'Subdirector de Ordenamiento Regional',
-        rol: 'Responsable',
+        rol: 'enlace',
         id_dg: idDGOMR,
         id_direccion_area: null
       },

@@ -3,17 +3,20 @@
  * PROPÓSITO: Dashboard personalizado del usuario con sus proyectos,
  *            acciones vencidas/por vencer, riesgos, indicadores y actividad.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   FolderKanban, Activity, AlertTriangle, TrendingUp,
-  MapPin, ChevronRight, Clock, Target, Shield, Calendar
+  MapPin, ChevronRight, Clock, Target, Shield, Calendar, Layers
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import { obtenerInicio } from '../api/inicio';
+import client from '../api/client';
+import MapaTerritorialInicio from '../components/inicio/MapaTerritorialInicio';
 
 const GUINDA = '#7B1C3E';
+const SEM = { verde: '#22c55e', ambar: '#f59e0b', rojo: '#ef4444', gris: '#9ca3af' };
 
 export default function Inicio() {
   const { usuario } = useAuth();
@@ -57,7 +60,7 @@ export default function Inicio() {
           </p>
         </div>
         <Link to="/mapa" className="btn-secondary text-xs flex items-center gap-1">
-          <MapPin size={14} /> Mapa territorial
+          <MapPin size={14} /> Territorio
         </Link>
       </div>
 
@@ -72,7 +75,7 @@ export default function Inicio() {
       {/* ═══ MIS PROYECTOS ═══ */}
       {proyectos.length > 0 && (
         <section>
-          <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
+          <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
             <FolderKanban size={14} /> Mis proyectos
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -83,19 +86,38 @@ export default function Inicio() {
         </section>
       )}
 
-      {/* ═══ VENCIDOS + POR VENCER ═══ */}
+      {/* ═══ MAPA + INDICADORES (mitad de ancho cada uno; el que falte, el otro ocupa todo) ═══ */}
+      <div className={`grid grid-cols-1 gap-4 ${indicadores.length > 0 ? 'lg:grid-cols-2' : ''}`}>
+        <div className="card p-5">
+          <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
+            <MapPin size={14} /> Incidencia territorial
+          </h2>
+          <MapaTerritorialInicio />
+        </div>
+
+        {indicadores.length > 0 && (
+          <div className="card p-5">
+            <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
+              <Target size={14} className="text-blue-500" /> Indicadores
+            </h2>
+            <IndicadoresResumen indicadores={indicadores} />
+          </div>
+        )}
+      </div>
+
+      {/* ═══ VENCIDOS + POR VENCER (mitad de ancho cada uno; el que falte, el otro ocupa todo) ═══ */}
       {(vencidos.length > 0 || por_vencer.length > 0) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className={`grid grid-cols-1 gap-6 ${vencidos.length > 0 && por_vencer.length > 0 ? 'lg:grid-cols-2' : ''}`}>
           {vencidos.length > 0 && (
             <div className="card p-5">
-              <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
+              <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
                 <AlertTriangle size={14} className="text-red-500" /> Acciones vencidas
               </h2>
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {vencidos.map(a => (
                   <Link
                     key={a.id}
-                    to={`/proyectos/${a.proyecto_id}?tab=seguimiento`}
+                    to={`/proyectos/${a.proyecto_id}?tab=seguimiento&nodo=${a.id}`}
                     className="flex items-start gap-2 p-2 rounded hover:bg-red-50 border border-transparent hover:border-red-100 transition"
                   >
                     <span className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5 flex-shrink-0" />
@@ -110,14 +132,14 @@ export default function Inicio() {
           )}
           {por_vencer.length > 0 && (
             <div className="card p-5">
-              <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
+              <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
                 <Clock size={14} className="text-yellow-600" /> Por vencer (14 días)
               </h2>
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {por_vencer.map(a => (
                   <Link
                     key={a.id}
-                    to={`/proyectos/${a.proyecto_id}?tab=seguimiento`}
+                    to={`/proyectos/${a.proyecto_id}?tab=seguimiento&nodo=${a.id}`}
                     className="flex items-start gap-2 p-2 rounded hover:bg-yellow-50 border border-transparent hover:border-yellow-100 transition"
                   >
                     <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 mt-1.5 flex-shrink-0" />
@@ -136,14 +158,14 @@ export default function Inicio() {
       {/* ═══ RIESGOS ABIERTOS ═══ */}
       {riesgos.length > 0 && (
         <div className="card p-5">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
+          <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
             <Shield size={14} className="text-orange-500" /> Riesgos abiertos
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {riesgos.map(r => (
               <Link
                 key={r.id}
-                to={`/proyectos/${r.proyecto_id}`}
+                to={`/proyectos/${r.proyecto_id}?tab=seguimiento&nodo=${r.entidad_id}`}
                 className="flex items-center gap-2 p-2 rounded hover:bg-orange-50 border border-gray-100 hover:border-orange-200 transition"
               >
                 <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
@@ -161,57 +183,21 @@ export default function Inicio() {
         </div>
       )}
 
-      {/* ═══ MAPA INCIDENCIA TERRITORIAL ═══ */}
-      {mapa_incidencia.length > 0 && (
-        <div className="card p-5">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
-            <MapPin size={14} className="text-purple-500" /> Incidencia territorial
-          </h2>
-          <div className="flex flex-wrap gap-2">
-            {mapa_incidencia.map(e => (
-              <div
-                key={e.cve_ent}
-                className="px-3 py-1.5 rounded-lg border text-xs group relative"
-                style={{
-                  backgroundColor: `rgba(123, 28, 62, ${Math.min(0.15 + e.num_proyectos * 0.1, 0.6)})`,
-                  borderColor: `rgba(123, 28, 62, 0.3)`,
-                  color: '#4a0e23'
-                }}
-              >
-                <span className="font-medium">{e.estado_nombre}</span>
-                <span className="ml-1 opacity-70">({e.num_proyectos})</span>
-                {e.proyectos_nombres && (
-                  <div className="absolute bottom-full left-0 mb-1 bg-gray-900 text-white text-[10px] px-2 py-1 rounded shadow-lg hidden group-hover:block z-10 whitespace-nowrap max-w-xs">
-                    {e.proyectos_nombres.slice(0, 5).join(', ')}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ═══ INDICADORES AGREGADOS ═══ */}
-      {indicadores.length > 0 && (
-        <div className="card p-5">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
-            <Target size={14} className="text-blue-500" /> Indicadores
-          </h2>
-          <IndicadoresResumen indicadores={indicadores} />
-        </div>
-      )}
-
       {/* ═══ ACTIVIDAD RECIENTE ═══ */}
       {actividad.length > 0 && (
         <div className="card p-5">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
+          <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
             <Activity size={14} className="text-purple-500" /> Actividad reciente
           </h2>
           <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
             {actividad.map((ev) => {
               const { bg, text, icon: IconComp } = actividadConfig(ev.tipo);
               return (
-                <div key={ev.id} className="flex items-start gap-2.5">
+                <Link
+                  key={ev.id}
+                  to={`/proyectos/${ev.proyecto_id}?tab=seguimiento&nodo=${ev.entidad_id}`}
+                  className="flex items-start gap-2.5 p-1.5 -m-1.5 rounded hover:bg-gray-50 transition-colors"
+                >
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${bg} ${text}`}>
                     <IconComp size={11} />
                   </div>
@@ -224,11 +210,11 @@ export default function Inicio() {
                       <p className="text-[11px] text-gray-500 truncate">{ev.descripcion.slice(0, 80)}</p>
                     )}
                     <p className="text-[10px] text-gray-400 mt-0.5">
-                      <Link to={`/proyectos/${ev.proyecto_id}`} className="hover:text-guinda-600 hover:underline">{ev.proyecto_nombre}</Link>
+                      <span className="hover:text-guinda-600">{ev.proyecto_nombre}</span>
                       {' · '}{rel(ev.created_at)}
                     </p>
                   </div>
-                </div>
+                </Link>
               );
             })}
           </div>
@@ -276,10 +262,33 @@ function getColor(pct) {
 // ─── Proyecto Card ────────────────────────────────────────────
 function ProyectoCard({ proyecto }) {
   const pct = parseFloat(proyecto.porcentaje_calculado) || 0;
+  const cacheRef = useRef(null);
+  const timeoutRef = useRef(null);
+  const [popover, setPopover] = useState(null); // { x, y, above, cargando, datos }
+
+  function mostrarPopover(e) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const arriba = rect.top > window.innerHeight / 2;
+    const pos = { x: rect.left, y: arriba ? rect.top - 8 : rect.bottom + 8, above: arriba };
+    if (cacheRef.current) { setPopover({ ...pos, cargando: false, datos: cacheRef.current }); return; }
+    setPopover({ ...pos, cargando: true, datos: null });
+    timeoutRef.current = setTimeout(() => {
+      client.get(`/proyectos/${proyecto.id}/panorama-rapido`)
+        .then(res => { cacheRef.current = res.data.datos; setPopover(p => p ? { ...p, cargando: false, datos: res.data.datos } : p); })
+        .catch(() => setPopover(p => p ? { ...p, cargando: false, datos: { etapas: [], actividad: [] } } : p));
+    }, 250);
+  }
+  function ocultarPopover() {
+    clearTimeout(timeoutRef.current);
+    setPopover(null);
+  }
+
   return (
     <Link
       to={`/proyectos/${proyecto.id}`}
-      className="card p-4 hover:shadow-md hover:border-guinda-200 transition group"
+      className="card p-4 hover:shadow-md hover:border-guinda-200 transition group relative"
+      onMouseEnter={mostrarPopover}
+      onMouseLeave={ocultarPopover}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
@@ -306,6 +315,61 @@ function ProyectoCard({ proyecto }) {
         {proyecto.riesgos_activos > 0 && <span className="text-orange-500">{proyecto.riesgos_activos} riesgos</span>}
         {proyecto.es_prioritario && <span className="text-guinda-600 font-bold">★ Prioritario</span>}
       </div>
+
+      {popover && (
+        <div
+          className="fixed z-[9999] bg-white border border-gray-200 rounded-lg shadow-xl p-3 w-80 pointer-events-none"
+          style={{ left: Math.min(popover.x, window.innerWidth - 336), top: popover.above ? undefined : popover.y, bottom: popover.above ? window.innerHeight - popover.y : undefined }}
+        >
+          {popover.cargando ? (
+            <div className="flex items-center gap-2 text-xs text-gray-400 py-2">
+              <div className="animate-spin w-3.5 h-3.5 border-2 border-[#7B1C3E] border-t-transparent rounded-full" /> Cargando panorama…
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <Layers size={11} className="text-indigo-500" />
+                <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Estructura</p>
+              </div>
+              {popover.datos.etapas.length === 0 ? (
+                <p className="text-[11px] text-gray-400 italic mb-2">Sin etapas registradas.</p>
+              ) : (
+                <ul className="space-y-1 max-h-32 overflow-y-auto mb-2">
+                  {popover.datos.etapas.slice(0, 6).map(et => (
+                    <li key={et.id} className="flex items-center gap-1.5 text-[11px]">
+                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: SEM[et.semaforo || 'gris'] }} />
+                      <span className="truncate text-gray-700 flex-1">{et.nombre}</span>
+                      <span className="text-gray-400 flex-shrink-0">{et.acciones_completadas}/{et.total_acciones}</span>
+                      <span className="text-gray-400 tabular-nums flex-shrink-0 w-8 text-right">{Math.round(et.avance)}%</span>
+                    </li>
+                  ))}
+                  {popover.datos.etapas.length > 6 && (
+                    <li className="text-[10px] text-gray-400 text-center">+{popover.datos.etapas.length - 6} etapas más…</li>
+                  )}
+                </ul>
+              )}
+
+              <div className="flex items-center gap-1.5 mb-1.5 pt-1.5 border-t border-gray-100">
+                <Activity size={11} className="text-purple-500" />
+                <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Última actividad</p>
+              </div>
+              {popover.datos.actividad.length === 0 ? (
+                <p className="text-[11px] text-gray-400 italic">Sin actividad reciente.</p>
+              ) : (
+                <ul className="space-y-1">
+                  {popover.datos.actividad.map(ev => (
+                    <li key={ev.id} className="text-[11px] text-gray-700 leading-snug">
+                      {ev.actor && <span className="font-medium">{ev.actor.split(' ')[0]} — </span>}
+                      <span className="text-gray-600">{ev.titulo}</span>
+                      <span className="text-gray-400"> · {rel(ev.created_at)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </Link>
   );
 }
@@ -340,7 +404,7 @@ function IndicadoresResumen({ indicadores }) {
       {Object.entries(grouped).map(([tipo, inds]) => (
         <div key={tipo}>
           <p className="text-xs font-medium text-gray-700 mb-2">{tipo}</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          <div className="space-y-2">
             {inds.slice(0, 6).map(ind => {
               const meta = parseFloat(ind.meta_global) || 0;
               const valor = parseFloat(ind.valor_actual) || 0;
@@ -349,20 +413,24 @@ function IndicadoresResumen({ indicadores }) {
               const unidad = ind.etiqueta_unidad || ind.unidad_personalizada || ind.unidad || '';
               return (
                 <div key={ind.id} className="border border-gray-100 rounded-lg p-2.5">
-                  <p className="text-xs text-gray-800 truncate font-medium">{ind.nombre}</p>
-                  <p className="text-[10px] text-gray-500 truncate">{ind.proyecto_nombre} · {ind.dg_siglas}</p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs text-gray-800 font-medium leading-snug break-words">{ind.nombre}</p>
+                      <p className="text-[10px] text-gray-500 leading-snug break-words">{ind.proyecto_nombre} · {ind.dg_siglas}</p>
+                    </div>
+                    {!tieneMeta && (
+                      <p className="text-xs font-bold flex-shrink-0 whitespace-nowrap" style={{ color: GUINDA }}>
+                        {valor.toLocaleString()} {unidad}
+                      </p>
+                    )}
+                  </div>
                   {tieneMeta && (
                     <div className="mt-1.5 flex items-center gap-2">
                       <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                         <div className="h-full rounded-full" style={{ width: `${pct || 0}%`, backgroundColor: GUINDA }} />
                       </div>
-                      <span className="text-[10px] font-semibold text-gray-600">{pct !== null ? `${pct.toFixed(0)}%` : '—'}</span>
+                      <span className="text-[10px] font-semibold text-gray-600 flex-shrink-0">{pct !== null ? `${pct.toFixed(0)}%` : '—'}</span>
                     </div>
-                  )}
-                  {!tieneMeta && (
-                    <p className="text-xs font-bold mt-1" style={{ color: GUINDA }}>
-                      {valor.toLocaleString()} {unidad}
-                    </p>
                   )}
                 </div>
               );

@@ -20,7 +20,7 @@ const nombresRutas = {
   '': 'Inicio',
   'proyectos': 'Proyectos',
   'nuevo': 'Nuevo proyecto',
-  'mapa': 'Mapa territorial',
+  'mapa': 'Territorio',
   'agenda': 'Agenda',
   'notificaciones': 'Notificaciones',
 };
@@ -38,19 +38,19 @@ export default function Header() {
   });
 
   return (
-    <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 flex-shrink-0">
+    <header className="h-16 bg-white flex items-center justify-between px-6 flex-shrink-0" style={{ borderBottom: '1px solid #E5E5E5' }}>
       {/* Breadcrumb */}
       <div className="flex items-center text-sm">
-        <Link to="/" className="text-gray-500 hover:text-guinda-500 transition-colors">
+        <Link to="/" className="transition-colors" style={{ color: '#98989A' }} onMouseEnter={e => e.target.style.color='#7B1C3E'} onMouseLeave={e => e.target.style.color='#98989A'}>
           Inicio
         </Link>
         {breadcrumbs.map((bc, i) => (
           <span key={i} className="flex items-center">
-            <span className="mx-2 text-gray-300">/</span>
+            <span className="mx-2" style={{ color: '#E5E5E5' }}>/</span>
             {i === breadcrumbs.length - 1 ? (
-              <span className="text-gray-900 font-medium">{bc.nombre}</span>
+              <span className="font-semibold" style={{ color: '#545454' }}>{bc.nombre}</span>
             ) : (
-              <Link to={bc.ruta} className="text-gray-500 hover:text-guinda-500 transition-colors">
+              <Link to={bc.ruta} className="transition-colors" style={{ color: '#98989A' }} onMouseEnter={e => e.target.style.color='#7B1C3E'} onMouseLeave={e => e.target.style.color='#98989A'}>
                 {bc.nombre}
               </Link>
             )}
@@ -66,7 +66,8 @@ export default function Header() {
           <input
             type="text"
             placeholder="Buscar proyecto..."
-            className="pl-9 pr-4 py-1.5 border border-gray-300 rounded-lg text-sm w-56 focus:outline-none focus:ring-2 focus:ring-guinda-500 focus:border-guinda-500"
+            className="pl-9 pr-4 py-1.5 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-guinda-500"
+            style={{ border: '1px solid #E5E5E5', borderRadius: '6px', color: '#545454', fontFamily: 'Noto Sans' }}
           />
         </div>
 

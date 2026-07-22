@@ -8,58 +8,91 @@
 
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-900;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    /* gob.mx v3: Noto Sans, #545454 text, #F5F5F0 background */
+    background-color: #F5F5F0;
+    color: #545454;
+    font-family: 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 16px;
+    line-height: 1.428;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-weight: 700;
+    color: #545454;
   }
 
   /* Scrollbar personalizada para la app */
   ::-webkit-scrollbar {
-    width: 6px;
+    width: 5px;
+    height: 5px;
   }
   ::-webkit-scrollbar-track {
-    @apply bg-gray-100;
+    background: #F5F5F0;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-gray-300 rounded-full;
+    background: #E5E5E5;
+    border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-gray-400;
+    background: #98989A;
   }
 }
 
 @layer components {
   /* Chip de etiqueta reutilizable */
   .chip {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold;
   }
 
-  /* Card base */
+  /* Card base — gob.mx: flat, subtle border, minimal shadow */
   .card {
-    @apply bg-white rounded-lg border border-gray-200 shadow-sm;
+    background-color: #ffffff;
+    border-radius: 8px;
+    border: 1px solid #E5E5E5;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   }
 
   /* Input base */
   .input-base {
-    @apply w-full px-3 py-2 border border-gray-300 rounded-lg text-sm
-           focus:outline-none focus:ring-2 focus:ring-guinda-500 focus:border-guinda-500
-           placeholder-gray-400;
+    @apply w-full px-3 py-2 text-sm
+           focus:outline-none focus:ring-2 focus:ring-guinda-500 focus:border-guinda-500;
+    border: 1px solid #E5E5E5;
+    border-radius: 6px;
+    color: #545454;
+    background-color: #ffffff;
+  }
+  .input-base::placeholder {
+    color: #98989A;
   }
 
-  /* Botón primario guinda */
+  /* Botón primario guinda — gob.mx: flat, no shadow, rounded-md */
   .btn-primary {
-    @apply px-4 py-2 bg-guinda-500 text-white rounded-lg text-sm font-medium
-           hover:bg-guinda-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply px-4 py-2 text-white text-sm font-semibold transition-colors
+           disabled:opacity-50 disabled:cursor-not-allowed;
+    background-color: #7B1C3E;
+    border-radius: 6px;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background-color: #611232;
   }
 
   /* Botón secundario */
   .btn-secondary {
-    @apply px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg text-sm font-medium
-           hover:bg-gray-50 transition-colors;
+    @apply px-4 py-2 text-sm font-semibold transition-colors;
+    background-color: #ffffff;
+    color: #7B1C3E;
+    border: 1px solid #7B1C3E;
+    border-radius: 6px;
+  }
+  .btn-secondary:hover {
+    background-color: #fbf3f6;
   }
 
   /* Botón verde */
   .btn-verde {
-    @apply px-4 py-2 bg-verde-500 text-white rounded-lg text-sm font-medium
+    @apply px-4 py-2 bg-verde-500 text-white text-sm font-semibold
            hover:bg-verde-600 transition-colors;
+    border-radius: 6px;
   }
 }

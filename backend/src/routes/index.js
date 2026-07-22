@@ -37,6 +37,7 @@ const importarRoutes = require('./importar.routes');
 const plantillasRoutes = require('./plantillas.routes');
 const adminRoutes = require('./admin.routes');
 const tareasRoutes = require('./tareas.routes');
+const geoRoutes = require('./geo.routes');
 
 // Importar controllers para rutas anidadas
 const etapasController = require('../controllers/etapas.controller');
@@ -49,6 +50,7 @@ const proyectosStatsController = require('../controllers/proyectos.stats.control
 const bloqueosController = require('../controllers/bloqueos.controller');
 const estadoController = require('../controllers/estado.controller');
 const geografiaController = require('../controllers/geografia.controller');
+const geoController = require('../controllers/geo.controller');
 const dashboardController = require('../controllers/dashboard.controller');
 const aportacionesController = require('../controllers/aportaciones.controller');
 const miembrosController = require('../controllers/miembros.controller');
@@ -82,6 +84,7 @@ router.use('/tareas', tareasRoutes);
 router.use('/importar', importarRoutes);
 router.use('/plantillas-importacion', plantillasRoutes);
 router.use('/admin', adminRoutes);
+router.use('/geo', geoRoutes);
 
 // ─── Rutas anidadas (conectan controllers de diferentes recursos) ─
 
@@ -174,6 +177,7 @@ router.post('/cobertura/:tipo/:id', geografiaController.agregarCobertura);
 router.delete('/cobertura/:id', geografiaController.eliminarCobertura);
 router.get('/proyectos/:id/cobertura', geografiaController.obtenerCoberturaProyecto);
 router.get('/proyectos/:id/cobertura-detallada', geografiaController.obtenerCoberturaDetallada);
+router.get('/proyectos/:id/mapa-territorial', geoController.obtenerMapaTerritorial);
 
 // Módulo cartográfico territorial
 router.get('/mapa/resumen-estados', geografiaController.resumenPorEstados);
@@ -184,11 +188,14 @@ router.get('/dashboard', dashboardController.obtenerDashboard);
 
 // Dashboard personalizado del usuario
 router.get('/inicio', inicioController.obtenerInicio);
+router.get('/inicio/mapa', geoController.obtenerMapaInicio);
 
 // Panorama del proyecto (tab Panorama)
 router.get('/proyectos/:id/panorama', panoramaController.obtenerPanorama);
+// Panorama compacto (hover de ProyectoCard en Inicio): árbol ligero + actividad reciente
+router.get('/proyectos/:id/panorama-rapido', panoramaController.obtenerPanoramaRapido);
 
-// Miembros de etapas y acciones (nodo_miembros)
+// Miembros de etapas, acciones y tareas (nodo_miembros)
 router.get('/etapas/:etapaId/miembros-nodo', nodoMiembrosController.listar);
 router.post('/etapas/:etapaId/miembros-nodo', nodoMiembrosController.agregar);
 router.put('/etapas/:etapaId/miembros-nodo/:userId', nodoMiembrosController.actualizar);
@@ -197,6 +204,10 @@ router.get('/acciones/:accionId/miembros-nodo', nodoMiembrosController.listar);
 router.post('/acciones/:accionId/miembros-nodo', nodoMiembrosController.agregar);
 router.put('/acciones/:accionId/miembros-nodo/:userId', nodoMiembrosController.actualizar);
 router.delete('/acciones/:accionId/miembros-nodo/:userId', nodoMiembrosController.eliminar);
+router.get('/tareas/:tareaId/miembros-nodo', nodoMiembrosController.listar);
+router.post('/tareas/:tareaId/miembros-nodo', nodoMiembrosController.agregar);
+router.put('/tareas/:tareaId/miembros-nodo/:userId', nodoMiembrosController.actualizar);
+router.delete('/tareas/:tareaId/miembros-nodo/:userId', nodoMiembrosController.eliminar);
 
 // Miembros e invitaciones de proyecto
 router.get('/proyectos/:id/miembros', miembrosController.listarMiembros);

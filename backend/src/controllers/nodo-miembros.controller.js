@@ -8,6 +8,7 @@ const nodoMiembrosQueries = require('../db/queries/nodo-miembros.queries');
 function parseTipoId(req) {
   if (req.params.etapaId !== undefined) return { tipo: 'etapa', idNodo: req.params.etapaId };
   if (req.params.accionId !== undefined) return { tipo: 'accion', idNodo: req.params.accionId };
+  if (req.params.tareaId !== undefined) return { tipo: 'tarea', idNodo: req.params.tareaId };
   return null;
 }
 

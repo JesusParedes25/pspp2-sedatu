@@ -5,11 +5,12 @@
  *
  * MINI-CLASE: Roles y permisos en PSPP
  * ─────────────────────────────────────────────────────────────────
- * PSPP tiene 4 roles jerárquicos:
- * • Ejecutivo — ve TODO, crea/edita/elimina TODO (Subsecretario)
- * • Directivo — ve todo, crea/edita en su DG (Director de Área)
- * • Responsable — ve su DG + participaciones, crea/edita lo suyo
- * • Operativo — ve su DG, solo edita sus acciones asignadas
+ * PSPP tiene 5 roles:
+ * • superadmin — acceso total al sistema
+ * • ejecutivo  — ve TODO, crea/edita/elimina TODO (Subsecretario)
+ * • direccion  — ve todo, crea/edita en su DG (Director de Área)
+ * • enlace     — ve su DG + participaciones, crea/edita lo suyo
+ * • externo    — ve su DG, solo edita sus acciones asignadas
  *
  * Los permisos se calculan comparando el rol del usuario, su DG,
  * y si participa en el proyecto (como líder o colaborador).
@@ -28,11 +29,12 @@ export function usePermisosGlobales() {
     const rol = usuario.rol;
 
     return {
-      esEjecutivo: rol === 'Ejecutivo',
-      esDirectivo: rol === 'Directivo',
-      esResponsable: rol === 'Responsable',
-      esOperativo: rol === 'Operativo',
-      puedeCrearProyecto: rol !== 'Operativo',
+      esSuperadmin: rol === 'superadmin',
+      esEjecutivo: rol === 'ejecutivo' || rol === 'superadmin',
+      esDireccion: rol === 'direccion',
+      esEnlace: rol === 'enlace',
+      esExterno: rol === 'externo',
+      puedeCrearProyecto: rol !== 'externo',
     };
   }, [usuario]);
 }
@@ -49,6 +51,7 @@ export function usePermisosProyecto(proyecto) {
       puedeCrearAccion: false,
       puedeEditarAccion: false,
       puedeCambiarEstado: false,
+      puedeInvitar: false,
       esParticipante: false,
       esSoloLectura: true,
     };
@@ -58,12 +61,12 @@ export function usePermisosProyecto(proyecto) {
     const rol = usuario.rol;
     const esMismaDG = usuario.id_dg === proyecto.id_dg_lider;
     const esCreador = usuario.id === proyecto.id_creador;
+    const rolProyecto = proyecto.rol_usuario_actual;
+    const esResponsableProyecto = rolProyecto === 'responsable';
+    const esParticipante = esMismaDG || esCreador || !!rolProyecto;
 
-    // Verificar si el usuario participa en el proyecto (líder o colaborador)
-    const esParticipante = esMismaDG || esCreador;
-
-    // Ejecutivo: todo
-    if (rol === 'Ejecutivo') {
+    // superadmin y ejecutivo: todo
+    if (rol === 'superadmin' || rol === 'ejecutivo') {
       return {
         puedeEditar: true,
         puedeEliminar: true,
@@ -71,41 +74,46 @@ export function usePermisosProyecto(proyecto) {
         puedeCrearAccion: true,
         puedeEditarAccion: true,
         puedeCambiarEstado: true,
+        puedeInvitar: true,
         esParticipante: true,
         esSoloLectura: false,
       };
     }
 
-    // Directivo: crea/edita en su DG, ve todo
-    if (rol === 'Directivo') {
+    // direccion: crea/edita en su DG, ve todo
+    if (rol === 'direccion') {
+      const puedeEditar = esMismaDG || esCreador || esResponsableProyecto;
       return {
-        puedeEditar: esMismaDG || esCreador,
+        puedeEditar,
         puedeEliminar: esCreador,
         puedeCrearEtapa: esMismaDG || esCreador,
         puedeCrearAccion: esMismaDG,
         puedeEditarAccion: esMismaDG,
         puedeCambiarEstado: esMismaDG || esCreador,
+        puedeInvitar: puedeEditar,
         esParticipante,
         esSoloLectura: !esMismaDG && !esCreador,
       };
     }
 
-    // Responsable: crea/edita en su DG si participa
-    if (rol === 'Responsable') {
+    // enlace: crea/edita en su DG si participa
+    if (rol === 'enlace') {
+      const puedeEditar = esCreador || esResponsableProyecto;
       return {
-        puedeEditar: esCreador,
+        puedeEditar,
         puedeEliminar: false,
         puedeCrearEtapa: esParticipante,
         puedeCrearAccion: esParticipante,
         puedeEditarAccion: esParticipante,
         puedeCambiarEstado: esParticipante,
+        puedeInvitar: puedeEditar,
         esParticipante,
         esSoloLectura: !esParticipante,
       };
     }
 
-    // Operativo: solo edita sus acciones asignadas
-    if (rol === 'Operativo') {
+    // externo: solo edita sus acciones asignadas
+    if (rol === 'externo') {
       return {
         puedeEditar: false,
         puedeEliminar: false,
@@ -113,6 +121,7 @@ export function usePermisosProyecto(proyecto) {
         puedeCrearAccion: esMismaDG,
         puedeEditarAccion: esMismaDG,
         puedeCambiarEstado: false,
+        puedeInvitar: false,
         esParticipante: esMismaDG,
         esSoloLectura: !esMismaDG,
       };

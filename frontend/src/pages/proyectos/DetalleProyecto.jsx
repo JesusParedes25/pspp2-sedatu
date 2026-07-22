@@ -17,7 +17,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Star, FileText, Settings, BarChart3, Clock, UsersRound, LayoutDashboard, Search, Plus, Pencil, X, FileSpreadsheet, Trash2, AlertTriangle, Table2, MapPin, Columns, CheckSquare } from 'lucide-react';
 import { useProyecto } from '../../hooks/useProyectos';
 import { useEtapas } from '../../hooks/useEtapas';
@@ -40,7 +40,8 @@ import ModalEditarProyecto from '../../components/proyectos/ModalEditarProyecto'
 import VistaLista from '../../components/seguimiento/VistaLista';
 import VistaKanban from '../../components/seguimiento/VistaKanban';
 import VistaChecklist from '../../components/seguimiento/VistaChecklist';
-import MapaCobertura from '../../components/seguimiento/MapaCobertura';
+import MapaProyecto from '../../components/seguimiento/MapaProyecto';
+import GenerarReporteBtn from '../../components/reportes/GenerarReporteBtn';
 import PanelAccionInline from '../../components/seguimiento/PanelAccionInline';
 import * as evidenciasApi from '../../api/evidencias';
 import * as etapasApi from '../../api/etapas';
@@ -107,8 +108,30 @@ export default function DetalleProyecto() {
   const [accionesDirectas, setAccionesDirectas] = useState([]);
   const [cargandoDirectas, setCargandoDirectas] = useState(false);
   const [accionDirectaExpandida, setAccionDirectaExpandida] = useState(null);
-  const [pestanaActiva, setPestanaActiva] = useState('resumen');
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Deep-link desde Inicio/Panorama: ?tab=seguimiento&nodo=<id> debe abrir
+  // directamente la pestaña y el nodo correspondiente, no el default.
+  const [pestanaActiva, setPestanaActiva] = useState(() => searchParams.get('tab') || 'resumen');
   const [subseccionActiva, setSubseccionActiva] = useState('etapas');
+  // Si el usuario navega de un proyecto a otro sin desmontar (mismo patrón de
+  // ruta), el useState inicial no vuelve a correr — re-sincroniza con la URL.
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab) setPestanaActiva(tab);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Deep-link a un nodo específico (etapa/acción/tarea) desde Panorama:
+  // cambia de pestaña y setea ?nodo=<id>, que EtapasAvancesMD ya sabe leer.
+  function irANodo(nodoId) {
+    setPestanaActiva('seguimiento');
+    setSubseccionActiva('etapas');
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', 'seguimiento');
+      next.set('nodo', nodoId);
+      return next;
+    });
+  }
 
   // Modales
   const [modalEtapa, setModalEtapa] = useState(false);
@@ -332,7 +355,7 @@ export default function DetalleProyecto() {
 
       {/* ═══ PESTAÑA PANORAMA DEL PROYECTO ═══ */}
       {pestanaActiva === 'resumen' && (
-        <PanoramaProyecto proyecto={proyecto} etapas={etapas} proyectoId={id} refreshKey={statsKey} />
+        <PanoramaProyecto proyecto={proyecto} etapas={etapas} proyectoId={id} refreshKey={statsKey} onNavegarNodo={irANodo} />
       )}
 
       {/* ═══ PESTAÑA SEGUIMIENTO ═══ */}
@@ -367,6 +390,10 @@ export default function DetalleProyecto() {
                   className="btn-secondary text-sm flex items-center gap-1.5">
                   <FileSpreadsheet size={14} /> Importar
                 </button>
+                <GenerarReporteBtn
+                  proyectoId={id}
+                  proyecto={proyecto}
+                />
               </div>
 
               <EtapasAvancesMD
@@ -406,9 +433,12 @@ export default function DetalleProyecto() {
             />
           )}
 
-          {/* 5. Mapa de cobertura */}
+          {/* 5. Mapa de cobertura territorial */}
           {subseccionActiva === 'mapa' && (
-            <MapaCobertura proyectoId={id} />
+            <MapaProyecto
+              proyectoId={id}
+              onNavegarEtapas={() => setSubseccionActiva('etapas')}
+            />
           )}
 
           {/* 4. Cronograma (Gantt) */}

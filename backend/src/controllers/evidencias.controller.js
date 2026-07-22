@@ -15,8 +15,22 @@
 const { Client: MinioClient } = require('minio');
 const { v4: uuidv4 } = require('uuid');
 const evidenciasQueries = require('../db/queries/evidencias.queries');
+const miembrosQueries = require('../db/queries/miembros.queries');
 const { registrarActividad } = require('../utils/actividad-log');
 const pool = require('../db/pool');
+
+// Resuelve a qué proyectos tiene acceso el usuario para el módulo global de
+// evidencias: superadmin/ejecutivo ven todo; dirección ve los de su propia
+// Dirección General; el resto (enlace/externo) solo los proyectos donde
+// colabora o es responsable (proyecto_usuarios).
+async function resolverProyectoIdsAcceso(usuario) {
+  if (usuario.rol === 'superadmin' || usuario.rol === 'ejecutivo') return null;
+  if (usuario.rol === 'direccion' && usuario.id_dg) {
+    const { rows } = await pool.query('SELECT id FROM proyectos WHERE id_dg_lider = $1 AND deleted_at IS NULL', [usuario.id_dg]);
+    return rows.map(r => r.id);
+  }
+  return miembrosQueries.obtenerProyectosUsuario(usuario.id);
+}
 
 // Helper: resolver id_proyecto desde entidad
 async function resolverProyectoId(tipo, id) {
@@ -342,7 +356,8 @@ async function listarTodas(req, res, next) {
       id_dg: req.query.id_dg,
       responsable_id: req.query.responsable_id,
     };
-    const evidencias = await evidenciasQueries.obtenerTodasEvidencias(filtros);
+    const proyectoIds = await resolverProyectoIdsAcceso(req.usuario);
+    const evidencias = await evidenciasQueries.obtenerTodasEvidencias(filtros, proyectoIds);
     res.json({ datos: evidencias, mensaje: 'Evidencias obtenidas' });
   } catch (err) {
     next(err);

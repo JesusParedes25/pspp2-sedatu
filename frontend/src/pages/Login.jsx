@@ -86,17 +86,23 @@ export default function Login() {
   return (
     <div className="min-h-screen flex">
       {/* Panel izquierdo — branding institucional */}
-      <div className="hidden lg:flex lg:w-1/2 bg-guinda-700 text-white flex-col justify-center items-center p-12">
-        <div className="max-w-md text-center">
-          <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center mx-auto mb-8">
-            <span className="text-guinda-700 font-black text-2xl">PS</span>
-          </div>
-          <h1 className="text-3xl font-bold mb-4">PSPP v2.0</h1>
-          <p className="text-guinda-200 text-lg mb-2">Plataforma de Seguimiento de Proyectos Prioritarios</p>
-          <p className="text-guinda-300 text-sm">Secretaría de Desarrollo Agrario, Territorial y Urbano</p>
-
-          <div className="mt-12 border-t border-guinda-600 pt-8">
-            <p className="text-guinda-300 text-xs">
+      <div className="hidden lg:flex lg:w-1/2 text-white flex-col justify-center items-center p-12" style={{ backgroundColor: '#7B1C3E' }}>
+        <div className="max-w-sm text-center">
+          <img
+            src="/sedatu-logo.png"
+            alt="SEDATU"
+            className="mx-auto mb-8"
+            style={{ width: 220, filter: 'brightness(0) invert(1)' }}
+          />
+          <h1 className="text-2xl font-bold mb-3" style={{ fontFamily: 'Noto Sans' }}>PSPP v2.0</h1>
+          <p className="text-lg mb-1" style={{ color: 'rgba(255,255,255,0.85)', fontFamily: 'Noto Sans' }}>
+            Plataforma de Seguimiento de Proyectos Prioritarios
+          </p>
+          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.65)' }}>
+            Secretaría de Desarrollo Agrario, Territorial y Urbano
+          </p>
+          <div className="mt-10 pt-8" style={{ borderTop: '1px solid rgba(255,255,255,0.2)' }}>
+            <p className="text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>
               Sistema de uso interno exclusivo de SEDATU.
               Acceso restringido a personal autorizado.
             </p>
@@ -105,19 +111,21 @@ export default function Login() {
       </div>
 
       {/* Panel derecho — formulario */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-gray-50">
+      <div className="flex-1 flex items-center justify-center p-8" style={{ backgroundColor: '#F5F5F0' }}>
         <div className="w-full max-w-sm">
           {/* Logo mobile */}
           <div className="lg:hidden text-center mb-8">
-            <div className="w-14 h-14 bg-guinda-700 rounded-xl flex items-center justify-center mx-auto mb-3">
-              <span className="text-white font-bold text-lg">PS</span>
-            </div>
-            <h1 className="text-xl font-bold text-gray-900">PSPP v2.0</h1>
-            <p className="text-sm text-gray-500">SEDATU</p>
+            <img
+              src="/sedatu-logo.png"
+              alt="SEDATU"
+              className="mx-auto mb-3 w-40 object-contain"
+            />
+            <h1 className="text-xl font-bold" style={{ color: '#7B1C3E' }}>PSPP v2.0</h1>
+            <p className="text-sm" style={{ color: '#545454' }}>Plataforma de Seguimiento de Proyectos Prioritarios</p>
           </div>
 
-          <h2 className="text-2xl font-bold text-gray-900 mb-1">Iniciar sesión</h2>
-          <p className="text-sm text-gray-500 mb-8">Ingresa con tu correo institucional</p>
+          <h2 className="text-2xl font-bold mb-1" style={{ color: '#545454' }}>Iniciar sesión</h2>
+          <p className="text-sm mb-8" style={{ color: '#98989A' }}>Ingresa con tu correo institucional</p>
 
           <form onSubmit={manejarSubmit} className="space-y-5">
             {/* Error */}

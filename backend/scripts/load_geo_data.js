@@ -100,15 +100,25 @@ async function loadZM() {
   console.log('Loading zonas metropolitanas...');
   const raw = fs.readFileSync(geojsonPath, 'utf-8');
   const data = JSON.parse(raw);
-  let count = 0;
-
   const features = data.features || data;
 
+  // El GeoJSON trae UN registro por municipio (varios municipios comparten
+  // el mismo CVE_MET). Hay que cargar todos a una tabla temporal y luego
+  // unir (ST_Union) las geometrías por CVE_MET — insertar fila por fila con
+  // ON CONFLICT DO UPDATE pisaría cada ZM con el último municipio procesado.
+  await pool.query(`
+    CREATE TEMP TABLE _tmp_zm_load (
+      cve_met VARCHAR(20), nombre VARCHAR(200), tipo VARCHAR(80),
+      geom geometry(Geometry, 4326)
+    )
+  `);
+
+  let count = 0;
   for (const feature of features) {
     const props = feature.properties || {};
     const cve_met = (props.CVE_MET || props.cve_met || props.CVE_ZM || props.cve_zm || props.CVEGEO || '').toString();
     const nombre = props.NOM_MET || props.NOM_ZM || props.nombre || props.NOMGEO || `ZM ${cve_met}`;
-    const tipo = props.TIPO || props.tipo || null;
+    const tipo = props.TIPO_MET || props.TIPO || props.tipo_met || props.tipo || null;
 
     if (!cve_met) continue;
 
@@ -116,17 +126,26 @@ async function loadZM() {
 
     try {
       await pool.query(
-        `INSERT INTO geo_zm (cve_met, nombre, tipo, geom)
-         VALUES ($1, $2, $3, ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON($4), 4326)))
-         ON CONFLICT (cve_met) DO UPDATE SET nombre = $2, tipo = $3, geom = ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON($4), 4326))`,
+        `INSERT INTO _tmp_zm_load (cve_met, nombre, tipo, geom)
+         VALUES ($1, $2, $3, ST_SetSRID(ST_GeomFromGeoJSON($4), 4326))`,
         [cve_met, nombre, tipo, geojson]
       );
       count++;
     } catch (err) {
-      console.error(`  Error inserting ZM ${cve_met}:`, err.message);
+      console.error(`  Error cargando parte de ZM ${cve_met}:`, err.message);
     }
   }
-  console.log(`  Inserted ${count} zonas metropolitanas`);
+
+  const { rowCount } = await pool.query(`
+    INSERT INTO geo_zm (cve_met, nombre, tipo, geom)
+      SELECT cve_met, MAX(nombre), MAX(tipo), ST_Multi(ST_Union(geom))
+      FROM _tmp_zm_load
+      GROUP BY cve_met
+    ON CONFLICT (cve_met) DO UPDATE SET nombre = EXCLUDED.nombre, tipo = EXCLUDED.tipo, geom = EXCLUDED.geom
+  `);
+  await pool.query('DROP TABLE _tmp_zm_load');
+
+  console.log(`  Cargadas ${count} partes municipales → ${rowCount} zonas metropolitanas unidas`);
 }
 
 async function main() {

@@ -138,13 +138,28 @@ async function eliminarEvidencia(evidenciaId) {
 }
 
 // Obtiene todas las evidencias del sistema con datos de proyecto, etapa y autor
-async function obtenerTodasEvidencias(filtros = {}) {
+/**
+ * Lista evidencias de TODOS los proyectos (módulo global).
+ * A diferencia de las consultas por accion/etapa, aquí la evidencia puede
+ * colgar de exactamente uno de: id_etapa, id_accion, id_subaccion, id_riesgo
+ * (constraint chk_evidencia_pertenencia) — hay que resolver el proyecto,
+ * etapa y acción "padre" según cuál de esos 4 esté presente.
+ *
+ * @param {object} filtros - proyecto_id, categoria, programa_id, id_dg, responsable_id
+ * @param {string[]|null} proyectoIds - restricción de acceso: null = sin restricción
+ *   (superadmin/ejecutivo), array = solo esos proyectos (colaborador o dirección).
+ */
+async function obtenerTodasEvidencias(filtros = {}, proyectoIds = null) {
   const condiciones = [];
   const params = [];
   let idx = 1;
 
+  if (proyectoIds !== null) {
+    condiciones.push(`p.id = ANY($${idx++})`);
+    params.push(proyectoIds);
+  }
   if (filtros.proyecto_id) {
-    condiciones.push(`a.id_proyecto = $${idx++}`);
+    condiciones.push(`p.id = $${idx++}`);
     params.push(filtros.proyecto_id);
   }
   if (filtros.categoria) {
@@ -170,17 +185,30 @@ async function obtenerTodasEvidencias(filtros = {}) {
     SELECT
       ev.*,
       u.nombre_completo AS autor_nombre,
-      a.nombre AS accion_nombre,
-      et.nombre AS etapa_nombre,
+      COALESCE(acc.nombre, subacc.nombre) AS accion_nombre,
+      COALESCE(et_directa.nombre, et_de_accion.nombre, et_de_subaccion.nombre, et_de_riesgo.nombre) AS etapa_nombre,
+      r.titulo AS riesgo_titulo,
       p.nombre AS proyecto_nombre,
       p.id AS proyecto_id,
       dg.siglas AS dg_siglas,
       prog.clave AS programa_clave
     FROM evidencias ev
     LEFT JOIN usuarios u ON u.id = ev.id_autor
-    LEFT JOIN acciones a ON a.id = ev.id_accion
-    LEFT JOIN etapas et ON et.id = a.id_etapa
-    LEFT JOIN proyectos p ON p.id = a.id_proyecto
+    LEFT JOIN etapas et_directa ON et_directa.id = ev.id_etapa
+    LEFT JOIN acciones acc ON acc.id = ev.id_accion
+    LEFT JOIN acciones subacc ON subacc.id = ev.id_subaccion
+    LEFT JOIN etapas et_de_accion ON et_de_accion.id = acc.id_etapa
+    LEFT JOIN etapas et_de_subaccion ON et_de_subaccion.id = subacc.id_etapa
+    LEFT JOIN riesgos r ON r.id = ev.id_riesgo
+    LEFT JOIN etapas et_de_riesgo ON r.entidad_tipo = 'Etapa' AND et_de_riesgo.id = r.entidad_id
+    LEFT JOIN acciones ac_de_riesgo ON r.entidad_tipo IN ('Accion','Subaccion') AND ac_de_riesgo.id = r.entidad_id
+    LEFT JOIN proyectos p ON p.id = COALESCE(
+      et_directa.id_proyecto,
+      acc.id_proyecto,
+      subacc.id_proyecto,
+      ac_de_riesgo.id_proyecto,
+      CASE WHEN r.entidad_tipo = 'Proyecto' THEN r.entidad_id END
+    )
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
     LEFT JOIN programas prog ON prog.id = p.id_programa
     ${where}

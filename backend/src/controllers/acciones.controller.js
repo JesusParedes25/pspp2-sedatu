@@ -217,22 +217,11 @@ async function importarCSV(req, res, next) {
   }
 }
 
-// GET /agenda — Obtener acciones del usuario para la agenda
+// GET /agenda — Obtener todas las actividades con fecha del usuario para la agenda
 async function agenda(req, res, next) {
   try {
-    const { desde, hasta } = req.query;
-
-    // Si no se especifican fechas, usar la semana actual
-    const fechaDesde = desde || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const fechaHasta = hasta || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-    const acciones = await accionesQueries.obtenerAccionesAgenda(
-      req.usuario.id,
-      fechaDesde,
-      fechaHasta
-    );
-
-    res.json({ datos: acciones, mensaje: 'Agenda obtenida' });
+    const items = await accionesQueries.obtenerAccionesAgenda(req.usuario.id);
+    res.json({ datos: items, mensaje: 'Agenda obtenida' });
   } catch (err) {
     next(err);
   }

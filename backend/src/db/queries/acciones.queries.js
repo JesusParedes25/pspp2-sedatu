@@ -326,24 +326,174 @@ async function eliminarAccion(accionId) {
   return resultado.rows[0] || null;
 }
 
-// Obtiene acciones para la Agenda (por rango de fechas y usuario)
-async function obtenerAccionesAgenda(usuarioId, desde, hasta) {
+// Obtiene todas las actividades con fecha para la Agenda del usuario:
+// - Etapas/acciones/tareas donde es responsable directo
+// - Etapas/acciones donde es miembro via nodo_miembros (colaborador/invitado)
+// - Todas las actividades de proyectos donde es admin/creador (con su responsable)
+async function obtenerAccionesAgenda(usuarioId) {
   const resultado = await pool.query(`
-    SELECT
-      a.*,
-      p.nombre AS proyecto_nombre,
-      p.id AS proyecto_id,
-      e.nombre AS etapa_nombre,
-      dg.siglas AS dg_siglas
-    FROM acciones a
-    LEFT JOIN proyectos p ON p.id = a.id_proyecto
-    LEFT JOIN etapas e ON e.id = a.id_etapa
-    LEFT JOIN direcciones_generales dg ON dg.id = a.id_dg
-    WHERE a.id_responsable = $1
-      AND a.estado NOT IN ('Completada', 'Cancelada')
-      AND a.fecha_fin BETWEEN $2 AND $3
-    ORDER BY a.fecha_fin ASC
-  `, [usuarioId, desde, hasta]);
+    WITH todas AS (
+
+      -- 1. Etapas donde el usuario es responsable directo
+      SELECT 'etapa'::text AS tipo,
+        e.id::text AS id, e.nombre, e.estado, e.semaforo,
+        COALESCE(e.avance_actual, 0) AS avance_actual,
+        COALESCE(e.fecha_limite, e.fecha_fin) AS fecha_fin,
+        e.id_responsable::text AS responsable_id,
+        u.nombre_completo AS responsable_nombre,
+        p.id::text AS proyecto_id, p.nombre AS proyecto_nombre,
+        NULL::text AS etapa_id, NULL::text AS etapa_nombre,
+        NULL::text AS accion_id, NULL::text AS accion_nombre,
+        'responsable'::text AS mi_rol, e.prioridad
+      FROM etapas e
+      JOIN proyectos p ON p.id = e.id_proyecto AND p.deleted_at IS NULL
+      LEFT JOIN usuarios u ON u.id = e.id_responsable
+      WHERE COALESCE(e.fecha_limite, e.fecha_fin) IS NOT NULL
+        AND e.id_responsable = $1
+
+      UNION ALL
+
+      -- 2. Etapas donde el usuario es miembro de nodo (colaborador/invitado)
+      SELECT 'etapa', e.id::text, e.nombre, e.estado, e.semaforo,
+        COALESCE(e.avance_actual, 0),
+        COALESCE(e.fecha_limite, e.fecha_fin),
+        e.id_responsable::text, u.nombre_completo,
+        p.id::text, p.nombre, NULL, NULL, NULL, NULL, nm.rol, e.prioridad
+      FROM etapas e
+      JOIN proyectos p ON p.id = e.id_proyecto AND p.deleted_at IS NULL
+      LEFT JOIN usuarios u ON u.id = e.id_responsable
+      JOIN nodo_miembros nm ON nm.tipo_nodo = 'etapa' AND nm.id_nodo = e.id AND nm.id_usuario = $1
+      WHERE COALESCE(e.fecha_limite, e.fecha_fin) IS NOT NULL
+        AND (e.id_responsable IS NULL OR e.id_responsable != $1)
+
+      UNION ALL
+
+      -- 3. Acciones donde el usuario es responsable directo
+      SELECT 'accion', a.id::text, a.nombre, a.estado, a.semaforo,
+        COALESCE(a.avance_actual, 0),
+        COALESCE(a.fecha_limite, a.fecha_fin),
+        a.id_responsable::text, u.nombre_completo,
+        p.id::text, p.nombre, e.id::text, e.nombre, NULL, NULL, 'responsable', a.prioridad
+      FROM acciones a
+      JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
+      LEFT JOIN etapas e ON e.id = a.id_etapa
+      LEFT JOIN usuarios u ON u.id = a.id_responsable
+      WHERE COALESCE(a.fecha_limite, a.fecha_fin) IS NOT NULL
+        AND a.id_responsable = $1
+
+      UNION ALL
+
+      -- 4. Acciones donde el usuario es miembro de nodo
+      SELECT 'accion', a.id::text, a.nombre, a.estado, a.semaforo,
+        COALESCE(a.avance_actual, 0),
+        COALESCE(a.fecha_limite, a.fecha_fin),
+        a.id_responsable::text, u.nombre_completo,
+        p.id::text, p.nombre, e.id::text, e.nombre, NULL, NULL, nm.rol, a.prioridad
+      FROM acciones a
+      JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
+      LEFT JOIN etapas e ON e.id = a.id_etapa
+      LEFT JOIN usuarios u ON u.id = a.id_responsable
+      JOIN nodo_miembros nm ON nm.tipo_nodo = 'accion' AND nm.id_nodo = a.id AND nm.id_usuario = $1
+      WHERE COALESCE(a.fecha_limite, a.fecha_fin) IS NOT NULL
+        AND (a.id_responsable IS NULL OR a.id_responsable != $1)
+
+      UNION ALL
+
+      -- 5. Tareas donde el usuario es responsable directo
+      SELECT 'tarea', t.id::text, t.nombre, t.estado, t.semaforo,
+        COALESCE(t.avance_actual, 0),
+        t.fecha_limite,
+        t.id_responsable::text, u.nombre_completo,
+        p.id::text, p.nombre, e.id::text, e.nombre, a.id::text, a.nombre, 'responsable', t.prioridad
+      FROM tareas t
+      JOIN acciones a ON a.id = t.id_accion
+      JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
+      LEFT JOIN etapas e ON e.id = a.id_etapa
+      LEFT JOIN usuarios u ON u.id = t.id_responsable
+      WHERE t.fecha_limite IS NOT NULL
+        AND t.id_responsable = $1
+
+      UNION ALL
+
+      -- 6. ETAPAS de proyectos donde el usuario es admin/creador (muestra responsable de cada etapa)
+      SELECT 'etapa', e.id::text, e.nombre, e.estado, e.semaforo,
+        COALESCE(e.avance_actual, 0),
+        COALESCE(e.fecha_limite, e.fecha_fin),
+        e.id_responsable::text, u.nombre_completo,
+        p.id::text, p.nombre, NULL, NULL, NULL, NULL, 'coordinador', e.prioridad
+      FROM etapas e
+      JOIN proyectos p ON p.id = e.id_proyecto AND p.deleted_at IS NULL
+      LEFT JOIN usuarios u ON u.id = e.id_responsable
+      WHERE COALESCE(e.fecha_limite, e.fecha_fin) IS NOT NULL
+        AND (p.id_creador = $1 OR EXISTS (
+          SELECT 1 FROM proyecto_usuarios pu
+          WHERE pu.id_proyecto = p.id AND pu.id_usuario = $1 AND pu.rol = 'admin'
+        ))
+        AND (e.id_responsable IS NULL OR e.id_responsable != $1)
+        AND NOT EXISTS (
+          SELECT 1 FROM nodo_miembros nm
+          WHERE nm.tipo_nodo = 'etapa' AND nm.id_nodo = e.id AND nm.id_usuario = $1
+        )
+
+      UNION ALL
+
+      -- 7. ACCIONES de proyectos donde el usuario es admin/creador
+      SELECT 'accion', a.id::text, a.nombre, a.estado, a.semaforo,
+        COALESCE(a.avance_actual, 0),
+        COALESCE(a.fecha_limite, a.fecha_fin),
+        a.id_responsable::text, u.nombre_completo,
+        p.id::text, p.nombre, e.id::text, e.nombre, NULL, NULL, 'coordinador', a.prioridad
+      FROM acciones a
+      JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
+      LEFT JOIN etapas e ON e.id = a.id_etapa
+      LEFT JOIN usuarios u ON u.id = a.id_responsable
+      WHERE COALESCE(a.fecha_limite, a.fecha_fin) IS NOT NULL
+        AND (p.id_creador = $1 OR EXISTS (
+          SELECT 1 FROM proyecto_usuarios pu
+          WHERE pu.id_proyecto = p.id AND pu.id_usuario = $1 AND pu.rol = 'admin'
+        ))
+        AND (a.id_responsable IS NULL OR a.id_responsable != $1)
+        AND NOT EXISTS (
+          SELECT 1 FROM nodo_miembros nm
+          WHERE nm.tipo_nodo = 'accion' AND nm.id_nodo = a.id AND nm.id_usuario = $1
+        )
+
+      UNION ALL
+
+      -- 8. TAREAS de proyectos donde el usuario es admin/creador
+      SELECT 'tarea', t.id::text, t.nombre, t.estado, t.semaforo,
+        COALESCE(t.avance_actual, 0),
+        t.fecha_limite,
+        t.id_responsable::text, u.nombre_completo,
+        p.id::text, p.nombre, e.id::text, e.nombre, a.id::text, a.nombre, 'coordinador', t.prioridad
+      FROM tareas t
+      JOIN acciones a ON a.id = t.id_accion
+      JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
+      LEFT JOIN etapas e ON e.id = a.id_etapa
+      LEFT JOIN usuarios u ON u.id = t.id_responsable
+      WHERE t.fecha_limite IS NOT NULL
+        AND (p.id_creador = $1 OR EXISTS (
+          SELECT 1 FROM proyecto_usuarios pu
+          WHERE pu.id_proyecto = p.id AND pu.id_usuario = $1 AND pu.rol = 'admin'
+        ))
+        AND (t.id_responsable IS NULL OR t.id_responsable != $1)
+
+    ),
+    deduplicadas AS (
+      SELECT DISTINCT ON (tipo, id) *
+      FROM todas
+      ORDER BY tipo, id,
+        CASE mi_rol
+          WHEN 'responsable' THEN 1
+          WHEN 'colaborador' THEN 2
+          WHEN 'invitado'    THEN 3
+          WHEN 'coordinador' THEN 4
+          ELSE 5
+        END
+    )
+    SELECT * FROM deduplicadas
+    ORDER BY fecha_fin ASC NULLS LAST
+  `, [usuarioId]);
 
   return resultado.rows;
 }

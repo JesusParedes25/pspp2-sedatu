@@ -103,6 +103,7 @@ services:
       - "5173:5173"
     volumes:
       - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
     depends_on:
       - backend
 
