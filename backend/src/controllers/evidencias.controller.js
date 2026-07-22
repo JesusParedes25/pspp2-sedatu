@@ -12,7 +12,6 @@
  * se pipea directamente al response HTTP sin cargar todo en memoria.
  * ─────────────────────────────────────────────────────────────────
  */
-const { Client: MinioClient } = require('minio');
 const { v4: uuidv4 } = require('uuid');
 const evidenciasQueries = require('../db/queries/evidencias.queries');
 const miembrosQueries = require('../db/queries/miembros.queries');
@@ -53,16 +52,8 @@ async function resolverProyectoId(tipo, id) {
   return null;
 }
 
-// Inicializar cliente MinIO
-const minioClient = new MinioClient({
-  endPoint: process.env.MINIO_ENDPOINT || 'minio',
-  port: parseInt(process.env.MINIO_PORT) || 9000,
-  useSSL: process.env.MINIO_USE_SSL === 'true',
-  accessKey: process.env.MINIO_USER,
-  secretKey: process.env.MINIO_PASSWORD
-});
-
-const BUCKET = process.env.MINIO_BUCKET || 'pspp-evidencias';
+// Cliente MinIO compartido (ver utils/minio.js — actividad.controller.js reusa el mismo)
+const { minioClient, BUCKET } = require('../utils/minio');
 
 // Asegurar que el bucket existe al iniciar
 async function inicializarBucket() {

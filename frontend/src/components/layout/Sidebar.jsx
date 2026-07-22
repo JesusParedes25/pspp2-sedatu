@@ -14,19 +14,20 @@
 import { NavLink } from 'react-router-dom';
 import { useUI } from '../../context/UIContext';
 import { useAuth } from '../../context/AuthContext';
+import { useMisPendientes } from '../../hooks/useMisPendientes';
 import {
-  LayoutDashboard, FolderKanban, CalendarDays, Bell,
-  PlusCircle, ChevronLeft, ChevronRight, LogOut, FileText, Map, Shield
+  LayoutDashboard, FolderKanban, Bell,
+  PlusCircle, ChevronLeft, ChevronRight, LogOut, FileText, Map, Shield, ListChecks
 } from 'lucide-react';
 
 // Definición de items del menú principal
 // requiereCrear: true = solo visible si el rol puede crear proyectos
 const menuItems = [
-  { to: '/', icono: LayoutDashboard, etiqueta: 'Inicio', end: true },
+  { to: '/', icono: LayoutDashboard, etiqueta: 'Tablero', end: true },
+  { to: '/mis-actividades', icono: ListChecks, etiqueta: 'Mis actividades' },
   { to: '/proyectos', icono: FolderKanban, etiqueta: 'Proyectos' },
   { to: '/proyectos/nuevo', icono: PlusCircle, etiqueta: 'Nuevo proyecto', requiereCrear: true },
   { to: '/mapa', icono: Map, etiqueta: 'Territorio' },
-  { to: '/agenda', icono: CalendarDays, etiqueta: 'Agenda' },
   { to: '/evidencias', icono: FileText, etiqueta: 'Evidencias' },
   { to: '/notificaciones', icono: Bell, etiqueta: 'Notificaciones' },
   { to: '/admin/catalogos', icono: Shield, etiqueta: 'Administración', requiereRol: 'superadmin' },
@@ -35,6 +36,7 @@ const menuItems = [
 export default function Sidebar() {
   const { sidebarAbierto, toggleSidebar } = useUI();
   const { usuario, logout } = useAuth();
+  const { vencidas } = useMisPendientes();
 
   return (
     <aside className={`fixed top-0 left-0 h-screen bg-guinda-700 text-white flex flex-col transition-all duration-300 z-30 ${sidebarAbierto ? 'w-64' : 'w-16'}`}>
@@ -81,7 +83,16 @@ export default function Sidebar() {
               }`
             }
           >
-            <item.icono size={20} className="flex-shrink-0" />
+            <span className="relative flex-shrink-0">
+              <item.icono size={20} />
+              {item.to === '/mis-actividades' && vencidas > 0 && (
+                <span className={`absolute bg-red-500 text-white rounded-full flex items-center justify-center font-bold ${
+                  sidebarAbierto ? '-top-1 -right-1.5 text-[9px] w-4 h-4' : '-top-1 -right-1 text-[8px] w-3.5 h-3.5'
+                }`}>
+                  {vencidas > 9 ? '9+' : vencidas}
+                </span>
+              )}
+            </span>
             {sidebarAbierto && <span className="ml-3">{item.etiqueta}</span>}
           </NavLink>
         ))}

@@ -21,6 +21,9 @@ import EstadoChip from '../common/EstadoChip';
 import TabIndicadores from './TabIndicadores';
 import SeccionMiembrosNodo from './SeccionMiembrosNodo';
 import FilePreviewModal from '../evidencias/FilePreviewModal';
+import NodoCard from '../nodos/NodoCard';
+import ActividadStream from '../nodos/ActividadStream';
+import CampoFecha from '../common/CampoFecha';
 import { useUI } from '../../context/UIContext';
 
 // ─── Constantes ────────────────────────────────────────────────
@@ -645,18 +648,17 @@ function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast,
   const esContenedor = tipo === 'etapa' || (data.es_hoja === false);
   const tipoLabel = tipo === 'etapa' ? 'ETAPA' : (tipo === 'tarea' ? 'TAREA' : (data.id_accion_padre ? 'TAREA' : 'ACCIÓN'));
 
-  // Sub-items
-  const subItems = tipo === 'etapa' ? (data.acciones || []) : (data.tareas || []);
+  // Hijos como tarjetas expandibles uniformes (PART 3): etapa → acciones;
+  // acción → sus subacciones (acciones anidadas) + tareas (tabla propia).
+  const hijos = tipo === 'etapa'
+    ? (data.acciones || []).map(a => ({ tipo: 'accion', nodo: a, esContenedor: (a.tareas?.length > 0 || a.subacciones?.length > 0) }))
+    : tipo === 'accion'
+      ? [
+          ...(data.subacciones || []).map(s => ({ tipo: 'accion', nodo: s, esContenedor: (s.tareas?.length > 0) })),
+          ...(data.tareas || []).map(t => ({ tipo: 'tarea', nodo: t, esContenedor: false })),
+        ]
+      : [];
   const subItemLabel = tipo === 'etapa' ? 'Acciones' : 'Tareas';
-
-  // Tabs (Equipo movido al rail derecho como "Participantes")
-  const tabs = [
-    { id: 'subitems',    label: `${subItemLabel} (${subItems.length})`, icono: Layers },
-    { id: 'archivos',   label: `Archivos (${evidencias.length})`,        icono: FileText },
-    { id: 'riesgos',    label: `Riesgos (${riesgos.length})`,            icono: AlertTriangle },
-    { id: 'comentarios',label: `Comentarios (${comentarios.length})`,    icono: MessageSquare },
-    { id: 'indicadores',label: 'Indicadores',                            icono: BarChart3 },
-  ];
 
   // ─── PATCH handler ───
   async function guardarCampo(campo, valor) {
@@ -784,33 +786,42 @@ function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast,
             </span>
           </div>
 
-          {/* Fila 5: pestañas */}
-          <div className="flex -mb-px mt-3">
-            {tabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setTabActiva(tab.id)}
-                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors mr-0.5 whitespace-nowrap
-                  ${tabActiva === tab.id
-                    ? 'border-[#7B1C3E] text-[#7B1C3E]'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-              >
-                <tab.icono size={12} />{tab.label}
-              </button>
-            ))}
-          </div>
         </div>
 
-        {/* Contenido de pestaña */}
-        <div className="flex-1 overflow-y-auto">
-          {tabActiva === 'subitems' && (
-            <TabSubItems
-              items={subItems} tipo={tipo} padreId={id} proyectoId={proyectoId}
-              permisos={permisos} onActualizado={onActualizado} mostrarToast={mostrarToast}
-              onSeleccionarNodo={onSeleccionarNodo}
+        {/* Contenido: tarjetas de hijos (o la propia tarjeta si es hoja) + stream de actividad */}
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+          {hijos.length > 0 ? (
+            <>
+              {hijos.map(h => (
+                <NodoCard
+                  key={h.nodo.id}
+                  tipo={h.tipo}
+                  nodo={h.nodo}
+                  esContenedor={h.esContenedor}
+                  proyectoId={proyectoId}
+                  permisos={permisos}
+                  onCambiado={onActualizado}
+                />
+              ))}
+              {permisos.puedeCrearAccion && (
+                <CrearInline tipo={tipo === 'etapa' ? 'accion' : 'tarea'} padreId={id} proyectoId={proyectoId} onCreado={onActualizado} />
+              )}
+            </>
+          ) : (
+            <NodoCard
+              tipo={tipo}
+              nodo={data}
+              esContenedor={esContenedor}
+              proyectoId={proyectoId}
+              permisos={permisos}
+              onCambiado={onActualizado}
+              defaultAbierto
             />
           )}
+          <ActividadStream tipo={tipo} id={id} />
+        </div>
+        {false && (
+          <div className="hidden">
           {tabActiva === 'archivos' && (
             <TabArchivos evidencias={evidencias} tipo={tipo} id={id} onRecargar={cargarEvidencias} permisos={permisos} />
           )}
@@ -826,7 +837,8 @@ function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast,
               soloLectura={permisos.esSoloLectura}
             />
           )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* ── RAIL DERECHO ────────────────────────────────────────── */}
@@ -1140,21 +1152,6 @@ function CampoSelect({ label, valor, opciones, onChange, soloLectura, formatLabe
           : opciones.map(o => <option key={o} value={o}>{formatLabel ? formatLabel(o) : o}</option>)
         }
       </select>
-    </div>
-  );
-}
-
-function CampoFecha({ label, valor, onChange, soloLectura }) {
-  if (soloLectura) return <CampoEditable label={label} valor={valor ? new Date(valor).toLocaleDateString('es-MX') : '—'} soloLectura />;
-  return (
-    <div>
-      <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">{label}</span>
-      <input
-        type="date"
-        value={valor || ''}
-        onChange={e => onChange(e.target.value)}
-        className="text-xs border border-gray-200 rounded px-1.5 py-0.5 w-full bg-white focus:border-[#7B1C3E] outline-none"
-      />
     </div>
   );
 }

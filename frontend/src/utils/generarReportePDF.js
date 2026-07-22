@@ -146,7 +146,6 @@ async function portada(doc, proyecto, logoDataURL) {
   const yStart = 112;
   const items = [
     ['Estado',        estadoStr(proyecto.estado)],
-    ['Prioridad',     proyecto.es_prioritario ? '★ Prioritario' : 'Normal'],
     ['DG Líder',      [proyecto.dg_lider_siglas, proyecto.dg_lider_nombre].filter(Boolean).join(' — ')],
     ['Tipo',          proyecto.tipo?.replace(/_/g,' ') || '—'],
     ['Programa',      proyecto.programa_clave || '—'],

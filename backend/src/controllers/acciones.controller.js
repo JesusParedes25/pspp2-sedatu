@@ -19,6 +19,7 @@ const { recalcularEtapa, recalcularProyecto } = require('../utils/recalculos');
 const avanceSemaforo = require('../utils/avance-semaforo');
 const { recalcularAportacionesProyecto } = require('../db/queries/aportaciones.queries');
 const { recalcularIndicadoresProyecto } = require('../db/queries/indicadores.queries');
+const actividadQueries = require('../db/queries/actividad.queries');
 
 // GET /etapas/:id/acciones — Listar acciones de una etapa
 async function listarPorEtapa(req, res, next) {
@@ -420,6 +421,22 @@ async function patchAvanceSemaforo(req, res, next) {
     if (proyectoId) {
       await recalcularIndicadoresProyecto(proyectoId, client);
       await recalcularAportacionesProyecto(proyectoId, client);
+    }
+
+    // Stream de actividad: registrar cambios de estatus/avance (misma transacción)
+    if (estado !== undefined) {
+      await actividadQueries.crearActividad({
+        tipoNodo: 'accion', idNodo: accionId, tipoEvento: 'cambio_estatus',
+        idUsuario: req.usuario?.id, contenido: `Estatus cambiado a ${estado}`,
+        metadata: { estado },
+      }, client);
+    }
+    if (avance_actual !== undefined) {
+      await actividadQueries.crearActividad({
+        tipoNodo: 'accion', idNodo: accionId, tipoEvento: 'cambio_avance',
+        idUsuario: req.usuario?.id, contenido: `Avance actualizado a ${avance_actual ?? 0}%`,
+        metadata: { avance_actual },
+      }, client);
     }
 
     await client.query('COMMIT');

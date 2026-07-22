@@ -14,6 +14,7 @@
  */
 const proyectosQueries = require('../db/queries/proyectos.queries');
 const indicadoresQueries = require('../db/queries/indicadores.queries');
+const miembrosQueries = require('../db/queries/miembros.queries');
 const pool = require('../db/pool');
 const { cambiarEstado: cambiarEstadoUtil } = require('../utils/validaciones-estado');
 const { recalcularProyecto } = require('../utils/recalculos');
@@ -70,10 +71,11 @@ async function obtenerPorId(req, res, next) {
     }
 
     // Obtener datos complementarios en paralelo
-    const [dgs, etiquetas, indicadores] = await Promise.all([
+    const [dgs, etiquetas, indicadores, rolUsuarioActual] = await Promise.all([
       proyectosQueries.obtenerDGsProyecto(proyecto.id),
       proyectosQueries.obtenerEtiquetas(proyecto.id),
-      indicadoresQueries.listarPorProyecto(proyecto.id)
+      indicadoresQueries.listarPorProyecto(proyecto.id),
+      miembrosQueries.obtenerRolUsuario(proyecto.id, req.usuario.id)
     ]);
 
     // Convertir path de MinIO a URL proxy del backend
@@ -82,7 +84,7 @@ async function obtenerPorId(req, res, next) {
     }
 
     res.json({
-      datos: { ...proyecto, dgs, etiquetas, indicadores },
+      datos: { ...proyecto, dgs, etiquetas, indicadores, rol_usuario_actual: rolUsuarioActual },
       mensaje: 'Proyecto obtenido'
     });
   } catch (err) {
@@ -156,9 +158,33 @@ async function actualizar(req, res, next) {
   }
 }
 
-// DELETE /proyectos/:id — Soft delete
+// Autorización de borrado: superadmin/ejecutivo siempre; para el resto,
+// solo quien creó el proyecto o es su responsable (rol 'responsable' en
+// proyecto_usuarios). Antes este endpoint no tenía NINGÚN chequeo server-side
+// — cualquier usuario autenticado podía borrar cualquier proyecto por API
+// directa, el botón simplemente no existía en la UI.
+async function puedeEliminarProyecto(proyectoId, usuario) {
+  if (usuario.rol === 'superadmin' || usuario.rol === 'ejecutivo') return true;
+  const { rows } = await pool.query('SELECT id_creador FROM proyectos WHERE id = $1', [proyectoId]);
+  if (rows[0]?.id_creador === usuario.id) return true;
+  const rolProyecto = await miembrosQueries.obtenerRolUsuario(proyectoId, usuario.id);
+  return rolProyecto === 'responsable';
+}
+
+// DELETE /proyectos/:id — Soft delete (deleted_at = NOW()); se purga
+// automáticamente a los 30 días (ver utils/purgarProyectos.js) y hasta
+// entonces un superadmin puede restaurarlo desde Administración.
 async function eliminar(req, res, next) {
   try {
+    const autorizado = await puedeEliminarProyecto(req.params.id, req.usuario);
+    if (!autorizado) {
+      return res.status(403).json({
+        error: true,
+        mensaje: 'Solo el responsable, el creador del proyecto o un superadmin/ejecutivo pueden eliminarlo.',
+        codigo: 'NO_AUTORIZADO'
+      });
+    }
+
     const resultado = await proyectosQueries.eliminarProyecto(req.params.id);
 
     if (!resultado) {
@@ -169,10 +195,29 @@ async function eliminar(req, res, next) {
       });
     }
 
-    res.json({ datos: resultado, mensaje: 'Proyecto eliminado' });
+    res.json({ datos: resultado, mensaje: 'Proyecto eliminado — se puede restaurar dentro de los próximos 30 días.' });
   } catch (err) {
     next(err);
   }
+}
+
+// GET /proyectos/eliminados — Papelera (solo superadmin, ver middleware en routes)
+async function listarEliminados(req, res, next) {
+  try {
+    const datos = await proyectosQueries.obtenerProyectosEliminados();
+    res.json({ datos, mensaje: 'Proyectos eliminados obtenidos' });
+  } catch (err) { next(err); }
+}
+
+// PATCH /proyectos/:id/restaurar — Solo superadmin
+async function restaurar(req, res, next) {
+  try {
+    const resultado = await proyectosQueries.restaurarProyecto(req.params.id);
+    if (!resultado) {
+      return res.status(404).json({ error: true, mensaje: 'Proyecto no encontrado en la papelera', codigo: 'NO_ENCONTRADO' });
+    }
+    res.json({ datos: resultado, mensaje: 'Proyecto restaurado' });
+  } catch (err) { next(err); }
 }
 
 // GET /proyectos/:id/dgs — Obtener DGs participantes
@@ -285,4 +330,4 @@ async function servirImagen(req, res, next) {
   }
 }
 
-module.exports = { listar, obtenerPorId, crear, actualizar, eliminar, obtenerDGs, agregarDG, eliminarDG, obtenerEtiquetas, subirImagen, servirImagen };
+module.exports = { listar, obtenerPorId, crear, actualizar, eliminar, listarEliminados, restaurar, obtenerDGs, agregarDG, eliminarDG, obtenerEtiquetas, subirImagen, servirImagen };

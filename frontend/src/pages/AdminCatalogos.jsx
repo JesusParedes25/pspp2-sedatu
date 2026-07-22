@@ -10,7 +10,9 @@ import {
   RefreshCw, CheckCircle, EyeOff, Eye
 } from 'lucide-react';
 import * as adminApi from '../api/admin';
+import * as proyectosApi from '../api/proyectos';
 import emailjs from '@emailjs/browser';
+import ConfirmDialog from '../components/common/ConfirmDialog';
 
 // ─── Tab: Catálogos ──────────────────────────────────────────────
 function TabCatalogos() {
@@ -518,8 +520,95 @@ const TABS = [
   { id: 'catalogos', label: 'Catálogos', icon: Shield },
   { id: 'usuarios', label: 'Usuarios', icon: Users },
   { id: 'areas', label: 'Áreas', icon: Building2 },
+  { id: 'papelera', label: 'Papelera', icon: Trash2 },
   { id: 'config', label: 'Configuración', icon: Settings },
 ];
+
+// ─── Tab: Papelera de proyectos ───────────────────────────────────
+function TabPapelera() {
+  const [proyectos, setProyectos] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [restaurando, setRestaurando] = useState(null);
+  const [porRestaurar, setPorRestaurar] = useState(null);
+  const [error, setError] = useState('');
+
+  const cargar = useCallback(async () => {
+    setCargando(true);
+    try {
+      const res = await proyectosApi.listarProyectosEliminados();
+      setProyectos(res.datos || []);
+    } catch (err) {
+      console.error('Error cargando papelera:', err);
+    } finally { setCargando(false); }
+  }, []);
+
+  useEffect(() => { cargar(); }, [cargar]);
+
+  async function restaurar(p) {
+    setRestaurando(p.id);
+    setError('');
+    try {
+      await proyectosApi.restaurarProyecto(p.id);
+      setProyectos(prev => prev.filter(x => x.id !== p.id));
+    } catch (err) {
+      setError(err.response?.data?.mensaje || 'Error al restaurar');
+    } finally {
+      setRestaurando(null);
+      setPorRestaurar(null);
+    }
+  }
+
+  if (cargando) return <div className="text-sm text-gray-400 py-8 text-center">Cargando papelera…</div>;
+
+  if (proyectos.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+        <Trash2 size={32} className="mb-2 text-gray-200" />
+        <p className="text-sm">La papelera está vacía.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-gray-500">
+        Proyectos eliminados en los últimos 30 días. Pasado ese plazo se purgan de forma permanente e irreversible.
+      </p>
+      {error && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+      {proyectos.map(p => (
+        <div key={p.id} className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-800 truncate">{p.nombre}</p>
+            <p className="text-xs text-gray-400">
+              {p.dg_lider_siglas && `${p.dg_lider_siglas} · `}
+              Eliminado por {p.creador_nombre || '—'} el {new Date(p.deleted_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </p>
+          </div>
+          <span className={`text-[10px] font-medium px-2 py-1 rounded-full flex-shrink-0 ${p.dias_restantes <= 5 ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
+            {p.dias_restantes}d para ELIMINAR permanenetemente
+          </span>
+          <button
+            onClick={() => setPorRestaurar(p)}
+            disabled={restaurando === p.id}
+            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-guinda-600 text-white hover:bg-guinda-700 disabled:opacity-40 flex-shrink-0"
+          >
+            <RotateCcw size={12} /> Restaurar
+          </button>
+        </div>
+      ))}
+
+      <ConfirmDialog
+        abierto={!!porRestaurar}
+        titulo="Restaurar proyecto"
+        mensaje={porRestaurar ? `¿Restaurar "${porRestaurar.nombre}"? Volverá a estar visible para todos los usuarios.` : ''}
+        textoConfirmar="Sí, restaurar"
+        variante="normal"
+        onConfirmar={() => restaurar(porRestaurar)}
+        onCancelar={() => setPorRestaurar(null)}
+      />
+    </div>
+  );
+}
 
 export default function AdminCatalogos() {
   const [tab, setTab] = useState('catalogos');
@@ -565,6 +654,7 @@ export default function AdminCatalogos() {
       {tab === 'catalogos' && <TabCatalogos />}
       {tab === 'usuarios' && <TabUsuarios dgs={dgs} das={das} />}
       {tab === 'areas' && <TabAreas dgs={dgs} das={das} recargar={cargarAreas} />}
+      {tab === 'papelera' && <TabPapelera />}
       {tab === 'config' && <TabConfiguracion />}
     </div>
   );

@@ -37,6 +37,16 @@ export async function eliminarProyecto(id) {
   return data;
 }
 
+export async function listarProyectosEliminados() {
+  const { data } = await client.get('/proyectos/eliminados');
+  return data;
+}
+
+export async function restaurarProyecto(id) {
+  const { data } = await client.patch(`/proyectos/${id}/restaurar`);
+  return data;
+}
+
 export async function obtenerDGsProyecto(id) {
   const { data } = await client.get(`/proyectos/${id}/dgs`);
   return data;

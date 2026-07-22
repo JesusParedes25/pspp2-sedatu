@@ -37,6 +37,7 @@ import ModalNuevaAccion from '../../components/seguimiento/ModalNuevaAccion';
 import ImportarWizard from '../../components/importar/ImportarWizard';
 import EtapasAvancesMD from '../../components/seguimiento/EtapasAvancesMD';
 import ModalEditarProyecto from '../../components/proyectos/ModalEditarProyecto';
+import ModalEliminarProyecto from '../../components/proyectos/ModalEliminarProyecto';
 import VistaLista from '../../components/seguimiento/VistaLista';
 import VistaKanban from '../../components/seguimiento/VistaKanban';
 import VistaChecklist from '../../components/seguimiento/VistaChecklist';
@@ -56,11 +57,12 @@ const PESTANAS = [
 ];
 
 // Subsecciones dentro de Seguimiento
+// PART 5 del refactor de tarjetas: Kanban y Checklist se ocultan de la barra
+// de sub-pestañas (los componentes siguen en el codebase, solo no se listan
+// ni se renderizan aquí).
 const SUBSECCIONES = [
   { id: 'etapas', etiqueta: 'Etapas y avances', icono: Settings },
   { id: 'lista', etiqueta: 'Vista lista', icono: Table2 },
-  { id: 'kanban', etiqueta: 'Kanban', icono: Columns },
-  { id: 'checklist', etiqueta: 'Checklist', icono: CheckSquare },
   { id: 'mapa', etiqueta: 'Mapa', icono: MapPin },
   { id: 'cronograma', etiqueta: 'Cronograma', icono: BarChart3 },
 ];
@@ -306,13 +308,31 @@ export default function DetalleProyecto() {
             </div>
           </div>
 
-          {/* Botón Editar */}
-          {permisos.puedeEditar && (
-            <button onClick={() => setModalEditar(true)} className="btn-secondary text-sm flex items-center gap-1.5 flex-shrink-0">
-              <Pencil size={14} /> Editar
-            </button>
-          )}
+          {/* Botones Editar / Eliminar */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {permisos.puedeEditar && (
+              <button onClick={() => setModalEditar(true)} className="btn-secondary text-sm flex items-center gap-1.5">
+                <Pencil size={14} /> Editar
+              </button>
+            )}
+            {permisos.puedeEliminar && (
+              <button onClick={() => setConfirmandoEliminar(true)}
+                className="text-sm flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-red-500 border border-red-200 hover:bg-red-50 transition-colors">
+                <Trash2 size={14} /> Eliminar
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* ─── Modal eliminar proyecto ─── */}
+        {confirmandoEliminar && (
+          <ModalEliminarProyecto
+            proyecto={proyecto}
+            eliminando={eliminando}
+            onCerrar={() => setConfirmandoEliminar(false)}
+            onConfirmar={eliminarProyecto}
+          />
+        )}
 
         {/* ─── Modal editar proyecto ─── */}
         {modalEditar && (

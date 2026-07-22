@@ -290,6 +290,35 @@ async function eliminarProyecto(proyectoId) {
   return resultado.rows[0] || null;
 }
 
+// Papelera: proyectos eliminados dentro de la ventana de 30 días (los
+// vencidos ya fueron purgados — ver utils/purgarProyectos.js).
+async function obtenerProyectosEliminados() {
+  const { rows } = await pool.query(`
+    SELECT p.id, p.nombre, p.tipo, p.deleted_at,
+      (p.deleted_at + INTERVAL '30 days')::date AS purga_programada,
+      GREATEST(0, 30 - EXTRACT(DAY FROM NOW() - p.deleted_at)::int) AS dias_restantes,
+      dg.siglas AS dg_lider_siglas,
+      u.nombre_completo AS creador_nombre
+    FROM proyectos p
+    LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
+    LEFT JOIN usuarios u ON u.id = p.id_creador
+    WHERE p.deleted_at IS NOT NULL
+    ORDER BY p.deleted_at DESC
+  `);
+  return rows;
+}
+
+// Restaura un proyecto eliminado (solo si sigue dentro de la ventana de 30
+// días — pasado ese punto ya se purgó y no hay nada que restaurar).
+async function restaurarProyecto(proyectoId) {
+  const { rows } = await pool.query(`
+    UPDATE proyectos SET deleted_at = NULL, updated_at = NOW()
+    WHERE id = $1 AND deleted_at IS NOT NULL
+    RETURNING id
+  `, [proyectoId]);
+  return rows[0] || null;
+}
+
 // Obtiene las DGs participantes de un proyecto
 async function obtenerDGsProyecto(proyectoId) {
   const resultado = await pool.query(`
@@ -358,6 +387,8 @@ module.exports = {
   crearProyecto,
   actualizarProyecto,
   eliminarProyecto,
+  obtenerProyectosEliminados,
+  restaurarProyecto,
   obtenerDGsProyecto,
   agregarDGProyecto,
   eliminarDGProyecto,

@@ -20,6 +20,7 @@ const routes = require('./routes');
 const errorHandler = require('./middleware/errorHandler');
 const { ejecutarMigraciones } = require('./db/migrate');
 const ejecutarSeeders = require('./db/seeders/index');
+const { iniciarPurgaAutomatica } = require('./utils/purgarProyectos');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -52,11 +53,25 @@ app.use(errorHandler);
 async function iniciar() {
   try {
     await ejecutarMigraciones();
-    await ejecutarSeeders();
+    // CRÍTICO: los seeders insertan/actualizan usuarios de demo (contraseña
+    // conocida "demo2026") y proyectos de ejemplo con ON CONFLICT DO UPDATE.
+    // Antes esto corría en CADA arranque sin importar el entorno — en
+    // producción, cualquier reinicio del contenedor (crash, redeploy;
+    // docker-compose.prod.yml usa `restart: always`) volvía a sembrar esas
+    // cuentas y proyectos falsos sobre la base de datos real. Las
+    // migraciones sí deben correr siempre (mantienen el esquema al día);
+    // los seeders NUNCA deben correr solos en producción.
+    if (process.env.NODE_ENV !== 'production') {
+      await ejecutarSeeders();
+    } else {
+      console.log('  Entorno de producción: seeders omitidos (solo migraciones).');
+    }
   } catch (err) {
     console.error('✗ Error inicializando la base de datos:', err.message);
     process.exit(1);
   }
+
+  iniciarPurgaAutomatica();
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`✓ PSPP Backend corriendo en puerto ${PORT}`);

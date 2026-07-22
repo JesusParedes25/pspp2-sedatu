@@ -19,6 +19,7 @@ import ListadoProyectos from '../pages/proyectos/ListadoProyectos';
 import NuevoProyecto from '../pages/proyectos/NuevoProyecto';
 import DetalleProyecto from '../pages/proyectos/DetalleProyecto';
 import Agenda from '../pages/Agenda';
+import MisActividades from '../pages/MisActividades';
 import Evidencias from '../pages/Evidencias';
 import Notificaciones from '../pages/Notificaciones';
 import MapaTerritorial from '../pages/MapaTerritorial';
@@ -37,6 +38,7 @@ export default function AppRouter() {
         <Route path="proyectos/:id" element={<DetalleProyecto />} />
         <Route path="mapa" element={<MapaTerritorial />} />
         <Route path="agenda" element={<Agenda />} />
+        <Route path="mis-actividades" element={<MisActividades />} />
         <Route path="evidencias" element={<Evidencias />} />
         <Route path="notificaciones" element={<Notificaciones />} />
         <Route path="admin/catalogos" element={<AdminCatalogos />} />

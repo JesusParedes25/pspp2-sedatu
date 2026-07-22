@@ -85,7 +85,7 @@ export function usePermisosProyecto(proyecto) {
       const puedeEditar = esMismaDG || esCreador || esResponsableProyecto;
       return {
         puedeEditar,
-        puedeEliminar: esCreador,
+        puedeEliminar: esCreador || esResponsableProyecto,
         puedeCrearEtapa: esMismaDG || esCreador,
         puedeCrearAccion: esMismaDG,
         puedeEditarAccion: esMismaDG,
@@ -101,7 +101,7 @@ export function usePermisosProyecto(proyecto) {
       const puedeEditar = esCreador || esResponsableProyecto;
       return {
         puedeEditar,
-        puedeEliminar: false,
+        puedeEliminar: esCreador || esResponsableProyecto,
         puedeCrearEtapa: esParticipante,
         puedeCrearAccion: esParticipante,
         puedeEditarAccion: esParticipante,

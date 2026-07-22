@@ -149,7 +149,10 @@ async function cancelarInvitacion(invitacionId) {
  */
 async function obtenerProyectosUsuario(usuarioId) {
   const { rows } = await pool.query(`
-    SELECT id_proyecto FROM proyecto_usuarios WHERE id_usuario = $1
+    SELECT pu.id_proyecto
+    FROM proyecto_usuarios pu
+    JOIN proyectos p ON p.id = pu.id_proyecto
+    WHERE pu.id_usuario = $1 AND p.deleted_at IS NULL
   `, [usuarioId]);
   return rows.map(r => r.id_proyecto);
 }
