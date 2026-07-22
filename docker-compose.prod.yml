@@ -76,6 +76,8 @@ services:
       GEOSERVER_URL: http://geoserver:8080/geoserver
       FRONTEND_URL: ${FRONTEND_URL}
       PORT: 3000
+      PASSWORD_USER: ${PASSWORD_USER}
+      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL}
     depends_on:
       postgres:
         condition: service_healthy

@@ -50,7 +50,7 @@ export default function Login() {
           <img
             src="/sedatu-logo.png"
             alt="SEDATU"
-            style={{ width: 180, filter: 'brightness(0) invert(1)', opacity: 0.95 }}
+            style={{ width: 360, filter: 'brightness(0) invert(1)', opacity: 0.95 }}
           />
         </div>
 
@@ -59,7 +59,7 @@ export default function Login() {
           <img
             src="/logo_pspp2.png"
             alt="PSPP v2.0 - Plataforma de Seguimiento de Proyectos Prioritarios"
-            style={{ width: 320, filter: 'brightness(0) invert(1)', opacity: 0.92 }}
+            style={{ width: 640, filter: 'brightness(0) invert(1)', opacity: 0.92 }}
           />
         </div>
 
