@@ -22,3 +22,23 @@ export async function obtenerUsuarioActual() {
   const { data } = await client.get('/auth/me');
   return data;
 }
+
+export async function solicitarRecuperacion(correo) {
+  const { data } = await client.post('/auth/solicitar-recuperacion', { correo });
+  return data;
+}
+
+export async function validarTokenRecuperacion(token) {
+  const { data } = await client.get('/auth/validar-token-recuperacion', { params: { token } });
+  return data;
+}
+
+export async function restablecerContrasena(token, nueva_contrasena) {
+  const { data } = await client.post('/auth/restablecer-contrasena', { token, nueva_contrasena });
+  return data;
+}
+
+export async function obtenerConfigCorreoPublico() {
+  const { data } = await client.get('/auth/config-correo');
+  return data;
+}

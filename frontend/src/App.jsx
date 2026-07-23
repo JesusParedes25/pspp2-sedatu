@@ -11,15 +11,42 @@
  * no autenticados accedan a rutas protegidas.
  * ─────────────────────────────────────────────────────────────────
  */
+import { useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { useUI } from './context/UIContext';
 import AppRouter from './router';
 import Login from './pages/Login';
+import ActivarCuenta from './pages/ActivarCuenta';
+import SolicitarRecuperacion from './pages/SolicitarRecuperacion';
+import RestablecerContrasena from './pages/RestablecerContrasena';
 import Toast from './components/common/Toast';
+
+// Rutas alcanzables SIN sesión iniciada, sin importar si hay un usuario
+// autenticado en este navegador o no (p. ej. alguien cerró sesión en otra
+// pestaña y ahora abre un link de activación/recuperación en esta). Antes de
+// este fix, App devolvía <Login/> para CUALQUIER ruta cuando no había
+// usuario, ignorando la URL — así que /activar-cuenta y /restablecer-contrasena
+// nunca mostraban su formulario para alguien deslogueado.
+const RUTAS_PUBLICAS = {
+  '/activar-cuenta': ActivarCuenta,
+  '/solicitar-recuperacion': SolicitarRecuperacion,
+  '/restablecer-contrasena': RestablecerContrasena,
+};
 
 export default function App() {
   const { usuario, cargando } = useAuth();
   const { toast } = useUI();
+  const location = useLocation();
+
+  const PaginaPublica = RUTAS_PUBLICAS[location.pathname];
+  if (PaginaPublica) {
+    return (
+      <>
+        <PaginaPublica />
+        {toast && <Toast mensaje={toast.mensaje} tipo={toast.tipo} />}
+      </>
+    );
+  }
 
   // Pantalla de carga mientras verifica si hay sesión activa
   if (cargando) {

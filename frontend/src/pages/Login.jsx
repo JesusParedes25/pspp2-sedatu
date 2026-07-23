@@ -3,6 +3,7 @@
  * PROPÓSITO: Página de inicio de sesión institucional — diseño profesional SEDATU.
  */
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Eye, EyeOff, Lock, Mail, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useUI } from '../context/UIContext';
@@ -161,6 +162,13 @@ export default function Login() {
               {cargando ? 'Verificando...' : 'Entrar'}
             </button>
           </form>
+
+          {/* Olvidé mi contraseña */}
+          <p className="mt-5 text-center text-sm">
+            <Link to="/solicitar-recuperacion" className="font-medium text-guinda-600 hover:text-guinda-700">
+              ¿Olvidaste tu contraseña?
+            </Link>
+          </p>
 
           {/* Nota de acceso */}
           <p className="mt-8 text-center text-xs" style={{ color: '#B0B0B0' }}>
