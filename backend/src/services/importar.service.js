@@ -19,6 +19,11 @@ const { calcularSemaforo } = require('../utils/semaforo');
 
 const ESTADOS_VALIDOS = ['Pendiente', 'En_proceso', 'Bloqueada', 'Completada', 'Cancelada'];
 const SEMAFOROS_VALIDOS = ['verde', 'amarillo', 'naranja', 'rojo', 'gris', 'azul', 'negro'];
+// acciones.tipo tiene un CHECK constraint que solo acepta estos dos valores
+// (ver migración 001_tablas.sql). Cualquier otro texto libre del Excel del
+// usuario (p.ej. "Actividad", "Normal", "Acción") debe traducirse aquí o el
+// INSERT truena con "violates check constraint acciones_tipo_check".
+const TIPOS_ACCION_VALIDOS = ['Accion_programada', 'Hito'];
 
 // ─── Utilidades ────────────────────────────────────────────────
 
@@ -754,6 +759,18 @@ function traducirEstatus(valor) {
   return { estado: 'Pendiente', warning: `Estatus no reconocido: "${limpio}" → se usará "Pendiente"` };
 }
 
+// Variantes comunes que un usuario podría escribir para "Hito" — cualquier
+// otra cosa (incluyendo vacío) cae a 'Accion_programada', el valor por defecto.
+const TRADUCCION_TIPO_HITO = ['hito', 'milestone', 'entregable'];
+
+function traducirTipoAccion(valor) {
+  if (!valor) return 'Accion_programada';
+  const limpio = String(valor).trim();
+  if (TIPOS_ACCION_VALIDOS.includes(limpio)) return limpio;
+  const norm = normalizarTexto(limpio);
+  return TRADUCCION_TIPO_HITO.includes(norm) ? 'Hito' : 'Accion_programada';
+}
+
 /**
  * Trunca un string para que quepa en un varchar(n).
  */
@@ -970,7 +987,7 @@ async function ejecutarImportacionMultiHoja(hojas, configMultiHoja, proyectoId) 
         const descripcion = emptyToNull(valorMapeado(fila, m2, 'descripcion'));
         const { estado } = traducirEstatus(valorMapeado(fila, m2, 'estatus'));
         const prioridad = truncar(emptyToNull(valorMapeado(fila, m2, 'prioridad')), 50);
-        const tipo = truncar(emptyToNull(valorMapeado(fila, m2, 'tipo')) || 'Accion_programada', 50);
+        const tipo = traducirTipoAccion(valorMapeado(fila, m2, 'tipo'));
         const responsable = emptyToNull(valorMapeado(fila, m2, 'responsable'));
         const fechaInicio = toDate(valorMapeado(fila, m2, 'fecha_inicio')) || new Date().toISOString().split('T')[0];
         const fechaFin = toDate(valorMapeado(fila, m2, 'fecha_limite')) || fechaInicio;

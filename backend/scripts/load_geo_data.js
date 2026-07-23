@@ -1,7 +1,14 @@
 /**
  * Script to load geographic data into PostGIS tables.
- * Run from the backend directory: node scripts/load_geo_data.js
- * Connects to postgres on localhost:5433 (docker mapped port).
+ *
+ * Uso local (fuera de Docker): node scripts/load_geo_data.js
+ *   → se conecta a localhost:5433 (puerto mapeado por docker-compose.yml).
+ *
+ * Uso en producción (dentro del contenedor backend, la red de Docker no
+ * expone el puerto de postgres al host por seguridad):
+ *   docker compose -f docker-compose.prod.yml exec backend node scripts/load_geo_data.js
+ *   → usa DB_HOST/DB_PORT del propio contenedor (postgres:5432), ya
+ *     definidos en el environment del servicio backend.
  */
 const path = require('path');
 const fs = require('fs');
@@ -9,8 +16,8 @@ const { Pool } = require('pg');
 const shapefile = require('shapefile');
 
 const pool = new Pool({
-  host: 'localhost',
-  port: 5433,
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT, 10) || 5433,
   user: process.env.DB_USER || 'pspp_user',
   password: process.env.DB_PASSWORD || 'cambiar_en_produccion',
   database: process.env.DB_NAME || 'pspp_db',
@@ -146,6 +153,58 @@ async function loadZM() {
   await pool.query('DROP TABLE _tmp_zm_load');
 
   console.log(`  Cargadas ${count} partes municipales → ${rowCount} zonas metropolitanas unidas`);
+  await corregirNombresZM();
+}
+
+// El zm.geojson fuente trae ~24 nombres con codificación de caracteres
+// corrupta (p.ej. "Canc n" en vez de "Cancún") — pérdida irrecuperable del
+// archivo origen, no un bug de parseo. Se corrigen aquí con los nombres
+// correctos verificados, para que cualquier carga (local o producción)
+// quede consistente sin depender de una corrección manual por SQL.
+const NOMBRES_ZM_CORRECTOS = {
+  '01.1.01': 'Aguascalientes', '02.1.01': 'Tijuana', '02.2.02': 'Ensenada',
+  '02.2.03': 'Mexicali', '03.2.01': 'La Paz', '03.2.02': 'Los Cabos',
+  '04.2.01': 'Campeche', '05.1.01': 'La Laguna', '05.1.02': 'Monclova-Frontera',
+  '05.1.03': 'Piedras Negras', '05.1.04': 'Saltillo', '05.3.05': 'Sabinas',
+  '06.1.01': 'Colima-Villa de Álvarez', '06.3.02': 'Tecomán', '07.1.01': 'Tapachula',
+  '07.1.02': 'Tuxtla Gutiérrez', '08.1.01': 'Chihuahua', '08.1.02': 'Delicias',
+  '08.2.03': 'Juárez', '08.3.04': 'Hidalgo del Parral', '09.1.01': 'Ciudad de México',
+  '10.2.01': 'Durango', '11.1.01': 'Celaya', '11.1.02': 'León',
+  '11.2.03': 'Guanajuato', '11.2.04': 'Irapuato', '11.3.05': 'Moroleón-Uriangato',
+  '11.3.06': 'Silao', '12.1.01': 'Chilpancingo', '12.2.02': 'Acapulco',
+  '13.1.01': 'Pachuca', '13.1.02': 'Tulancingo', '13.3.03': 'Atitalaquia',
+  '14.1.01': 'Guadalajara', '14.1.02': 'Puerto Vallarta', '14.3.03': 'Ocotlán',
+  '15.1.01': 'Toluca', '15.3.02': 'Ozumba', '15.3.03': 'Tianguistenco',
+  '16.1.01': 'La Piedad-Pénjamo', '16.1.02': 'Morelia', '16.1.03': 'Zamora',
+  '16.2.04': 'Uruapan', '16.3.05': 'Lázaro Cárdenas', '16.3.06': 'Sahuayo',
+  '17.1.01': 'Cuautla', '17.1.02': 'Cuernavaca', '18.1.01': 'Tepic',
+  '19.1.01': 'Monterrey', '20.1.01': 'Oaxaca', '20.3.02': 'Juchitán',
+  '20.3.03': 'Salina Cruz', '20.3.04': 'Tehuantepec', '21.1.01': 'Puebla-Tlaxcala',
+  '21.1.02': 'San Martín Texmelucan', '21.1.03': 'Tehuacán', '21.3.04': 'Huauchinango',
+  '21.3.05': 'Teziutlán', '22.1.01': 'Querétaro', '23.1.01': 'Cancún',
+  '23.2.02': 'Chetumal', '23.2.03': 'Playa del Carmen', '24.1.01': 'San Luis Potosí',
+  '24.3.02': 'Matehuala', '24.3.03': 'Rioverde', '25.2.01': 'Culiacán',
+  '25.2.02': 'Los Mochis', '25.2.03': 'Mazatlán', '26.1.01': 'Guaymas',
+  '26.2.02': 'Ciudad Obregón', '26.2.03': 'Hermosillo', '26.2.04': 'Nogales',
+  '26.3.05': 'Caborca', '27.1.01': 'Villahermosa', '28.1.01': 'Reynosa',
+  '28.1.02': 'Tampico', '28.2.03': 'Ciudad Victoria', '28.2.04': 'Matamoros',
+  '28.2.05': 'Nuevo Laredo', '29.1.01': 'Tlaxcala-Apizaco', '29.3.02': 'Huamantla',
+  '30.1.01': 'Coatzacoalcos', '30.1.02': 'Córdoba', '30.1.03': 'Minatitlán',
+  '30.1.04': 'Orizaba', '30.1.05': 'Poza Rica', '30.1.06': 'Veracruz',
+  '30.1.07': 'Xalapa', '30.3.08': 'Acayucan', '31.1.01': 'Mérida',
+  '31.3.02': 'Valladolid', '32.1.01': 'Zacatecas-Guadalupe',
+};
+
+async function corregirNombresZM() {
+  let corregidos = 0;
+  for (const [cveMet, nombre] of Object.entries(NOMBRES_ZM_CORRECTOS)) {
+    const { rowCount } = await pool.query(
+      'UPDATE geo_zm SET nombre = $1 WHERE cve_met = $2 AND nombre IS DISTINCT FROM $1',
+      [nombre, cveMet]
+    );
+    corregidos += rowCount;
+  }
+  if (corregidos > 0) console.log(`  Corregidos ${corregidos} nombres de ZM con codificación defectuosa`);
 }
 
 async function main() {
