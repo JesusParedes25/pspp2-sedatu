@@ -124,6 +124,30 @@ sudo nginx -t && sudo systemctl reload nginx
 | GeoServer sin capas         | Módulo cartográfico es segunda fase (TODO)                      |
 | Token JWT expirado          | Hacer login nuevamente; ajustar `JWT_EXPIRES_IN` en `.env`      |
 
+## Backups (producción)
+
+```bash
+# Backup manual (Postgres + MinIO), verifica el dump y rota los viejos
+./scripts/backup.sh
+
+# Verificar que un backup restaura de verdad (usa una BD temporal,
+# no toca la base de datos real)
+./scripts/restore-postgres.sh /opt/pspp-backups/postgres/pspp_<fecha>.dump
+
+# Restaurar de verdad ante un desastre (reemplaza la BD en uso)
+./scripts/restore-postgres.sh /opt/pspp-backups/postgres/pspp_<fecha>.dump --force-produccion
+```
+
+Programar en cron del servidor (diario a las 3am):
+
+```bash
+crontab -e
+# Agregar (ajustar la ruta del repo si es distinta):
+0 3 * * * /opt/pspp-v2/scripts/backup.sh >> /var/log/pspp-backup.log 2>&1
+```
+
+Por defecto los backups se guardan en `/opt/pspp-backups/` (fuera del repo) con 14 días de retención — configurable con `BACKUP_DIR` y `RETENTION_DAYS`. Los backups **viven en el mismo disco que la base de datos real** — si el disco falla, se pierden ambos. En cuanto se pueda, copiar `/opt/pspp-backups/` a otra ubicación (otro servidor, almacenamiento externo) para tener redundancia real; por ahora es mejor que no tener ningún backup.
+
 ## Seguridad en producción
 
 - Cambiar **TODAS** las contraseñas del `.env.example`
