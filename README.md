@@ -138,15 +138,35 @@ sudo nginx -t && sudo systemctl reload nginx
 ./scripts/restore-postgres.sh /opt/pspp-backups/postgres/pspp_<fecha>.dump --force-produccion
 ```
 
-Programar en cron del servidor (diario a las 3am):
+Programar en cron del servidor (cada 2 días a las 3am). Este comando es
+seguro de correr más de una vez — si la línea ya existe la reemplaza en
+vez de duplicarla (ajustar la ruta del repo si es distinta a
+`/root/pspp2-sedatu`):
 
 ```bash
-crontab -e
-# Agregar (ajustar la ruta del repo si es distinta):
-0 3 * * * /root/pspp2-sedatu/scripts/backup.sh >> /var/log/pspp-backup.log 2>&1
+CRON_LINE="0 3 */2 * * /root/pspp2-sedatu/scripts/backup.sh >> /var/log/pspp-backup.log 2>&1"
+(crontab -l 2>/dev/null | grep -vF "scripts/backup.sh"; echo "$CRON_LINE") | crontab -
+crontab -l   # confirmar que quedó
 ```
 
+> **Nota sobre "cada 2 días"**: cron no tiene un modo nativo de "cada N
+> días desde hoy" — `*/2` en el campo de día del mes corre en los días
+> pares del calendario (2, 4, 6... 30). Esto significa que en el cambio
+> de mes puede haber un salto de solo 1 día o de 3, en vez de exactos 2.
+> Para un backup de respaldo esto es aceptable; si algún día se necesita
+> una cadencia exacta habría que resolverlo distinto (systemd timer o
+> que el propio script controle la fecha del último backup).
+
 Por defecto los backups se guardan en `/opt/pspp-backups/` (fuera del repo, solo en el servidor) y se conservan **los últimos 2** de cada tipo (Postgres y MinIO) — configurable con `BACKUP_DIR` y `RETENTION_COUNT`. Los backups **viven en el mismo disco que la base de datos real** — si el disco falla, se pierden ambos. En cuanto se pueda, copiar `/opt/pspp-backups/` a otra ubicación (otro servidor, almacenamiento externo) para tener redundancia real; por ahora es mejor que no tener ningún backup.
+
+> **El cron es configuración del sistema operativo, no del repositorio.**
+> Este paso se hace **una sola vez por cada servidor** donde corra la
+> plataforma — un `git pull` normal no lo vuelve a configurar ni lo
+> borra, porque `crontab` vive fuera de la carpeta del proyecto. Solo
+> hay que repetirlo si: (a) se despliega en un servidor nuevo (por
+> ejemplo, cuando DGTICs lo instale en su propia infraestructura), o
+> (b) alguien borra el crontab manualmente. Futuros `git pull` con
+> otros cambios de código **no requieren volver a tocar el cron**.
 
 ## Seguridad en producción
 
