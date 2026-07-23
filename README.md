@@ -143,10 +143,10 @@ Programar en cron del servidor (diario a las 3am):
 ```bash
 crontab -e
 # Agregar (ajustar la ruta del repo si es distinta):
-0 3 * * * /opt/pspp-v2/scripts/backup.sh >> /var/log/pspp-backup.log 2>&1
+0 3 * * * /root/pspp2-sedatu/scripts/backup.sh >> /var/log/pspp-backup.log 2>&1
 ```
 
-Por defecto los backups se guardan en `/opt/pspp-backups/` (fuera del repo) con 14 días de retención — configurable con `BACKUP_DIR` y `RETENTION_DAYS`. Los backups **viven en el mismo disco que la base de datos real** — si el disco falla, se pierden ambos. En cuanto se pueda, copiar `/opt/pspp-backups/` a otra ubicación (otro servidor, almacenamiento externo) para tener redundancia real; por ahora es mejor que no tener ningún backup.
+Por defecto los backups se guardan en `/opt/pspp-backups/` (fuera del repo, solo en el servidor) y se conservan **los últimos 2** de cada tipo (Postgres y MinIO) — configurable con `BACKUP_DIR` y `RETENTION_COUNT`. Los backups **viven en el mismo disco que la base de datos real** — si el disco falla, se pierden ambos. En cuanto se pueda, copiar `/opt/pspp-backups/` a otra ubicación (otro servidor, almacenamiento externo) para tener redundancia real; por ahora es mejor que no tener ningún backup.
 
 ## Seguridad en producción
 

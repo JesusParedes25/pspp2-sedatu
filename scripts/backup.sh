@@ -10,7 +10,9 @@
 # 3. Verifica que el dump de Postgres sea legible (pg_restore --list)
 #    para detectar un backup corrupto/vacío en el momento, no meses
 #    después cuando se necesite restaurar.
-# 4. Borra backups locales más viejos que RETENTION_DAYS.
+# 4. Conserva solo los últimos RETENTION_COUNT backups (por defecto 2)
+#    y borra el resto — no por antigüedad en días, sino "los N más
+#    recientes", sin importar cuántos días llevan.
 #
 # No detiene ningún contenedor ni modifica datos — solo lee.
 #
@@ -27,7 +29,7 @@ set -e
 # ─── Configuración ────────────────────────────────────────────
 ENV_FILE="${ENV_FILE:-$(dirname "$0")/../.env.production}"
 BACKUP_DIR="${BACKUP_DIR:-/opt/pspp-backups}"
-RETENTION_DAYS="${RETENTION_DAYS:-14}"
+RETENTION_COUNT="${RETENTION_COUNT:-2}"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-pspp-postgres}"
 MINIO_CONTAINER="${MINIO_CONTAINER:-pspp-minio}"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
@@ -70,9 +72,9 @@ docker run --rm \
   alpine sh -c "cd / && tar czf /backup/minio_${TIMESTAMP}.tar.gz data"
 echo "  ✓ MinIO respaldado: $MINIO_BACKUP_FILE"
 
-# ─── 3. Rotación — borrar backups más viejos que RETENTION_DAYS ──
-echo "► Limpiando backups con más de $RETENTION_DAYS días..."
-find "$BACKUP_DIR/postgres" -name "*.dump" -mtime "+$RETENTION_DAYS" -print -delete
-find "$BACKUP_DIR/minio" -name "*.tar.gz" -mtime "+$RETENTION_DAYS" -print -delete
+# ─── 3. Rotación — conservar solo los últimos RETENTION_COUNT ──
+echo "► Limpiando backups — se conservan los últimos $RETENTION_COUNT de cada tipo..."
+ls -1t "$BACKUP_DIR/postgres"/*.dump 2>/dev/null | tail -n "+$((RETENTION_COUNT + 1))" | xargs -r rm -v --
+ls -1t "$BACKUP_DIR/minio"/*.tar.gz 2>/dev/null | tail -n "+$((RETENTION_COUNT + 1))" | xargs -r rm -v --
 
 echo "═══ Backup completo: $TIMESTAMP ═══"
