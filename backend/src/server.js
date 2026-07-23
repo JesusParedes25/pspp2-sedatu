@@ -15,6 +15,7 @@
  */
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const morgan = require('morgan');
 const routes = require('./routes');
 const errorHandler = require('./middleware/errorHandler');
@@ -27,8 +28,29 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ─── Middlewares globales ──────────────────────────────────────
-// Permitir peticiones desde el frontend (diferente puerto en desarrollo)
-app.use(cors());
+// Encabezados HTTP de seguridad (X-Content-Type-Options, X-Frame-Options,
+// etc). CSP desactivado por ahora: el frontend carga teselas de mapa
+// (Leaflet) y llama a EmailJS desde el navegador — activar CSP sin
+// mapear esos dominios primero rompería el mapa y el envío de correos
+// para los usuarios actuales. Queda como mejora de una fase posterior.
+app.use(helmet({ contentSecurityPolicy: false }));
+
+// Permitir peticiones solo desde el frontend real (FRONTEND_URL). En
+// producción, Nginx sirve frontend y backend en el mismo dominio, así
+// que esto no afecta al tráfico normal de los usuarios — solo bloquea
+// que OTROS sitios llamen a esta API desde el navegador de alguien.
+// Sin Origin (Postman, scripts, server-to-server) siempre se permite,
+// igual que antes.
+const origenPermitido = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || origin === origenPermitido) {
+      return callback(null, true);
+    }
+    console.warn(`✗ CORS bloqueado para origen: ${origin} (permitido: ${origenPermitido})`);
+    return callback(new Error('No permitido por CORS'));
+  }
+}));
 
 // Logging de cada petición HTTP en consola (método, URL, status, tiempo)
 app.use(morgan('dev'));
