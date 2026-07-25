@@ -44,12 +44,13 @@ function ukey(it){
   if(it.estado==='Completada'||it.estado==='Cancelada')return'gris';
   const d=diff(it.fecha_fin);return d===null?'gris':d<0?'rojo':d===0?'naranja':d<=7?'ambar':'azul';
 }
-// true si el día "str" (YYYY-MM-DD) cae dentro del rango [fecha_inicio, fecha_fin]
-// de la actividad — así aparece en todos los días que dura, no solo al vencer.
-function enRango(it,str){
+// true si el día "str" (YYYY-MM-DD) es el día de inicio O el de fin de la
+// actividad — solo esos dos días muestran punto en el calendario (no todos
+// los días intermedios, para no saturar el mes con actividades largas).
+function esInicioOFin(it,str){
   if(!str||!it.fecha_fin)return false;
   const ini=it.fecha_inicio||it.fecha_fin;
-  return str>=ini&&str<=it.fecha_fin;
+  return str===ini||str===it.fecha_fin;
 }
 function duracionDias(it){
   const ini=pFecha(it.fecha_inicio),fin=pFecha(it.fecha_fin);
@@ -103,12 +104,12 @@ export default function Agenda(){
     let off=ini.getDay()-1;if(off<0)off=6;
     const ds=[];
     for(let i=off-1;i>=0;i--)ds.push({fecha:new Date(a,m,-i),esMes:false,str:null,items:[]});
-    for(let d=1;d<=fin.getDate();d++){const str=`${a}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;ds.push({fecha:new Date(a,m,d),esMes:true,str,items:filtrados.filter(i=>enRango(i,str))});}
+    for(let d=1;d<=fin.getDate();d++){const str=`${a}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;ds.push({fecha:new Date(a,m,d),esMes:true,str,items:filtrados.filter(i=>esInicioOFin(i,str))});}
     let ex=1;while(ds.length%7!==0)ds.push({fecha:new Date(a,m+1,ex++),esMes:false,str:null,items:[]});
     return ds;
   },[mes,filtrados]);
 
-  const itemsDia=useMemo(()=>dia?filtrados.filter(i=>enRango(i,dia)):[],[dia,filtrados]);
+  const itemsDia=useMemo(()=>dia?filtrados.filter(i=>esInicioOFin(i,dia)):[],[dia,filtrados]);
   const hasFiltros=ftipo!=='todos'||festado!=='todos'||!!q;
 
   if(load)return(<div className="space-y-4 animate-pulse"><div className="h-8 bg-gray-200 rounded w-1/3"/>{[1,2,3].map(i=><div key={i} className="h-14 bg-gray-200 rounded"/>)}</div>);

@@ -38,16 +38,28 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
   const [tooltip, setTooltip] = useState(null);
 
   // ─── Rango de tiempo ─────────────────────────────────────────
+  // Se recalcula también cuando se cargan acciones/subacciones al expandir
+  // (lazy load) — si no, una acción con fechas fuera del rango inicial
+  // (calculado solo con las etapas) quedaba con la barra mal posicionada
+  // o invisible al expandir su etapa.
   const { inicioMs, finMs, meses } = useMemo(() => {
     let inicio = parseFechaLocal(fechaInicioProyecto);
     let fin = parseFechaLocal(fechaFinProyecto);
 
-    etapas.forEach(e => {
-      const fi = parseFechaLocal(e.fecha_inicio);
+    function considerar(fechaInicio, fechaFin) {
+      const fi = parseFechaLocal(fechaInicio);
       if (fi && (!inicio || fi < inicio)) inicio = fi;
-      const ff = parseFechaLocal(e.fecha_fin);
+      const ff = parseFechaLocal(fechaFin);
       if (ff && (!fin || ff > fin)) fin = ff;
-    });
+    }
+
+    etapas.forEach(e => considerar(e.fecha_inicio, e.fecha_fin));
+    Object.values(accionesPorEtapa).forEach(lista =>
+      lista.forEach(a => considerar(a.fecha_inicio_efectiva || a.fecha_inicio, a.fecha_fin_efectiva || a.fecha_fin))
+    );
+    Object.values(subaccionesPorAccion).forEach(lista =>
+      lista.forEach(s => considerar(s.fecha_inicio_efectiva || s.fecha_inicio, s.fecha_fin_efectiva || s.fecha_fin))
+    );
 
     if (!inicio) inicio = new Date();
     if (!fin) fin = new Date(inicio.getTime() + 180 * 86400000);
@@ -66,7 +78,7 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
     }
 
     return { inicioMs: margenInicio.getTime(), finMs: margenFin.getTime(), meses: listaMeses };
-  }, [etapas, fechaInicioProyecto, fechaFinProyecto]);
+  }, [etapas, fechaInicioProyecto, fechaFinProyecto, accionesPorEtapa, subaccionesPorAccion]);
 
   const rangoTotal = finMs - inicioMs || 1;
 
