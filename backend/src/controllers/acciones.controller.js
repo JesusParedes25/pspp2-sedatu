@@ -18,6 +18,8 @@ const { cambiarEstado: cambiarEstadoUtil, tipoRealAccion, verificarAutoCompletar
 const { recalcularEtapa, recalcularProyecto } = require('../utils/recalculos');
 const avanceSemaforo = require('../utils/avance-semaforo');
 const { recalcularAportacionesProyecto } = require('../db/queries/aportaciones.queries');
+const municipiosNodoQueries = require('../db/queries/municipios-nodo.queries');
+const { sincronizarCobertura } = require('../db/queries/cobertura-sync.queries');
 const { recalcularIndicadoresProyecto } = require('../db/queries/indicadores.queries');
 const actividadQueries = require('../db/queries/actividad.queries');
 
@@ -275,7 +277,8 @@ async function patchCampo(req, res, next) {
 async function patchAvanceSemaforo(req, res, next) {
   const accionId = req.params.id;
   const { avance_actual, semaforo, estado, prioridad, fecha_limite, fecha_inicio,
-          escala_territorial, instrumento, cve_ent, cve_mun, id_zm, tipo, id_responsable, nombre, descripcion, observaciones } = req.body;
+          escala_territorial, instrumento, cve_ent, cve_mun, id_zm, tipo, id_responsable, nombre, descripcion, observaciones,
+          municipios } = req.body;
 
   const client = await pool.connect();
   try {
@@ -394,6 +397,37 @@ async function patchAvanceSemaforo(req, res, next) {
     if (cve_ent !== undefined) { sets.push(`cve_ent = $${idx}`); params.push(cve_ent || null); idx++; }
     if (cve_mun !== undefined) { sets.push(`cve_mun = $${idx}`); params.push(cve_mun || null); idx++; }
     if (id_zm !== undefined) { sets.push(`id_zm = $${idx}`); params.push(id_zm || null); idx++; }
+    // Municipios (relación N:N) — reemplaza el conjunto completo si se proporciona.
+    if (municipios !== undefined) {
+      const lista = Array.isArray(municipios) ? [...new Set(municipios.filter(Boolean))] : [];
+      const cveEntEfectivo = cve_ent !== undefined ? (cve_ent || null) : accion.cve_ent;
+      if (lista.length > 0) {
+        if (!cveEntEfectivo) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: true, mensaje: 'Selecciona un estado antes de asignar municipios.' });
+        }
+        const invalido = lista.find(cm => cm.slice(0, 2) !== cveEntEfectivo);
+        if (invalido) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: true, mensaje: 'Todos los municipios deben pertenecer al estado seleccionado.' });
+        }
+      }
+      await municipiosNodoQueries.reemplazarMunicipiosAccion(client, accionId, lista);
+    } else if ((cve_ent !== undefined && !cve_ent) || (id_zm !== undefined && id_zm)) {
+      await municipiosNodoQueries.reemplazarMunicipiosAccion(client, accionId, []);
+    }
+    // Espejo en cobertura_geografica (dashboard/Panorama/Vista Lista) — se
+    // recalcula si cambió el estado, los municipios o el modo ZM.
+    if (cve_ent !== undefined || municipios !== undefined || id_zm !== undefined) {
+      const cveEntFinal = cve_ent !== undefined ? (cve_ent || null) : accion.cve_ent;
+      const idZmFinal = id_zm !== undefined ? (id_zm || null) : accion.id_zm;
+      if (idZmFinal || !cveEntFinal) {
+        await sincronizarCobertura(client, 'accion', accionId, null, []);
+      } else {
+        const municipiosGuardados = await municipiosNodoQueries.obtenerMunicipiosAccion(accionId, client);
+        await sincronizarCobertura(client, 'accion', accionId, cveEntFinal, municipiosGuardados.map(m => m.cve_mun));
+      }
+    }
     if (tipo !== undefined) { sets.push(`tipo = $${idx}`); params.push(tipo || null); idx++; }
     if (id_responsable !== undefined) { sets.push(`id_responsable = $${idx}`); params.push(id_responsable || null); idx++; }
     if (nombre !== undefined) { sets.push(`nombre = $${idx}`); params.push(nombre); idx++; }

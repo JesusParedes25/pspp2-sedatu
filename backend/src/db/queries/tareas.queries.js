@@ -6,7 +6,10 @@ const pool = require('../pool');
 
 async function obtenerTareasPorAccion(accionId) {
   const resultado = await pool.query(`
-    SELECT t.*, u.nombre_completo AS responsable_nombre
+    SELECT t.*, u.nombre_completo AS responsable_nombre,
+      (SELECT COALESCE(json_agg(json_build_object('cve_mun', tm.cve_mun, 'nombre', gm.nombre) ORDER BY gm.nombre), '[]'::json)
+         FROM tarea_municipios tm JOIN geo_municipios gm ON gm.cvegeo = tm.cve_mun
+         WHERE tm.tarea_id = t.id) AS municipios
     FROM tareas t
     LEFT JOIN usuarios u ON u.id = t.id_responsable
     WHERE t.id_accion = $1
@@ -16,7 +19,13 @@ async function obtenerTareasPorAccion(accionId) {
 }
 
 async function obtenerTareaPorId(id) {
-  const resultado = await pool.query('SELECT * FROM tareas WHERE id = $1', [id]);
+  const resultado = await pool.query(`
+    SELECT t.*,
+      (SELECT COALESCE(json_agg(json_build_object('cve_mun', tm.cve_mun, 'nombre', gm.nombre) ORDER BY gm.nombre), '[]'::json)
+         FROM tarea_municipios tm JOIN geo_municipios gm ON gm.cvegeo = tm.cve_mun
+         WHERE tm.tarea_id = t.id) AS municipios
+    FROM tareas t WHERE t.id = $1
+  `, [id]);
   return resultado.rows[0] || null;
 }
 

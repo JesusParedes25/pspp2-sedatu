@@ -8,6 +8,7 @@ const { recalcularAportacionesProyecto } = require('../db/queries/aportaciones.q
 const { recalcularIndicadoresProyecto } = require('../db/queries/indicadores.queries');
 const { recalcularEtapa, recalcularProyecto } = require('../utils/recalculos');
 const actividadQueries = require('../db/queries/actividad.queries');
+const municipiosNodoQueries = require('../db/queries/municipios-nodo.queries');
 
 async function listar(req, res, next) {
   try {
@@ -52,7 +53,7 @@ async function patchAvanceSemaforo(req, res, next) {
       return res.status(404).json({ error: true, mensaje: 'Tarea no encontrada' });
     }
 
-    const { avance_actual, semaforo, estado, prioridad, fecha_limite, nombre, descripcion } = req.body;
+    const { avance_actual, semaforo, estado, prioridad, fecha_inicio, fecha_limite, nombre, descripcion, cve_ent, municipios } = req.body;
     const sets = []; const params = []; let idx = 1;
 
     // ── Estado (tareas siempre son hojas) ──
@@ -104,11 +105,33 @@ async function patchAvanceSemaforo(req, res, next) {
       }
     }
     if (prioridad !== undefined) { sets.push(`prioridad = $${idx}`); params.push(prioridad); idx++; }
+    if (fecha_inicio !== undefined) { sets.push(`fecha_inicio = $${idx}`); params.push(fecha_inicio || null); idx++; }
     if (fecha_limite !== undefined) { sets.push(`fecha_limite = $${idx}`); params.push(fecha_limite); idx++; }
     if (nombre !== undefined) { sets.push(`nombre = $${idx}`); params.push(nombre); idx++; }
     if (descripcion !== undefined) { sets.push(`descripcion = $${idx}`); params.push(descripcion); idx++; }
+    if (cve_ent !== undefined) { sets.push(`cve_ent = $${idx}`); params.push(cve_ent || null); idx++; }
 
-    if (sets.length === 0) {
+    // Municipios (relación N:N) — reemplaza el conjunto completo si se proporciona.
+    if (municipios !== undefined) {
+      const lista = Array.isArray(municipios) ? [...new Set(municipios.filter(Boolean))] : [];
+      const cveEntEfectivo = cve_ent !== undefined ? (cve_ent || null) : tarea.cve_ent;
+      if (lista.length > 0) {
+        if (!cveEntEfectivo) {
+          await client.query('ROLLBACK'); client.release();
+          return res.status(400).json({ error: true, mensaje: 'Selecciona un estado antes de asignar municipios.' });
+        }
+        const invalido = lista.find(cm => cm.slice(0, 2) !== cveEntEfectivo);
+        if (invalido) {
+          await client.query('ROLLBACK'); client.release();
+          return res.status(400).json({ error: true, mensaje: 'Todos los municipios deben pertenecer al estado seleccionado.' });
+        }
+      }
+      await municipiosNodoQueries.reemplazarMunicipiosTarea(client, req.params.id, lista);
+    } else if (cve_ent !== undefined && !cve_ent) {
+      await municipiosNodoQueries.reemplazarMunicipiosTarea(client, req.params.id, []);
+    }
+
+    if (sets.length === 0 && municipios === undefined) {
       await client.query('ROLLBACK'); client.release();
       return res.status(400).json({ error: true, mensaje: 'No se proporcionaron campos para actualizar' });
     }

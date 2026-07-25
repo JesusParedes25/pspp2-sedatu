@@ -69,16 +69,17 @@ export default function MapaProyecto({ proyectoId, onNavegarEtapas }) {
     [nodosMap, maxNodos]
   );
 
-  // Nodos del estado activo que tienen municipio asignado, agrupados por cvegeo
-  // (el propio payload de mapa-territorial ya trae el cvegeo por nodo).
+  // Nodos del estado activo que tienen municipio(s) asignado(s), agrupados por
+  // cvegeo (un nodo puede aparecer bajo varios municipios si tiene más de uno).
   const municipiosActividadMap = useMemo(() => {
     if (!estadoActivo) return {};
     const nodos = nodosMap[estadoActivo.cve_ent]?.nodos || [];
     const acc = {};
     for (const n of nodos) {
-      if (!n.cvegeo) continue;
-      if (!acc[n.cvegeo]) acc[n.cvegeo] = [];
-      acc[n.cvegeo].push(n);
+      for (const cvegeo of (n.cvegeos || [])) {
+        if (!acc[cvegeo]) acc[cvegeo] = [];
+        acc[cvegeo].push(n);
+      }
     }
     return acc;
   }, [estadoActivo, nodosMap]);

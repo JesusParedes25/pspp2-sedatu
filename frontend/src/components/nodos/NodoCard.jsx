@@ -85,6 +85,7 @@ export default function NodoCard({
   const [actividad, setActividad] = useState(null); // se carga lazy al expandir
   const [evidenciasNodo, setEvidenciasNodo] = useState(null); // se carga lazy al abrir "Adjuntar archivo"
   const [editandoFecha, setEditandoFecha] = useState(false);
+  const [editandoFechaInicio, setEditandoFechaInicio] = useState(false);
   const fileInputRef = useRef(null);
 
   const { avance, fecha } = normalizar(tipo, nodo);
@@ -223,7 +224,10 @@ export default function NodoCard({
   // Las entradas del stream nuevo (reportadas desde una tarea) no traen
   // metadata.estado, así que se consideran abiertas por defecto.
   const riesgoActivo = todosRiesgos.find(a => !a.metadata?.estado || ['Abierto', 'En_mitigacion'].includes(a.metadata.estado));
-  const territorioLabel = nodo.id_zm ? 'Zona Metropolitana asignada' : (nodo.cve_ent ? `Estado${nodo.cve_mun ? ' + Municipio' : ''} asignado` : null);
+  const numMunicipios = nodo.municipios?.length || 0;
+  const territorioLabel = nodo.id_zm
+    ? 'Zona Metropolitana asignada'
+    : (nodo.cve_ent ? `Estado${numMunicipios ? ` + ${numMunicipios} municipio${numMunicipios !== 1 ? 's' : ''}` : ''} asignado` : null);
 
   return (
     <div className={`rounded-lg border transition-colors ${completado ? 'border-gray-100 bg-gray-50/40' : 'border-gray-200 bg-white'}`}>
@@ -352,9 +356,7 @@ export default function NodoCard({
             {permisos?.puedeInvitar && (
               <BotonContextual icono={UserPlus} label="Invitar participante" activo={seccion === 'invitar'} onClick={() => setSeccion(seccion === 'invitar' ? null : 'invitar')} />
             )}
-            {tipo !== 'tarea' && (
-              <BotonContextual icono={MapPin} label="Territorio" activo={seccion === 'territorio'} onClick={() => setSeccion(seccion === 'territorio' ? null : 'territorio')} />
-            )}
+            <BotonContextual icono={MapPin} label="Territorio" activo={seccion === 'territorio'} onClick={() => setSeccion(seccion === 'territorio' ? null : 'territorio')} />
           </div>
 
           {seccion === 'comentar' && (
@@ -436,13 +438,41 @@ export default function NodoCard({
 
           {seccion === 'territorio' && (
             <div className="bg-gray-50 rounded-lg p-2.5">
-              <TerritorioSelector data={nodo} soloLectura={soloLectura} onGuardar={(campo, valor) => patch(campo, valor).then(() => setSeccion(null))} />
+              <TerritorioSelector data={nodo} soloLectura={soloLectura} soportarZM={tipo !== 'tarea'}
+                onGuardar={(campo, valor) => patch(campo, valor)} />
             </div>
           )}
 
           {/* Row 3: metadata */}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-400 pt-1">
             <span>Avance: <strong className="text-gray-600">{avance}%</strong></span>
+            {tipo === 'etapa' ? (
+              // La fecha de inicio de una etapa se calcula sola desde sus acciones
+              // (ver recalcularEtapa) — mostrarla editable sería engañoso.
+              <span className="flex items-center gap-1" title="Se calcula automáticamente como la fecha de inicio más temprana entre sus acciones">
+                <Lock size={10} />
+                Inicia: <strong className="text-gray-500">{nodo.fecha_inicio ? new Date(nodo.fecha_inicio).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Sin definir'}</strong>
+              </span>
+            ) : editandoFechaInicio ? (
+              <span className="flex items-center gap-1">
+                Inicia:
+                <span className="w-32">
+                  <CampoFecha
+                    valor={nodo.fecha_inicio ? String(nodo.fecha_inicio).slice(0, 10) : ''}
+                    onChange={v => patch('fecha_inicio', v || null).then(() => setEditandoFechaInicio(false))}
+                  />
+                </span>
+                <button onClick={() => setEditandoFechaInicio(false)} className="text-gray-400 hover:text-gray-600"><X size={11} /></button>
+              </span>
+            ) : (
+              <span
+                onClick={() => !soloLectura && setEditandoFechaInicio(true)}
+                className={!soloLectura ? 'cursor-pointer hover:text-guinda-600' : ''}
+                title={!soloLectura ? 'Clic para editar' : undefined}
+              >
+                Inicia: <strong className="text-gray-600">{nodo.fecha_inicio ? new Date(nodo.fecha_inicio).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Sin fecha'}</strong>
+              </span>
+            )}
             {editandoFecha ? (
               <span className="flex items-center gap-1">
                 Vence:

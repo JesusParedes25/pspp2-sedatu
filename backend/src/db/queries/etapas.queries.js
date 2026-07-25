@@ -35,7 +35,10 @@ async function obtenerEtapasPorProyecto(proyectoId, idDg) {
       da.siglas AS direccion_area_siglas,
       dep.nombre AS depende_de_nombre,
       (SELECT COUNT(*) FROM acciones a WHERE a.id_etapa = e.id) AS total_acciones,
-      (SELECT COUNT(*) FROM acciones a WHERE a.id_etapa = e.id AND a.estado = 'Completada') AS acciones_completadas
+      (SELECT COUNT(*) FROM acciones a WHERE a.id_etapa = e.id AND a.estado = 'Completada') AS acciones_completadas,
+      (SELECT COALESCE(json_agg(json_build_object('cve_mun', em.cve_mun, 'nombre', gm.nombre) ORDER BY gm.nombre), '[]'::json)
+         FROM etapa_municipios em JOIN geo_municipios gm ON gm.cvegeo = em.cve_mun
+         WHERE em.etapa_id = e.id) AS municipios
     FROM etapas e
     LEFT JOIN usuarios u ON u.id = e.id_responsable
     LEFT JOIN direcciones_generales dg ON dg.id = e.id_dg
@@ -55,7 +58,10 @@ async function obtenerEtapaPorId(etapaId) {
       e.*,
       u.nombre_completo AS responsable_nombre,
       dg.siglas AS dg_siglas,
-      da.siglas AS direccion_area_siglas
+      da.siglas AS direccion_area_siglas,
+      (SELECT COALESCE(json_agg(json_build_object('cve_mun', em.cve_mun, 'nombre', gm.nombre) ORDER BY gm.nombre), '[]'::json)
+         FROM etapa_municipios em JOIN geo_municipios gm ON gm.cvegeo = em.cve_mun
+         WHERE em.etapa_id = e.id) AS municipios
     FROM etapas e
     LEFT JOIN usuarios u ON u.id = e.id_responsable
     LEFT JOIN direcciones_generales dg ON dg.id = e.id_dg

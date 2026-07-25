@@ -378,20 +378,22 @@ async function obtenerMapaTerritorialProyecto(proyectoId) {
     WITH nodos AS (
       SELECT 'etapa'::text AS tipo, e.id::text, e.nombre, NULL::text AS nombre_padre,
              e.estado, e.semaforo, COALESCE(e.avance_actual, e.porcentaje_calculado::int, 0) AS avance,
-             e.cve_ent, e.cve_mun AS cvegeo
+             e.cve_ent,
+             COALESCE((SELECT array_agg(em.cve_mun) FROM etapa_municipios em WHERE em.etapa_id = e.id), '{}') AS cvegeos
       FROM etapas e
       WHERE e.id_proyecto = $1 AND e.cve_ent IS NOT NULL
       UNION ALL
       SELECT CASE WHEN a.id_accion_padre IS NOT NULL THEN 'tarea' ELSE 'accion' END,
              a.id::text, a.nombre, COALESCE(padre.nombre, et.nombre),
              a.estado, a.semaforo, COALESCE(a.avance_actual, 0) AS avance,
-             a.cve_ent, a.cve_mun AS cvegeo
+             a.cve_ent,
+             COALESCE((SELECT array_agg(am.cve_mun) FROM accion_municipios am WHERE am.accion_id = a.id), '{}') AS cvegeos
       FROM acciones a
       LEFT JOIN acciones padre ON padre.id = a.id_accion_padre
       LEFT JOIN etapas et ON et.id = a.id_etapa
       WHERE a.id_proyecto = $1 AND a.cve_ent IS NOT NULL
     )
-    SELECT n.tipo, n.id, n.nombre, n.nombre_padre, n.estado, n.semaforo, n.avance, n.cve_ent, n.cvegeo,
+    SELECT n.tipo, n.id, n.nombre, n.nombre_padre, n.estado, n.semaforo, n.avance, n.cve_ent, n.cvegeos,
            gs.nombre AS nombre_estado
     FROM nodos n
     JOIN geo_estados gs ON gs.cve_ent = n.cve_ent
@@ -399,20 +401,22 @@ async function obtenerMapaTerritorialProyecto(proyectoId) {
   `, [proyectoId]);
 
   const porEstado = {};
+  const todosCvegeos = new Set();
   for (const r of rows) {
     if (!porEstado[r.cve_ent]) {
       porEstado[r.cve_ent] = { cve_ent: r.cve_ent, nombre_estado: r.nombre_estado, nodos: [] };
     }
+    const cvegeos = r.cvegeos || [];
     porEstado[r.cve_ent].nodos.push({
       tipo: r.tipo, id: r.id, nombre: r.nombre, nombre_padre: r.nombre_padre,
       estado: r.estado, semaforo: r.semaforo,
-      avance: parseFloat(r.avance) || 0, cvegeo: r.cvegeo,
+      avance: parseFloat(r.avance) || 0, cvegeos,
     });
+    for (const cg of cvegeos) todosCvegeos.add(cg);
   }
 
   const estadosConActividad = Object.values(porEstado);
-  const cvegeos = [...new Set(rows.filter(r => r.cvegeo).map(r => r.cvegeo))];
-  return { por_estado: estadosConActividad, cvegeos };
+  return { por_estado: estadosConActividad, cvegeos: [...todosCvegeos] };
 }
 
 // ─── Inicio mapa ───────────────────────────────────────────────
@@ -636,8 +640,9 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
 
 /**
  * Actividad por municipio dentro de un estado, para el drill-down del mapa:
- * qué municipios tienen etapas/acciones asignadas (cve_mun guarda el cvegeo
- * completo de 5 dígitos, ver EtapasAvancesMD → selector "Municipio").
+ * qué municipios tienen etapas/acciones asignadas (vía etapa_municipios/
+ * accion_municipios — un nodo puede tener varios municipios, cada uno
+ * genera su propia fila aquí).
  * Respeta el mismo esquema de acceso que obtenerDetalleEstado.
  */
 async function obtenerMunicipiosActividadEstado(cveEnt, proyectoIds) {
@@ -645,24 +650,26 @@ async function obtenerMunicipiosActividadEstado(cveEnt, proyectoIds) {
   const params = proyectoIds === null ? [cveEnt] : [cveEnt, proyectoIds];
 
   const { rows } = await pool.query(`
-    SELECT e.cve_mun AS cvegeo, e.id::text, e.nombre,
+    SELECT em.cve_mun AS cvegeo, e.id::text, e.nombre,
            e.estado, e.semaforo, COALESCE(e.avance_actual, 0)::int AS avance,
            'etapa'::text AS tipo, NULL::text AS nombre_padre,
            p.id::text AS id_proyecto, p.nombre AS nombre_proyecto
     FROM etapas e
+    JOIN etapa_municipios em ON em.etapa_id = e.id
     JOIN proyectos p ON p.id = e.id_proyecto AND p.deleted_at IS NULL
-    WHERE e.cve_mun IS NOT NULL AND LEFT(e.cve_mun, 2) = $1 ${filtroProyecto}
+    WHERE LEFT(em.cve_mun, 2) = $1 ${filtroProyecto}
     UNION ALL
-    SELECT a.cve_mun, a.id::text, a.nombre,
+    SELECT am.cve_mun, a.id::text, a.nombre,
            a.estado, a.semaforo, COALESCE(a.avance_actual, 0)::int,
            CASE WHEN a.id_accion_padre IS NOT NULL THEN 'tarea' ELSE 'accion' END,
            COALESCE(padre.nombre, et.nombre),
            p.id::text, p.nombre
     FROM acciones a
+    JOIN accion_municipios am ON am.accion_id = a.id
     JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
     LEFT JOIN acciones padre ON padre.id = a.id_accion_padre
     LEFT JOIN etapas et ON et.id = a.id_etapa
-    WHERE a.cve_mun IS NOT NULL AND LEFT(a.cve_mun, 2) = $1 ${filtroProyecto}
+    WHERE LEFT(am.cve_mun, 2) = $1 ${filtroProyecto}
     ORDER BY nombre
   `, params);
 

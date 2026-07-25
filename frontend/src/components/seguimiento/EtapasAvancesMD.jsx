@@ -678,7 +678,7 @@ function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast,
   }
 
   function requestCambioModo(nuevoModo) {
-    const tieneData = nuevoModo === 'zm' ? (data.cve_ent || data.cve_mun) : data.id_zm;
+    const tieneData = nuevoModo === 'zm' ? (data.cve_ent || (data.municipios || []).length > 0) : data.id_zm;
     if (tieneData) { setConfirmCambioModo(nuevoModo); }
     else { aplicarCambioModo(nuevoModo); }
   }
@@ -687,7 +687,7 @@ function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast,
     setModoTerritorio(modo);
     if (modo === 'zm') {
       if (data.cve_ent) guardarCampo('cve_ent', null);
-      if (data.cve_mun) guardarCampo('cve_mun', null);
+      if ((data.municipios || []).length > 0) guardarCampo('municipios', []);
       setMuniFilter(null);
     } else {
       if (data.id_zm) guardarCampo('id_zm', null);
@@ -695,6 +695,12 @@ function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast,
   }
 
   const tooltipCalculado = 'Se calcula a partir de sus partes. Actualiza las tareas/acciones que contiene.';
+  // La fecha de inicio de una ETAPA se recalcula automáticamente (la más
+  // temprana entre sus acciones, ver recalcularEtapa en recalculos.js) cada
+  // vez que cambia cualquier acción de la etapa — editarla a mano aquí no
+  // sirve de nada porque se sobrescribe en el siguiente recálculo.
+  const fechaInicioCalculada = tipo === 'etapa';
+  const tooltipFechaInicio = 'La fecha de inicio de una etapa se calcula automáticamente como la más temprana entre sus acciones.';
 
   return (
     <div className="flex flex-1 min-w-0 overflow-hidden h-full">
@@ -920,12 +926,25 @@ function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast,
           </div>
           {/* Fechas */}
           <div className="mb-2">
-            <CampoFecha
-              label="Fecha inicio"
-              valor={data.fecha_inicio ? data.fecha_inicio.substring(0, 10) : ''}
-              onChange={v => guardarCampo('fecha_inicio', v || null)}
-              soloLectura={permisos.esSoloLectura}
-            />
+            {fechaInicioCalculada ? (
+              <div>
+                <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">Fecha inicio</span>
+                <div className="flex items-center gap-1.5">
+                  <Lock size={10} className="text-gray-400" />
+                  <span className="text-xs text-gray-500">
+                    {data.fecha_inicio ? new Date(data.fecha_inicio).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Sin definir'}
+                  </span>
+                  <span title={tooltipFechaInicio} className="w-3.5 h-3.5 rounded-full border border-gray-300 text-[9px] text-gray-400 flex items-center justify-center cursor-help font-bold flex-shrink-0">?</span>
+                </div>
+              </div>
+            ) : (
+              <CampoFecha
+                label="Fecha inicio"
+                valor={data.fecha_inicio ? data.fecha_inicio.substring(0, 10) : ''}
+                onChange={v => guardarCampo('fecha_inicio', v || null)}
+                soloLectura={permisos.esSoloLectura}
+              />
+            )}
           </div>
           <div className="mb-2">
             <CampoFecha
@@ -1010,12 +1029,14 @@ function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast,
                   <p className="text-[10px] text-gray-400 leading-tight">Usar cuando el proyecto opera en un área específica de un estado.</p>
                   <CampoSelect label="Estado" valor={data.cve_ent || ''}
                     opciones={catalogs.estados_geo.map(e => ({ value: e.cve_ent, label: e.nombre }))}
-                    onChange={v => { setMuniFilter(v || null); guardarCampo('cve_ent', v || null); if (!v) guardarCampo('cve_mun', null); }}
+                    onChange={v => { setMuniFilter(v || null); guardarCampo('cve_ent', v || null); if (!v) guardarCampo('municipios', []); }}
                     soloLectura={permisos.esSoloLectura} useObjects/>
-                  <CampoSelect label="Municipio (opcional)" valor={data.cve_mun || ''}
+                  <SelectorMunicipiosMultiple
+                    municipios={data.municipios || []}
                     opciones={catalogs.municipios.map(m => ({ value: m.cvegeo, label: m.nombre }))}
-                    onChange={v => guardarCampo('cve_mun', v || null)}
-                    soloLectura={permisos.esSoloLectura || !muniFilter} useObjects/>
+                    onChange={lista => guardarCampo('municipios', lista)}
+                    soloLectura={permisos.esSoloLectura || !muniFilter}
+                  />
                 </div>
               )}
             </div>
@@ -1152,6 +1173,63 @@ function CampoSelect({ label, valor, opciones, onChange, soloLectura, formatLabe
           : opciones.map(o => <option key={o} value={o}>{formatLabel ? formatLabel(o) : o}</option>)
         }
       </select>
+    </div>
+  );
+}
+
+// Selector múltiple de municipios (mismo patrón que TerritorioSelector.jsx,
+// duplicado aquí porque este panel usa su propio CampoSelect/CampoEditable).
+function SelectorMunicipiosMultiple({ municipios, opciones, onChange, soloLectura }) {
+  const lista = municipios || [];
+  const seleccionados = new Set(lista.map(m => m.cve_mun));
+
+  if (soloLectura) {
+    return (
+      <div>
+        <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">Municipios</span>
+        {lista.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {lista.map(m => (
+              <span key={m.cve_mun} className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">{m.nombre}</span>
+            ))}
+          </div>
+        ) : <p className="text-xs text-gray-600">—</p>}
+      </div>
+    );
+  }
+
+  function toggle(cvegeo) {
+    const next = seleccionados.has(cvegeo)
+      ? [...seleccionados].filter(c => c !== cvegeo)
+      : [...seleccionados, cvegeo];
+    onChange(next);
+  }
+
+  return (
+    <div>
+      <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">
+        Municipios (opcional{seleccionados.size > 0 ? ` · ${seleccionados.size} seleccionado${seleccionados.size !== 1 ? 's' : ''}` : ''})
+      </span>
+      {lista.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-1.5">
+          {lista.map(m => (
+            <span key={m.cve_mun} className="flex items-center gap-1 text-[10px] bg-[#fbf3f6] text-[#7B1C3E] px-1.5 py-0.5 rounded-full">
+              {m.nombre}
+              <button type="button" onClick={() => toggle(m.cve_mun)} className="hover:text-red-600" title="Quitar">×</button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="max-h-32 overflow-y-auto border border-gray-200 rounded bg-white divide-y divide-gray-50">
+        {opciones.length === 0 ? (
+          <p className="text-[11px] text-gray-400 px-2 py-1.5">Selecciona un estado primero</p>
+        ) : opciones.map(o => (
+          <label key={o.value} className="flex items-center gap-1.5 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50 cursor-pointer">
+            <input type="checkbox" checked={seleccionados.has(o.value)} onChange={() => toggle(o.value)} className="accent-[#7B1C3E]" />
+            {o.label}
+          </label>
+        ))}
+      </div>
     </div>
   );
 }

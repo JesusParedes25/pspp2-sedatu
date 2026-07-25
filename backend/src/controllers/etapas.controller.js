@@ -18,6 +18,8 @@ const { recalcularProyecto } = require('../utils/recalculos');
 const { cambiarEstado: cambiarEstadoUtil } = require('../utils/validaciones-estado');
 const avanceSemaforo = require('../utils/avance-semaforo');
 const { recalcularAportacionesProyecto } = require('../db/queries/aportaciones.queries');
+const municipiosNodoQueries = require('../db/queries/municipios-nodo.queries');
+const { sincronizarCobertura } = require('../db/queries/cobertura-sync.queries');
 const { recalcularIndicadoresProyecto } = require('../db/queries/indicadores.queries');
 const actividadQueries = require('../db/queries/actividad.queries');
 
@@ -182,7 +184,7 @@ async function patchAvanceSemaforo(req, res, next) {
   const etapaId = req.params.id;
   const { avance_actual, semaforo, estado, prioridad, fecha_limite, fecha_inicio,
           escala_territorial, instrumento, cve_ent, cve_mun, id_zm, tipo, id_responsable,
-          nombre, descripcion } = req.body;
+          nombre, descripcion, municipios } = req.body;
 
   const client = await pool.connect();
   try {
@@ -298,6 +300,39 @@ async function patchAvanceSemaforo(req, res, next) {
     if (id_zm !== undefined) {
       sets.push(`id_zm = $${idx}`);
       params.push(id_zm || null); idx++;
+    }
+    // Municipios (relación N:N) — reemplaza el conjunto completo si se proporciona.
+    // Deben pertenecer al estado (cve_ent) efectivo del nodo tras este PATCH.
+    if (municipios !== undefined) {
+      const lista = Array.isArray(municipios) ? [...new Set(municipios.filter(Boolean))] : [];
+      const cveEntEfectivo = cve_ent !== undefined ? (cve_ent || null) : rows[0].cve_ent;
+      if (lista.length > 0) {
+        if (!cveEntEfectivo) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: true, mensaje: 'Selecciona un estado antes de asignar municipios.' });
+        }
+        const invalido = lista.find(cm => cm.slice(0, 2) !== cveEntEfectivo);
+        if (invalido) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: true, mensaje: 'Todos los municipios deben pertenecer al estado seleccionado.' });
+        }
+      }
+      await municipiosNodoQueries.reemplazarMunicipiosEtapa(client, etapaId, lista);
+    } else if ((cve_ent !== undefined && !cve_ent) || (id_zm !== undefined && id_zm)) {
+      // Se limpió el estado o se pasó a modo ZM sin mandar municipios explícito: limpiar huérfanos.
+      await municipiosNodoQueries.reemplazarMunicipiosEtapa(client, etapaId, []);
+    }
+    // Espejo en cobertura_geografica (dashboard/Panorama/Vista Lista) — se
+    // recalcula si cambió el estado, los municipios o el modo ZM.
+    if (cve_ent !== undefined || municipios !== undefined || id_zm !== undefined) {
+      const cveEntFinal = cve_ent !== undefined ? (cve_ent || null) : rows[0].cve_ent;
+      const idZmFinal = id_zm !== undefined ? (id_zm || null) : rows[0].id_zm;
+      if (idZmFinal || !cveEntFinal) {
+        await sincronizarCobertura(client, 'etapa', etapaId, null, []);
+      } else {
+        const municipiosGuardados = await municipiosNodoQueries.obtenerMunicipiosEtapa(etapaId, client);
+        await sincronizarCobertura(client, 'etapa', etapaId, cveEntFinal, municipiosGuardados.map(m => m.cve_mun));
+      }
     }
     if (tipo !== undefined) {
       sets.push(`tipo = $${idx}`);

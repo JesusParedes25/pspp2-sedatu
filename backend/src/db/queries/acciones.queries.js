@@ -26,7 +26,10 @@ async function obtenerAccionesPorEtapa(etapaId) {
       dg.siglas AS dg_siglas,
       da.siglas AS direccion_area_siglas,
       COUNT(e.id) AS total_evidencias,
-      (SELECT COUNT(*) FROM acciones sub WHERE sub.id_accion_padre = a.id) AS total_subacciones
+      (SELECT COUNT(*) FROM acciones sub WHERE sub.id_accion_padre = a.id) AS total_subacciones,
+      (SELECT COALESCE(json_agg(json_build_object('cve_mun', am.cve_mun, 'nombre', gm.nombre) ORDER BY gm.nombre), '[]'::json)
+         FROM accion_municipios am JOIN geo_municipios gm ON gm.cvegeo = am.cve_mun
+         WHERE am.accion_id = a.id) AS municipios
     FROM acciones a
     LEFT JOIN LATERAL (
       SELECT motivo FROM bloqueos
@@ -53,7 +56,10 @@ async function obtenerSubacciones(accionPadreId) {
       COALESCE(bl.motivo, a.motivo_bloqueo) AS motivo_bloqueo,
       u.nombre_completo AS responsable_nombre,
       dg.siglas AS dg_siglas,
-      COUNT(e.id) AS total_evidencias
+      COUNT(e.id) AS total_evidencias,
+      (SELECT COALESCE(json_agg(json_build_object('cve_mun', am.cve_mun, 'nombre', gm.nombre) ORDER BY gm.nombre), '[]'::json)
+         FROM accion_municipios am JOIN geo_municipios gm ON gm.cvegeo = am.cve_mun
+         WHERE am.accion_id = a.id) AS municipios
     FROM acciones a
     LEFT JOIN LATERAL (
       SELECT motivo FROM bloqueos
@@ -78,7 +84,10 @@ async function obtenerAccionesDirectasProyecto(proyectoId) {
       COALESCE(bl.motivo, a.motivo_bloqueo) AS motivo_bloqueo,
       u.nombre_completo AS responsable_nombre,
       dg.siglas AS dg_siglas,
-      COUNT(e.id) AS total_evidencias
+      COUNT(e.id) AS total_evidencias,
+      (SELECT COALESCE(json_agg(json_build_object('cve_mun', am.cve_mun, 'nombre', gm.nombre) ORDER BY gm.nombre), '[]'::json)
+         FROM accion_municipios am JOIN geo_municipios gm ON gm.cvegeo = am.cve_mun
+         WHERE am.accion_id = a.id) AS municipios
     FROM acciones a
     LEFT JOIN LATERAL (
       SELECT motivo FROM bloqueos
@@ -105,7 +114,10 @@ async function obtenerAccionPorId(accionId) {
       u.nombre_completo AS responsable_nombre,
       u.cargo AS responsable_cargo,
       dg.siglas AS dg_siglas,
-      da.siglas AS direccion_area_siglas
+      da.siglas AS direccion_area_siglas,
+      (SELECT COALESCE(json_agg(json_build_object('cve_mun', am.cve_mun, 'nombre', gm.nombre) ORDER BY gm.nombre), '[]'::json)
+         FROM accion_municipios am JOIN geo_municipios gm ON gm.cvegeo = am.cve_mun
+         WHERE am.accion_id = a.id) AS municipios
     FROM acciones a
     LEFT JOIN LATERAL (
       SELECT motivo FROM bloqueos
@@ -310,6 +322,13 @@ async function eliminarAccion(accionId) {
   // Obtener la etapa/proyecto antes de eliminar para recalcular
   const accion = await pool.query(
     'SELECT id_etapa, id_proyecto FROM acciones WHERE id = $1', [accionId]
+  );
+
+  // cobertura_geografica es polimórfica (sin FK real) y no se limpia sola al
+  // borrar la acción; se hace explícito para no dejar filas huérfanas.
+  await pool.query(
+    "DELETE FROM cobertura_geografica WHERE tipo_entidad = 'accion' AND id_entidad = $1",
+    [accionId]
   );
 
   const resultado = await pool.query(

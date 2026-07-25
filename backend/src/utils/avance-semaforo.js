@@ -275,7 +275,10 @@ async function obtenerSubarbol(etapaId, db) {
   const conn = db || pool;
   const { rows: [etapa] } = await conn.query(`
     SELECT e.*, u.nombre_completo AS responsable_nombre,
-           dg.id AS responsable_dg_id, dg.siglas AS responsable_dg_siglas
+           dg.id AS responsable_dg_id, dg.siglas AS responsable_dg_siglas,
+           (SELECT COALESCE(json_agg(json_build_object('cve_mun', em.cve_mun, 'nombre', gm.nombre) ORDER BY gm.nombre), '[]'::json)
+              FROM etapa_municipios em JOIN geo_municipios gm ON gm.cvegeo = em.cve_mun
+              WHERE em.etapa_id = e.id) AS municipios
     FROM etapas e
     LEFT JOIN usuarios u ON u.id = e.id_responsable
     LEFT JOIN direcciones_generales dg ON dg.id = u.id_dg
@@ -289,7 +292,10 @@ async function obtenerSubarbol(etapaId, db) {
   // Acciones directas (sin padre)
   const { rows: acciones } = await conn.query(`
     SELECT a.*, u.nombre_completo AS responsable_nombre,
-           dg.id AS responsable_dg_id, dg.siglas AS responsable_dg_siglas
+           dg.id AS responsable_dg_id, dg.siglas AS responsable_dg_siglas,
+           (SELECT COALESCE(json_agg(json_build_object('cve_mun', am.cve_mun, 'nombre', gm.nombre) ORDER BY gm.nombre), '[]'::json)
+              FROM accion_municipios am JOIN geo_municipios gm ON gm.cvegeo = am.cve_mun
+              WHERE am.accion_id = a.id) AS municipios
     FROM acciones a
     LEFT JOIN usuarios u ON u.id = a.id_responsable
     LEFT JOIN direcciones_generales dg ON dg.id = u.id_dg
@@ -305,7 +311,10 @@ async function obtenerSubarbol(etapaId, db) {
     // Sub-acciones (tareas)
     const { rows: subs } = await conn.query(`
       SELECT s.*, u.nombre_completo AS responsable_nombre,
-             dg.id AS responsable_dg_id, dg.siglas AS responsable_dg_siglas
+             dg.id AS responsable_dg_id, dg.siglas AS responsable_dg_siglas,
+             (SELECT COALESCE(json_agg(json_build_object('cve_mun', am.cve_mun, 'nombre', gm.nombre) ORDER BY gm.nombre), '[]'::json)
+                FROM accion_municipios am JOIN geo_municipios gm ON gm.cvegeo = am.cve_mun
+                WHERE am.accion_id = s.id) AS municipios
       FROM acciones s
       LEFT JOIN usuarios u ON u.id = s.id_responsable
       LEFT JOIN direcciones_generales dg ON dg.id = u.id_dg
