@@ -29,7 +29,9 @@ async function obtenerAccionesPorEtapa(etapaId) {
       (SELECT COUNT(*) FROM acciones sub WHERE sub.id_accion_padre = a.id) AS total_subacciones,
       (SELECT COALESCE(json_agg(json_build_object('cve_mun', am.cve_mun, 'nombre', gm.nombre) ORDER BY gm.nombre), '[]'::json)
          FROM accion_municipios am JOIN geo_municipios gm ON gm.cvegeo = am.cve_mun
-         WHERE am.accion_id = a.id) AS municipios
+         WHERE am.accion_id = a.id) AS municipios,
+      COALESCE(a.fecha_inicio, (SELECT MIN(t.fecha_inicio) FROM tareas t WHERE t.id_accion = a.id AND t.estado != 'Cancelada')) AS fecha_inicio_efectiva,
+      COALESCE(a.fecha_fin, (SELECT MAX(t.fecha_limite) FROM tareas t WHERE t.id_accion = a.id AND t.estado != 'Cancelada')) AS fecha_fin_efectiva
     FROM acciones a
     LEFT JOIN LATERAL (
       SELECT motivo FROM bloqueos
@@ -59,7 +61,9 @@ async function obtenerSubacciones(accionPadreId) {
       COUNT(e.id) AS total_evidencias,
       (SELECT COALESCE(json_agg(json_build_object('cve_mun', am.cve_mun, 'nombre', gm.nombre) ORDER BY gm.nombre), '[]'::json)
          FROM accion_municipios am JOIN geo_municipios gm ON gm.cvegeo = am.cve_mun
-         WHERE am.accion_id = a.id) AS municipios
+         WHERE am.accion_id = a.id) AS municipios,
+      COALESCE(a.fecha_inicio, (SELECT MIN(t.fecha_inicio) FROM tareas t WHERE t.id_accion = a.id AND t.estado != 'Cancelada')) AS fecha_inicio_efectiva,
+      COALESCE(a.fecha_fin, (SELECT MAX(t.fecha_limite) FROM tareas t WHERE t.id_accion = a.id AND t.estado != 'Cancelada')) AS fecha_fin_efectiva
     FROM acciones a
     LEFT JOIN LATERAL (
       SELECT motivo FROM bloqueos
@@ -358,6 +362,7 @@ async function obtenerAccionesAgenda(usuarioId) {
         e.id::text AS id, e.nombre, e.estado, e.semaforo,
         COALESCE(e.avance_actual, 0) AS avance_actual,
         COALESCE(e.fecha_limite, e.fecha_fin) AS fecha_fin,
+        e.fecha_inicio AS fecha_inicio,
         e.id_responsable::text AS responsable_id,
         u.nombre_completo AS responsable_nombre,
         p.id::text AS proyecto_id, p.nombre AS proyecto_nombre,
@@ -376,6 +381,7 @@ async function obtenerAccionesAgenda(usuarioId) {
       SELECT 'etapa', e.id::text, e.nombre, e.estado, e.semaforo,
         COALESCE(e.avance_actual, 0),
         COALESCE(e.fecha_limite, e.fecha_fin),
+        e.fecha_inicio,
         e.id_responsable::text, u.nombre_completo,
         p.id::text, p.nombre, NULL, NULL, NULL, NULL, nm.rol, e.prioridad
       FROM etapas e
@@ -391,6 +397,7 @@ async function obtenerAccionesAgenda(usuarioId) {
       SELECT 'accion', a.id::text, a.nombre, a.estado, a.semaforo,
         COALESCE(a.avance_actual, 0),
         COALESCE(a.fecha_limite, a.fecha_fin),
+        a.fecha_inicio,
         a.id_responsable::text, u.nombre_completo,
         p.id::text, p.nombre, e.id::text, e.nombre, NULL, NULL, 'responsable', a.prioridad
       FROM acciones a
@@ -406,6 +413,7 @@ async function obtenerAccionesAgenda(usuarioId) {
       SELECT 'accion', a.id::text, a.nombre, a.estado, a.semaforo,
         COALESCE(a.avance_actual, 0),
         COALESCE(a.fecha_limite, a.fecha_fin),
+        a.fecha_inicio,
         a.id_responsable::text, u.nombre_completo,
         p.id::text, p.nombre, e.id::text, e.nombre, NULL, NULL, nm.rol, a.prioridad
       FROM acciones a
@@ -422,6 +430,7 @@ async function obtenerAccionesAgenda(usuarioId) {
       SELECT 'tarea', t.id::text, t.nombre, t.estado, t.semaforo,
         COALESCE(t.avance_actual, 0),
         t.fecha_limite,
+        t.fecha_inicio,
         t.id_responsable::text, u.nombre_completo,
         p.id::text, p.nombre, e.id::text, e.nombre, a.id::text, a.nombre, 'responsable', t.prioridad
       FROM tareas t
@@ -438,6 +447,7 @@ async function obtenerAccionesAgenda(usuarioId) {
       SELECT 'etapa', e.id::text, e.nombre, e.estado, e.semaforo,
         COALESCE(e.avance_actual, 0),
         COALESCE(e.fecha_limite, e.fecha_fin),
+        e.fecha_inicio,
         e.id_responsable::text, u.nombre_completo,
         p.id::text, p.nombre, NULL, NULL, NULL, NULL, 'coordinador', e.prioridad
       FROM etapas e
@@ -460,6 +470,7 @@ async function obtenerAccionesAgenda(usuarioId) {
       SELECT 'accion', a.id::text, a.nombre, a.estado, a.semaforo,
         COALESCE(a.avance_actual, 0),
         COALESCE(a.fecha_limite, a.fecha_fin),
+        a.fecha_inicio,
         a.id_responsable::text, u.nombre_completo,
         p.id::text, p.nombre, e.id::text, e.nombre, NULL, NULL, 'coordinador', a.prioridad
       FROM acciones a
@@ -483,6 +494,7 @@ async function obtenerAccionesAgenda(usuarioId) {
       SELECT 'tarea', t.id::text, t.nombre, t.estado, t.semaforo,
         COALESCE(t.avance_actual, 0),
         t.fecha_limite,
+        t.fecha_inicio,
         t.id_responsable::text, u.nombre_completo,
         p.id::text, p.nombre, e.id::text, e.nombre, a.id::text, a.nombre, 'coordinador', t.prioridad
       FROM tareas t

@@ -5,6 +5,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { CheckCircle2, Circle, ChevronDown, ChevronRight, MapPin } from 'lucide-react';
 import client from '../../api/client';
+import { formatFecha, estaVencida } from '../../utils/fecha';
 
 export default function VistaChecklist({ etapas, proyectoId, onRefresh }) {
   const [acciones, setAcciones] = useState([]);
@@ -180,9 +181,9 @@ function ChecklistItem({ accion, onToggle, depth }) {
 
       {accion.fecha_fin && (
         <span className={`text-[10px] ${
-          new Date(accion.fecha_fin) < new Date() && !isCompleted ? 'text-red-500' : 'text-gray-400'
+          estaVencida(accion.fecha_fin) && !isCompleted ? 'text-red-500' : 'text-gray-400'
         }`}>
-          {new Date(accion.fecha_fin).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
+          {formatFecha(accion.fecha_fin, { day: '2-digit', month: 'short' })}
         </span>
       )}
     </div>

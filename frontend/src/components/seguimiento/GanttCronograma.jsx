@@ -18,6 +18,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { ChevronDown, ChevronRight, Milestone, Layers } from 'lucide-react';
 import * as accionesApi from '../../api/acciones';
+import { parseFechaLocal, formatFecha } from '../../utils/fecha';
 
 const COLORES = {
   Completada:  { barra: 'bg-emerald-500', fondo: 'bg-emerald-100', texto: 'text-emerald-700' },
@@ -38,18 +39,14 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
 
   // ─── Rango de tiempo ─────────────────────────────────────────
   const { inicioMs, finMs, meses } = useMemo(() => {
-    let inicio = fechaInicioProyecto ? new Date(fechaInicioProyecto) : null;
-    let fin = fechaFinProyecto ? new Date(fechaFinProyecto) : null;
+    let inicio = parseFechaLocal(fechaInicioProyecto);
+    let fin = parseFechaLocal(fechaFinProyecto);
 
     etapas.forEach(e => {
-      if (e.fecha_inicio) {
-        const fi = new Date(e.fecha_inicio);
-        if (!inicio || fi < inicio) inicio = fi;
-      }
-      if (e.fecha_fin) {
-        const ff = new Date(e.fecha_fin);
-        if (!fin || ff > fin) fin = ff;
-      }
+      const fi = parseFechaLocal(e.fecha_inicio);
+      if (fi && (!inicio || fi < inicio)) inicio = fi;
+      const ff = parseFechaLocal(e.fecha_fin);
+      if (ff && (!fin || ff > fin)) fin = ff;
     });
 
     if (!inicio) inicio = new Date();
@@ -74,9 +71,11 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
   const rangoTotal = finMs - inicioMs || 1;
 
   function calcularBarra(fechaInicio, fechaFin) {
-    if (!fechaInicio || !fechaFin) return null;
-    const fi = new Date(fechaInicio).getTime();
-    const ff = new Date(fechaFin).getTime();
+    const fiDate = parseFechaLocal(fechaInicio);
+    const ffDate = parseFechaLocal(fechaFin);
+    if (!fiDate || !ffDate) return null;
+    const fi = fiDate.getTime();
+    const ff = ffDate.getTime();
     const left = Math.max(0, ((fi - inicioMs) / rangoTotal) * 100);
     const width = Math.max(0.5, ((ff - fi) / rangoTotal) * 100);
     return { left: `${left}%`, width: `${Math.min(width, 100 - left)}%` };
@@ -116,7 +115,7 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
   }, [accionesExpandidas, subaccionesPorAccion]);
 
   // ─── Formatear fecha para tooltip ────────────────────────────
-  const fmtFecha = (f) => f ? new Date(f).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+  const fmtFecha = (f) => formatFecha(f) || '—';
 
   // ─── Componente de fila de barra ─────────────────────────────
   function FilaGantt({ nombre, fechaInicio, fechaFin, estado, porcentaje, nivel, tieneHijos, estaExpandida, onToggle, esHito }) {
@@ -195,6 +194,11 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
               )}
             </div>
           )}
+          {!barra && (
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-300 italic">
+              Sin fechas capturadas
+            </span>
+          )}
         </div>
       </div>
     );
@@ -261,8 +265,8 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
                   <div key={accion.id}>
                     <FilaGantt
                       nombre={accion.nombre}
-                      fechaInicio={accion.fecha_inicio}
-                      fechaFin={accion.fecha_fin}
+                      fechaInicio={accion.fecha_inicio_efectiva || accion.fecha_inicio}
+                      fechaFin={accion.fecha_fin_efectiva || accion.fecha_fin}
                       estado={accion.estado}
                       porcentaje={accion.porcentaje_avance}
                       nivel={1}
@@ -277,8 +281,8 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
                       <FilaGantt
                         key={sub.id}
                         nombre={sub.nombre}
-                        fechaInicio={sub.fecha_inicio}
-                        fechaFin={sub.fecha_fin}
+                        fechaInicio={sub.fecha_inicio_efectiva || sub.fecha_inicio}
+                        fechaFin={sub.fecha_fin_efectiva || sub.fecha_fin}
                         estado={sub.estado}
                         porcentaje={sub.porcentaje_avance}
                         nivel={2}

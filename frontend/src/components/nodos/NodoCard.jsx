@@ -27,6 +27,7 @@ import SeccionArchivosNodo from './SeccionArchivosNodo';
 import HiloComentarios from '../comentarios/HiloComentarios';
 import PanelRiesgos from '../riesgos/PanelRiesgos';
 import CampoFecha from '../common/CampoFecha';
+import { formatFecha, diasRestantes } from '../../utils/fecha';
 
 const SEM = { verde: '#22c55e', ambar: '#f59e0b', rojo: '#ef4444', gris: '#9ca3af' };
 const TIPO_LABEL = { etapa: 'Etapa', accion: 'Acción', tarea: 'Tarea' };
@@ -44,18 +45,10 @@ function Iniciales({ nombre }) {
   );
 }
 
-function diasRestantes(fecha) {
-  if (!fecha) return null;
-  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
-  const [y, m, d] = String(fecha).slice(0, 10).split('-').map(Number);
-  if (!y) return null;
-  return Math.ceil((new Date(y, m - 1, d) - hoy) / 86400000);
-}
-
 function ChipFecha({ fecha, completado }) {
   if (!fecha) return <span className="text-[10px] text-gray-300">Sin fecha</span>;
   const d = diasRestantes(fecha);
-  const label = new Date(fecha).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+  const label = formatFecha(fecha, { day: '2-digit', month: 'short' });
   if (completado) return <span className="text-[10px] text-gray-400">{label}</span>;
   const cls = d < 0 ? 'bg-red-100 text-red-700' : d <= 7 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500';
   return <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${cls}`}>{label}{d < 0 ? ` (-${Math.abs(d)}d)` : ''}</span>;
@@ -451,7 +444,7 @@ export default function NodoCard({
               // (ver recalcularEtapa) — mostrarla editable sería engañoso.
               <span className="flex items-center gap-1" title="Se calcula automáticamente como la fecha de inicio más temprana entre sus acciones">
                 <Lock size={10} />
-                Inicia: <strong className="text-gray-500">{nodo.fecha_inicio ? new Date(nodo.fecha_inicio).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Sin definir'}</strong>
+                Inicia: <strong className="text-gray-500">{formatFecha(nodo.fecha_inicio) || 'Sin definir'}</strong>
               </span>
             ) : editandoFechaInicio ? (
               <span className="flex items-center gap-1">
@@ -470,7 +463,7 @@ export default function NodoCard({
                 className={!soloLectura ? 'cursor-pointer hover:text-guinda-600' : ''}
                 title={!soloLectura ? 'Clic para editar' : undefined}
               >
-                Inicia: <strong className="text-gray-600">{nodo.fecha_inicio ? new Date(nodo.fecha_inicio).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Sin fecha'}</strong>
+                Inicia: <strong className="text-gray-600">{formatFecha(nodo.fecha_inicio) || 'Sin fecha'}</strong>
               </span>
             )}
             {editandoFecha ? (
@@ -490,7 +483,7 @@ export default function NodoCard({
                 className={!soloLectura ? 'cursor-pointer hover:text-guinda-600' : ''}
                 title={!soloLectura ? 'Clic para editar' : undefined}
               >
-                Vence: <strong className="text-gray-600">{fecha ? new Date(fecha).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Sin fecha'}</strong>
+                Vence: <strong className="text-gray-600">{formatFecha(fecha) || 'Sin fecha'}</strong>
               </span>
             )}
             {nodo.responsable_nombre && <span>Responsable: <strong className="text-gray-600">{nodo.responsable_nombre}</strong>{nodo.dg_siglas ? ` (${nodo.dg_siglas})` : ''}</span>}

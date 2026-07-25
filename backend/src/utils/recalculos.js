@@ -55,8 +55,25 @@ async function recalcularEtapa(etapaId, client) {
     const suma = acciones.reduce((total, a) => total + parseFloat(a.porcentaje_avance || 0), 0);
     const promedio = Math.round(suma / acciones.length);
     const estadoEtapa = derivarEstadoContenedor(acciones.map(a => a.estado));
-    const fechaInicio = acciones.map(a => a.fecha_inicio).filter(Boolean).sort()[0] || null;
-    const fechaFin = acciones.map(a => a.fecha_fin).filter(Boolean).sort().reverse()[0] || null;
+
+    // Fechas: se agregan desde TODA la profundidad (acciones, subacciones y
+    // tareas), no solo las acciones de primer nivel — muchos equipos
+    // capturan fecha_inicio/fecha_fin hasta el nivel de tarea y nunca en la
+    // acción contenedora; si solo mirábamos acciones directas, la etapa se
+    // quedaba sin fechas (y por lo tanto sin barra en el Cronograma) aunque
+    // sus tareas sí las tuvieran.
+    const { rows: [rangoFechas] } = await db.query(`
+      SELECT MIN(fi) AS fecha_inicio, MAX(ff) AS fecha_fin FROM (
+        SELECT fecha_inicio AS fi, fecha_fin AS ff FROM acciones
+          WHERE id_etapa = $1 AND estado != 'Cancelada'
+        UNION ALL
+        SELECT t.fecha_inicio, t.fecha_limite FROM tareas t
+          JOIN acciones a ON a.id = t.id_accion
+          WHERE a.id_etapa = $1 AND t.estado != 'Cancelada'
+      ) todas
+    `, [etapaId]);
+    const fechaInicio = rangoFechas?.fecha_inicio || null;
+    const fechaFin = rangoFechas?.fecha_fin || null;
 
     if (!etapaMeta?.semaforo_override) {
       const sem = calcularSemaforo(estadoEtapa, etapaMeta?.fecha_limite, etapaMeta?.prioridad);

@@ -13,6 +13,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import EstadoChip from '../common/EstadoChip';
+import { formatFecha } from '../../utils/fecha';
 import { AlertTriangle, Shield, User, Calendar } from 'lucide-react';
 
 const bordePorNivel = {
@@ -78,7 +79,7 @@ export default function RiesgoCard({ riesgo, compacto = false }) {
         {riesgo.fecha_limite_resolucion && (
           <div className="flex items-center gap-1">
             <Calendar size={12} />
-            {new Date(riesgo.fecha_limite_resolucion).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
+            {formatFecha(riesgo.fecha_limite_resolucion, { day: '2-digit', month: 'short' })}
           </div>
         )}
         <span className="text-xs px-1.5 py-0.5 bg-gray-100 rounded">{riesgo.tipo}</span>

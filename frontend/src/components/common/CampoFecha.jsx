@@ -5,12 +5,14 @@
  *            de nodo (NodoCard), para que ambos editen el mismo campo con
  *            la misma UI.
  */
+import { formatFecha } from '../../utils/fecha';
+
 export default function CampoFecha({ label, valor, onChange, soloLectura }) {
   if (soloLectura) {
     return (
       <div>
         {label && <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">{label}</span>}
-        <span className="text-xs text-gray-700">{valor ? new Date(valor).toLocaleDateString('es-MX') : '—'}</span>
+        <span className="text-xs text-gray-700">{formatFecha(valor) || '—'}</span>
       </div>
     );
   }

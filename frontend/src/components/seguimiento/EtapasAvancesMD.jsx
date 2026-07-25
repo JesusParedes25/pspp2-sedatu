@@ -24,6 +24,7 @@ import FilePreviewModal from '../evidencias/FilePreviewModal';
 import NodoCard from '../nodos/NodoCard';
 import ActividadStream from '../nodos/ActividadStream';
 import CampoFecha from '../common/CampoFecha';
+import { formatFecha } from '../../utils/fecha';
 import { useUI } from '../../context/UIContext';
 
 // ─── Constantes ────────────────────────────────────────────────
@@ -932,7 +933,7 @@ function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast,
                 <div className="flex items-center gap-1.5">
                   <Lock size={10} className="text-gray-400" />
                   <span className="text-xs text-gray-500">
-                    {data.fecha_inicio ? new Date(data.fecha_inicio).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Sin definir'}
+                    {formatFecha(data.fecha_inicio) || 'Sin definir'}
                   </span>
                   <span title={tooltipFechaInicio} className="w-3.5 h-3.5 rounded-full border border-gray-300 text-[9px] text-gray-400 flex items-center justify-center cursor-help font-bold flex-shrink-0">?</span>
                 </div>

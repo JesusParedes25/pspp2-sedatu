@@ -14,6 +14,7 @@
  */
 import { useState, useMemo } from 'react';
 import { calcularColorSemaforo } from '../../utils/semaforoColor';
+import { formatFecha, estaVencida } from '../../utils/fecha';
 import { ChevronDown, Plus, AlertTriangle, Trash2, ListOrdered, CalendarClock, Flag, BarChart3, Pencil, SlidersHorizontal } from 'lucide-react';
 import PanelAccionInline from './PanelAccionInline';
 import HiloComentarios from '../comentarios/HiloComentarios';
@@ -71,7 +72,7 @@ export default function EtapaCard({ etapa, proyecto, etapas = [], soloLectura = 
 
 
   const periodo = etapa.fecha_inicio && etapa.fecha_fin
-    ? `${new Date(etapa.fecha_inicio).toLocaleDateString('es-MX', { month: 'short', year: 'numeric' })} — ${new Date(etapa.fecha_fin).toLocaleDateString('es-MX', { month: 'short', year: 'numeric' })}`
+    ? `${formatFecha(etapa.fecha_inicio, { month: 'short', year: 'numeric' })} — ${formatFecha(etapa.fecha_fin, { month: 'short', year: 'numeric' })}`
     : null;
 
   return (
@@ -159,7 +160,7 @@ export default function EtapaCard({ etapa, proyecto, etapas = [], soloLectura = 
                     <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-blue-50 text-blue-700 border border-blue-200">{etapa.instancia_responsable}</span>
                   )}
                   {etapa.fecha_limite && (
-                    <span className="text-[10px] text-gray-500">Límite: {new Date(etapa.fecha_limite).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                    <span className="text-[10px] text-gray-500">Límite: {formatFecha(etapa.fecha_limite)}</span>
                   )}
                 </div>
               )}
@@ -260,8 +261,7 @@ export default function EtapaCard({ etapa, proyecto, etapas = [], soloLectura = 
                 const cfg = ESTADO_CONFIG_FICHA[accion.estado] || ESTADO_CONFIG_FICHA.Pendiente;
                 const pct = parseFloat(accion.porcentaje_avance || 0);
                 const abierta = accionExpandida === accion.id;
-                const ahora = new Date();
-                const vencida = accion.fecha_fin && new Date(accion.fecha_fin) < ahora
+                const vencida = estaVencida(accion.fecha_fin)
                   && !['Completada','Cancelada'].includes(accion.estado);
                 return (
                   <div key={accion.id} className={`border-b border-gray-100 last:border-0 ${
@@ -314,7 +314,7 @@ export default function EtapaCard({ etapa, proyecto, etapas = [], soloLectura = 
                           <span className={`text-[10px] tabular-nums w-16 text-right ${
                             vencida ? 'text-red-400 font-semibold' : 'text-gray-300'
                           }`}>
-                            {new Date(accion.fecha_fin).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
+                            {formatFecha(accion.fecha_fin, { day: '2-digit', month: 'short' })}
                           </span>
                         )}
                         {/* Chevron */}

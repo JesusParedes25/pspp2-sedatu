@@ -9,6 +9,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import client from '../api/client';
 import * as evidenciasApi from '../api/evidencias';
+import { formatFecha, estaVencida } from './fecha';
 
 // ─── Paleta institucional ──────────────────────────────────────
 const C = {
@@ -27,7 +28,7 @@ const C = {
 };
 
 // ─── Helpers ───────────────────────────────────────────────────
-const fmtDate  = d => d ? new Date(d).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' }) : '—';
+const fmtDate  = d => formatFecha(d) || '—';
 const fmtPct   = v => `${Math.round(parseFloat(v) || 0)}%`;
 const limita   = (s, n) => s ? (s.length > n ? s.slice(0, n) + '…' : s) : '—';
 const estadoStr = e => (e || 'Pendiente').replace(/_/g, ' ');
@@ -413,7 +414,7 @@ function paginaPendientes(doc, proyecto, etapas, paginaNum, totalPaginas) {
 
   const todos = aplanarArbol(etapas);
   const pendientes = todos.filter(n => n.estado === 'Pendiente' || n.estado === 'En_proceso');
-  const vencidas = pendientes.filter(n => n.fecha_limite && new Date(n.fecha_limite) < new Date());
+  const vencidas = pendientes.filter(n => estaVencida(n.fecha_limite));
 
   y = seccionTitulo(doc, `Pendientes y en proceso (${pendientes.length} nodos)`, y);
 
@@ -432,7 +433,7 @@ function paginaPendientes(doc, proyecto, etapas, paginaNum, totalPaginas) {
       .sort((a, b) => (a.fecha_limite || '9999') < (b.fecha_limite || '9999') ? -1 : 1)
       .map(n => {
         const pct = Math.round(parseFloat(n.avance_actual ?? n.porcentaje_calculado) || 0);
-        const vencida = n.fecha_limite && new Date(n.fecha_limite) < new Date();
+        const vencida = estaVencida(n.fecha_limite);
         return [
           nivelStr(n.tipo),
           limita(n.nombre || '—', 55),

@@ -18,6 +18,7 @@ import { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Lock, Paperclip, MessageSquare, Calendar, User, AlertCircle } from 'lucide-react';
 import { calcularColorSemaforo } from '../../utils/semaforoColor';
+import { formatFecha, diasRestantes } from '../../utils/fecha';
 
 // ── Config por estado ────────────────────────────────────────────
 const ECFG = {
@@ -28,19 +29,19 @@ const ECFG = {
   Cancelada:  { bar: 'bg-gray-200',    text: 'text-gray-300',    badge: 'bg-gray-50 text-gray-400 border-gray-100',          dot: 'bg-gray-200',    label: 'Cancelada'  },
 };
 
-const fmtCorto = (f) => f ? new Date(f).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : '—';
-const fmt      = (f) => f ? new Date(f).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+const fmtCorto = (f) => formatFecha(f, { day: '2-digit', month: 'short' }) || '—';
+const fmt      = (f) => formatFecha(f) || '—';
 
 // ── Tooltip flotante de preview ──────────────────────────────────
 function TooltipAccion({ accion }) {
   const cfg  = ECFG[accion.estado] || ECFG.Pendiente;
   const pct  = parseFloat(accion.porcentaje_avance) || 0;
   const subs = Array.isArray(accion.subacciones) ? accion.subacciones : [];
-  const ahora = new Date();
-  const estaVencida     = accion.fecha_fin && new Date(accion.fecha_fin) < ahora && accion.estado !== 'Completada';
-  const diasAtraso      = estaVencida ? Math.ceil((ahora - new Date(accion.fecha_fin)) / 86400000) : null;
+  const diasRestAccion  = diasRestantes(accion.fecha_fin);
+  const estaVencida     = diasRestAccion !== null && diasRestAccion < 0 && accion.estado !== 'Completada';
+  const diasAtraso      = estaVencida ? Math.abs(diasRestAccion) : null;
   const subsCompletadas = subs.filter(s => s.estado === 'Completada').length;
-  const subsAtrasadas   = subs.filter(s => s.fecha_fin && new Date(s.fecha_fin) < ahora && s.estado !== 'Completada' && s.estado !== 'Cancelada').length;
+  const subsAtrasadas   = subs.filter(s => { const d = diasRestantes(s.fecha_fin); return d !== null && d < 0 && s.estado !== 'Completada' && s.estado !== 'Cancelada'; }).length;
   const totalComentarios = parseInt(accion.total_comentarios) || 0;
   const totalEvidencias  = parseInt(accion.total_evidencias)  || 0;
 
@@ -89,7 +90,8 @@ function TooltipAccion({ accion }) {
           <div className="space-y-1 max-h-28 overflow-y-auto">
             {subs.map(s => {
               const sCfg = ECFG[s.estado] || ECFG.Pendiente;
-              const sVencida = s.fecha_fin && new Date(s.fecha_fin) < ahora && s.estado !== 'Completada';
+              const sDiasRest = diasRestantes(s.fecha_fin);
+              const sVencida = sDiasRest !== null && sDiasRest < 0 && s.estado !== 'Completada';
               return (
                 <div key={s.id} className="flex items-center gap-1.5">
                   <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${sCfg.dot}`} />
@@ -141,9 +143,9 @@ export default function AccionFicha({ accion, numero, onClick }) {
   const esHito       = accion.tipo === 'Hito';
   const subs         = Array.isArray(accion.subacciones) ? accion.subacciones : [];
   const totalSubs    = parseInt(accion.total_subacciones) || subs.length;
-  const ahora        = new Date();
-  const estaVencida  = accion.fecha_fin && new Date(accion.fecha_fin) < ahora && !esCompletada && accion.estado !== 'Cancelada';
-  const diasAtraso   = estaVencida ? Math.ceil((ahora - new Date(accion.fecha_fin)) / 86400000) : null;
+  const diasRestAccion = diasRestantes(accion.fecha_fin);
+  const estaVencida  = diasRestAccion !== null && diasRestAccion < 0 && !esCompletada && accion.estado !== 'Cancelada';
+  const diasAtraso   = estaVencida ? Math.abs(diasRestAccion) : null;
 
   function mostrarTooltip() {
     timerRef.current = setTimeout(() => {
@@ -212,7 +214,8 @@ export default function AccionFicha({ accion, numero, onClick }) {
       {subs.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-0.5">
           {subs.slice(0, 12).map(s => {
-            const subVencida = s.fecha_fin && new Date(s.fecha_fin) < ahora && s.estado !== 'Completada' && s.estado !== 'Cancelada';
+            const sDiasRest = diasRestantes(s.fecha_fin);
+            const subVencida = sDiasRest !== null && sDiasRest < 0 && s.estado !== 'Completada' && s.estado !== 'Cancelada';
             return (
               <span key={s.id} title={s.nombre}
                 className={`w-2 h-2 rounded-full flex-shrink-0 ${

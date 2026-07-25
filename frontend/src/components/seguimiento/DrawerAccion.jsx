@@ -30,6 +30,7 @@ import * as accionesApi from '../../api/acciones';
 import * as evidenciasApi from '../../api/evidencias';
 import * as etapasApi from '../../api/etapas';
 import * as indicadoresApi from '../../api/indicadores';
+import { formatFecha, diasRestantes, estaVencida as estaVencidaFecha } from '../../utils/fecha';
 
 // ── Mapas de estado ──────────────────────────────────────────────
 const ESTADO_CONFIG = {
@@ -42,16 +43,7 @@ const ESTADO_CONFIG = {
 
 const ESTADOS_TRANSICION = ['Pendiente', 'En_proceso', 'Bloqueada', 'Completada', 'Cancelada'];
 
-const hoy = () => new Date(new Date().toDateString());
-
-function diasRestantes(fechaFin) {
-  if (!fechaFin) return null;
-  const fin = new Date(new Date(fechaFin).toDateString());
-  return Math.round((fin - hoy()) / 86400000);
-}
-
-const formatearFecha = (f) =>
-  f ? new Date(f).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+const formatearFecha = (f) => formatFecha(f) || '';
 
 // ── Badge de urgencia para una subacción ─────────────────────────
 function BadgeUrgencia({ sub }) {
@@ -111,7 +103,7 @@ export default function DrawerAccion({ accion, soloLectura, onCerrar, onActualiz
   const fileRef = useRef(null);
 
   const estaVencida = !['Completada', 'Cancelada'].includes(accion.estado)
-    && accion.fecha_fin && new Date(new Date(accion.fecha_fin).toDateString()) < hoy();
+    && estaVencidaFecha(accion.fecha_fin);
   const cfg = ESTADO_CONFIG[accion.estado] || ESTADO_CONFIG.Pendiente;
   const pct = parseFloat(accion.porcentaje_avance || 0);
 

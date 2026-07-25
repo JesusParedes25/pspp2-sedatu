@@ -44,6 +44,18 @@ function ukey(it){
   if(it.estado==='Completada'||it.estado==='Cancelada')return'gris';
   const d=diff(it.fecha_fin);return d===null?'gris':d<0?'rojo':d===0?'naranja':d<=7?'ambar':'azul';
 }
+// true si el día "str" (YYYY-MM-DD) cae dentro del rango [fecha_inicio, fecha_fin]
+// de la actividad — así aparece en todos los días que dura, no solo al vencer.
+function enRango(it,str){
+  if(!str||!it.fecha_fin)return false;
+  const ini=it.fecha_inicio||it.fecha_fin;
+  return str>=ini&&str<=it.fecha_fin;
+}
+function duracionDias(it){
+  const ini=pFecha(it.fecha_inicio),fin=pFecha(it.fecha_fin);
+  if(!ini||!fin||fin<ini)return null;
+  return Math.round((fin-ini)/86400000)+1;
+}
 
 export default function Agenda(){
   const[items,setItems]=useState([]);
@@ -56,7 +68,7 @@ export default function Agenda(){
   const[q,setQ]=useState('');
 
   useEffect(()=>{
-    accionesApi.obtenerAgenda().then(r=>setItems((r.datos||[]).map(i=>({...i,fecha_fin:norm(i.fecha_fin)})))).catch(console.error).finally(()=>setLoad(false));
+    accionesApi.obtenerAgenda().then(r=>setItems((r.datos||[]).map(i=>({...i,fecha_fin:norm(i.fecha_fin),fecha_inicio:norm(i.fecha_inicio)})))).catch(console.error).finally(()=>setLoad(false));
   },[]);
 
   const filtrados=useMemo(()=>items.filter(it=>{
@@ -91,12 +103,12 @@ export default function Agenda(){
     let off=ini.getDay()-1;if(off<0)off=6;
     const ds=[];
     for(let i=off-1;i>=0;i--)ds.push({fecha:new Date(a,m,-i),esMes:false,str:null,items:[]});
-    for(let d=1;d<=fin.getDate();d++){const str=`${a}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;ds.push({fecha:new Date(a,m,d),esMes:true,str,items:filtrados.filter(i=>i.fecha_fin===str)});}
+    for(let d=1;d<=fin.getDate();d++){const str=`${a}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;ds.push({fecha:new Date(a,m,d),esMes:true,str,items:filtrados.filter(i=>enRango(i,str))});}
     let ex=1;while(ds.length%7!==0)ds.push({fecha:new Date(a,m+1,ex++),esMes:false,str:null,items:[]});
     return ds;
   },[mes,filtrados]);
 
-  const itemsDia=useMemo(()=>dia?filtrados.filter(i=>i.fecha_fin===dia):[],[dia,filtrados]);
+  const itemsDia=useMemo(()=>dia?filtrados.filter(i=>enRango(i,dia)):[],[dia,filtrados]);
   const hasFiltros=ftipo!=='todos'||festado!=='todos'||!!q;
 
   if(load)return(<div className="space-y-4 animate-pulse"><div className="h-8 bg-gray-200 rounded w-1/3"/>{[1,2,3].map(i=><div key={i} className="h-14 bg-gray-200 rounded"/>)}</div>);
@@ -106,6 +118,30 @@ export default function Agenda(){
     <div className="flex flex-wrap gap-2 items-center"><div className="relative min-w-44 max-w-56 flex-1"><Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"/><input type="text" value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar actividades..." className="w-full pl-7 pr-7 py-1.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-guinda-300"/>{q&&<button onClick={()=>setQ('')} className="absolute right-2 top-1/2 -translate-y-1/2"><X size={12} className="text-gray-400"/></button>}</div><div className="flex gap-0.5 bg-white border border-gray-200 rounded-lg p-0.5">{[['todos','Todos'],['etapa','Etapas'],['accion','Acciones'],['tarea','Tareas']].map(([v,l])=>(<button key={v} onClick={()=>setFtipo(v)} className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${ftipo===v?'bg-guinda-500 text-white':'text-gray-500 hover:bg-gray-50'}`}>{l}</button>))}</div><select value={festado} onChange={e=>setFestado(e.target.value)} className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-guinda-300"><option value="todos">Todos los estados</option><option value="Pendiente">Pendiente</option><option value="En_proceso">En proceso</option><option value="Bloqueada">Bloqueada</option><option value="Completada">Completada</option><option value="Cancelada">Cancelada</option></select>{hasFiltros&&<button onClick={()=>{setFtipo('todos');setFestado('todos');setQ('');}} className="text-xs text-guinda-600 hover:text-guinda-800 font-medium flex items-center gap-1"><X size={12}/>Limpiar</button>}</div>
     {filtrados.length===0?(<EmptyState icono={CalendarDays} titulo={items.length===0?'Sin actividades programadas':'Sin resultados'} subtitulo={items.length===0?'No tienes actividades con fecha asignada.':'Ajusta los filtros para ver mas actividades.'}/>):vista==='lista'?(<VistaLista grupos={grupos}/>):(<VistaCalendario diasCal={diasCal} mes={mes} setMes={setMes} dia={dia} setDia={setDia} itemsDia={itemsDia}/>)}
   </div>);
+}
+// Barra compacta de rango (estilo Google Calendar) — solo si la actividad
+// dura más de un día. Muestra inicio, fin, duración y un marcador de "hoy"
+// cuando cae dentro del rango.
+function BarraRango({it}){
+  const dias=duracionDias(it);
+  if(!dias||dias<=1)return null;
+  const ini=pFecha(it.fecha_inicio),fin=pFecha(it.fecha_fin);
+  const hoy=new Date();hoy.setHours(0,0,0,0);
+  const total=fin-ini;
+  const hoyEnRango=hoy>=ini&&hoy<=fin;
+  const hoyPct=hoyEnRango&&total>0?((hoy-ini)/total)*100:null;
+  return(
+    <div className="mt-2">
+      <div className="relative h-1.5 bg-guinda-100 rounded-full overflow-hidden">
+        {hoyPct!==null&&<div className="absolute top-1/2 -translate-y-1/2 w-1 h-3 bg-guinda-600 rounded-full z-10" style={{left:`${hoyPct}%`}} title="Hoy"/>}
+      </div>
+      <div className="flex items-center justify-between mt-0.5 text-[9px] text-gray-400">
+        <span>{fmt(it.fecha_inicio)}</span>
+        <span className="font-medium text-guinda-500">{dias} día{dias!==1?'s':''}</span>
+        <span>{fmt(it.fecha_fin)}</span>
+      </div>
+    </div>
+  );
 }
 function Item({it}){
   const cfg=TIPO[it.tipo]||TIPO.accion;const d=diff(it.fecha_fin);
@@ -128,6 +164,7 @@ function Item({it}){
           <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden"><div style={{width:`${it.avance_actual||0}%`}} className={`h-full rounded-full ${it.estado==='Completada'?'bg-green-500':it.semaforo==='rojo'?'bg-red-400':it.semaforo==='ambar'?'bg-amber-400':'bg-guinda-400'}`}/></div>
           <span className="text-xs text-gray-500 w-8 text-right">{it.avance_actual||0}%</span>
         </div>
+        <BarraRango it={it}/>
         {it.mi_rol==='coordinador'&&it.responsable_nombre&&<div className="flex items-center gap-1 mt-1.5 text-xs text-gray-500"><User size={10} className="text-purple-400"/><span>{it.responsable_nombre}</span></div>}
       </div>
       <div className="flex flex-col items-end gap-1 flex-shrink-0 ml-1">

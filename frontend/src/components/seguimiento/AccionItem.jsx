@@ -21,6 +21,7 @@
  */
 import { useState, useRef } from 'react';
 import { calcularColorSemaforo } from '../../utils/semaforoColor';
+import { formatFecha, estaVencida as fechaVencida } from '../../utils/fecha';
 import { Lock, FileText, Upload, Download, Trash2, ChevronDown, Plus, Paperclip, MessageSquare } from 'lucide-react';
 import HiloComentarios from '../comentarios/HiloComentarios';
 import SubaccionItem from './SubaccionItem';
@@ -87,11 +88,11 @@ export default function AccionItem({ accion, soloLectura, expandida, onToggleExp
   const tieneSubs    = parseInt(accion.total_subacciones) > 0 || subacciones.length > 0;
   const esEditable   = !soloLectura && !esCompletada && !esCancelada;
   const pct          = parseFloat(accion.porcentaje_avance || 0);
-  const estaVencida  = !esCompletada && !esCancelada && accion.fecha_fin && new Date(accion.fecha_fin) < new Date();
+  const estaVencida  = !esCompletada && !esCancelada && fechaVencida(accion.fecha_fin);
   const totalEv      = parseInt(accion.total_evidencias) || 0;
   const totalSubs    = parseInt(accion.total_subacciones) || 0;
 
-  const formatearFecha = (f) => f ? new Date(f).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : '';
+  const formatearFecha = (f) => formatFecha(f, { day: '2-digit', month: 'short' }) || '';
 
   async function cargarEvidencias() {
     setCargandoEvidencias(true);

@@ -31,6 +31,7 @@ import * as accionesApi from '../../api/acciones';
 import * as evidenciasApi from '../../api/evidencias';
 import * as etapasApi from '../../api/etapas';
 import * as indicadoresApi from '../../api/indicadores';
+import { formatFecha, diasRestantes, estaVencida as estaVencidaFecha } from '../../utils/fecha';
 
 const ESTADO_CONFIG = {
   Completada: { etiqueta: 'Completada', icono: CheckCircle2, bg: 'bg-emerald-50', texto: 'text-emerald-600', borde: 'border-emerald-200', dot: 'bg-emerald-500', barra: 'bg-emerald-400' },
@@ -41,15 +42,7 @@ const ESTADO_CONFIG = {
 };
 
 
-const hoy = () => new Date(new Date().toDateString());
-
-function diasRestantes(fechaFin) {
-  if (!fechaFin) return null;
-  return Math.round((new Date(new Date(fechaFin).toDateString()) - hoy()) / 86400000);
-}
-
-const fmt = (f) =>
-  f ? new Date(f).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+const fmt = (f) => formatFecha(f) || '';
 
 function BadgeUrgencia({ sub }) {
   if (sub.estado === 'Completada' || sub.estado === 'Cancelada') return null;
@@ -110,7 +103,7 @@ export default function PanelAccionInline({ accion, soloLectura, onActualizado, 
   const fileRef = useRef(null);
 
   const estaVencida = !['Completada', 'Cancelada'].includes(accion.estado)
-    && accion.fecha_fin && new Date(new Date(accion.fecha_fin).toDateString()) < hoy();
+    && estaVencidaFecha(accion.fecha_fin);
   const cfg = ESTADO_CONFIG[accion.estado] || ESTADO_CONFIG.Pendiente;
   const pct = parseFloat(accion.porcentaje_avance || 0);
 

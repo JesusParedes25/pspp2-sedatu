@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { GripVertical, MapPin, AlertTriangle, Calendar } from 'lucide-react';
 import client from '../../api/client';
 import SemaforoChip from '../common/SemaforoChip';
+import { formatFecha } from '../../utils/fecha';
 
 const COLUMNAS = [
   { estado: 'Pendiente', color: 'bg-gray-100', border: 'border-gray-300', dot: 'bg-gray-400' },
@@ -135,7 +136,7 @@ export default function VistaKanban({ etapas, proyectoId, onRefresh }) {
                   {accion.fecha_fin && (
                     <span className="inline-flex items-center gap-0.5 text-[10px] text-gray-500">
                       <Calendar size={9} />
-                      {new Date(accion.fecha_fin).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
+                      {formatFecha(accion.fecha_fin, { day: '2-digit', month: 'short' })}
                     </span>
                   )}
                   {accion.porcentaje_avance > 0 && (
