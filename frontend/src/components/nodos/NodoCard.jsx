@@ -112,10 +112,9 @@ export default function NodoCard({
     if (next && actividad === null) cargarActividad();
   }
 
-  async function patch(campo, valor) {
+  async function patch(datos) {
     setGuardando(true);
     try {
-      const datos = { [campo]: valor };
       if (tipo === 'etapa') await etapasApi.patchEtapa(nodo.id, datos);
       else if (tipo === 'accion') await accionesApi.patchAccion(nodo.id, datos);
       else await tareasApi.patchTarea(nodo.id, datos);
@@ -130,12 +129,20 @@ export default function NodoCard({
 
   async function toggleChecklist() {
     if (esContenedor || soloLectura) return;
-    await patch('estado', completado ? 'Pendiente' : 'Completada');
+    await patch({ estado: completado ? 'Pendiente' : 'Completada' });
   }
 
   async function guardarAvance() {
     if (avanceTemp === null) return;
-    await patch('avance_actual', avanceTemp);
+    // El backend solo acepta editar avance_actual cuando el nodo está
+    // En_proceso — si todavía está Pendiente, se envía el cambio de
+    // estado en la MISMA petición para que el avance sí se guarde
+    // (antes se enviaba avance_actual solo y el backend lo ignoraba
+    // silenciosamente, terminando en "No se proporcionaron campos
+    // para actualizar").
+    const datos = { avance_actual: avanceTemp };
+    if (nodo.estado !== 'En_proceso') datos.estado = 'En_proceso';
+    await patch(datos);
     setModo(null);
   }
 
@@ -273,7 +280,7 @@ export default function NodoCard({
               </span>
             ) : (
               <>
-                <button disabled={soloLectura} onClick={() => { setModo(modo === 'avance' ? null : 'avance'); setAvanceTemp(avance); }}
+                <button disabled={soloLectura || completado} onClick={() => { setModo(modo === 'avance' ? null : 'avance'); setAvanceTemp(avance); }}
                   className={`text-[11px] font-medium px-2.5 py-1.5 rounded-lg border disabled:opacity-40 ${modo === 'avance' ? 'border-guinda-400 bg-guinda-50 text-guinda-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
                   Registrar avance
                 </button>
@@ -432,7 +439,7 @@ export default function NodoCard({
           {seccion === 'territorio' && (
             <div className="bg-gray-50 rounded-lg p-2.5">
               <TerritorioSelector data={nodo} soloLectura={soloLectura} soportarZM={tipo !== 'tarea'}
-                onGuardar={(campo, valor) => patch(campo, valor)} />
+                onGuardar={(campo, valor) => patch({ [campo]: valor })} />
             </div>
           )}
 
@@ -452,7 +459,7 @@ export default function NodoCard({
                 <span className="w-32">
                   <CampoFecha
                     valor={nodo.fecha_inicio ? String(nodo.fecha_inicio).slice(0, 10) : ''}
-                    onChange={v => patch('fecha_inicio', v || null).then(() => setEditandoFechaInicio(false))}
+                    onChange={v => patch({ fecha_inicio: v || null }).then(() => setEditandoFechaInicio(false))}
                   />
                 </span>
                 <button onClick={() => setEditandoFechaInicio(false)} className="text-gray-400 hover:text-gray-600"><X size={11} /></button>
@@ -472,7 +479,7 @@ export default function NodoCard({
                 <span className="w-32">
                   <CampoFecha
                     valor={fecha ? String(fecha).slice(0, 10) : ''}
-                    onChange={v => patch('fecha_limite', v || null).then(() => setEditandoFecha(false))}
+                    onChange={v => patch({ fecha_limite: v || null }).then(() => setEditandoFecha(false))}
                   />
                 </span>
                 <button onClick={() => setEditandoFecha(false)} className="text-gray-400 hover:text-gray-600"><X size={11} /></button>
