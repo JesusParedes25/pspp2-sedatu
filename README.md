@@ -123,6 +123,13 @@ sudo nginx -t && sudo systemctl reload nginx
 | MinIO bucket no existe      | Se crea automáticamente en el seed; o crear manualmente en :9001 |
 | GeoServer sin capas         | Módulo cartográfico es segunda fase (TODO)                      |
 | Token JWT expirado          | Hacer login nuevamente; ajustar `JWT_EXPIRES_IN` en `.env`      |
+| Tras reconstruir el backend, login falla o no cargan proyectos (sin errores en `docker logs pspp-backend`) | Nginx quedó apuntando a la IP interna vieja del contenedor recreado. Reiniciar Nginx: `docker compose -f docker-compose.prod.yml restart nginx` |
+
+⚠️ **Regla importante**: cada vez que se reconstruye `backend` (o `frontend`) con `--build`, Docker le asigna una IP interna nueva al contenedor. Nginx no se entera solo — hay que reiniciarlo también o seguirá intentando hablar con el contenedor viejo (login y toda la API dejan de responder, sin ningún error visible en los logs del backend). Por eso, después de cualquier rebuild:
+```bash
+docker compose -f docker-compose.prod.yml up --build -d backend   # o frontend/frontend-build
+docker compose -f docker-compose.prod.yml restart nginx
+```
 
 ## Backups (producción)
 
