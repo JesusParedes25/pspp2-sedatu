@@ -397,6 +397,21 @@ async function patchAvanceSemaforo(req, res, next) {
   }
 }
 
+// Las tareas son siempre nodos hoja (nunca tienen hijos), así que su avance
+// y semáforo "efectivos" se calculan igual que para una acción-hoja en
+// avanceSemaforo.calcularAvanceEfectivoAccion — sin necesidad de consultar
+// la BD de nuevo para verificar hijos que sabemos que no existen. Antes de
+// este fix, obtenerArbol nunca calculaba estos campos para tareas y el
+// árbol lateral (EtapasAvancesMD) siempre mostraba 0%, porque tareas ni
+// siquiera tiene la columna porcentaje_avance a la que cae el frontend
+// como respaldo cuando falta avance_efectivo.
+function agregarEfectivosTareas(tareas) {
+  for (const t of (tareas || [])) {
+    t.avance_efectivo = t.avance_actual != null ? t.avance_actual : (t.estado === 'Completada' ? 100 : 0);
+    t.semaforo_efectivo = avanceSemaforo.semaforoEfectivo(t);
+  }
+}
+
 // GET /proyectos/:id/arbol — Árbol completo con avances y semáforos calculados
 async function obtenerArbol(req, res, next) {
   try {
@@ -411,9 +426,11 @@ async function obtenerArbol(req, res, next) {
         // Agregar tareas a cada acción
         for (const acc of (nodo.acciones || [])) {
           acc.tareas = await tareasQueries.obtenerTareasPorAccion(acc.id);
+          agregarEfectivosTareas(acc.tareas);
           // También tareas para subacciones
           for (const sub of (acc.subacciones || [])) {
             sub.tareas = await tareasQueries.obtenerTareasPorAccion(sub.id);
+            agregarEfectivosTareas(sub.tareas);
           }
         }
         arbol.push(nodo);
