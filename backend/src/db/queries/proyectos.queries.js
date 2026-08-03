@@ -156,6 +156,16 @@ async function crearProyecto(datos, creadorId) {
       VALUES ($1, $2, $3, 'Lider', $4)
     `, [proyecto.id, emptyToNull(datos.id_dg_lider), emptyToNull(datos.id_direccion_area_lider), creadorId]);
 
+    // El creador queda como 'responsable' en proyecto_usuarios: es lo que
+    // usan los checks de permisos (puedeInvitar/puedeGestionar) para decidir
+    // si puede agregar a otros colaboradores. Sin esta fila, el creador no
+    // podía invitar a nadie a su propio proyecto.
+    await client.query(`
+      INSERT INTO proyecto_usuarios (id_proyecto, id_usuario, rol, aceptado_en)
+      VALUES ($1, $2, 'responsable', NOW())
+      ON CONFLICT (id_proyecto, id_usuario) DO NOTHING
+    `, [proyecto.id, creadorId]);
+
     // Insertar indicadores si los hay
     if (tieneIndicadores) {
       for (let i = 0; i < datos.indicadores.length; i++) {
