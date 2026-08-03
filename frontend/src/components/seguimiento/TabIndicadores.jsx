@@ -52,9 +52,8 @@ export default function TabIndicadores({ tipo, nodoId, proyectoId, soloLectura }
   const [guardando, setGuardando] = useState(null);
   const [mostrarVincular, setMostrarVincular] = useState(false);
 
-  // Las tareas no tienen ruta /tareas/:id/aportaciones en el backend;
-  // solo etapas y acciones pueden contribuir directamente a indicadores.
-  const puedeVincular = tipo !== 'tarea';
+  // Etapas, acciones y tareas pueden contribuir directamente a indicadores.
+  const puedeVincular = true;
 
   const cargar = useCallback(async () => {
     setCargando(true);

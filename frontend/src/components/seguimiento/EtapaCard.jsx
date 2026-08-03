@@ -14,7 +14,7 @@
  */
 import { useState, useMemo } from 'react';
 import { calcularColorSemaforo } from '../../utils/semaforoColor';
-import { formatFecha, estaVencida } from '../../utils/fecha';
+import { formatFecha, estaVencida, fechaFinEfectiva } from '../../utils/fecha';
 import { ChevronDown, Plus, AlertTriangle, Trash2, ListOrdered, CalendarClock, Flag, BarChart3, Pencil, SlidersHorizontal } from 'lucide-react';
 import PanelAccionInline from './PanelAccionInline';
 import HiloComentarios from '../comentarios/HiloComentarios';
@@ -62,7 +62,7 @@ export default function EtapaCard({ etapa, proyecto, etapas = [], soloLectura = 
       case 'inicio':
         return copia.sort((a, b) => new Date(a.fecha_inicio || '9999') - new Date(b.fecha_inicio || '9999'));
       case 'entrega':
-        return copia.sort((a, b) => new Date(a.fecha_fin || '9999') - new Date(b.fecha_fin || '9999'));
+        return copia.sort((a, b) => new Date(fechaFinEfectiva(a) || '9999') - new Date(fechaFinEfectiva(b) || '9999'));
       case 'avance':
         return copia.sort((a, b) => parseFloat(b.porcentaje_avance || 0) - parseFloat(a.porcentaje_avance || 0));
       default:
@@ -261,7 +261,8 @@ export default function EtapaCard({ etapa, proyecto, etapas = [], soloLectura = 
                 const cfg = ESTADO_CONFIG_FICHA[accion.estado] || ESTADO_CONFIG_FICHA.Pendiente;
                 const pct = parseFloat(accion.porcentaje_avance || 0);
                 const abierta = accionExpandida === accion.id;
-                const vencida = estaVencida(accion.fecha_fin)
+                const accionFechaFin = fechaFinEfectiva(accion);
+                const vencida = estaVencida(accionFechaFin)
                   && !['Completada','Cancelada'].includes(accion.estado);
                 return (
                   <div key={accion.id} className={`border-b border-gray-100 last:border-0 ${
@@ -304,17 +305,17 @@ export default function EtapaCard({ etapa, proyecto, etapas = [], soloLectura = 
                           </span>
                         )}
                         {/* Porcentaje */}
-                        {(() => { const sem = calcularColorSemaforo(pct, accion.fecha_inicio, accion.fecha_fin); return (
+                        {(() => { const sem = calcularColorSemaforo(pct, accion.fecha_inicio, accionFechaFin); return (
                           <span className="text-[11px] font-black tabular-nums w-9 text-right" style={{ color: sem.color }} title={sem.tooltip || undefined}>
                             {pct.toFixed(0)}%
                           </span>
                         ); })()}
                         {/* Fecha fin */}
-                        {accion.fecha_fin && (
+                        {accionFechaFin && (
                           <span className={`text-[10px] tabular-nums w-16 text-right ${
                             vencida ? 'text-red-400 font-semibold' : 'text-gray-300'
                           }`}>
-                            {formatFecha(accion.fecha_fin, { day: '2-digit', month: 'short' })}
+                            {formatFecha(accionFechaFin, { day: '2-digit', month: 'short' })}
                           </span>
                         )}
                         {/* Chevron */}

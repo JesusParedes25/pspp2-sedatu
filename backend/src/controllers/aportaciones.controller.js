@@ -12,10 +12,12 @@ async function listar(req, res, next) {
   } catch (err) { next(err); }
 }
 
-// GET /etapas/:id/aportaciones o /acciones/:id/aportaciones
+// GET /etapas/:id/aportaciones, /acciones/:id/aportaciones o /tareas/:id/aportaciones
 async function listarPorNodo(req, res, next) {
   try {
-    const tipo = req.originalUrl.includes('/etapas/') ? 'etapa' : 'accion';
+    const tipo = req.originalUrl.includes('/etapas/') ? 'etapa'
+      : req.originalUrl.includes('/tareas/') ? 'tarea'
+      : 'accion';
     const datos = await aportacionesQueries.listarPorNodo(tipo, req.params.id);
     res.json({ datos });
   } catch (err) { next(err); }
@@ -29,6 +31,7 @@ async function crear(req, res, next) {
       id_indicador: req.params.id,
       id_etapa: tipo_nodo === 'etapa' ? id_nodo : null,
       id_accion: tipo_nodo === 'accion' ? id_nodo : null,
+      id_tarea: tipo_nodo === 'tarea' ? id_nodo : null,
       aportacion: valor_aportacion ?? 0,
       modo: modo || 'proporcional',
     };

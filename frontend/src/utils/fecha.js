@@ -47,3 +47,12 @@ export function estaVencida(valor) {
   const d = diasRestantes(valor);
   return d !== null && d < 0;
 }
+
+// "Fecha fin" efectiva de una etapa/acción: fecha_limite (el campo "Vence"
+// que se edita desde la tarjeta de nodo) si existe, si no fecha_fin (columna
+// legacy, la que llenaba el importador). Mismo criterio que ya usa el resto
+// de la plataforma (semáforo, Agenda) — evita que una acción se vea "sin
+// vencer" solo porque su fecha se capturó únicamente en "Vence".
+export function fechaFinEfectiva(nodo) {
+  return nodo?.fecha_limite || nodo?.fecha_fin || null;
+}

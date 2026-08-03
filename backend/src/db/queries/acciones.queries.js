@@ -31,7 +31,7 @@ async function obtenerAccionesPorEtapa(etapaId) {
          FROM accion_municipios am JOIN geo_municipios gm ON gm.cvegeo = am.cve_mun
          WHERE am.accion_id = a.id) AS municipios,
       COALESCE(a.fecha_inicio, (SELECT MIN(t.fecha_inicio) FROM tareas t WHERE t.id_accion = a.id AND t.estado != 'Cancelada')) AS fecha_inicio_efectiva,
-      COALESCE(a.fecha_fin, (SELECT MAX(t.fecha_limite) FROM tareas t WHERE t.id_accion = a.id AND t.estado != 'Cancelada')) AS fecha_fin_efectiva
+      COALESCE(a.fecha_limite, a.fecha_fin, (SELECT MAX(t.fecha_limite) FROM tareas t WHERE t.id_accion = a.id AND t.estado != 'Cancelada')) AS fecha_fin_efectiva
     FROM acciones a
     LEFT JOIN LATERAL (
       SELECT motivo FROM bloqueos
@@ -63,7 +63,7 @@ async function obtenerSubacciones(accionPadreId) {
          FROM accion_municipios am JOIN geo_municipios gm ON gm.cvegeo = am.cve_mun
          WHERE am.accion_id = a.id) AS municipios,
       COALESCE(a.fecha_inicio, (SELECT MIN(t.fecha_inicio) FROM tareas t WHERE t.id_accion = a.id AND t.estado != 'Cancelada')) AS fecha_inicio_efectiva,
-      COALESCE(a.fecha_fin, (SELECT MAX(t.fecha_limite) FROM tareas t WHERE t.id_accion = a.id AND t.estado != 'Cancelada')) AS fecha_fin_efectiva
+      COALESCE(a.fecha_limite, a.fecha_fin, (SELECT MAX(t.fecha_limite) FROM tareas t WHERE t.id_accion = a.id AND t.estado != 'Cancelada')) AS fecha_fin_efectiva
     FROM acciones a
     LEFT JOIN LATERAL (
       SELECT motivo FROM bloqueos

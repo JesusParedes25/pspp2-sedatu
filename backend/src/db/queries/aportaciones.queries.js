@@ -9,15 +9,18 @@ async function listarPorIndicador(indicadorId) {
     SELECT ia.*,
       e.nombre AS etapa_nombre,
       a.nombre AS accion_nombre,
+      t.nombre AS tarea_nombre,
       COALESCE(
         CASE WHEN ia.id_etapa IS NOT NULL THEN COALESCE(e.avance_actual, e.porcentaje_calculado) END,
         CASE WHEN ia.id_accion IS NOT NULL THEN COALESCE(a.avance_actual, a.porcentaje_avance) END,
+        CASE WHEN ia.id_tarea IS NOT NULL THEN t.avance_actual END,
         0
       )::numeric AS avance_efectivo,
-      COALESCE(e.estado, a.estado) AS estado_nodo
+      COALESCE(e.estado, a.estado, t.estado) AS estado_nodo
     FROM indicador_aportaciones ia
     LEFT JOIN etapas e ON e.id = ia.id_etapa
     LEFT JOIN acciones a ON a.id = ia.id_accion
+    LEFT JOIN tareas t ON t.id = ia.id_tarea
     WHERE ia.id_indicador = $1
     ORDER BY ia.created_at
   `, [indicadorId]);
@@ -25,7 +28,7 @@ async function listarPorIndicador(indicadorId) {
 }
 
 async function listarPorNodo(tipo, nodoId) {
-  const col = tipo === 'etapa' ? 'id_etapa' : 'id_accion';
+  const col = tipo === 'etapa' ? 'id_etapa' : tipo === 'tarea' ? 'id_tarea' : 'id_accion';
   const res = await pool.query(`
     SELECT ia.*, i.nombre AS indicador_nombre, i.unidad, i.unidad_personalizada, i.etiqueta_unidad, i.tipo AS indicador_tipo
     FROM indicador_aportaciones ia
@@ -37,24 +40,15 @@ async function listarPorNodo(tipo, nodoId) {
 }
 
 async function crear(datos) {
-  const { id_indicador, id_etapa, id_accion, aportacion, modo } = datos;
+  const { id_indicador, id_etapa, id_accion, id_tarea, aportacion, modo } = datos;
+  const conflictCol = id_etapa ? 'id_etapa' : id_accion ? 'id_accion' : 'id_tarea';
   const res = await pool.query(`
-    INSERT INTO indicador_aportaciones (id_indicador, id_etapa, id_accion, aportacion, modo)
-    VALUES ($1, $2, $3, $4, $5)
-    ON CONFLICT (id_indicador, id_etapa) WHERE id_etapa IS NOT NULL DO UPDATE SET aportacion = $4, modo = $5
+    INSERT INTO indicador_aportaciones (id_indicador, id_etapa, id_accion, id_tarea, aportacion, modo)
+    VALUES ($1, $2, $3, $4, $5, $6)
+    ON CONFLICT (id_indicador, ${conflictCol}) WHERE ${conflictCol} IS NOT NULL
+    DO UPDATE SET aportacion = $5, modo = $6
     RETURNING *
-  `, [id_indicador, id_etapa || null, id_accion || null, aportacion || 0, modo || 'proporcional']);
-  
-  // Handle accion conflict separately since partial unique indexes need separate handling
-  if (!res.rows[0] && id_accion) {
-    const res2 = await pool.query(`
-      INSERT INTO indicador_aportaciones (id_indicador, id_etapa, id_accion, aportacion, modo)
-      VALUES ($1, $2, $3, $4, $5)
-      ON CONFLICT (id_indicador, id_accion) WHERE id_accion IS NOT NULL DO UPDATE SET aportacion = $4, modo = $5
-      RETURNING *
-    `, [id_indicador, null, id_accion, aportacion || 0, modo || 'proporcional']);
-    return res2.rows[0];
-  }
+  `, [id_indicador, id_etapa || null, id_accion || null, id_tarea || null, aportacion || 0, modo || 'proporcional']);
   return res.rows[0];
 }
 
@@ -79,7 +73,7 @@ async function eliminar(id) {
 }
 
 async function eliminarPorNodo(tipo, nodoId) {
-  const col = tipo === 'etapa' ? 'id_etapa' : 'id_accion';
+  const col = tipo === 'etapa' ? 'id_etapa' : tipo === 'tarea' ? 'id_tarea' : 'id_accion';
   await pool.query(`DELETE FROM indicador_aportaciones WHERE ${col} = $1`, [nodoId]);
 }
 
@@ -90,18 +84,20 @@ async function eliminarPorNodo(tipo, nodoId) {
 async function calcularValorRealizado(indicadorId, client = null) {
   const db = client || pool;
   const res = await db.query(`
-    SELECT ia.aportacion, ia.modo, ia.id_etapa, ia.id_accion,
+    SELECT ia.aportacion, ia.modo, ia.id_etapa, ia.id_accion, ia.id_tarea,
       COALESCE(
         CASE WHEN ia.id_etapa IS NOT NULL THEN COALESCE(e.avance_actual, e.porcentaje_calculado) END,
         CASE WHEN ia.id_accion IS NOT NULL THEN COALESCE(a.avance_actual, a.porcentaje_avance) END,
+        CASE WHEN ia.id_tarea IS NOT NULL THEN t.avance_actual END,
         0
       )::numeric AS avance,
-      COALESCE(e.estado, a.estado, 'Pendiente') AS estado,
-      COALESCE(e.fecha_limite, a.fecha_limite) AS fecha_limite,
+      COALESCE(e.estado, a.estado, t.estado, 'Pendiente') AS estado,
+      COALESCE(e.fecha_limite, a.fecha_limite, t.fecha_limite) AS fecha_limite,
       a.fecha_fin_real
     FROM indicador_aportaciones ia
     LEFT JOIN etapas e ON e.id = ia.id_etapa
     LEFT JOIN acciones a ON a.id = ia.id_accion
+    LEFT JOIN tareas t ON t.id = ia.id_tarea
     WHERE ia.id_indicador = $1
   `, [indicadorId]);
 
@@ -137,11 +133,12 @@ async function calcularValorRealizado(indicadorId, client = null) {
 async function detectarDobleConteo(indicadorId) {
   const warnings = [];
   const aportaciones = await pool.query(`
-    SELECT ia.id_etapa, ia.id_accion FROM indicador_aportaciones ia WHERE ia.id_indicador = $1
+    SELECT ia.id_etapa, ia.id_accion, ia.id_tarea FROM indicador_aportaciones ia WHERE ia.id_indicador = $1
   `, [indicadorId]);
 
   const etapaIds = aportaciones.rows.filter(r => r.id_etapa).map(r => r.id_etapa);
   const accionIds = aportaciones.rows.filter(r => r.id_accion).map(r => r.id_accion);
+  const tareaIds = aportaciones.rows.filter(r => r.id_tarea).map(r => r.id_tarea);
 
   if (etapaIds.length > 0 && accionIds.length > 0) {
     // Check if any accion belongs to any etapa that also contributes
@@ -158,6 +155,45 @@ async function detectarDobleConteo(indicadorId) {
         mensaje: `La acción "${row.accion_nombre}" y su etapa "${row.etapa_nombre}" ambas aportan a este indicador.`,
         id_etapa: row.id_etapa,
         id_accion: row.id_accion
+      });
+    }
+  }
+
+  if (accionIds.length > 0 && tareaIds.length > 0) {
+    // Check if any tarea belongs to any accion that also contributes
+    const overlap = await pool.query(`
+      SELECT t.id AS id_tarea, t.nombre AS tarea_nombre, a.id AS id_accion, a.nombre AS accion_nombre
+      FROM tareas t
+      JOIN acciones a ON a.id = t.id_accion
+      WHERE t.id = ANY($1) AND a.id = ANY($2)
+    `, [tareaIds, accionIds]);
+
+    for (const row of overlap.rows) {
+      warnings.push({
+        tipo: 'doble_conteo',
+        mensaje: `La tarea "${row.tarea_nombre}" y su acción "${row.accion_nombre}" ambas aportan a este indicador.`,
+        id_accion: row.id_accion,
+        id_tarea: row.id_tarea
+      });
+    }
+  }
+
+  if (etapaIds.length > 0 && tareaIds.length > 0) {
+    // Check if any tarea belongs (via su acción) a alguna etapa que también aporta
+    const overlap = await pool.query(`
+      SELECT t.id AS id_tarea, t.nombre AS tarea_nombre, e.id AS id_etapa, e.nombre AS etapa_nombre
+      FROM tareas t
+      JOIN acciones a ON a.id = t.id_accion
+      JOIN etapas e ON e.id = a.id_etapa
+      WHERE t.id = ANY($1) AND e.id = ANY($2)
+    `, [tareaIds, etapaIds]);
+
+    for (const row of overlap.rows) {
+      warnings.push({
+        tipo: 'doble_conteo',
+        mensaje: `La tarea "${row.tarea_nombre}" y su etapa "${row.etapa_nombre}" ambas aportan a este indicador.`,
+        id_etapa: row.id_etapa,
+        id_tarea: row.id_tarea
       });
     }
   }

@@ -154,6 +154,7 @@ router.patch('/aportaciones/:id', aportacionesController.actualizar);
 router.delete('/aportaciones/:id', aportacionesController.eliminar);
 router.get('/etapas/:id/aportaciones', aportacionesController.listarPorNodo);
 router.get('/acciones/:id/aportaciones', aportacionesController.listarPorNodo);
+router.get('/tareas/:id/aportaciones', aportacionesController.listarPorNodo);
 
 // Indicadores con valor realizado (dashboard-ready)
 router.get('/proyectos/:id/indicadores/resumen', indicadoresController.resumenConValores);

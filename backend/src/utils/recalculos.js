@@ -62,9 +62,13 @@ async function recalcularEtapa(etapaId, client) {
     // acción contenedora; si solo mirábamos acciones directas, la etapa se
     // quedaba sin fechas (y por lo tanto sin barra en el Cronograma) aunque
     // sus tareas sí las tuvieran.
+    // "fin" de una acción = fecha_limite (el campo "Vence" que se edita desde
+    // la tarjeta) si existe, si no fecha_fin (columna legacy) — mismo criterio
+    // que ya usa el resto de la app (semáforo, etc.) para no quedarnos sin
+    // fecha cuando el usuario solo capturó "Vence".
     const { rows: [rangoFechas] } = await db.query(`
       SELECT MIN(fi) AS fecha_inicio, MAX(ff) AS fecha_fin FROM (
-        SELECT fecha_inicio AS fi, fecha_fin AS ff FROM acciones
+        SELECT fecha_inicio AS fi, COALESCE(fecha_limite, fecha_fin) AS ff FROM acciones
           WHERE id_etapa = $1 AND estado != 'Cancelada'
         UNION ALL
         SELECT t.fecha_inicio, t.fecha_limite FROM tareas t
