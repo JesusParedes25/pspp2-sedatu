@@ -80,7 +80,9 @@ async function recalcularEtapa(etapaId, client) {
     const fechaFin = rangoFechas?.fecha_fin || null;
 
     if (!etapaMeta?.semaforo_override) {
-      const sem = calcularSemaforo(estadoEtapa, etapaMeta?.fecha_limite, etapaMeta?.prioridad);
+      // Usa el fechaFin recién agregado desde los hijos (línea arriba), no el
+      // valor viejo de etapaMeta — es el mismo que se está por guardar.
+      const sem = calcularSemaforo(estadoEtapa, etapaMeta?.fecha_limite, etapaMeta?.prioridad, fechaFin);
       await db.query(`
         UPDATE etapas
         SET porcentaje_calculado = $1, estado = $2, semaforo = $3,

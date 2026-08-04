@@ -6,15 +6,22 @@ const pool = require('../db/pool');
 
 /**
  * Calcula el semáforo automático desde estatus + fecha_limite + prioridad.
+ * fecha_fin es un fallback cuando fecha_limite está vacía (mismo criterio
+ * de "fecha efectiva" que ya usa el resto de la app — fechaFinEfectiva()
+ * en el frontend, la lista de "Vencidas" del dashboard, etc.) — sin este
+ * fallback, un nodo sin fecha_limite capturada nunca podía caer en rojo/
+ * ámbar por atraso aunque su fecha_fin estuviera vencida hace semanas.
  */
-function calcularSemaforo(estado, fecha_limite, prioridad) {
-  // gris → Cancelada O (Pendiente sin fecha_limite)
+function calcularSemaforo(estado, fecha_limite, prioridad, fecha_fin) {
+  const fechaEfectiva = fecha_limite || fecha_fin || null;
+
+  // gris → Cancelada O (Pendiente sin ninguna fecha)
   if (estado === 'Cancelada') return 'gris';
-  if (estado === 'Pendiente' && !fecha_limite) return 'gris';
+  if (estado === 'Pendiente' && !fechaEfectiva) return 'gris';
 
   const ahora = new Date();
   ahora.setHours(0, 0, 0, 0);
-  const limite = fecha_limite ? new Date(fecha_limite) : null;
+  const limite = fechaEfectiva ? new Date(fechaEfectiva) : null;
   if (limite) limite.setHours(0, 0, 0, 0);
   const diasRestantes = limite ? Math.ceil((limite - ahora) / (1000 * 60 * 60 * 24)) : null;
 
@@ -123,7 +130,7 @@ async function calcularAvanceEfectivoAccion(accion, db) {
  */
 function semaforoEfectivo(nodo) {
   if (nodo.semaforo_override && nodo.semaforo) return nodo.semaforo;
-  return calcularSemaforo(nodo.estado, nodo.fecha_limite, nodo.prioridad);
+  return calcularSemaforo(nodo.estado, nodo.fecha_limite, nodo.prioridad, nodo.fecha_fin);
 }
 
 /**
@@ -179,11 +186,11 @@ async function recalcularPadres(tipo, id, db) {
       );
       const estadoEtapa = derivarEstadoContenedor(hijosEtapa.map(h => h.estado));
       const { rows: [etapaNodo] } = await conn.query(
-        'SELECT fecha_limite, prioridad, semaforo_override FROM etapas WHERE id = $1', [r.id_etapa]
+        'SELECT fecha_limite, fecha_fin, prioridad, semaforo_override FROM etapas WHERE id = $1', [r.id_etapa]
       );
       if (!etapaNodo) return;
       if (!etapaNodo.semaforo_override) {
-        const sem = calcularSemaforo(estadoEtapa, etapaNodo.fecha_limite, etapaNodo.prioridad);
+        const sem = calcularSemaforo(estadoEtapa, etapaNodo.fecha_limite, etapaNodo.prioridad, etapaNodo.fecha_fin);
         await conn.query(
           'UPDATE etapas SET porcentaje_calculado = $1, estado = $2, semaforo = $3, updated_at = NOW() WHERE id = $4',
           [avance, estadoEtapa, sem, r.id_etapa]
@@ -231,12 +238,12 @@ async function recalcularAccionContenedor(accionId, db) {
   // Nodo contenedor: deriva estado y recalcula semáforo
   const estadoDerivado = derivarEstadoContenedor(todosEstados);
   const { rows: [nodo] } = await conn.query(
-    'SELECT fecha_limite, prioridad, semaforo_override FROM acciones WHERE id = $1', [accionId]
+    'SELECT fecha_limite, fecha_fin, prioridad, semaforo_override FROM acciones WHERE id = $1', [accionId]
   );
   if (!nodo) return;
 
   if (!nodo.semaforo_override) {
-    const sem = calcularSemaforo(estadoDerivado, nodo.fecha_limite, nodo.prioridad);
+    const sem = calcularSemaforo(estadoDerivado, nodo.fecha_limite, nodo.prioridad, nodo.fecha_fin);
     await conn.query(
       'UPDATE acciones SET porcentaje_avance = $1, estado = $2, semaforo = $3, updated_at = NOW() WHERE id = $4',
       [avance, estadoDerivado, sem, accionId]
