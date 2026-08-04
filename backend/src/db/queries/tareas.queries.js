@@ -3,6 +3,7 @@
  * PROPÓSITO: Queries SQL para la tabla tareas (hijas de acciones).
  */
 const pool = require('../pool');
+const municipiosNodoQueries = require('./municipios-nodo.queries');
 
 async function obtenerTareasPorAccion(accionId) {
   const resultado = await pool.query(`
@@ -29,23 +30,60 @@ async function obtenerTareaPorId(id) {
   return resultado.rows[0] || null;
 }
 
+// Crea una tarea heredando el territorio (cve_ent + municipios) de su
+// acción padre, salvo que la tarea especifique el suyo propio.
 async function crearTarea(datos) {
-  const resultado = await pool.query(`
-    INSERT INTO tareas (nombre, id_accion, estado, prioridad, fecha_inicio, fecha_limite, id_responsable, observaciones, orden)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, (SELECT COALESCE(MAX(orden),0)+1 FROM tareas WHERE id_accion=$2)))
-    RETURNING *
-  `, [
-    datos.nombre,
-    datos.id_accion,
-    datos.estado || 'Pendiente',
-    datos.prioridad || 'Media',
-    datos.fecha_inicio || null,
-    datos.fecha_limite || null,
-    datos.id_responsable || null,
-    datos.observaciones || null,
-    datos.orden || null
-  ]);
-  return resultado.rows[0];
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rows: accionRows } = await client.query('SELECT cve_ent FROM acciones WHERE id = $1', [datos.id_accion]);
+    const cveEnt = datos.cve_ent !== undefined ? (datos.cve_ent || null) : (accionRows[0]?.cve_ent || null);
+
+    const resultado = await client.query(`
+      INSERT INTO tareas (nombre, id_accion, estado, prioridad, fecha_inicio, fecha_limite, id_responsable, observaciones, orden, cve_ent)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, (SELECT COALESCE(MAX(orden),0)+1 FROM tareas WHERE id_accion=$2)), $10)
+      RETURNING *
+    `, [
+      datos.nombre,
+      datos.id_accion,
+      datos.estado || 'Pendiente',
+      datos.prioridad || 'Media',
+      datos.fecha_inicio || null,
+      datos.fecha_limite || null,
+      datos.id_responsable || null,
+      datos.observaciones || null,
+      datos.orden || null,
+      cveEnt
+    ]);
+
+    const tarea = resultado.rows[0];
+
+    let municipios = [];
+    if (cveEnt) {
+      if (Array.isArray(datos.municipios)) {
+        municipios = [...new Set(datos.municipios.filter(Boolean))];
+      } else {
+        const heredados = await municipiosNodoQueries.obtenerMunicipiosAccion(datos.id_accion, client);
+        municipios = heredados.map(m => m.cve_mun);
+      }
+      if (municipios.length > 0) {
+        await municipiosNodoQueries.reemplazarMunicipiosTarea(client, tarea.id, municipios);
+      }
+    }
+
+    await client.query('COMMIT');
+
+    tarea.municipios = municipios.length > 0
+      ? await municipiosNodoQueries.obtenerMunicipiosTarea(tarea.id)
+      : [];
+    return tarea;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 async function actualizarTarea(id, datos) {

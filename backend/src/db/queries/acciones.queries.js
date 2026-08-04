@@ -14,6 +14,8 @@
  */
 const pool = require('../pool');
 const { recalcularEtapa, recalcularProyecto } = require('../../utils/recalculos');
+const municipiosNodoQueries = require('./municipios-nodo.queries');
+const { sincronizarCobertura } = require('./cobertura-sync.queries');
 
 // Obtiene acciones de nivel superior de una etapa (sin subacciones)
 async function obtenerAccionesPorEtapa(etapaId) {
@@ -179,16 +181,22 @@ async function crearAccionEnEtapa(etapaId, datos) {
   try {
     await client.query('BEGIN');
 
-    const etapa = await client.query('SELECT id_proyecto, id_subproyecto FROM etapas WHERE id = $1', [etapaId]);
+    const etapa = await client.query('SELECT id_proyecto, id_subproyecto, cve_ent, id_zm FROM etapas WHERE id = $1', [etapaId]);
     const proyectoId = etapa.rows[0]?.id_proyecto;
     const subproyectoId = etapa.rows[0]?.id_subproyecto;
+
+    // Heredar territorio (estado / zona metropolitana) de la etapa padre
+    // cuando la acción no especifica el suyo propio explícitamente.
+    const cveEnt = datos.cve_ent !== undefined ? emptyToNull(datos.cve_ent) : (etapa.rows[0]?.cve_ent || null);
+    const idZm   = datos.id_zm   !== undefined ? emptyToNull(datos.id_zm)   : (etapa.rows[0]?.id_zm   || null);
 
     const resultado = await client.query(`
       INSERT INTO acciones (
         nombre, descripcion, tipo, fecha_inicio, fecha_fin,
         id_etapa, id_proyecto, id_subproyecto, id_dg, id_direccion_area, id_responsable,
-        prioridad, fecha_limite, instancia_responsable, enlace_responsable, observaciones
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+        prioridad, fecha_limite, instancia_responsable, enlace_responsable, observaciones,
+        cve_ent, id_zm
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
       RETURNING *
     `, [
       datos.nombre, emptyToNull(datos.descripcion), datos.tipo || 'Accion_programada',
@@ -197,11 +205,29 @@ async function crearAccionEnEtapa(etapaId, datos) {
       emptyToNull(datos.id_dg), emptyToNull(datos.id_direccion_area), emptyToNull(datos.id_responsable),
       emptyToNull(datos.prioridad), emptyToNull(datos.fecha_limite),
       emptyToNull(datos.instancia_responsable), emptyToNull(datos.enlace_responsable),
-      emptyToNull(datos.observaciones)
+      emptyToNull(datos.observaciones),
+      cveEnt, idZm
     ]);
 
     const accion = resultado.rows[0];
     await vincularIndicadores(client, accion.id, datos.indicadores_asociados);
+
+    // Heredar también los municipios de la etapa (si aplica y no es modo ZM);
+    // la acción puede pasar su propia lista de municipios para no heredar.
+    let municipios = [];
+    if (cveEnt && !idZm) {
+      if (Array.isArray(datos.municipios)) {
+        municipios = [...new Set(datos.municipios.filter(Boolean))];
+      } else {
+        const heredados = await municipiosNodoQueries.obtenerMunicipiosEtapa(etapaId, client);
+        municipios = heredados.map(m => m.cve_mun);
+      }
+      if (municipios.length > 0) {
+        await municipiosNodoQueries.reemplazarMunicipiosAccion(client, accion.id, municipios);
+      }
+    }
+    // Espejo en cobertura_geografica, igual que hace el PATCH manual.
+    await sincronizarCobertura(client, 'accion', accion.id, cveEnt, municipios);
 
     // Leaf→container transition: clear avance override on parent etapa
     await client.query(
@@ -212,6 +238,11 @@ async function crearAccionEnEtapa(etapaId, datos) {
     await client.query('COMMIT');
     await recalcularEtapa(etapaId);
 
+    accion.cve_ent = cveEnt;
+    accion.id_zm = idZm;
+    accion.municipios = municipios.length > 0
+      ? (await municipiosNodoQueries.obtenerMunicipiosAccion(accion.id))
+      : [];
     return accion;
   } catch (err) {
     await client.query('ROLLBACK');
