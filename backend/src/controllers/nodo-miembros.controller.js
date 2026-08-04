@@ -3,6 +3,7 @@
  * PROPÓSITO: CRUD de miembros asignados a etapas y acciones específicas.
  */
 const nodoMiembrosQueries = require('../db/queries/nodo-miembros.queries');
+const { puedeGestionarNodo } = require('../utils/autorizacion');
 
 // Extrae tipo ('etapa' | 'accion') del path y el id del nodo
 function parseTipoId(req) {
@@ -36,6 +37,10 @@ async function agregar(req, res, next) {
     if (rol && !roles.includes(rol)) {
       return res.status(400).json({ error: true, mensaje: `rol debe ser uno de: ${roles.join(', ')}` });
     }
+    const permitido = await puedeGestionarNodo({ usuario: req.usuario, tipoNodo: tipo, idNodo });
+    if (!permitido) {
+      return res.status(403).json({ error: true, mensaje: 'No tienes permisos para agregar miembros a este nodo', codigo: 'FORBIDDEN' });
+    }
     const miembro = await nodoMiembrosQueries.agregarMiembro(tipo, idNodo, id_usuario, rol, req.usuario?.id);
     res.status(201).json({ datos: miembro, mensaje: 'Miembro agregado' });
   } catch (err) {
@@ -55,6 +60,10 @@ async function actualizar(req, res, next) {
     if (!rol || !roles.includes(rol)) {
       return res.status(400).json({ error: true, mensaje: `rol debe ser uno de: ${roles.join(', ')}` });
     }
+    const permitido = await puedeGestionarNodo({ usuario: req.usuario, tipoNodo: tipo, idNodo });
+    if (!permitido) {
+      return res.status(403).json({ error: true, mensaje: 'No tienes permisos para modificar miembros de este nodo', codigo: 'FORBIDDEN' });
+    }
     const miembro = await nodoMiembrosQueries.actualizarRol(tipo, idNodo, userId, rol);
     if (!miembro) return res.status(404).json({ error: true, mensaje: 'Miembro no encontrado' });
     res.json({ datos: miembro, mensaje: 'Rol actualizado' });
@@ -69,6 +78,15 @@ async function eliminar(req, res, next) {
   try {
     const { tipo, idNodo } = parseTipoId(req);
     const { userId } = req.params;
+    // Un usuario siempre puede quitarse a sí mismo del nodo; para quitar a
+    // alguien más se requiere permiso de gestión sobre el proyecto/nodo.
+    const esAutoeliminacion = req.usuario?.id === userId;
+    if (!esAutoeliminacion) {
+      const permitido = await puedeGestionarNodo({ usuario: req.usuario, tipoNodo: tipo, idNodo });
+      if (!permitido) {
+        return res.status(403).json({ error: true, mensaje: 'No tienes permisos para quitar miembros de este nodo', codigo: 'FORBIDDEN' });
+      }
+    }
     const resultado = await nodoMiembrosQueries.eliminarMiembro(tipo, idNodo, userId);
     if (!resultado) return res.status(404).json({ error: true, mensaje: 'Miembro no encontrado' });
     res.json({ datos: resultado, mensaje: 'Miembro eliminado' });

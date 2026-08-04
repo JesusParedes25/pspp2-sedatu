@@ -22,6 +22,7 @@ const municipiosNodoQueries = require('../db/queries/municipios-nodo.queries');
 const { sincronizarCobertura } = require('../db/queries/cobertura-sync.queries');
 const { recalcularIndicadoresProyecto } = require('../db/queries/indicadores.queries');
 const actividadQueries = require('../db/queries/actividad.queries');
+const { puedeGestionarNodo } = require('../utils/autorizacion');
 
 // GET /proyectos/:id/etapas — Listar etapas de un proyecto
 async function listarPorProyecto(req, res, next) {
@@ -128,6 +129,15 @@ async function actualizar(req, res, next) {
 // DELETE /etapas/:id — Eliminar una etapa
 async function eliminar(req, res, next) {
   try {
+    const permitido = await puedeGestionarNodo({ usuario: req.usuario, tipoNodo: 'etapa', idNodo: req.params.id });
+    if (!permitido) {
+      return res.status(403).json({
+        error: true,
+        mensaje: 'No tienes permisos para eliminar esta etapa',
+        codigo: 'FORBIDDEN'
+      });
+    }
+
     const resultado = await etapasQueries.eliminarEtapa(req.params.id);
 
     if (!resultado) {

@@ -18,6 +18,7 @@ import * as proyectosApi from '../../api/proyectos';
 import * as indicadoresApi from '../../api/indicadores';
 import * as etapasApi from '../../api/etapas';
 import * as accionesApi from '../../api/acciones';
+import { usePermisosProyecto } from '../../hooks/usePermisos';
 
 const TIPOS_INDICADOR = [
   { valor: 'Avance_fisico', etiqueta: 'Avance físico' },
@@ -46,6 +47,7 @@ const INDICADOR_NUEVO = () => ({
 });
 
 export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) {
+  const permisos = usePermisosProyecto(proyecto);
   const [dgs, setDgs]                       = useState([]);
   const [programas, setProgramas]           = useState([]);
   const [direccionesArea, setDireccionesArea] = useState([]);
@@ -507,8 +509,10 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
                     <span className="w-5 h-5 bg-guinda-500 text-white rounded text-[10px] font-bold flex items-center justify-center flex-shrink-0">{idx + 1}</span>
                     <span className="flex-1 text-sm font-medium text-gray-800 truncate">{et.nombre}</span>
                     <span className="text-[10px] text-gray-400">{et.total_acciones || 0} acc.</span>
-                    <button type="button" onClick={e => { e.stopPropagation(); eliminarEtapaRapida(et.id); }}
-                      className="text-gray-300 hover:text-red-500 p-0.5"><Trash2 size={13} /></button>
+                    {permisos.puedeEliminar && (
+                      <button type="button" onClick={e => { e.stopPropagation(); eliminarEtapaRapida(et.id); }}
+                        className="text-gray-300 hover:text-red-500 p-0.5"><Trash2 size={13} /></button>
+                    )}
                     <ChevronDown size={14} className={`text-gray-400 transition-transform ${etapaExpandida === et.id ? 'rotate-180' : ''}`} />
                   </div>
                   {etapaExpandida === et.id && (
@@ -520,8 +524,10 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
                           }`} />
                           <span className="flex-1 text-xs text-gray-700 truncate">{acc.nombre}</span>
                           <span className="text-[10px] text-gray-400">{parseFloat(acc.porcentaje_avance || 0).toFixed(0)}%</span>
-                          <button type="button" onClick={() => eliminarAccionRapida(acc.id, et.id)}
-                            className="text-gray-300 hover:text-red-500 p-0.5"><Trash2 size={11} /></button>
+                          {permisos.puedeEliminar && (
+                            <button type="button" onClick={() => eliminarAccionRapida(acc.id, et.id)}
+                              className="text-gray-300 hover:text-red-500 p-0.5"><Trash2 size={11} /></button>
+                          )}
                         </div>
                       ))}
                       {/* Quick-add acción */}
@@ -565,10 +571,12 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
                         acc.estado === 'Completada' ? 'bg-emerald-500' : acc.estado === 'En_proceso' ? 'bg-orange-400' : 'bg-gray-300'
                       }`} />
                       <span className="flex-1 text-xs text-gray-700 truncate">{acc.nombre}</span>
-                      <button type="button" onClick={async () => {
-                        if (!confirm('¿Eliminar esta acción directa?')) return;
-                        try { await accionesApi.eliminarAccion(acc.id); cargarAccionesDirectasModal(); } catch {}
-                      }} className="text-gray-300 hover:text-red-500 p-0.5"><Trash2 size={11} /></button>
+                      {permisos.puedeEliminar && (
+                        <button type="button" onClick={async () => {
+                          if (!confirm('¿Eliminar esta acción directa?')) return;
+                          try { await accionesApi.eliminarAccion(acc.id); cargarAccionesDirectasModal(); } catch {}
+                        }} className="text-gray-300 hover:text-red-500 p-0.5"><Trash2 size={11} /></button>
+                      )}
                     </div>
                   ))}
                 </div>

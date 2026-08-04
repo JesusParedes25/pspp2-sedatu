@@ -22,6 +22,7 @@ const municipiosNodoQueries = require('../db/queries/municipios-nodo.queries');
 const { sincronizarCobertura } = require('../db/queries/cobertura-sync.queries');
 const { recalcularIndicadoresProyecto } = require('../db/queries/indicadores.queries');
 const actividadQueries = require('../db/queries/actividad.queries');
+const { puedeGestionarNodo } = require('../utils/autorizacion');
 
 // GET /etapas/:id/acciones — Listar acciones de una etapa
 async function listarPorEtapa(req, res, next) {
@@ -153,6 +154,15 @@ async function actualizar(req, res, next) {
 // DELETE /acciones/:id — Eliminar acción
 async function eliminar(req, res, next) {
   try {
+    const permitido = await puedeGestionarNodo({ usuario: req.usuario, tipoNodo: 'accion', idNodo: req.params.id });
+    if (!permitido) {
+      return res.status(403).json({
+        error: true,
+        mensaje: 'No tienes permisos para eliminar esta acción',
+        codigo: 'FORBIDDEN'
+      });
+    }
+
     const resultado = await accionesQueries.eliminarAccion(req.params.id);
 
     if (!resultado) {
