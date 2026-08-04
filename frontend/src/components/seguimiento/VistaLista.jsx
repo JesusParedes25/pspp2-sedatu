@@ -18,12 +18,19 @@ import {
 import { ArrowUpDown, SlidersHorizontal, MapPin } from 'lucide-react';
 import client from '../../api/client';
 import SemaforoChip from '../common/SemaforoChip';
+import { formatFecha } from '../../utils/fecha';
 
 const ESTADOS_OPCIONES = ['Pendiente', 'En_proceso', 'Bloqueada', 'Completada', 'Cancelada'];
 const SEMAFORO_OPCIONES = ['verde', 'amarillo', 'naranja', 'rojo', 'gris', 'azul', 'negro'];
 
+// dd/mm/aaaa — formato compacto para columnas angostas de la tabla
+const formatFechaCorta = (valor) => formatFecha(valor, { day: '2-digit', month: '2-digit', year: 'numeric' });
+
 // ─── Celda editable ───────────────────────────────────────────
-function CeldaEditable({ getValue, row, column, table }) {
+// formatoDisplay: formatea el valor solo para la vista de solo-lectura
+// (ej. ISO → dd/mm/aaaa); el input de edición sigue usando el valor crudo,
+// que es lo que espera el backend al guardar.
+function CeldaEditable({ getValue, row, column, table, formatoDisplay }) {
   const initialValue = getValue();
   const [value, setValue] = useState(initialValue ?? '');
   const [editing, setEditing] = useState(false);
@@ -43,13 +50,14 @@ function CeldaEditable({ getValue, row, column, table }) {
   };
 
   if (!editing) {
+    const textoMostrado = value ? (formatoDisplay ? (formatoDisplay(value) || value) : value) : '';
     return (
       <div
         className="px-2 py-1 cursor-pointer hover:bg-red-50 rounded min-h-[28px] text-sm truncate"
         onClick={() => setEditing(true)}
-        title={String(value || '')}
+        title={String(textoMostrado || '')}
       >
-        {value || <span className="text-gray-300">—</span>}
+        {textoMostrado || <span className="text-gray-300">—</span>}
       </div>
     );
   }
@@ -78,6 +86,7 @@ function CeldaSelect({ getValue, row, column, table, opciones }) {
     <select
       value={value || ''}
       onChange={onChange}
+      title={value ? value.replace(/_/g, ' ') : ''}
       className="w-full px-1 py-1 text-xs border rounded bg-white cursor-pointer hover:bg-red-50"
     >
       <option value="">—</option>
@@ -217,14 +226,14 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
         header: 'Inicio',
         accessorKey: 'fecha_inicio',
         size: 110,
-        cell: CeldaEditable,
+        cell: (props) => <CeldaEditable {...props} formatoDisplay={formatFechaCorta} />,
       },
       {
         id: 'fecha_fin',
         header: 'Fin',
         accessorKey: 'fecha_fin',
         size: 110,
-        cell: CeldaEditable,
+        cell: (props) => <CeldaEditable {...props} formatoDisplay={formatFechaCorta} />,
       },
       {
         id: 'ubicacion',

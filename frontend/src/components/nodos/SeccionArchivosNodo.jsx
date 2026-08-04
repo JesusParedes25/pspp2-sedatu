@@ -96,7 +96,7 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
                   {detalleEv.url}
                 </a>
               ) : (
-                <p className="text-sm font-medium text-gray-800 truncate">{detalleEv.nombre_original || detalleEv.nombre_archivo}</p>
+                <p className="text-sm font-medium text-gray-800 truncate" title={detalleEv.nombre_original || detalleEv.nombre_archivo}>{detalleEv.nombre_original || detalleEv.nombre_archivo}</p>
               )}
             </div>
           </div>
@@ -303,7 +303,7 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
               >
                 {iconoParaTipo(ev)}
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-800 truncate group-hover:text-[#7B1C3E]">
+                  <p className="text-xs text-gray-800 truncate group-hover:text-[#7B1C3E]" title={esLink ? ev.url : (ev.nombre_original || ev.nombre_archivo)}>
                     {esLink ? ev.url : (ev.nombre_original || ev.nombre_archivo)}
                   </p>
                   <div className="flex items-center gap-2 mt-0.5">

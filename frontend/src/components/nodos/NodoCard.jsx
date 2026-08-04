@@ -64,6 +64,7 @@ function normalizar(tipo, nodo) {
 export default function NodoCard({
   tipo, nodo, proyectoId, permisos, esContenedor = false,
   breadcrumb, onProyectoClick, onCambiado, defaultAbierto = false,
+  ocultarMetadataFooter = false,
 }) {
   const [abierto, setAbierto] = useState(defaultAbierto);
   const [guardando, setGuardando] = useState(false);
@@ -243,7 +244,7 @@ export default function NodoCard({
 
         <button onClick={toggleAbierto} className="flex-1 min-w-0 flex items-center gap-2 text-left">
           <span className="text-[9px] font-semibold uppercase text-gray-400 flex-shrink-0">{TIPO_LABEL[tipo]}</span>
-          <span className={`text-sm truncate ${completado ? 'text-gray-400 line-through' : 'text-gray-800 font-medium'}`}>{nodo.nombre}</span>
+          <span className={`text-sm truncate ${completado ? 'text-gray-400 line-through' : 'text-gray-800 font-medium'}`} title={nodo.nombre}>{nodo.nombre}</span>
         </button>
 
         {nodo.responsable_nombre && <Iniciales nombre={nodo.responsable_nombre} />}
@@ -443,7 +444,14 @@ export default function NodoCard({
             </div>
           )}
 
-          {/* Row 3: metadata */}
+          {/* Row 3: metadata — se omite cuando esta tarjeta es la vista
+              "propia" de un nodo seleccionado en el panel de Seguimiento:
+              el rail de "Propiedades" al lado ya muestra estos mismos
+              datos (avance, fechas, responsable) de forma editable y con
+              contexto (ver EtapasAvancesMD.jsx). Aquí sigue siendo el
+              único resumen disponible cuando la tarjeta representa un
+              hijo en una lista, así que no se quita en ese caso. */}
+          {!ocultarMetadataFooter && (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-400 pt-1">
             <span>Avance: <strong className="text-gray-600">{avance}%</strong></span>
             {tipo === 'etapa' ? (
@@ -496,6 +504,7 @@ export default function NodoCard({
             {nodo.responsable_nombre && <span>Responsable: <strong className="text-gray-600">{nodo.responsable_nombre}</strong>{nodo.dg_siglas ? ` (${nodo.dg_siglas})` : ''}</span>}
             {territorioLabel && <span className="flex items-center gap-1"><MapPin size={10} />{territorioLabel}</span>}
           </div>
+          )}
         </div>
       )}
     </div>

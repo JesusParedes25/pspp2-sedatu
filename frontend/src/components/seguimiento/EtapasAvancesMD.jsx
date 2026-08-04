@@ -7,7 +7,7 @@ import { useSearchParams } from 'react-router-dom';
 import {
   ChevronRight, ChevronDown, Plus, Lock, Layers, Zap, ListChecks,
   FileText, AlertTriangle, MessageSquare, BarChart3, Loader2, X,
-  Upload, Link2, Trash2, Filter, Search, SlidersHorizontal, Users
+  Upload, Link2, Trash2, Filter, Search, SlidersHorizontal, Users, CheckCircle2, Info
 } from 'lucide-react';
 import * as etapasApi from '../../api/etapas';
 import * as accionesApi from '../../api/acciones';
@@ -24,7 +24,7 @@ import FilePreviewModal from '../evidencias/FilePreviewModal';
 import NodoCard from '../nodos/NodoCard';
 import ActividadStream from '../nodos/ActividadStream';
 import CampoFecha from '../common/CampoFecha';
-import { formatFecha } from '../../utils/fecha';
+import { formatFecha, estaVencida } from '../../utils/fecha';
 import { useUI } from '../../context/UIContext';
 
 // ─── Constantes ────────────────────────────────────────────────
@@ -274,6 +274,15 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
           </div>
         </div>
 
+        {/* Leyenda de colores — siempre visible, sin depender de hover */}
+        <div className="flex items-center flex-wrap gap-x-2.5 gap-y-1 px-3 py-1.5 border-b border-gray-200 bg-white text-[9px] text-gray-500">
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO.verde }} />En proceso, sin riesgo</span>
+          <span className="flex items-center gap-1"><CheckCircle2 size={9} className="text-emerald-600 flex-shrink-0" />Completada</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO.ambar }} />Por vencer</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO.rojo }} />Vencida</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0 border border-gray-300" style={{ backgroundColor: COLORES_SEMAFORO.gris }} />Sin iniciar / cancelada</span>
+        </div>
+
         {/* Panel de filtros */}
         {mostrarFiltros && (
           <div className="px-2.5 py-2 border-b border-gray-200 bg-white space-y-1.5">
@@ -364,6 +373,7 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
                 permisos={permisos}
                 proyectoId={proyectoId}
                 onCreado={recargar}
+                mostrarToast={mostrarToast}
               />
             ))
           )}
@@ -408,7 +418,7 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
 }
 
 // ─── Nodo del árbol ────────────────────────────────────────────
-function NodoArbol({ nodo, tipo, nivel, expandidos, seleccionadoId, onToggle, onSelect, permisos, proyectoId, onCreado }) {
+function NodoArbol({ nodo, tipo, nivel, expandidos, seleccionadoId, onToggle, onSelect, permisos, proyectoId, onCreado, mostrarToast }) {
   const esExpandido = expandidos.has(nodo.id);
   const esSeleccionado = seleccionadoId === nodo.id;
   const hijos = tipo === 'etapa' ? (nodo.acciones || []) : (nodo.tareas || []);
@@ -417,6 +427,9 @@ function NodoArbol({ nodo, tipo, nivel, expandidos, seleccionadoId, onToggle, on
   const avance = nodo.avance_efectivo ?? (tipo === 'etapa' ? parseFloat(nodo.porcentaje_calculado || 0) : parseFloat(nodo.porcentaje_avance || 0));
   const Icono = tipo === 'etapa' ? Layers : tipo === 'accion' ? Zap : ListChecks;
   const colorIcono = tipo === 'etapa' ? 'text-blue-500' : tipo === 'accion' ? 'text-amber-500' : 'text-purple-400';
+  // Edición rápida de % solo en nodos hoja que no sean etapa (una etapa
+  // siempre agrega de sus acciones, nunca tiene avance propio editable).
+  const puedeEditarAvanceRapido = tipo !== 'etapa' && !tieneHijos && !permisos.esSoloLectura;
 
   return (
     <div>
@@ -435,23 +448,41 @@ function NodoArbol({ nodo, tipo, nivel, expandidos, seleccionadoId, onToggle, on
           ) : <span className="w-3" />}
         </button>
 
-        {/* Punto semáforo */}
-        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO[sem] }} />
+        {/* Punto semáforo — check diferenciado para Completada, que si no
+            se ve idéntico a "en proceso, sin riesgo" (ambos verdes) */}
+        {nodo.estado === 'Completada' ? (
+          <CheckCircle2 size={11} className="text-emerald-600 flex-shrink-0" title="Completada" />
+        ) : (
+          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO[sem] }} />
+        )}
 
         {/* Nombre */}
         <button
           onClick={() => onSelect(tipo, nodo.id, nodo)}
           className="flex-1 text-left truncate py-1.5 min-w-0"
+          title={nodo.nombre}
         >
           <span className={`text-xs ${esSeleccionado ? 'font-semibold text-[#7B1C3E]' : 'text-gray-700'} truncate block`}>
             {nodo.nombre}
           </span>
         </button>
 
-        {/* % avance */}
-        <span className="text-[10px] tabular-nums font-medium text-gray-400 flex-shrink-0 w-8 text-right">
-          {Math.round(avance)}%
-        </span>
+        {/* % avance — clic para editar en hojas (acción/tarea) */}
+        {puedeEditarAvanceRapido ? (
+          <AvanceInlineArbol
+            key={`${nodo.id}-${avance}`}
+            valor={avance}
+            tipo={tipo}
+            nodoId={nodo.id}
+            estado={nodo.estado}
+            onGuardado={onCreado}
+            mostrarToast={mostrarToast}
+          />
+        ) : (
+          <span className="text-[10px] tabular-nums font-medium text-gray-400 flex-shrink-0 w-8 text-right">
+            {Math.round(avance)}%
+          </span>
+        )}
       </div>
 
       {/* Hijos */}
@@ -468,6 +499,7 @@ function NodoArbol({ nodo, tipo, nivel, expandidos, seleccionadoId, onToggle, on
           permisos={permisos}
           proyectoId={proyectoId}
           onCreado={onCreado}
+          mostrarToast={mostrarToast}
         />
       ))}
 
@@ -483,6 +515,70 @@ function NodoArbol({ nodo, tipo, nivel, expandidos, seleccionadoId, onToggle, on
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Edición rápida de % directo en la fila del árbol ──────────
+// Mismo patrón clic-para-editar que CeldaEditable de VistaLista, pero
+// llamando al endpoint PATCH que ya usa el rail de "Propiedades"
+// (avance_actual) — mismas validaciones de negocio del backend
+// (0-99, rechazo si Bloqueada, etc.), solo un nuevo punto de entrada.
+function AvanceInlineArbol({ valor, tipo, nodoId, estado, onGuardado, mostrarToast }) {
+  const [editando, setEditando] = useState(false);
+  const [texto, setTexto] = useState(String(Math.round(valor ?? 0)));
+  const [guardando, setGuardando] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => { setTexto(String(Math.round(valor ?? 0))); }, [valor]);
+  useEffect(() => { if (editando && ref.current) { ref.current.focus(); ref.current.select(); } }, [editando]);
+
+  async function confirmar() {
+    setEditando(false);
+    const nuevo = parseInt(texto, 10);
+    if (isNaN(nuevo) || nuevo === Math.round(valor ?? 0)) { setTexto(String(Math.round(valor ?? 0))); return; }
+    setGuardando(true);
+    try {
+      const api = tipo === 'accion' ? accionesApi : tareasApi;
+      const fn = tipo === 'accion' ? api.patchAccion : api.patchTarea;
+      await fn(nodoId, { avance_actual: nuevo });
+      await onGuardado?.();
+    } catch (err) {
+      mostrarToast?.(err.response?.data?.mensaje || 'No se pudo actualizar el avance', 'error');
+      setTexto(String(Math.round(valor ?? 0)));
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  if (editando) {
+    return (
+      <input
+        ref={ref}
+        type="number"
+        min={0}
+        max={99}
+        value={texto}
+        onClick={e => e.stopPropagation()}
+        onChange={e => setTexto(e.target.value)}
+        onBlur={confirmar}
+        onKeyDown={e => {
+          if (e.key === 'Enter') e.target.blur();
+          if (e.key === 'Escape') { setTexto(String(Math.round(valor ?? 0))); setEditando(false); }
+        }}
+        className="w-10 text-[10px] tabular-nums font-medium text-right border border-[#7B1C3E]/40 rounded px-0.5 py-0 outline-none focus:ring-1 focus:ring-[#7B1C3E]/20"
+      />
+    );
+  }
+
+  return (
+    <button
+      onClick={e => { e.stopPropagation(); setEditando(true); }}
+      title="Clic para editar el avance"
+      disabled={guardando}
+      className="text-[10px] tabular-nums font-medium text-gray-400 hover:text-[#7B1C3E] hover:bg-[#7B1C3E]/5 rounded flex-shrink-0 w-8 text-right px-0.5 transition-colors"
+    >
+      {guardando ? '…' : `${Math.round(valor ?? 0)}%`}
+    </button>
   );
 }
 
@@ -703,6 +799,43 @@ function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast,
   const fechaInicioCalculada = tipo === 'etapa';
   const tooltipFechaInicio = 'La fecha de inicio de una etapa se calcula automáticamente como la más temprana entre sus acciones.';
 
+  // Ruta de contexto (breadcrumb): a qué etapa/acción pertenece este nodo,
+  // para no depender de mirar el panel central para saberlo.
+  const ruta = resolverRutaNombres(arbol, id) || [data.nombre];
+
+  // Resumen cuantitativo de hijos (solo si el nodo agrega de otros) — le da
+  // respaldo concreto al % calculado sin tener que expandir el árbol.
+  const resumenHijos = (() => {
+    if (hijos.length === 0) return null;
+    const completadas = hijos.filter(h => h.nodo.estado === 'Completada').length;
+    const vencidas = hijos.filter(h =>
+      !['Completada', 'Cancelada'].includes(h.nodo.estado) && estaVencida(h.nodo.fecha_limite || h.nodo.fecha_fin)
+    ).length;
+    const enProceso = hijos.filter(h => h.nodo.estado === 'En_proceso').length;
+    let texto = `${completadas} de ${hijos.length} ${subItemLabel.toLowerCase()} completadas`;
+    if (vencidas > 0) texto += ` · ${vencidas} vencida${vencidas > 1 ? 's' : ''}`;
+    if (enProceso > 0) texto += ` · ${enProceso} en proceso`;
+    return texto;
+  })();
+
+  // "Fecha límite" cambia de nombre y de ayuda según el nivel — en una
+  // etapa es un compromiso agregado que puede no coincidir con ninguna
+  // fecha de sus acciones; en acción/tarea es simplemente su vencimiento.
+  const labelFechaLimite = tipo === 'etapa' ? 'Fecha compromiso de la etapa'
+    : tipo === 'tarea' ? 'Fecha límite de la tarea' : 'Fecha límite de la acción';
+  const ayudaFechaLimite = tipo === 'etapa'
+    ? 'Fecha objetivo de esta etapa; puede ser distinta a las fechas de sus acciones.' : null;
+
+  // Si no hay fecha límite propia, sugerir la más tardía entre los hijos
+  // (mismo criterio fecha_limite || fecha_fin que usa el resto de la app)
+  // en vez de dejar el campo vacío sin explicación.
+  const fechaSugerida = !data.fecha_limite && hijos.length > 0
+    ? hijos.reduce((max, h) => {
+        const f = h.nodo.fecha_limite || h.nodo.fecha_fin || null;
+        return f && (!max || f > max) ? f : max;
+      }, null)
+    : null;
+
   return (
     <div className="flex flex-1 min-w-0 overflow-hidden h-full">
 
@@ -711,6 +844,11 @@ function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast,
 
         {/* Cabecera pegajosa */}
         <div className="flex-shrink-0 px-5 pt-4 border-b border-gray-100">
+          {/* Fila 0: ruta de contexto — a qué etapa/acción pertenece este nodo */}
+          <div className="text-[10px] text-gray-400 font-medium mb-1.5 truncate" title={`${tipoLabel} · ${ruta.join(' → ')}`}>
+            {tipoLabel} · {ruta.join(' → ')}
+          </div>
+
           {/* Fila 1: chips de tipo, estado y toggle de propiedades */}
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#7B1C3E] text-white uppercase tracking-wider">
@@ -792,6 +930,9 @@ function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast,
               {Math.round(avance)}%
             </span>
           </div>
+          {resumenHijos && (
+            <p className="text-[10px] text-gray-400 mt-1">{resumenHijos}</p>
+          )}
 
         </div>
 
@@ -822,6 +963,7 @@ function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast,
               proyectoId={proyectoId}
               permisos={permisos}
               onCambiado={onActualizado}
+              ocultarMetadataFooter
               defaultAbierto
             />
           )}
@@ -878,32 +1020,80 @@ function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast,
 
         {/* ── Tarjeta: Seguimiento ── */}
         <RailCard title="Seguimiento" defaultOpen={true}>
-          {/* Estatus */}
-          <div className="mb-2">
-            <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">Estatus</span>
-            {esContenedor ? (
-              <div className="flex items-center gap-1.5">
+          {/* Bloque "calculado" — separación visual real (no solo un
+              candado chico) de lo que se agrega automáticamente de los
+              hijos vs. lo que se define en este nivel. */}
+          {esContenedor && (
+            <div className="mb-3 -mx-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-lg">
+              <div className="flex items-center gap-1 mb-2">
                 <Lock size={10} className="text-gray-400" />
-                <span className="text-xs text-gray-500">{(data.estado || 'Pendiente').replace(/_/g, ' ')}</span>
-                <span title={tooltipCalculado} className="w-3.5 h-3.5 rounded-full border border-gray-300 text-[9px] text-gray-400 flex items-center justify-center cursor-help font-bold flex-shrink-0">?</span>
+                <span className="text-[9px] font-semibold text-gray-500 uppercase tracking-wider">Calculado desde sus acciones</span>
               </div>
-            ) : (
-              <CampoSelect
-                valor={data.estado || 'Pendiente'} opciones={ESTADOS}
-                onChange={v => guardarCampo('estado', v)}
-                soloLectura={permisos.esSoloLectura} formatLabel={v => v.replace(/_/g, ' ')}
-              />
-            )}
-          </div>
-          {/* Avance */}
+              {/* Estatus */}
+              <div className="mb-2">
+                <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">Estatus</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-gray-600">{(data.estado || 'Pendiente').replace(/_/g, ' ')}</span>
+                  <span title={tooltipCalculado} className="w-3.5 h-3.5 rounded-full border border-gray-300 text-[9px] text-gray-400 flex items-center justify-center cursor-help font-bold flex-shrink-0">?</span>
+                </div>
+              </div>
+              {/* Avance */}
+              <div className="mb-1">
+                <CampoAvance
+                  valor={data.avance_actual} avanceEfectivo={avance} esContenedor={true}
+                  estado={data.estado} onChange={() => {}}
+                  soloLectura={true}
+                />
+              </div>
+              {/* Fecha inicio (solo etapa, ver fechaInicioCalculada) */}
+              {fechaInicioCalculada && (
+                <div className="mt-2">
+                  <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">Fecha inicio</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-gray-600">{formatFecha(data.fecha_inicio) || 'Sin definir'}</span>
+                    <span title={tooltipFechaInicio} className="w-3.5 h-3.5 rounded-full border border-gray-300 text-[9px] text-gray-400 flex items-center justify-center cursor-help font-bold flex-shrink-0">?</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="mb-2">
-            <CampoAvance
-              valor={data.avance_actual} avanceEfectivo={avance} esContenedor={esContenedor}
-              estado={data.estado} onChange={v => guardarCampo('avance_actual', v)}
-              soloLectura={permisos.esSoloLectura}
-            />
+            <span className="text-[9px] font-semibold text-gray-500 uppercase tracking-wider">Definido para este nivel</span>
           </div>
-          {/* Semáforo */}
+
+          {!esContenedor && (
+            <>
+              {/* Estatus editable (solo nodos hoja) */}
+              <div className="mb-2">
+                <CampoSelect
+                  label="Estatus"
+                  valor={data.estado || 'Pendiente'} opciones={ESTADOS}
+                  onChange={v => guardarCampo('estado', v)}
+                  soloLectura={permisos.esSoloLectura} formatLabel={v => v.replace(/_/g, ' ')}
+                />
+              </div>
+              {/* Avance editable (solo nodos hoja) */}
+              <div className="mb-2">
+                <CampoAvance
+                  valor={data.avance_actual} avanceEfectivo={avance} esContenedor={false}
+                  estado={data.estado} onChange={v => guardarCampo('avance_actual', v)}
+                  soloLectura={permisos.esSoloLectura}
+                />
+              </div>
+              {/* Fecha inicio editable (acción/tarea; en etapa siempre es calculada) */}
+              <div className="mb-2">
+                <CampoFecha
+                  label="Fecha inicio"
+                  valor={data.fecha_inicio ? data.fecha_inicio.substring(0, 10) : ''}
+                  onChange={v => guardarCampo('fecha_inicio', v || null)}
+                  soloLectura={permisos.esSoloLectura}
+                />
+              </div>
+            </>
+          )}
+
+          {/* Semáforo (override manual — disponible en cualquier nivel) */}
           <div className="mb-2">
             <CampoSemaforo
               valor={data.semaforo} override={data.semaforo_override} efectivo={sem}
@@ -917,42 +1107,42 @@ function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast,
               onChange={v => guardarCampo('prioridad', v)} soloLectura={permisos.esSoloLectura}
             />
           </div>
+          {/* Fecha límite / compromiso — etiqueta y ayuda según nivel;
+              sugiere una fecha desde los hijos cuando está vacía en vez de
+              dejar un dd/mm/aaaa sin explicación. */}
+          <div className="mb-2">
+            <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">{labelFechaLimite}</span>
+            {ayudaFechaLimite && <p className="text-[9px] text-gray-400 leading-snug mb-1">{ayudaFechaLimite}</p>}
+            <CampoFecha
+              valor={data.fecha_limite ? data.fecha_limite.substring(0, 10) : ''}
+              onChange={v => guardarCampo('fecha_limite', v || null)}
+              soloLectura={permisos.esSoloLectura}
+            />
+            {!data.fecha_limite && fechaSugerida && (
+              <div className="mt-1 flex items-center gap-1 text-[10px] text-gray-500">
+                <Info size={10} className="text-gray-400 flex-shrink-0" />
+                <span>Sugerido según {subItemLabel.toLowerCase()}: {formatFecha(fechaSugerida)}</span>
+                {!permisos.esSoloLectura && (
+                  <button
+                    onClick={() => guardarCampo('fecha_limite', fechaSugerida)}
+                    className="text-[#7B1C3E] hover:text-[#5a1430] font-medium underline underline-offset-2"
+                  >
+                    Usar esta fecha
+                  </button>
+                )}
+              </div>
+            )}
+            {!data.fecha_limite && !fechaSugerida && (
+              <p className="mt-1 text-[10px] text-gray-400 italic">Sin fecha definida</p>
+            )}
+          </div>
+
           {/* Responsable (siempre solo lectura) */}
           <div className="mb-2">
             <CampoSelect
               label="Responsable" valor={data.id_responsable || ''}
               opciones={catalogs.usuarios.map(u => ({ value: u.id, label: `${u.nombre_completo}${u.dg_siglas ? ' — ' + u.dg_siglas : ''}` }))}
               onChange={() => {}} soloLectura={true} useObjects
-            />
-          </div>
-          {/* Fechas */}
-          <div className="mb-2">
-            {fechaInicioCalculada ? (
-              <div>
-                <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">Fecha inicio</span>
-                <div className="flex items-center gap-1.5">
-                  <Lock size={10} className="text-gray-400" />
-                  <span className="text-xs text-gray-500">
-                    {formatFecha(data.fecha_inicio) || 'Sin definir'}
-                  </span>
-                  <span title={tooltipFechaInicio} className="w-3.5 h-3.5 rounded-full border border-gray-300 text-[9px] text-gray-400 flex items-center justify-center cursor-help font-bold flex-shrink-0">?</span>
-                </div>
-              </div>
-            ) : (
-              <CampoFecha
-                label="Fecha inicio"
-                valor={data.fecha_inicio ? data.fecha_inicio.substring(0, 10) : ''}
-                onChange={v => guardarCampo('fecha_inicio', v || null)}
-                soloLectura={permisos.esSoloLectura}
-              />
-            )}
-          </div>
-          <div className="mb-2">
-            <CampoFecha
-              label="Fecha límite"
-              valor={data.fecha_limite ? data.fecha_limite.substring(0, 10) : ''}
-              onChange={v => guardarCampo('fecha_limite', v || null)}
-              soloLectura={permisos.esSoloLectura}
             />
           </div>
           {/* Última actualización */}
@@ -2040,6 +2230,23 @@ function encontrarPath(arbol, targetId) {
       if (acc.id === targetId) return [etapa.id, acc.id];
       for (const tarea of (acc.tareas || [])) {
         if (tarea.id === targetId) return [etapa.id, acc.id, tarea.id];
+      }
+    }
+  }
+  return null;
+}
+
+// Nombres de los nodos ancestros (incluido el propio nodo) para el
+// breadcrumb de contexto del panel derecho — evita tener que adivinar
+// si una fecha/estatus pertenece a la etapa o a la acción que se está
+// viendo dentro de ella.
+function resolverRutaNombres(arbol, targetId) {
+  for (const etapa of arbol) {
+    if (etapa.id === targetId) return [etapa.nombre];
+    for (const acc of (etapa.acciones || [])) {
+      if (acc.id === targetId) return [etapa.nombre, acc.nombre];
+      for (const tarea of (acc.tareas || [])) {
+        if (tarea.id === targetId) return [etapa.nombre, acc.nombre, tarea.nombre];
       }
     }
   }
