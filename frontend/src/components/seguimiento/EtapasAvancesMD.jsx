@@ -26,9 +26,9 @@ import ActividadStream from '../nodos/ActividadStream';
 import CampoFecha from '../common/CampoFecha';
 import { formatFecha, estaVencida } from '../../utils/fecha';
 import { useUI } from '../../context/UIContext';
+import SemaforoDot, { COLORES_SEMAFORO } from '../common/SemaforoDot';
 
 // ─── Constantes ────────────────────────────────────────────────
-const COLORES_SEMAFORO = { verde: '#16a34a', ambar: '#d97706', rojo: '#dc2626', gris: '#94a3b8' };
 const ESTADOS = ['Pendiente', 'En_proceso', 'Bloqueada', 'Completada', 'Cancelada'];
 const PRIORIDADES = ['Baja', 'Media', 'Alta', 'Muy Alta', 'Crítica'];
 
@@ -448,13 +448,9 @@ function NodoArbol({ nodo, tipo, nivel, expandidos, seleccionadoId, onToggle, on
           ) : <span className="w-3" />}
         </button>
 
-        {/* Punto semáforo — check diferenciado para Completada, que si no
-            se ve idéntico a "en proceso, sin riesgo" (ambos verdes) */}
-        {nodo.estado === 'Completada' ? (
-          <CheckCircle2 size={11} className="text-emerald-600 flex-shrink-0" title="Completada" />
-        ) : (
-          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO[sem] }} />
-        )}
+        {/* Punto semáforo — componente compartido con Vista Lista para que
+            el mismo nodo se vea con el mismo color en ambas vistas */}
+        <SemaforoDot semaforo={sem} estado={nodo.estado} size={8} />
 
         {/* Nombre */}
         <button

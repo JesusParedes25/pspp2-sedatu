@@ -28,6 +28,12 @@ const { puedeGestionarNodo } = require('../utils/autorizacion');
 async function listarPorEtapa(req, res, next) {
   try {
     const acciones = await accionesQueries.obtenerAccionesPorEtapa(req.params.id);
+    // semaforo_efectivo: misma función que ya usa "Etapas y avances" — sin
+    // esto, Vista Lista mostraba la columna cruda "semaforo" (override
+    // manual, casi siempre vacía) en vez del color calculado.
+    for (const accion of acciones) {
+      accion.semaforo_efectivo = avanceSemaforo.semaforoEfectivo(accion);
+    }
     res.json({ datos: acciones, mensaje: 'Acciones obtenidas' });
   } catch (err) {
     next(err);

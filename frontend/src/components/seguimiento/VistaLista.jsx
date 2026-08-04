@@ -17,7 +17,7 @@ import {
 } from '@tanstack/react-table';
 import { ArrowUpDown, SlidersHorizontal, MapPin } from 'lucide-react';
 import client from '../../api/client';
-import SemaforoChip from '../common/SemaforoChip';
+import SemaforoDot from '../common/SemaforoDot';
 import { formatFecha } from '../../utils/fecha';
 
 const ESTADOS_OPCIONES = ['Pendiente', 'En_proceso', 'Bloqueada', 'Completada', 'Cancelada'];
@@ -149,7 +149,7 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
         tipo: 'etapa',
         nombre: etapa.nombre,
         estado: etapa.estado,
-        semaforo: etapa.semaforo,
+        semaforo: etapa.semaforo_efectivo,
         fecha_inicio: etapa.fecha_inicio,
         fecha_fin: etapa.fecha_fin,
         porcentaje_avance: etapa.porcentaje_avance,
@@ -163,7 +163,7 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
           tipo: 'accion',
           nombre: `  └ ${accion.nombre}`,
           estado: accion.estado,
-          semaforo: accion.semaforo,
+          semaforo: accion.semaforo_efectivo,
           fecha_inicio: accion.fecha_inicio,
           fecha_fin: accion.fecha_fin,
           porcentaje_avance: accion.porcentaje_avance,
@@ -204,7 +204,7 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
         header: '',
         size: 40,
         accessorFn: row => row.semaforo,
-        cell: ({ row }) => <SemaforoChip valor={row.original.semaforo} size="sm" />,
+        cell: ({ row }) => <SemaforoDot semaforo={row.original.semaforo} estado={row.original.estado} size={8} />,
         enableSorting: false,
       },
       {

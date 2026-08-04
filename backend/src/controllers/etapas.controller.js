@@ -32,6 +32,14 @@ async function listarPorProyecto(req, res, next) {
       req.query.id_dg || null
     );
 
+    // semaforo_efectivo: misma función que ya usa "Etapas y avances"
+    // (avanceSemaforo.obtenerSubarbol) — sin esto, Vista Lista mostraba la
+    // columna cruda "semaforo" (override manual, casi siempre vacía) en
+    // vez del color calculado, y por eso se veía siempre verde.
+    for (const etapa of etapas) {
+      etapa.semaforo_efectivo = avanceSemaforo.semaforoEfectivo(etapa);
+    }
+
     res.json({ datos: etapas, mensaje: 'Etapas obtenidas' });
   } catch (err) {
     next(err);
