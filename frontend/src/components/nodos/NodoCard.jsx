@@ -12,8 +12,9 @@ import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ChevronDown, ChevronRight, Lock, CheckCircle2, Circle, AlertTriangle,
-  MessageSquare, Paperclip, Shield, BarChart3, UserPlus, MapPin, Loader2, X, Send,
+  MessageSquare, Paperclip, Shield, BarChart3, UserPlus, MapPin, Loader2, X, Send, Copy,
 } from 'lucide-react';
+import ModalDuplicarNodo from './ModalDuplicarNodo';
 import * as etapasApi from '../../api/etapas';
 import * as accionesApi from '../../api/acciones';
 import * as tareasApi from '../../api/tareas';
@@ -28,6 +29,7 @@ import HiloComentarios from '../comentarios/HiloComentarios';
 import PanelRiesgos from '../riesgos/PanelRiesgos';
 import CampoFecha from '../common/CampoFecha';
 import { formatFecha, diasRestantes } from '../../utils/fecha';
+import { useUI } from '../../context/UIContext';
 
 const SEM = { verde: '#22c55e', ambar: '#f59e0b', rojo: '#ef4444', gris: '#9ca3af' };
 const TIPO_LABEL = { etapa: 'Etapa', accion: 'Acción', tarea: 'Tarea' };
@@ -66,6 +68,7 @@ export default function NodoCard({
   breadcrumb, onProyectoClick, onCambiado, defaultAbierto = false,
   ocultarMetadataFooter = false,
 }) {
+  const { mostrarToast } = useUI();
   const [abierto, setAbierto] = useState(defaultAbierto);
   const [guardando, setGuardando] = useState(false);
   const [modo, setModo] = useState(null); // null | 'avance' | 'concluir' | 'riesgo'
@@ -78,6 +81,7 @@ export default function NodoCard({
   const [comentarioTexto, setComentarioTexto] = useState('');
   const [actividad, setActividad] = useState(null); // se carga lazy al expandir
   const [evidenciasNodo, setEvidenciasNodo] = useState(null); // se carga lazy al abrir "Adjuntar archivo"
+  const [mostrarDuplicar, setMostrarDuplicar] = useState(false);
   const [editandoFecha, setEditandoFecha] = useState(false);
   const [editandoFechaInicio, setEditandoFechaInicio] = useState(false);
   const fileInputRef = useRef(null);
@@ -358,7 +362,21 @@ export default function NodoCard({
               <BotonContextual icono={UserPlus} label="Invitar participante" activo={seccion === 'invitar'} onClick={() => setSeccion(seccion === 'invitar' ? null : 'invitar')} />
             )}
             <BotonContextual icono={MapPin} label="Territorio" activo={seccion === 'territorio'} onClick={() => setSeccion(seccion === 'territorio' ? null : 'territorio')} />
+            {!esContenedor && permisos?.puedeCrearAccion && (tipo === 'accion' || tipo === 'tarea') && (
+              <BotonContextual icono={Copy} label="Duplicar" activo={false} onClick={() => setMostrarDuplicar(true)} />
+            )}
           </div>
+
+          {mostrarDuplicar && (
+            <ModalDuplicarNodo
+              tipo={tipo}
+              nodo={nodo}
+              proyectoId={proyectoId}
+              mostrarToast={mostrarToast}
+              onCerrar={() => setMostrarDuplicar(false)}
+              onCompletado={onCambiado}
+            />
+          )}
 
           {seccion === 'comentar' && (
             ENTIDAD_TIPO[tipo] ? (
