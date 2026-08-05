@@ -1,24 +1,25 @@
 /**
  * ARCHIVO: DetalleProyecto.jsx
  * PROPÓSITO: Página de detalle de un proyecto con tres pestañas principales
- *            (Resumen, Seguimiento y Evidencias). Seguimiento tiene 4
- *            subsecciones: Etapas y avances, Cronograma, Actividad, Equipo.
+ *            (Seguimiento, Panorama del proyecto y Evidencias). Seguimiento
+ *            tiene 5 subsecciones: Diagrama (default), Detalle, Vista lista,
+ *            Mapa y Cronograma.
  *
  * MINI-CLASE: Pestañas + subsecciones como navegación interna
  * ─────────────────────────────────────────────────────────────────
- * La pestaña "Resumen" muestra un dashboard universal del proyecto con
- * métricas calculadas de etapas, acciones, plazos y actividad reciente.
- * "Seguimiento" contiene 4 sub-vistas: Etapas y avances, Cronograma
- * (Gantt), Actividad reciente y Equipo.
+ * "Seguimiento" es la pestaña por defecto al abrir un proyecto — es donde
+ * se captura y da seguimiento día a día. "Panorama del proyecto" muestra un
+ * dashboard con métricas calculadas de etapas, acciones, plazos y actividad
+ * reciente, para consulta ejecutiva.
  *
  * Ya NO hay pestañas separadas de "Riesgos" ni "Comentarios":
  * - Los comentarios se hacen inline en cada etapa/acción (Facebook-style).
  * - Los riesgos se asignan por etapa con acción asociada.
  * ─────────────────────────────────────────────────────────────────
  */
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Star, FileText, Settings, BarChart3, Clock, UsersRound, LayoutDashboard, Search, Plus, Pencil, X, FileSpreadsheet, Trash2, AlertTriangle, Table2, MapPin, Columns, CheckSquare } from 'lucide-react';
+import { ArrowLeft, Star, FileText, Settings, BarChart3, LayoutDashboard, Search, Pencil, FileSpreadsheet, Trash2, Table2, MapPin, GitBranch, Loader2 } from 'lucide-react';
 import { useProyecto } from '../../hooks/useProyectos';
 import { useEtapas } from '../../hooks/useEtapas';
 import { useAuth } from '../../context/AuthContext';
@@ -26,7 +27,6 @@ import { useUI } from '../../context/UIContext';
 import { usePermisosProyecto } from '../../hooks/usePermisos';
 import EstadoChip from '../../components/common/EstadoChip';
 import SelectorEstado from '../../components/common/SelectorEstado';
-import EtapaCard from '../../components/seguimiento/EtapaCard';
 import GanttCronograma from '../../components/seguimiento/GanttCronograma';
 import PanoramaProyecto from '../../components/seguimiento/PanoramaProyecto';
 import SelectorDG from '../../components/proyectos/SelectorDG';
@@ -36,32 +36,35 @@ import ModalNuevaEtapa from '../../components/seguimiento/ModalNuevaEtapa';
 import ModalNuevaAccion from '../../components/seguimiento/ModalNuevaAccion';
 import ImportarWizard from '../../components/importar/ImportarWizard';
 import EtapasAvancesMD from '../../components/seguimiento/EtapasAvancesMD';
+// Carga diferida: @xyflow/react + d3-hierarchy son pesados y solo hacen
+// falta cuando el usuario realmente abre la subpestaña Diagrama — así no
+// engordan el bundle inicial del resto de la app.
+const VistaDiagrama = lazy(() => import('../../components/seguimiento/VistaDiagrama'));
 import ModalEditarProyecto from '../../components/proyectos/ModalEditarProyecto';
 import ModalEliminarProyecto from '../../components/proyectos/ModalEliminarProyecto';
 import VistaLista from '../../components/seguimiento/VistaLista';
-import VistaKanban from '../../components/seguimiento/VistaKanban';
-import VistaChecklist from '../../components/seguimiento/VistaChecklist';
 import MapaProyecto from '../../components/seguimiento/MapaProyecto';
 import GenerarReporteBtn from '../../components/reportes/GenerarReporteBtn';
-import PanelAccionInline from '../../components/seguimiento/PanelAccionInline';
 import * as evidenciasApi from '../../api/evidencias';
 import * as etapasApi from '../../api/etapas';
 import * as accionesApi from '../../api/acciones';
 import * as proyectosApi from '../../api/proyectos';
 
-// Pestañas principales: Resumen, Seguimiento, Evidencias
+// Pestañas principales: Seguimiento (default), Panorama del proyecto, Evidencias
 const PESTANAS = [
-  { id: 'resumen', etiqueta: 'Panorama del proyecto', icono: LayoutDashboard },
   { id: 'seguimiento', etiqueta: 'Seguimiento', icono: Settings },
+  { id: 'resumen', etiqueta: 'Panorama del proyecto', icono: LayoutDashboard },
   { id: 'evidencias', etiqueta: 'Evidencias', icono: FileText },
 ];
 
-// Subsecciones dentro de Seguimiento
-// PART 5 del refactor de tarjetas: Kanban y Checklist se ocultan de la barra
-// de sub-pestañas (los componentes siguen en el codebase, solo no se listan
-// ni se renderizan aquí).
+// Subsecciones dentro de Seguimiento. Los `id` internos se mantienen sin
+// cambio aunque se renombren las etiquetas visibles — nada los persiste en
+// URL/localStorage hoy, pero es buena práctica no tocarlos de todos modos.
+// Kanban y Checklist (y su código) se eliminaron por completo: llevaban
+// tiempo ocultos y sin usar (ver historial de commits).
 const SUBSECCIONES = [
-  { id: 'etapas', etiqueta: 'Etapas y avances', icono: Settings },
+  { id: 'diagrama', etiqueta: 'Diagrama', icono: GitBranch },
+  { id: 'etapas', etiqueta: 'Detalle', icono: Settings },
   { id: 'lista', etiqueta: 'Vista lista', icono: Table2 },
   { id: 'mapa', etiqueta: 'Mapa', icono: MapPin },
   { id: 'cronograma', etiqueta: 'Cronograma', icono: BarChart3 },
@@ -107,14 +110,12 @@ export default function DetalleProyecto() {
   const permisos = usePermisosProyecto(proyecto);
   const [dgSeleccionada, setDgSeleccionada] = useState(null);
   const { etapas, cargando: cargandoEtapas, recargar: recargarEtapas, recargarSilencioso: recargarEtapasSilencioso } = useEtapas(id, dgSeleccionada);
-  const [accionesDirectas, setAccionesDirectas] = useState([]);
-  const [cargandoDirectas, setCargandoDirectas] = useState(false);
-  const [accionDirectaExpandida, setAccionDirectaExpandida] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   // Deep-link desde Inicio/Panorama: ?tab=seguimiento&nodo=<id> debe abrir
-  // directamente la pestaña y el nodo correspondiente, no el default.
-  const [pestanaActiva, setPestanaActiva] = useState(() => searchParams.get('tab') || 'resumen');
-  const [subseccionActiva, setSubseccionActiva] = useState('etapas');
+  // directamente la pestaña y el nodo correspondiente. Seguimiento/Diagrama
+  // son el punto de entrada por defecto — es donde se captura día a día.
+  const [pestanaActiva, setPestanaActiva] = useState(() => searchParams.get('tab') || 'seguimiento');
+  const [subseccionActiva, setSubseccionActiva] = useState('diagrama');
   // Si el usuario navega de un proyecto a otro sin desmontar (mismo patrón de
   // ruta), el useState inicial no vuelve a correr — re-sincroniza con la URL.
   useEffect(() => {
@@ -221,32 +222,6 @@ export default function DetalleProyecto() {
       mostrarToast(err.response?.data?.mensaje || 'Error al crear acción', 'error');
     }
   }
-
-  // Cargar acciones directas del proyecto (sin etapa)
-  const cargarAccionesDirectas = useCallback(async () => {
-    if (!id) return;
-    setCargandoDirectas(true);
-    try {
-      const res = await accionesApi.obtenerAccionesDirectas(id);
-      setAccionesDirectas(res.datos || []);
-    } catch { /* silenciar */ }
-    finally { setCargandoDirectas(false); }
-  }, [id]);
-
-  useEffect(() => { cargarAccionesDirectas(); }, [cargarAccionesDirectas]);
-
-  async function eliminarAccionDirecta(accionId, nombre) {
-    if (!confirm(`¿Eliminar la acción "${nombre}"?`)) return;
-    try {
-      await accionesApi.eliminarAccion(accionId);
-      mostrarToast('Acción eliminada', 'exito');
-      cargarAccionesDirectas();
-      incrementarStats();
-    } catch (err) {
-      mostrarToast(err.response?.data?.mensaje || 'Error al eliminar acción', 'error');
-    }
-  }
-
 
   async function eliminarProyecto() {
     setEliminando(true);
@@ -401,6 +376,18 @@ export default function DetalleProyecto() {
 
           {/* Contenido de la subsección activa */}
 
+          {/* 0. Diagrama — organigrama horizontal, solo lectura por ahora */}
+          {subseccionActiva === 'diagrama' && (
+            <Suspense fallback={
+              <div className="flex items-center justify-center py-16 border border-gray-200 rounded-xl bg-white" style={{ minHeight: '600px' }}>
+                <Loader2 size={24} className="animate-spin text-gray-400" />
+                <span className="ml-2 text-sm text-gray-500">Cargando diagrama...</span>
+              </div>
+            }>
+              <VistaDiagrama proyectoId={id} permisos={permisos} />
+            </Suspense>
+          )}
+
           {/* 1. Etapas y avances — Maestro-Detalle */}
           {subseccionActiva === 'etapas' && (
             <div className="space-y-3">
@@ -435,25 +422,7 @@ export default function DetalleProyecto() {
             />
           )}
 
-          {/* 3. Kanban */}
-          {subseccionActiva === 'kanban' && (
-            <VistaKanban
-              etapas={etapas}
-              proyectoId={id}
-              onRefresh={() => { recargarEtapasSilencioso(); incrementarStats(); }}
-            />
-          )}
-
-          {/* 4. Checklist */}
-          {subseccionActiva === 'checklist' && (
-            <VistaChecklist
-              etapas={etapas}
-              proyectoId={id}
-              onRefresh={() => { recargarEtapasSilencioso(); incrementarStats(); }}
-            />
-          )}
-
-          {/* 5. Mapa de cobertura territorial */}
+          {/* 3. Mapa de cobertura territorial */}
           {subseccionActiva === 'mapa' && (
             <MapaProyecto
               proyectoId={id}

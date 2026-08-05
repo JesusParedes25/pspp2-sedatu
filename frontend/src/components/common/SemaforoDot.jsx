@@ -1,7 +1,7 @@
 /**
  * ARCHIVO: SemaforoDot.jsx
  * PROPÓSITO: Punto de color de semáforo efectivo — única fuente de verdad
- *            visual para que "Etapas y avances" y "Vista lista" (y
+ *            visual para que "Detalle" y "Vista lista" (y
  *            cualquier otra vista futura) pinten exactamente el mismo
  *            color para el mismo nodo, sin duplicar la paleta ni la
  *            leyenda en cada componente.

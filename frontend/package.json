@@ -12,7 +12,9 @@
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
     "@tanstack/react-table": "^8.21.3",
+    "@xyflow/react": "^12.11.2",
     "axios": "^1.6.2",
+    "d3-hierarchy": "^3.1.2",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
     "jszip": "^3.10.1",

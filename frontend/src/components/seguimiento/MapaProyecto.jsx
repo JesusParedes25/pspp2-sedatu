@@ -139,7 +139,7 @@ export default function MapaProyecto({ proyectoId, onNavegarEtapas }) {
             onClick={onNavegarEtapas}
             className="mt-1 text-xs px-3 py-1.5 bg-[#7B1C3E] text-white rounded-md hover:bg-[#611232] transition-colors"
           >
-            Ir a Etapas y avances
+            Ir a Detalle
           </button>
         )}
       </div>
