@@ -1213,16 +1213,17 @@ function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast,
               </div>
               {modoTerritorio === 'estado' && (
                 <div className="px-3 pb-3 space-y-2">
-                  <p className="text-[10px] text-gray-400 leading-tight">Usar cuando el proyecto opera en un área específica de un estado.</p>
-                  <CampoSelect label="Estado" valor={data.cve_ent || ''}
+                  <p className="text-[10px] text-gray-400 leading-tight">Los municipios pueden ser de distintos estados — usa este selector solo para buscar y agregar, no borra lo ya elegido en otros estados.</p>
+                  <CampoSelect label="Buscar municipios de este estado" valor={data.cve_ent || ''}
                     opciones={catalogs.estados_geo.map(e => ({ value: e.cve_ent, label: e.nombre }))}
-                    onChange={v => { setMuniFilter(v || null); guardarCampo('cve_ent', v || null); if (!v) guardarCampo('municipios', []); }}
+                    onChange={v => { setMuniFilter(v || null); guardarCampo('cve_ent', v || null); }}
                     soloLectura={permisos.esSoloLectura} useObjects/>
                   <SelectorMunicipiosMultiple
                     municipios={data.municipios || []}
                     opciones={catalogs.municipios.map(m => ({ value: m.cvegeo, label: m.nombre }))}
                     onChange={lista => guardarCampo('municipios', lista)}
                     soloLectura={permisos.esSoloLectura || !muniFilter}
+                    estadosCatalog={catalogs.estados_geo}
                   />
                 </div>
               )}
@@ -1366,9 +1367,16 @@ function CampoSelect({ label, valor, opciones, onChange, soloLectura, formatLabe
 
 // Selector múltiple de municipios (mismo patrón que TerritorioSelector.jsx,
 // duplicado aquí porque este panel usa su propio CampoSelect/CampoEditable).
-function SelectorMunicipiosMultiple({ municipios, opciones, onChange, soloLectura }) {
+// La lista seleccionada puede acumular municipios de distintos estados —
+// el <select> de Estado de arriba solo filtra qué se muestra para buscar,
+// no borra lo ya elegido en otros estados. Cada chip muestra su estado
+// entre paréntesis para no confundir municipios del mismo nombre.
+function SelectorMunicipiosMultiple({ municipios, opciones, onChange, soloLectura, estadosCatalog = [] }) {
   const lista = municipios || [];
   const seleccionados = new Set(lista.map(m => m.cve_mun));
+  const [busqueda, setBusqueda] = useState('');
+
+  const nombreEstado = (cveMun) => estadosCatalog.find(e => e.cve_ent === cveMun.slice(0, 2))?.nombre;
 
   if (soloLectura) {
     return (
@@ -1377,7 +1385,9 @@ function SelectorMunicipiosMultiple({ municipios, opciones, onChange, soloLectur
         {lista.length > 0 ? (
           <div className="flex flex-wrap gap-1">
             {lista.map(m => (
-              <span key={m.cve_mun} className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">{m.nombre}</span>
+              <span key={m.cve_mun} className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">
+                {m.nombre}{nombreEstado(m.cve_mun) ? ` (${nombreEstado(m.cve_mun)})` : ''}
+              </span>
             ))}
           </div>
         ) : <p className="text-xs text-gray-600">—</p>}
@@ -1392,6 +1402,10 @@ function SelectorMunicipiosMultiple({ municipios, opciones, onChange, soloLectur
     onChange(next);
   }
 
+  const opcionesFiltradas = busqueda.trim()
+    ? opciones.filter(o => o.label.toLowerCase().includes(busqueda.trim().toLowerCase()))
+    : opciones;
+
   return (
     <div>
       <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">
@@ -1401,16 +1415,27 @@ function SelectorMunicipiosMultiple({ municipios, opciones, onChange, soloLectur
         <div className="flex flex-wrap gap-1 mb-1.5">
           {lista.map(m => (
             <span key={m.cve_mun} className="flex items-center gap-1 text-[10px] bg-[#fbf3f6] text-[#7B1C3E] px-1.5 py-0.5 rounded-full">
-              {m.nombre}
+              {m.nombre}{nombreEstado(m.cve_mun) ? ` (${nombreEstado(m.cve_mun)})` : ''}
               <button type="button" onClick={() => toggle(m.cve_mun)} className="hover:text-red-600" title="Quitar">×</button>
             </span>
           ))}
         </div>
       )}
+      {opciones.length > 0 && (
+        <input
+          type="text"
+          value={busqueda}
+          onChange={e => setBusqueda(e.target.value)}
+          placeholder="Buscar municipio…"
+          className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 mb-1 bg-white focus:border-[#7B1C3E] outline-none"
+        />
+      )}
       <div className="max-h-32 overflow-y-auto border border-gray-200 rounded bg-white divide-y divide-gray-50">
         {opciones.length === 0 ? (
-          <p className="text-[11px] text-gray-400 px-2 py-1.5">Selecciona un estado primero</p>
-        ) : opciones.map(o => (
+          <p className="text-[11px] text-gray-400 px-2 py-1.5">Elige un estado arriba para buscar sus municipios</p>
+        ) : opcionesFiltradas.length === 0 ? (
+          <p className="text-[11px] text-gray-400 px-2 py-1.5">Sin resultados para "{busqueda}"</p>
+        ) : opcionesFiltradas.map(o => (
           <label key={o.value} className="flex items-center gap-1.5 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50 cursor-pointer">
             <input type="checkbox" checked={seleccionados.has(o.value)} onChange={() => toggle(o.value)} className="accent-[#7B1C3E]" />
             {o.label}

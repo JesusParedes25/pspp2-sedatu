@@ -319,22 +319,12 @@ async function patchAvanceSemaforo(req, res, next) {
       sets.push(`id_zm = $${idx}`);
       params.push(id_zm || null); idx++;
     }
-    // Municipios (relación N:N) — reemplaza el conjunto completo si se proporciona.
-    // Deben pertenecer al estado (cve_ent) efectivo del nodo tras este PATCH.
+    // Municipios (relación N:N) — reemplaza el conjunto completo si se
+    // proporciona. Pueden pertenecer a distintos estados (una etapa puede
+    // cubrir municipios de varios estados a la vez); cve_ent ya no los
+    // limita a un solo estado, es solo el estado "principal" opcional.
     if (municipios !== undefined) {
       const lista = Array.isArray(municipios) ? [...new Set(municipios.filter(Boolean))] : [];
-      const cveEntEfectivo = cve_ent !== undefined ? (cve_ent || null) : rows[0].cve_ent;
-      if (lista.length > 0) {
-        if (!cveEntEfectivo) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({ error: true, mensaje: 'Selecciona un estado antes de asignar municipios.' });
-        }
-        const invalido = lista.find(cm => cm.slice(0, 2) !== cveEntEfectivo);
-        if (invalido) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({ error: true, mensaje: 'Todos los municipios deben pertenecer al estado seleccionado.' });
-        }
-      }
       await municipiosNodoQueries.reemplazarMunicipiosEtapa(client, etapaId, lista);
     } else if ((cve_ent !== undefined && !cve_ent) || (id_zm !== undefined && id_zm)) {
       // Se limpió el estado o se pasó a modo ZM sin mandar municipios explícito: limpiar huérfanos.
@@ -345,7 +335,7 @@ async function patchAvanceSemaforo(req, res, next) {
     if (cve_ent !== undefined || municipios !== undefined || id_zm !== undefined) {
       const cveEntFinal = cve_ent !== undefined ? (cve_ent || null) : rows[0].cve_ent;
       const idZmFinal = id_zm !== undefined ? (id_zm || null) : rows[0].id_zm;
-      if (idZmFinal || !cveEntFinal) {
+      if (idZmFinal) {
         await sincronizarCobertura(client, 'etapa', etapaId, null, []);
       } else {
         const municipiosGuardados = await municipiosNodoQueries.obtenerMunicipiosEtapa(etapaId, client);

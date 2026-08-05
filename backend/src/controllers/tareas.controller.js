@@ -111,21 +111,11 @@ async function patchAvanceSemaforo(req, res, next) {
     if (descripcion !== undefined) { sets.push(`descripcion = $${idx}`); params.push(descripcion); idx++; }
     if (cve_ent !== undefined) { sets.push(`cve_ent = $${idx}`); params.push(cve_ent || null); idx++; }
 
-    // Municipios (relación N:N) — reemplaza el conjunto completo si se proporciona.
+    // Municipios (relación N:N) — reemplaza el conjunto completo si se
+    // proporciona. Pueden pertenecer a distintos estados; cve_ent ya no
+    // los limita a un solo estado, es solo el estado "principal" opcional.
     if (municipios !== undefined) {
       const lista = Array.isArray(municipios) ? [...new Set(municipios.filter(Boolean))] : [];
-      const cveEntEfectivo = cve_ent !== undefined ? (cve_ent || null) : tarea.cve_ent;
-      if (lista.length > 0) {
-        if (!cveEntEfectivo) {
-          await client.query('ROLLBACK'); client.release();
-          return res.status(400).json({ error: true, mensaje: 'Selecciona un estado antes de asignar municipios.' });
-        }
-        const invalido = lista.find(cm => cm.slice(0, 2) !== cveEntEfectivo);
-        if (invalido) {
-          await client.query('ROLLBACK'); client.release();
-          return res.status(400).json({ error: true, mensaje: 'Todos los municipios deben pertenecer al estado seleccionado.' });
-        }
-      }
       await municipiosNodoQueries.reemplazarMunicipiosTarea(client, req.params.id, lista);
     } else if (cve_ent !== undefined && !cve_ent) {
       await municipiosNodoQueries.reemplazarMunicipiosTarea(client, req.params.id, []);

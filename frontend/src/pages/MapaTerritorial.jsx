@@ -450,6 +450,7 @@ export default function MapaTerritorial() {
   const [geoJSON, setGeoJSON] = useState(null);
   const [zmGeoJSON, setZmGeoJSON] = useState(null);
   const [mapaData, setMapaData] = useState([]);
+  const [mapaDataZm, setMapaDataZm] = useState([]);
   const [proyectosDisponibles, setProyectosDisponibles] = useState([]);
   const [cargandoMapa, setCargandoMapa] = useState(true);
 
@@ -476,11 +477,13 @@ export default function MapaTerritorial() {
     Promise.all([
       client.get('/geo/estados/geojson'),
       client.get('/inicio/mapa'),
+      client.get('/inicio/mapa/zm'),
       client.get('/proyectos', { params: { limite: 100 } }),
     ])
-      .then(([geoRes, mapaRes, proyRes]) => {
+      .then(([geoRes, mapaRes, mapaZmRes, proyRes]) => {
         setGeoJSON(geoRes.data);
         setMapaData(mapaRes.data.datos || []);
+        setMapaDataZm(mapaZmRes.data.datos || []);
         setProyectosDisponibles((proyRes.data.datos?.proyectos || []).map(p => ({ id: p.id, nombre: p.nombre })));
       })
       .catch(console.error)
@@ -514,6 +517,30 @@ export default function MapaTerritorial() {
   const estadoIntensidad = useCallback(
     (cve) => (estadosMap[cve] ? (estadosMap[cve].proyectos?.length || 0) / maxProy : 0),
     [estadosMap, maxProy]
+  );
+
+  // Resumen por Zona Metropolitana — mismo patrón que estadosMap, pero
+  // indexado por gid (lo que MapaDrillDown pasa como "cve_ent" del hover
+  // cuando scale='zm', ver propEstado más abajo). Antes no existía y el
+  // hover de ZM siempre buscaba en estadosMap (que solo tiene claves de
+  // estado), por eso siempre mostraba "Sin actividad".
+  const mapaDataZmFiltrada = useMemo(() => {
+    if (!filtroProyecto) return mapaDataZm;
+    return mapaDataZm
+      .map(z => ({ ...z, proyectos: z.proyectos.filter(p => p.id === filtroProyecto) }))
+      .filter(z => z.proyectos.length > 0);
+  }, [mapaDataZm, filtroProyecto]);
+  const zmMap = useMemo(
+    () => Object.fromEntries(mapaDataZmFiltrada.map(z => [String(z.gid), z])),
+    [mapaDataZmFiltrada]
+  );
+  const maxProyZm = useMemo(
+    () => Math.max(1, ...mapaDataZmFiltrada.map(z => z.proyectos?.length || 0)),
+    [mapaDataZmFiltrada]
+  );
+  const zmIntensidad = useCallback(
+    (gid) => (zmMap[gid] ? (zmMap[gid].proyectos?.length || 0) / maxProyZm : 0),
+    [zmMap, maxProyZm]
   );
 
   const municipiosActivosSet = useMemo(
@@ -732,7 +759,7 @@ export default function MapaTerritorial() {
               estadosGeoJSON={estadosGeoJSONActivo}
               propEstado={propEstado}
               estadoActivo={seleccion?.tipo !== 'municipio' ? { cve_ent: seleccion?.clave, bounds: seleccion?.bounds } : null}
-              estadoIntensidad={scale === 'estados' ? estadoIntensidad : () => 0.3}
+              estadoIntensidad={scale === 'estados' ? estadoIntensidad : scale === 'zm' ? zmIntensidad : () => 0.3}
               onClickEstado={(clave, nombre, layer) => {
                 if (scale === 'zm') cargarDetalleZM(clave, nombre, layer.getBounds());
                 else cargarDetalleEstado(clave, nombre, layer.getBounds());
@@ -751,7 +778,9 @@ export default function MapaTerritorial() {
               style={{ left: Math.min(hoveredEstado.x + 12, window.innerWidth - 224), top: Math.min(hoveredEstado.y + 12, window.innerHeight - 180) }}>
               <p className="text-xs font-bold text-[#7B1C3E] mb-1">{hoveredEstado.nombre}</p>
               {(() => {
-                const est = estadosMap[hoveredEstado.cve_ent];
+                // hoveredEstado.cve_ent guarda el gid de la ZM cuando scale='zm'
+                // (ver propEstado) — hay que consultar el mapa correspondiente.
+                const est = scale === 'zm' ? zmMap[String(hoveredEstado.cve_ent)] : estadosMap[hoveredEstado.cve_ent];
                 const proys = est?.proyectos || [];
                 return proys.length === 0
                   ? <p className="text-xs text-gray-400 italic">Sin actividad</p>

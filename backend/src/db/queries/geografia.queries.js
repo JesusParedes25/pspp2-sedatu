@@ -430,6 +430,17 @@ async function obtenerMapaIncidenciaGeo(proyectoIds) {
       UNION
       SELECT DISTINCT a.cve_ent, a.id_proyecto
       FROM acciones a WHERE a.id_proyecto = ANY($1) AND a.cve_ent IS NOT NULL
+      -- Un nodo puede tener municipios de estados distintos a su cve_ent
+      -- "principal" (desde que se permite territorio multi-estado) — hay
+      -- que contarlo en cada estado que realmente cubre, no solo en uno.
+      UNION
+      SELECT DISTINCT LEFT(em.cve_mun, 2), e.id_proyecto
+      FROM etapa_municipios em JOIN etapas e ON e.id = em.etapa_id
+      WHERE e.id_proyecto = ANY($1)
+      UNION
+      SELECT DISTINCT LEFT(am.cve_mun, 2), a.id_proyecto
+      FROM accion_municipios am JOIN acciones a ON a.id = am.accion_id
+      WHERE a.id_proyecto = ANY($1)
     ),
     por_estado AS (
       SELECT np.cve_ent, gs.nombre AS nombre_estado,
@@ -442,6 +453,37 @@ async function obtenerMapaIncidenciaGeo(proyectoIds) {
     SELECT cve_ent, nombre_estado, proyectos
     FROM por_estado
     ORDER BY nombre_estado
+  `, [proyectoIds]);
+  return rows;
+}
+
+// Mismo resumen que obtenerMapaIncidenciaGeo pero agrupado por Zona
+// Metropolitana (id_zm) en vez de estado — alimenta el hover/intensidad
+// del mapa en modo "Zonas Metropolitanas". Antes no existía, por lo que
+// el tooltip de esa vista siempre mostraba "Sin actividad" aunque sí
+// hubiera etapas/acciones asignadas a la ZM (el guardado funcionaba, solo
+// no había de dónde leerlo para el resumen del mapa).
+async function obtenerMapaIncidenciaGeoZM(proyectoIds) {
+  if (!proyectoIds || proyectoIds.length === 0) return [];
+  const { rows } = await pool.query(`
+    WITH nodos_proyectos AS (
+      SELECT DISTINCT e.id_zm, e.id_proyecto
+      FROM etapas e WHERE e.id_proyecto = ANY($1) AND e.id_zm IS NOT NULL
+      UNION
+      SELECT DISTINCT a.id_zm, a.id_proyecto
+      FROM acciones a WHERE a.id_proyecto = ANY($1) AND a.id_zm IS NOT NULL
+    ),
+    por_zm AS (
+      SELECT np.id_zm, gz.nombre AS nombre_zm,
+             json_agg(json_build_object('id', p.id, 'nombre', p.nombre) ORDER BY p.nombre) AS proyectos
+      FROM nodos_proyectos np
+      JOIN proyectos p ON p.id = np.id_proyecto
+      JOIN geo_zm gz ON gz.gid = np.id_zm
+      GROUP BY np.id_zm, gz.nombre
+    )
+    SELECT id_zm AS gid, nombre_zm, proyectos
+    FROM por_zm
+    ORDER BY nombre_zm
   `, [proyectoIds]);
   return rows;
 }
@@ -479,7 +521,9 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
            p.id::text AS id_proyecto, p.nombre AS nombre_proyecto
     FROM etapas e
     JOIN proyectos p ON p.id = e.id_proyecto AND p.deleted_at IS NULL
-    WHERE e.cve_ent = $1 ${filtroProyecto}
+    WHERE (e.cve_ent = $1 OR EXISTS (
+      SELECT 1 FROM etapa_municipios em WHERE em.etapa_id = e.id AND LEFT(em.cve_mun, 2) = $1
+    )) ${filtroProyecto}
     UNION ALL
     SELECT CASE WHEN a.id_accion_padre IS NOT NULL THEN 'tarea' ELSE 'accion' END,
            a.id::text, a.nombre, COALESCE(padre.nombre, et.nombre),
@@ -491,7 +535,9 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
     JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
     LEFT JOIN acciones padre ON padre.id = a.id_accion_padre
     LEFT JOIN etapas et ON et.id = a.id_etapa
-    WHERE a.cve_ent = $1 ${filtroProyecto}
+    WHERE (a.cve_ent = $1 OR EXISTS (
+      SELECT 1 FROM accion_municipios am WHERE am.accion_id = a.id AND LEFT(am.cve_mun, 2) = $1
+    )) ${filtroProyecto}
     ORDER BY nombre_proyecto, nombre
   `, params);
 
@@ -578,13 +624,17 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
       SELECT (e.fecha_fin::date - CURRENT_DATE)::int AS dias, e.nombre, e.id,
              p.nombre AS nombre_proyecto
       FROM etapas e JOIN proyectos p ON p.id = e.id_proyecto
-      WHERE e.cve_ent = $1 AND e.fecha_fin IS NOT NULL
+      WHERE (e.cve_ent = $1 OR EXISTS (
+              SELECT 1 FROM etapa_municipios em WHERE em.etapa_id = e.id AND LEFT(em.cve_mun, 2) = $1
+            )) AND e.fecha_fin IS NOT NULL
         AND e.estado NOT IN ('Completada','Cancelada') AND e.id_proyecto = ANY($2)
       UNION ALL
       SELECT (COALESCE(a.fecha_limite,a.fecha_fin)::date - CURRENT_DATE)::int,
              a.nombre, a.id, p.nombre
       FROM acciones a JOIN proyectos p ON p.id = a.id_proyecto
-      WHERE a.cve_ent = $1 AND COALESCE(a.fecha_limite,a.fecha_fin) IS NOT NULL
+      WHERE (a.cve_ent = $1 OR EXISTS (
+              SELECT 1 FROM accion_municipios am WHERE am.accion_id = a.id AND LEFT(am.cve_mun, 2) = $1
+            )) AND COALESCE(a.fecha_limite,a.fecha_fin) IS NOT NULL
         AND a.estado NOT IN ('Completada','Cancelada') AND a.id_proyecto = ANY($2)
     ) n
     WHERE n.dias <= 14
@@ -880,6 +930,7 @@ module.exports = {
   obtenerZMGeoJSON,
   obtenerMapaTerritorialProyecto,
   obtenerMapaIncidenciaGeo,
+  obtenerMapaIncidenciaGeoZM,
   buscarEstadoPorNombre,
   buscarMunicipioPorNombre,
   buscarEstadosFuzzy,

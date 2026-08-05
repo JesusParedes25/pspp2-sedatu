@@ -85,6 +85,26 @@ async function obtenerMapaInicio(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// GET /inicio/mapa/zm — mismo resumen que /inicio/mapa pero por Zona
+// Metropolitana, para el hover del mapa en modo ZM.
+async function obtenerMapaZmInicio(req, res, next) {
+  try {
+    const usuario = req.usuario;
+    let proyectoIds;
+    if (usuario.rol === 'superadmin' || usuario.rol === 'ejecutivo') {
+      const { rows } = await pool.query(
+        "SELECT id FROM proyectos WHERE deleted_at IS NULL AND estado != 'Cancelado'"
+      );
+      proyectoIds = rows.map(r => r.id);
+    } else {
+      proyectoIds = await miembrosQueries.obtenerProyectosUsuario(usuario.id);
+    }
+
+    const datos = await geoQueries.obtenerMapaIncidenciaGeoZM(proyectoIds || []);
+    res.json({ datos });
+  } catch (err) { next(err); }
+}
+
 // Determina el filtro de acceso del usuario: null = ve todo (superadmin/ejecutivo)
 async function resolverProyectoIds(usuario) {
   if (usuario.rol === 'superadmin' || usuario.rol === 'ejecutivo') return null;
@@ -147,6 +167,7 @@ module.exports = {
   obtenerZMGeoJSON,
   obtenerMapaTerritorial,
   obtenerMapaInicio,
+  obtenerMapaZmInicio,
   obtenerDetalleEstado,
   obtenerMunicipiosActividadEstado,
   obtenerDetalleZM,

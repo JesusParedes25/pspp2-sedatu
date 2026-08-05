@@ -192,6 +192,7 @@ router.get('/dashboard', dashboardController.obtenerDashboard);
 // Dashboard personalizado del usuario
 router.get('/inicio', inicioController.obtenerInicio);
 router.get('/inicio/mapa', geoController.obtenerMapaInicio);
+router.get('/inicio/mapa/zm', geoController.obtenerMapaZmInicio);
 
 // Panorama del proyecto (tab Panorama)
 router.get('/proyectos/:id/panorama', panoramaController.obtenerPanorama);
