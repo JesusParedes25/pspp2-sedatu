@@ -21,13 +21,14 @@
 import { useMemo } from 'react';
 import { hierarchy, tree } from 'd3-hierarchy';
 
-const COL_WIDTH = 300; // separación horizontal entre niveles (profundidad)
-const ROW_HEIGHT = 96; // separación vertical entre hermanos
+export const COL_WIDTH = 320; // separación horizontal entre niveles (profundidad)
+export const ROW_HEIGHT = 120; // separación vertical entre hermanos (deja aire a las tarjetas de 2 líneas de nombre)
 
-// Cuenta todos los descendientes de un nodo (para el contador de "ocultos"
-// cuando una rama está colapsada) — independiente de si están colapsados
-// más adentro, siempre cuenta el total real.
-function contarDescendientes(nodoOriginal, tipo) {
+// Cuenta todos los descendientes de un nodo — se usa tanto para el contador
+// de "ocultos" cuando una rama está colapsada como para el mensaje de
+// confirmación al eliminar (cuántos elementos se van con él). Independiente
+// de si están colapsados más adentro, siempre cuenta el total real.
+export function contarDescendientes(nodoOriginal, tipo) {
   if (tipo === 'etapa') {
     return (nodoOriginal.acciones || []).reduce(
       (suma, a) => suma + 1 + contarDescendientes(a, 'accion'), 0

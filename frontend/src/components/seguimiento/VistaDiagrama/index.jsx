@@ -1,11 +1,13 @@
 /**
  * ARCHIVO: index.jsx (VistaDiagrama)
  * PROPÓSITO: Organigrama horizontal (izquierda → derecha) de la jerarquía
- *            completa del proyecto (etapa → acción → tarea). Es un visor
- *            de solo lectura en esta entrega — crear/editar/eliminar desde
- *            aquí se agrega en una fase posterior, reusando los mismos
- *            hooks y componentes que ya usa "Detalle" (useJerarquiaProyecto,
- *            PropiedadesElemento).
+ *            completa del proyecto (etapa → acción → tarea). Clic en un
+ *            nodo abre un drawer con sus propiedades y acciones (mismos
+ *            componentes que "Detalle": useJerarquiaProyecto,
+ *            PropiedadesElemento, NodoCard, ActividadStream); cada nodo
+ *            con permiso de crear muestra un NodeToolbar con "+ hijo" y
+ *            "Eliminar" al seleccionarse, más un nodo fantasma "+ Etapa"
+ *            al final de la columna raíz.
  */
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -15,14 +17,23 @@ import {
 import '@xyflow/react/dist/base.css';
 import { Search, ZoomIn, ZoomOut, Maximize2, ChevronsDownUp, Loader2, X, CheckCircle2 } from 'lucide-react';
 import * as etapasApi from '../../../api/etapas';
+import { useUI } from '../../../context/UIContext';
+import { useJerarquiaProyecto } from '../../../hooks/useJerarquiaProyecto';
 import { COLORES_SEMAFORO, LEYENDA_SEMAFORO } from '../../common/SemaforoDot';
-import { useLayoutJerarquia } from './useLayoutJerarquia';
+import ConfirmDialog from '../../common/ConfirmDialog';
+import CrearInline from '../EtapasAvancesMD/CrearInline';
+import { buscarNodoEnArbol } from '../EtapasAvancesMD/utils';
+import { useLayoutJerarquia, ROW_HEIGHT, contarDescendientes } from './useLayoutJerarquia';
 import NodoEtapa from './NodoEtapa';
 import NodoAccion from './NodoAccion';
 import NodoTarea from './NodoTarea';
+import NodoGhostEtapa from './NodoGhostEtapa';
+import PanelDrawer from './PanelDrawer';
 import { ariaLabelConfigEs } from './ariaLabels';
 
-const nodeTypes = { etapa: NodoEtapa, accion: NodoAccion, tarea: NodoTarea };
+const nodeTypes = { etapa: NodoEtapa, accion: NodoAccion, tarea: NodoTarea, ghostEtapa: NodoGhostEtapa };
+
+const TIPO_LABEL_ELIMINAR = { etapa: 'etapa', accion: 'acción', tarea: 'tarea' };
 
 const prefersReducedMotion = typeof window !== 'undefined'
   && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -45,6 +56,8 @@ function encontrarEtapaDe(arbol, nodoId) {
 function zoomSelector(s) { return s.transform[2]; }
 
 function VistaDiagramaInterna({ proyectoId, permisos }) {
+  const { mostrarToast } = useUI();
+  const { crear, eliminar } = useJerarquiaProyecto(proyectoId);
   const [searchParams, setSearchParams] = useSearchParams();
   const nodoInicialRef = useRef(searchParams.get('nodo'));
   const [arbol, setArbol] = useState([]);
@@ -53,6 +66,8 @@ function VistaDiagramaInterna({ proyectoId, permisos }) {
   const [inicializado, setInicializado] = useState(false);
   const [busqueda, setBusqueda] = useState('');
   const [seleccionadoId, setSeleccionadoId] = useState(nodoInicialRef.current || null);
+  const [nodoAbiertoId, setNodoAbiertoId] = useState(nodoInicialRef.current || null);
+  const [confirmEliminar, setConfirmEliminar] = useState(null); // {tipo, id, nombre, numDescendientes}
   const { zoomIn, zoomOut, fitView } = useReactFlow();
   const zoom = useStore(zoomSelector);
 
@@ -117,25 +132,98 @@ function VistaDiagramaInterna({ proyectoId, permisos }) {
 
   const { nodes: nodosBase, edges } = useLayoutJerarquia(arbol, colapsados);
 
+  // ─── Crear / eliminar — mismo hook que ya usa "Detalle", solo que aquí
+  // el resultado (toast + recarga) se centraliza en vez de dejarlo a cada
+  // componente hijo, porque los botones viven dentro del propio nodo. ───
+  const crearHijo = useCallback(async (tipoHijo, padreId, nombre) => {
+    try {
+      await crear(tipoHijo, padreId, { nombre });
+      mostrarToast('Creado', 'exito');
+      await cargarArbol(true);
+    } catch (err) {
+      mostrarToast(err.response?.data?.mensaje || 'Error al crear', 'error');
+    }
+  }, [crear, mostrarToast, cargarArbol]);
+
+  const solicitarEliminar = useCallback((tipo, id, nombre, numDescendientes) => {
+    setConfirmEliminar({ tipo, id, nombre, numDescendientes });
+  }, []);
+
+  async function confirmarEliminar() {
+    if (!confirmEliminar) return;
+    const { tipo, id } = confirmEliminar;
+    try {
+      await eliminar(tipo, id);
+      mostrarToast('Eliminado', 'exito');
+      if (seleccionadoId === id) setSeleccionadoId(null);
+      if (nodoAbiertoId === id) setNodoAbiertoId(null);
+      await cargarArbol(true);
+    } catch (err) {
+      mostrarToast(err.response?.data?.mensaje || 'Error al eliminar', 'error');
+    } finally {
+      setConfirmEliminar(null);
+    }
+  }
+
   const qNorm = busqueda.trim().toLowerCase();
-  const nodes = useMemo(() => nodosBase.map(n => ({
-    ...n,
-    selected: n.id === seleccionadoId,
-    data: {
-      ...n.data,
-      onToggleColapsar: toggleColapsar,
-      atenuado: qNorm.length > 0 && !n.data.nombre.toLowerCase().includes(qNorm),
-    },
-  })), [nodosBase, toggleColapsar, qNorm, seleccionadoId]);
+  const nodes = useMemo(() => nodosBase.map(n => {
+    const tipoHijo = n.type === 'etapa' ? 'accion' : n.type === 'accion' ? 'tarea' : null;
+    const tipoHijoLabel = tipoHijo === 'accion' ? 'Acción' : tipoHijo === 'tarea' ? 'Tarea' : null;
+    const puedeCrearHijo = !!tipoHijo && !!permisos.puedeCrearAccion;
+    const puedeEliminarNodo = !!permisos.puedeEliminar;
+    return {
+      ...n,
+      selected: n.id === seleccionadoId,
+      data: {
+        ...n.data,
+        onToggleColapsar: toggleColapsar,
+        atenuado: qNorm.length > 0 && !n.data.nombre.toLowerCase().includes(qNorm),
+        tipoHijoLabel,
+        puedeCrearHijo,
+        puedeEliminar: puedeEliminarNodo,
+        onCrearHijo: puedeCrearHijo ? (nombre) => crearHijo(tipoHijo, n.id, nombre) : undefined,
+        onEliminar: puedeEliminarNodo
+          ? () => solicitarEliminar(n.type, n.id, n.data.nombre, contarDescendientes(n.data, n.type))
+          : undefined,
+      },
+    };
+  }), [nodosBase, toggleColapsar, qNorm, seleccionadoId, permisos, crearHijo, solicitarEliminar]);
+
+  // Nodo fantasma "+ Etapa" al final de la columna raíz — se agrega DESPUÉS
+  // del map de arriba para no pasar por la lógica de atenuado/búsqueda
+  // (no tiene nombre real que comparar).
+  const nodesFinal = useMemo(() => {
+    if (!permisos.puedeCrearEtapa) return nodes;
+    const etapas = nodes.filter(n => n.type === 'etapa');
+    const maxY = etapas.length > 0 ? Math.max(...etapas.map(n => n.position.y)) : 0;
+    const ghost = {
+      id: '__crear_etapa__',
+      type: 'ghostEtapa',
+      draggable: false,
+      selectable: false,
+      position: { x: 0, y: etapas.length > 0 ? maxY + ROW_HEIGHT : 0 },
+      data: { onCrear: (nombre) => crearHijo('etapa', null, nombre) },
+    };
+    return [...nodes, ghost];
+  }, [nodes, permisos.puedeCrearEtapa, crearHijo]);
 
   function onNodeClick(_e, nodo) {
+    if (nodo.type === 'ghostEtapa') return;
     setSeleccionadoId(nodo.id);
+    setNodoAbiertoId(nodo.id);
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       next.set('nodo', nodo.id);
       return next;
     }, { replace: true });
   }
+
+  function onPaneClick() {
+    setSeleccionadoId(null);
+    setNodoAbiertoId(null);
+  }
+
+  const nodoAbierto = nodoAbiertoId ? buscarNodoEnArbol(arbol, nodoAbiertoId) : null;
 
   if (cargando) {
     return (
@@ -157,10 +245,11 @@ function VistaDiagramaInterna({ proyectoId, permisos }) {
   return (
     <div className="border border-gray-200 rounded-xl overflow-hidden bg-white" style={{ height: '650px' }}>
       <ReactFlow
-        nodes={nodes}
+        nodes={nodesFinal}
         edges={edges}
         nodeTypes={nodeTypes}
         onNodeClick={onNodeClick}
+        onPaneClick={onPaneClick}
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable
@@ -192,6 +281,13 @@ function VistaDiagramaInterna({ proyectoId, permisos }) {
             <ChevronsDownUp size={14} />
             <span className="text-[10px] font-medium hidden sm:inline">Colapsar todo</span>
           </button>
+
+          {permisos.puedeCrearEtapa && (
+            <>
+              <span className="w-px h-4 bg-gray-200 mx-0.5" />
+              <CrearInline tipo="etapa" proyectoId={proyectoId} onCreado={() => cargarArbol(true)} />
+            </>
+          )}
 
           {/* Buscador — atenúa lo que no coincide, no filtra */}
           <span className="w-px h-4 bg-gray-200 mx-0.5" />
@@ -230,6 +326,31 @@ function VistaDiagramaInterna({ proyectoId, permisos }) {
           zoomable
         />
       </ReactFlow>
+
+      {nodoAbierto && (
+        <PanelDrawer
+          key={nodoAbierto.id}
+          nodo={nodoAbierto}
+          proyectoId={proyectoId}
+          permisos={permisos}
+          onActualizado={() => cargarArbol(true)}
+          mostrarToast={mostrarToast}
+          onCerrar={() => setNodoAbiertoId(null)}
+        />
+      )}
+
+      <ConfirmDialog
+        abierto={!!confirmEliminar}
+        titulo={`Eliminar ${TIPO_LABEL_ELIMINAR[confirmEliminar?.tipo] || ''}`}
+        mensaje={
+          confirmEliminar?.numDescendientes > 0
+            ? `"${confirmEliminar?.nombre}" y sus ${confirmEliminar.numDescendientes} elemento${confirmEliminar.numDescendientes > 1 ? 's' : ''} relacionados se eliminarán permanentemente. Esta acción no se puede deshacer.`
+            : `"${confirmEliminar?.nombre}" se eliminará permanentemente. Esta acción no se puede deshacer.`
+        }
+        textoConfirmar="Eliminar"
+        onConfirmar={confirmarEliminar}
+        onCancelar={() => setConfirmEliminar(null)}
+      />
     </div>
   );
 }
