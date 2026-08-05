@@ -223,6 +223,26 @@ function VistaDiagramaInterna({ proyectoId, permisos }) {
     setNodoAbiertoId(null);
   }
 
+  // Navegar a un hijo desde la lista dentro del propio drawer (sin volver
+  // al lienzo) — si el nodo actual estaba colapsado, se expande primero
+  // para que el lienzo quede consistente con lo que ahora muestra el drawer.
+  function navegarANodo(id) {
+    setColapsados(prev => {
+      if (!nodoAbiertoId || !prev.has(nodoAbiertoId)) return prev;
+      const next = new Set(prev);
+      next.delete(nodoAbiertoId);
+      return next;
+    });
+    setSeleccionadoId(id);
+    setNodoAbiertoId(id);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('nodo', id);
+      return next;
+    }, { replace: true });
+    setTimeout(() => fitView({ nodes: [{ id }], duration: prefersReducedMotion ? 0 : 400, maxZoom: 1 }), 60);
+  }
+
   const nodoAbierto = nodoAbiertoId ? buscarNodoEnArbol(arbol, nodoAbiertoId) : null;
 
   if (cargando) {
@@ -336,6 +356,7 @@ function VistaDiagramaInterna({ proyectoId, permisos }) {
           onActualizado={() => cargarArbol(true)}
           mostrarToast={mostrarToast}
           onCerrar={() => setNodoAbiertoId(null)}
+          onNavegar={navegarANodo}
         />
       )}
 

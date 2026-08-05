@@ -86,7 +86,7 @@ export function useLayoutJerarquia(raices, colapsados) {
           id: `e-${d.parent.data.id}-${d.data.id}`,
           source: d.parent.data.id,
           target: d.data.id,
-          type: 'smoothstep',
+          type: 'default', // bezier suave (curva), en vez del anterior smoothstep en escuadra
           style: { stroke: '#d1d5db' },
         });
       }

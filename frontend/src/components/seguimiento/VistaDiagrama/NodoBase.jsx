@@ -5,9 +5,10 @@
  *            (palomita si está completada), etiqueta de tipo, nombre (hasta
  *            2 líneas, sin cortar a la mitad), barra de avance y porcentaje.
  *            El nivel de detalle baja con el zoom (por debajo de 0.62 solo
- *            queda punto+nombre). Cuando el nodo está seleccionado, muestra
- *            un NodeToolbar flotante con acciones rápidas de crear/eliminar
- *            (ver/editar el resto de los campos vive en el drawer, no aquí).
+ *            queda punto+nombre). Al pasar el mouse o seleccionar el nodo,
+ *            muestra un NodeToolbar flotante con acciones rápidas de
+ *            crear/eliminar (ver/editar el resto de los campos vive en el
+ *            drawer, no aquí).
  */
 import { useState, useRef, useEffect } from 'react';
 import { CheckCircle2, Plus, Trash2, Loader2 } from 'lucide-react';
@@ -30,6 +31,7 @@ export default function NodoBase({ id, data, selected, tipo }) {
   const [creando, setCreando] = useState(false);
   const [nombreNuevo, setNombreNuevo] = useState('');
   const [guardandoNuevo, setGuardandoNuevo] = useState(false);
+  const [hover, setHover] = useState(false);
   const refInput = useRef(null);
 
   useEffect(() => { if (creando) refInput.current?.focus(); }, [creando]);
@@ -66,10 +68,12 @@ export default function NodoBase({ id, data, selected, tipo }) {
       className={`rounded-lg border bg-white shadow-sm flex overflow-hidden relative transition-opacity focus:outline-none focus:ring-2 focus:ring-[#7B1C3E] focus:ring-offset-1 ${
         selected ? 'border-[#7B1C3E] ring-1 ring-[#7B1C3E]' : 'border-gray-200'
       }`}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
     >
       {(data.puedeCrearHijo || data.puedeEliminar) && (
         <NodeToolbar
-          isVisible={selected}
+          isVisible={selected || hover}
           position={Position.Top}
           className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg shadow-md px-1.5 py-1"
         >
@@ -120,10 +124,10 @@ export default function NodoBase({ id, data, selected, tipo }) {
       <div className="flex-1 min-w-0 px-2.5 py-2 flex flex-col justify-center gap-1">
         <div className="flex items-center gap-1.5">
           {completada ? (
-            <CheckCircle2 size={12} className="text-emerald-600 flex-shrink-0" title="Completada" />
+            <CheckCircle2 size={14} className="text-emerald-600 flex-shrink-0" title="Completada" />
           ) : (
             <span
-              className="w-2 h-2 rounded-full flex-shrink-0"
+              className="w-3 h-3 rounded-full flex-shrink-0"
               style={{ backgroundColor: COLORES_SEMAFORO[sem] || COLORES_SEMAFORO.gris }}
               title={LEYENDA_SEMAFORO[sem] || LEYENDA_SEMAFORO.gris}
             />

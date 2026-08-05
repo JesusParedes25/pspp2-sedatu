@@ -66,7 +66,7 @@ function normalizar(tipo, nodo) {
 export default function NodoCard({
   tipo, nodo, proyectoId, permisos, esContenedor = false,
   breadcrumb, onProyectoClick, onCambiado, defaultAbierto = false,
-  ocultarMetadataFooter = false,
+  ocultarMetadataFooter = false, ocultarCabecera = false,
 }) {
   const { mostrarToast } = useUI();
   const [abierto, setAbierto] = useState(defaultAbierto);
@@ -237,6 +237,7 @@ export default function NodoCard({
   return (
     <div className={`rounded-lg border transition-colors ${completado ? 'border-gray-100 bg-gray-50/40' : 'border-gray-200 bg-white'}`}>
       {/* ── Cabecera colapsada ── */}
+      {!ocultarCabecera && (
       <div className="flex items-center gap-2.5 px-3 py-2.5">
         <button onClick={toggleChecklist} disabled={esContenedor || soloLectura} title={completado ? 'Marcar pendiente' : 'Marcar completada'}
           className="flex-shrink-0 disabled:cursor-not-allowed">
@@ -258,6 +259,7 @@ export default function NodoCard({
           {abierto ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
         </button>
       </div>
+      )}
 
       {breadcrumb && (
         <div className="px-3 -mt-1.5 pb-2 text-[10px] text-gray-400 truncate">

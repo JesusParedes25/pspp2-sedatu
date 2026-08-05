@@ -21,6 +21,22 @@ async function crear(req, res, next) {
   try {
     const datos = { ...req.body, id_accion: req.params.id };
     const tarea = await tareasQueries.crearTarea(datos);
+
+    // Recalcular acción padre → etapa → proyecto: una tarea nueva cambia el
+    // avance/estado agregado de su acción contenedora (mismo patrón que ya
+    // usa patchAvanceSemaforo más abajo — antes de esto, la acción se
+    // quedaba con su valor viejo hasta el siguiente cambio de avance).
+    await avanceSemaforo.recalcularPadres('accion', tarea.id_accion);
+    const pool = require('../db/pool');
+    const { rows: [accionPadre] } = await pool.query(
+      'SELECT id_etapa, id_proyecto FROM acciones WHERE id = $1', [tarea.id_accion]
+    );
+    if (accionPadre?.id_etapa) {
+      await recalcularEtapa(accionPadre.id_etapa);
+    } else if (accionPadre?.id_proyecto) {
+      await recalcularProyecto(accionPadre.id_proyecto);
+    }
+
     res.status(201).json({ datos: tarea, mensaje: 'Tarea creada' });
   } catch (err) { next(err); }
 }
@@ -37,6 +53,21 @@ async function eliminar(req, res, next) {
   try {
     const tarea = await tareasQueries.eliminarTarea(req.params.id);
     if (!tarea) return res.status(404).json({ error: true, mensaje: 'Tarea no encontrada' });
+
+    // Recalcular acción padre → etapa → proyecto: una tarea eliminada
+    // también cambia el avance/estado agregado de su acción contenedora
+    // (mismo patrón que crear() arriba y patchAvanceSemaforo más abajo).
+    await avanceSemaforo.recalcularPadres('accion', tarea.id_accion);
+    const pool = require('../db/pool');
+    const { rows: [accionPadre] } = await pool.query(
+      'SELECT id_etapa, id_proyecto FROM acciones WHERE id = $1', [tarea.id_accion]
+    );
+    if (accionPadre?.id_etapa) {
+      await recalcularEtapa(accionPadre.id_etapa);
+    } else if (accionPadre?.id_proyecto) {
+      await recalcularProyecto(accionPadre.id_proyecto);
+    }
+
     res.json({ datos: { id: tarea.id }, mensaje: 'Tarea eliminada' });
   } catch (err) { next(err); }
 }
