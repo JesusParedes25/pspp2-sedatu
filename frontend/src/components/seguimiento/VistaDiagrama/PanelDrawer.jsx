@@ -145,6 +145,7 @@ export default function PanelDrawer({ nodo, proyectoId, permisos, onActualizado,
                       <button
                         key={h.id}
                         onClick={() => onNavegar(h.id)}
+                        title={h.nombre}
                         className="w-full flex items-center gap-2 px-2.5 py-2 border border-gray-200 rounded-lg hover:border-[#7B1C3E] hover:bg-[#7B1C3E]/5 text-left transition-colors"
                       >
                         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO[h.semaforo_efectivo || 'gris'] }} />
