@@ -13,6 +13,13 @@ const municipiosNodoQueries = require('../db/queries/municipios-nodo.queries');
 async function listar(req, res, next) {
   try {
     const tareas = await tareasQueries.obtenerTareasPorAccion(req.params.id);
+    // avance_efectivo + semaforo_efectivo: mismo criterio que ya usa
+    // "Detalle" (obtenerArbol) — cubre el caso "Completada pero
+    // avance_actual quedó null", que si no aquí se mostraba 0%.
+    for (const tarea of tareas) {
+      tarea.avance_efectivo = tarea.avance_actual != null ? tarea.avance_actual : (tarea.estado === 'Completada' ? 100 : 0);
+      tarea.semaforo_efectivo = avanceSemaforo.semaforoEfectivo(tarea);
+    }
     res.json({ datos: tareas, mensaje: 'Tareas obtenidas' });
   } catch (err) { next(err); }
 }

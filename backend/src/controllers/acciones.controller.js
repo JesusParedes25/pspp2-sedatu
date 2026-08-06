@@ -28,11 +28,15 @@ const { puedeGestionarNodo } = require('../utils/autorizacion');
 async function listarPorEtapa(req, res, next) {
   try {
     const acciones = await accionesQueries.obtenerAccionesPorEtapa(req.params.id);
-    // semaforo_efectivo: misma función que ya usa "Detalle" — sin
-    // esto, Vista Lista mostraba la columna cruda "semaforo" (override
-    // manual, casi siempre vacía) en vez del color calculado.
+    // semaforo_efectivo + avance_efectivo: mismas funciones que ya usa
+    // "Detalle" (avanceSemaforo.obtenerSubarbol) — sin esto, Vista Lista leía
+    // porcentaje_avance/semaforo crudos (la columna guardada, que solo se
+    // actualiza cuando algún flujo dispara el recálculo en cascada) en vez
+    // del valor efectivo recalculado al vuelo, y podía mostrar un % distinto
+    // al que ya mostraba Detalle para el mismo nodo.
     for (const accion of acciones) {
       accion.semaforo_efectivo = avanceSemaforo.semaforoEfectivo(accion);
+      accion.avance_efectivo = await avanceSemaforo.calcularAvanceEfectivoAccion(accion, pool);
     }
     res.json({ datos: acciones, mensaje: 'Acciones obtenidas' });
   } catch (err) {
@@ -189,6 +193,12 @@ async function eliminar(req, res, next) {
 async function listarSubacciones(req, res, next) {
   try {
     const subacciones = await accionesQueries.obtenerSubacciones(req.params.id);
+    // Mismo criterio que listarPorEtapa: sin esto, esta lista se quedaba con
+    // los valores crudos guardados en vez del efectivo recalculado al vuelo.
+    for (const sub of subacciones) {
+      sub.semaforo_efectivo = avanceSemaforo.semaforoEfectivo(sub);
+      sub.avance_efectivo = await avanceSemaforo.calcularAvanceEfectivoAccion(sub, pool);
+    }
     res.json({ datos: subacciones, mensaje: 'Subacciones obtenidas' });
   } catch (err) {
     next(err);

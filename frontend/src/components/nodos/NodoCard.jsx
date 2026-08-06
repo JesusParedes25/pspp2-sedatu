@@ -56,9 +56,15 @@ function ChipFecha({ fecha, completado }) {
   return <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${cls}`}>{label}{d < 0 ? ` (-${Math.abs(d)}d)` : ''}</span>;
 }
 
-// Normaliza campos que difieren ligeramente entre etapa/acción/tarea
+// Normaliza campos que difieren ligeramente entre etapa/acción/tarea.
+// avance_efectivo (recalculado al vuelo, igual que Detalle) tiene prioridad
+// sobre avance_actual: para una hoja son el mismo número, pero si este nodo
+// pasó de hoja a contenedor (p. ej. se le agregó una tarea) avance_actual
+// se queda con el valor viejo mientras que avance_efectivo ya refleja el
+// promedio real de sus partes — sin esto, esta tarjeta podía mostrar un %
+// distinto al de la barra superior del panel para el mismo elemento.
 function normalizar(tipo, nodo) {
-  const avance = nodo.avance_actual ?? (tipo === 'etapa' ? nodo.porcentaje_calculado : nodo.porcentaje_avance) ?? 0;
+  const avance = nodo.avance_efectivo ?? nodo.avance_actual ?? (tipo === 'etapa' ? nodo.porcentaje_calculado : nodo.porcentaje_avance) ?? 0;
   const fecha = nodo.fecha_limite || nodo.fecha_fin || null;
   return { avance: Math.round(parseFloat(avance) || 0), fecha };
 }

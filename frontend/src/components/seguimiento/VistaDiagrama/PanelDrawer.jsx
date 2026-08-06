@@ -126,6 +126,7 @@ export default function PanelDrawer({ nodo, proyectoId, permisos, onActualizado,
               <NodoCard
                 tipo={tipo}
                 nodo={data}
+                esContenedor={esContenedor}
                 proyectoId={proyectoId}
                 permisos={permisos}
                 onCambiado={onActualizado}

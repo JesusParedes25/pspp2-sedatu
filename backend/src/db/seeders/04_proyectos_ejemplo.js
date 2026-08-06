@@ -717,6 +717,18 @@ async function seedProyectosEjemplo() {
         ('AccionBloqueada', 'La acción "Integración datos socioeconómicos CONEVAL" fue bloqueada', 'Accion', $4, $2)
     `, [e4, jesus, e4, p2e2]);
 
+    // Los INSERT de arriba solo llenan porcentaje_avance (la columna
+    // "guardada"), nunca avance_actual (la que edita el usuario desde
+    // "Registrar avance" y la que usa calcularAvanceEfectivoAccion como
+    // fuente de verdad para una hoja) — sin este backfill, cada acción
+    // sembrada quedaba con avance_actual NULL y por lo tanto avance_efectivo
+    // en 0%, aunque porcentaje_avance mostrara otro número: exactamente la
+    // clase de desfase entre vistas que este seeder no debería fingir.
+    await client.query(`
+      UPDATE acciones SET avance_actual = porcentaje_avance
+      WHERE avance_actual IS NULL AND porcentaje_avance IS NOT NULL
+    `);
+
     await client.query('COMMIT');
 
     console.log('  ✓ Proyecto 1: Análisis de aptitud territorial (7 etapas, ~40 acciones)');

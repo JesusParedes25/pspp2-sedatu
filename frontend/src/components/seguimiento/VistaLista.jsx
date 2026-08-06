@@ -152,7 +152,11 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
         semaforo: etapa.semaforo_efectivo,
         fecha_inicio: etapa.fecha_inicio,
         fecha_fin: etapa.fecha_fin,
-        porcentaje_avance: etapa.porcentaje_avance,
+        // avance_efectivo (recalculado al vuelo, igual que Detalle) — antes
+        // decía "etapa.porcentaje_avance", un campo que ni siquiera existe
+        // en una etapa (esa columna se llama porcentaje_calculado y solo
+        // aplica a acciones), así que la fila de etapa siempre mostraba "—".
+        porcentaje_avance: etapa.avance_efectivo,
         campos_extra: etapa.campos_extra || {},
         ubicacion: coberturaMap[etapa.id] || [],
         _raw: etapa,
@@ -166,7 +170,7 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
           semaforo: accion.semaforo_efectivo,
           fecha_inicio: accion.fecha_inicio,
           fecha_fin: accion.fecha_fin,
-          porcentaje_avance: accion.porcentaje_avance,
+          porcentaje_avance: accion.avance_efectivo ?? accion.porcentaje_avance,
           campos_extra: accion.campos_extra || {},
           ubicacion: coberturaMap[accion.id] || [],
           _raw: accion,

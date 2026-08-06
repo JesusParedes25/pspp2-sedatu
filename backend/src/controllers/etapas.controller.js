@@ -32,12 +32,16 @@ async function listarPorProyecto(req, res, next) {
       req.query.id_dg || null
     );
 
-    // semaforo_efectivo: misma función que ya usa "Detalle"
-    // (avanceSemaforo.obtenerSubarbol) — sin esto, Vista Lista mostraba la
-    // columna cruda "semaforo" (override manual, casi siempre vacía) en
-    // vez del color calculado, y por eso se veía siempre verde.
+    // semaforo_efectivo + avance_efectivo: mismas funciones que ya usa
+    // "Detalle" (avanceSemaforo.obtenerSubarbol) — sin avance_efectivo,
+    // Vista Lista y Cronograma leían porcentaje_calculado crudo (la
+    // columna guardada, que solo se actualiza cuando algún flujo dispara
+    // el recálculo en cascada) en vez del valor recalculado al vuelo, y
+    // podían mostrar un % distinto al que ya mostraba Detalle para la
+    // misma etapa.
     for (const etapa of etapas) {
       etapa.semaforo_efectivo = avanceSemaforo.semaforoEfectivo(etapa);
+      etapa.avance_efectivo = await avanceSemaforo.calcularAvanceEfectivo('etapa', etapa.id);
     }
 
     res.json({ datos: etapas, mensaje: 'Etapas obtenidas' });

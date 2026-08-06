@@ -523,7 +523,7 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
                             acc.estado === 'Completada' ? 'bg-emerald-500' : acc.estado === 'En_proceso' ? 'bg-orange-400' : 'bg-gray-300'
                           }`} />
                           <span className="flex-1 text-xs text-gray-700 truncate">{acc.nombre}</span>
-                          <span className="text-[10px] text-gray-400">{parseFloat(acc.porcentaje_avance || 0).toFixed(0)}%</span>
+                          <span className="text-[10px] text-gray-400">{parseFloat(acc.avance_efectivo ?? acc.porcentaje_avance ?? 0).toFixed(0)}%</span>
                           {permisos.puedeEliminar && (
                             <button type="button" onClick={() => eliminarAccionRapida(acc.id, et.id)}
                               className="text-gray-300 hover:text-red-500 p-0.5"><Trash2 size={11} /></button>
