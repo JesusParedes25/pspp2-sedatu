@@ -70,6 +70,15 @@ export default function NodoBase({ id, data, selected, tipo }) {
       }`}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      onKeyDown={(e) => {
+        // Ignora teclas que ya vienen de un botón/input hijo (toggle de
+        // colapsar, toolbar, input de crear) — solo actúa cuando el foco
+        // está en la tarjeta misma, igual que el patrón WAI-ARIA treeitem.
+        if (e.target !== e.currentTarget) return;
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); data.onSeleccionar?.(); }
+        else if (e.key === 'ArrowRight' && tieneHijos && colapsado) { e.preventDefault(); data.onToggleColapsar?.(id); }
+        else if (e.key === 'ArrowLeft' && tieneHijos && !colapsado) { e.preventDefault(); data.onToggleColapsar?.(id); }
+      }}
     >
       {(data.puedeCrearHijo || data.puedeEliminar) && (
         <NodeToolbar

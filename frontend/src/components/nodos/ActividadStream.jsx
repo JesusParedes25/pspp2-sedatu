@@ -117,8 +117,19 @@ export default function ActividadStream({ tipo, id }) {
                     </a>
                   )}
                   {item.tipo_evento === 'riesgo' && item.metadata?.nivel && (
-                    <span className="inline-block text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded mt-0.5">
-                      Nivel: {item.metadata.nivel}{item.metadata.estado ? ` · ${item.metadata.estado}` : ''}
+                    <span className="inline-flex items-center gap-1 flex-wrap">
+                      <span className="inline-block text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded mt-0.5">
+                        Nivel: {item.metadata.nivel}{item.metadata.estado ? ` · ${item.metadata.estado}` : ''}
+                      </span>
+                      {/* Un riesgo reportado desde una tarea vive en la tabla nueva
+                          `actividad` (sin riesgo_id ni estado propio) en vez de la
+                          tabla `riesgos` que sí leen Inicio y Panorama del proyecto
+                          — sin esta etiqueta, parece que "desaparece" del resumen. */}
+                      {!item.metadata?.riesgo_id && (
+                        <span className="inline-block text-[10px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded mt-0.5" title="Los riesgos reportados desde una tarea no se incluyen en los resúmenes de riesgos de Inicio ni Panorama del proyecto, solo aquí.">
+                          No visible en Panorama
+                        </span>
+                      )}
                     </span>
                   )}
                   <p className="text-[10px] text-gray-400 mt-0.5">{rel(item.created_at)}</p>

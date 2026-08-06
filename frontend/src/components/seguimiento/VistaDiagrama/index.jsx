@@ -177,6 +177,7 @@ function VistaDiagramaInterna({ proyectoId, permisos }) {
       data: {
         ...n.data,
         onToggleColapsar: toggleColapsar,
+        onSeleccionar: () => seleccionarNodo(n.id),
         atenuado: qNorm.length > 0 && !n.data.nombre.toLowerCase().includes(qNorm),
         tipoHijoLabel,
         puedeCrearHijo,
@@ -207,15 +208,19 @@ function VistaDiagramaInterna({ proyectoId, permisos }) {
     return [...nodes, ghost];
   }, [nodes, permisos.puedeCrearEtapa, crearHijo]);
 
-  function onNodeClick(_e, nodo) {
-    if (nodo.type === 'ghostEtapa') return;
-    setSeleccionadoId(nodo.id);
-    setNodoAbiertoId(nodo.id);
+  function seleccionarNodo(id) {
+    setSeleccionadoId(id);
+    setNodoAbiertoId(id);
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
-      next.set('nodo', nodo.id);
+      next.set('nodo', id);
       return next;
     }, { replace: true });
+  }
+
+  function onNodeClick(_e, nodo) {
+    if (nodo.type === 'ghostEtapa') return;
+    seleccionarNodo(nodo.id);
   }
 
   function onPaneClick() {

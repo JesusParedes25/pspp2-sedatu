@@ -207,14 +207,9 @@ export default function PropiedadesElemento({ nodo, permisos, onActualizado, mos
                 soloLectura={permisos.esSoloLectura} formatLabel={v => v.replace(/_/g, ' ')}
               />
             </div>
-            {/* Avance editable (solo nodos hoja) */}
-            <div className="mb-2">
-              <CampoAvance
-                valor={data.avance_actual} avanceEfectivo={avance} esContenedor={false}
-                estado={data.estado} onChange={v => guardarCampo('avance_actual', v)}
-                soloLectura={permisos.esSoloLectura}
-              />
-            </div>
+            {/* Sin campo de avance aquí a propósito: es hoja, y "Registrar
+                avance" (en las acciones rápidas de arriba) ya cubre exactamente
+                lo mismo — tenerlo dos veces confundía más de lo que ayudaba. */}
             {/* Fecha inicio editable (acción/tarea; en etapa siempre es calculada) */}
             <div className="mb-2">
               <CampoFecha

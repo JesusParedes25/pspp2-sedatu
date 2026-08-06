@@ -17,6 +17,30 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   base: process.env.NODE_ENV === 'production' ? '/pspp/' : '/',
+  build: {
+    rollupOptions: {
+      output: {
+        // El Diagrama ya carga @xyflow/react + d3-hierarchy vía React.lazy
+        // (no entran al bundle inicial), pero sin esto Rollup podía repartir
+        // sus módulos entre distintos chunks dinámicos según qué más se
+        // importe junto — agruparlos explícito en su propio vendor chunk
+        // los mantiene juntos y cacheables por separado del resto del app.
+        manualChunks(id) {
+          if (id.includes('node_modules/@xyflow') || id.includes('node_modules/d3-')) {
+            return 'vendor-diagrama';
+          }
+        },
+      },
+    },
+    // Darle nombre propio a ese chunk (arriba) hace que Vite lo trate como
+    // "vendor" y le agregue un <link rel="modulepreload"> en el index.html
+    // — es decir, TODOS los usuarios lo descargarían de fondo en cada carga
+    // inicial, aunque nunca abran el Diagrama. Se excluye explícitamente
+    // para que solo se pida cuando el React.lazy() realmente lo necesita.
+    modulePreload: {
+      resolveDependencies: (filename, deps) => deps.filter(d => !d.includes('vendor-diagrama')),
+    },
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,
