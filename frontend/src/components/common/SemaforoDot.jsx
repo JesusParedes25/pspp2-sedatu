@@ -10,6 +10,10 @@ import { CheckCircle2 } from 'lucide-react';
 
 export const COLORES_SEMAFORO = { verde: '#16a34a', ambar: '#d97706', rojo: '#dc2626', gris: '#94a3b8' };
 
+// Mismo tono que COLORES_SEMAFORO pero aclarado, para el fondo de un chip de
+// estado — evita que el texto de color sobre blanco se pierda como chip.
+export const CHIP_BG = { verde: '#e7f3e8', ambar: '#fdeee0', rojo: '#fbe9e9', gris: '#eef0f2' };
+
 export const LEYENDA_SEMAFORO = {
   verde: 'En proceso, sin riesgo',
   ambar: 'Por vencer',

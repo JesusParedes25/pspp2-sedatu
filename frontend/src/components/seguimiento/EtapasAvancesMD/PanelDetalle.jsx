@@ -12,7 +12,7 @@ import { useJerarquiaProyecto } from '../../../hooks/useJerarquiaProyecto';
 import NodoCard from '../../nodos/NodoCard';
 import ActividadStream from '../../nodos/ActividadStream';
 import { estaVencida } from '../../../utils/fecha';
-import { COLORES_SEMAFORO } from '../../common/SemaforoDot';
+import { COLORES_SEMAFORO, CHIP_BG } from '../../common/SemaforoDot';
 import PropiedadesElemento from '../PropiedadesElemento';
 import CrearInline from './CrearInline';
 import { CampoTextoInline } from './Campos';
@@ -217,7 +217,7 @@ export default function PanelDetalle({ nodo, proyectoId, permisos, onActualizado
       )}
       <aside
         className={[
-          'flex-shrink-0 border-l border-gray-200 bg-white overflow-y-auto flex flex-col',
+          'flex-shrink-0 border-l border-gray-200 bg-white overflow-hidden flex flex-col',
           /* Desktop: siempre visible como columna inline, más ancha que
              antes (~44% del viewport, con tope) por pedido explícito */
           'xl:w-[44vw] xl:max-w-[640px] xl:min-w-[420px] xl:relative xl:translate-x-0',
@@ -238,12 +238,45 @@ export default function PanelDetalle({ nodo, proyectoId, permisos, onActualizado
           </button>
         </div>
 
-        <PropiedadesElemento
-          nodo={nodo}
-          permisos={permisos}
-          onActualizado={onActualizado}
-          mostrarToast={mostrarToast}
-        />
+        {/* Cabecera pegajosa del rail — se queda visible al hacer scroll en
+            el contenido de abajo, para no perder de vista qué elemento se
+            está editando (mismo criterio que la cabecera de la columna
+            central y que el drawer de Diagrama). */}
+        <div className="flex-shrink-0 px-4 pt-3.5 pb-3 border-b border-gray-100">
+          <div className="text-[10px] text-gray-400 font-medium mb-1.5 truncate" title={`${tipoLabel} · ${ruta.join(' → ')}`}>
+            {tipoLabel} · {ruta.join(' → ')}
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#7B1C3E] text-white uppercase tracking-wider">
+              {tipoLabel}
+            </span>
+            <span
+              className="text-[10px] font-semibold px-2 py-0.5 rounded"
+              style={{ backgroundColor: CHIP_BG[sem], color: COLORES_SEMAFORO[sem] }}
+            >
+              {(data.estado || 'Pendiente').replace(/_/g, ' ')}
+            </span>
+            {esContenedor && (
+              <span className="flex items-center gap-0.5 text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                <Lock size={9} /> calculado
+              </span>
+            )}
+            {data.prioridad && (
+              <span className="text-[10px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{data.prioridad}</span>
+            )}
+          </div>
+          <p className="text-sm font-bold text-gray-900 leading-snug truncate" title={data.nombre}>{data.nombre}</p>
+        </div>
+
+        {/* Cuerpo con scroll propio, independiente del árbol y la columna central */}
+        <div className="flex-1 overflow-y-auto">
+          <PropiedadesElemento
+            nodo={nodo}
+            permisos={permisos}
+            onActualizado={onActualizado}
+            mostrarToast={mostrarToast}
+          />
+        </div>
       </aside>
     </div>
   );

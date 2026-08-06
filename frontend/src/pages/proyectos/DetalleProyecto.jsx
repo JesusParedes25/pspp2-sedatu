@@ -115,7 +115,7 @@ export default function DetalleProyecto() {
   // directamente la pestaña y el nodo correspondiente. Seguimiento/Diagrama
   // son el punto de entrada por defecto — es donde se captura día a día.
   const [pestanaActiva, setPestanaActiva] = useState(() => searchParams.get('tab') || 'seguimiento');
-  const [subseccionActiva, setSubseccionActiva] = useState('etapas');
+  const [subseccionActiva, setSubseccionActiva] = useState('diagrama');
   // Si el usuario navega de un proyecto a otro sin desmontar (mismo patrón de
   // ruta), el useState inicial no vuelve a correr — re-sincroniza con la URL.
   useEffect(() => {

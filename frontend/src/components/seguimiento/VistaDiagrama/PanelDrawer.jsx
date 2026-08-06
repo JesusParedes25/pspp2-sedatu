@@ -13,14 +13,11 @@ import NodoCard from '../../nodos/NodoCard';
 import ActividadStream from '../../nodos/ActividadStream';
 import PropiedadesElemento from '../PropiedadesElemento';
 import CrearInline from '../EtapasAvancesMD/CrearInline';
-import { COLORES_SEMAFORO } from '../../common/SemaforoDot';
+import { COLORES_SEMAFORO, CHIP_BG } from '../../common/SemaforoDot';
 
 const TIPO_LABEL = { etapa: 'ETAPA', accion: 'ACCIÓN', tarea: 'TAREA' };
 const TIPO_HIJO = { etapa: 'accion', accion: 'tarea' };
 const TIPO_HIJO_LABEL = { accion: 'Acción', tarea: 'Tarea' };
-// Mismo tono que COLORES_SEMAFORO pero aclarado, para el fondo del chip de
-// estado — evita que el texto de color sobre blanco se pierda como chip.
-const CHIP_BG = { verde: '#e7f3e8', ambar: '#fdeee0', rojo: '#fbe9e9', gris: '#eef0f2' };
 
 // Sin backdrop a pantalla completa a propósito: a diferencia del rail móvil
 // de "Detalle" (que sí necesita bloquear todo lo de atrás), aquí el lienzo

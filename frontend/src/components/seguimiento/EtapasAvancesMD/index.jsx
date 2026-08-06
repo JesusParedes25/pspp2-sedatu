@@ -159,7 +159,12 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
   }
 
   return (
-    <div className="flex gap-0 border border-gray-200 rounded-xl overflow-hidden bg-white" style={{ minHeight: '600px' }}>
+    /* Altura acotada (no solo mínima): un overflow-y-auto interno solo
+       funciona de verdad si este contenedor tiene un alto fijo — con
+       minHeight nada más, el árbol y el rail crecían con su contenido y
+       terminaba desplazándose la página completa en vez de cada columna
+       por separado. */
+    <div className="flex gap-0 border border-gray-200 rounded-xl overflow-hidden bg-white h-[calc(100vh-380px)] min-h-[520px]">
       {/* Overlay para árbol en móvil */}
       {treePanelAbierto && (
         <div className="fixed inset-0 bg-black/20 z-20 lg:hidden" onClick={() => setTreePanelAbierto(false)} />

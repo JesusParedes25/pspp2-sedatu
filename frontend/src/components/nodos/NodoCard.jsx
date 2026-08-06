@@ -13,6 +13,7 @@ import { Link } from 'react-router-dom';
 import {
   ChevronDown, ChevronRight, Lock, CheckCircle2, Circle, AlertTriangle,
   MessageSquare, Paperclip, Shield, BarChart3, UserPlus, MapPin, Loader2, X, Send, Copy,
+  TrendingUp, MoreHorizontal,
 } from 'lucide-react';
 import ModalDuplicarNodo from './ModalDuplicarNodo';
 import * as etapasApi from '../../api/etapas';
@@ -292,29 +293,29 @@ export default function NodoCard({
             </div>
           )}
 
-          {/* Row 1: quick buttons */}
-          <div className="flex flex-wrap gap-1.5">
-            {esContenedor ? (
-              <span className="flex items-center gap-1 text-[11px] text-gray-400 bg-gray-100 px-2.5 py-1.5 rounded-lg">
-                <Lock size={11} /> Se calcula desde sus partes
-              </span>
-            ) : (
-              <>
-                <button disabled={soloLectura || completado} onClick={() => { setModo(modo === 'avance' ? null : 'avance'); setAvanceTemp(avance); }}
-                  className={`text-[11px] font-medium px-2.5 py-1.5 rounded-lg border disabled:opacity-40 ${modo === 'avance' ? 'border-guinda-400 bg-guinda-50 text-guinda-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                  Registrar avance
-                </button>
-                <button disabled={soloLectura || completado} onClick={() => setModo(modo === 'concluir' ? null : 'concluir')}
-                  className={`text-[11px] font-medium px-2.5 py-1.5 rounded-lg border disabled:opacity-40 ${modo === 'concluir' ? 'border-green-400 bg-green-50 text-green-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                  Marcar concluido
-                </button>
-                <button disabled={soloLectura} onClick={() => setModo(modo === 'riesgo' ? null : 'riesgo')}
-                  className={`text-[11px] font-medium px-2.5 py-1.5 rounded-lg border disabled:opacity-40 ${modo === 'riesgo' ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                  Reportar riesgo
-                </button>
-              </>
-            )}
-          </div>
+          {/* Row 1: acciones rápidas — "Registrar avance" como botón primario
+              a todo lo ancho (es la acción más usada), el resto en una
+              cuadrícula de 2 columnas debajo. */}
+          {esContenedor ? (
+            <div className="flex items-center gap-1.5 text-[11px] text-gray-400 bg-gray-100 px-3 py-2 rounded-lg">
+              <Lock size={12} /> Se calcula desde sus partes
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-1.5">
+              <button disabled={soloLectura || completado} onClick={() => { setModo(modo === 'avance' ? null : 'avance'); setAvanceTemp(avance); }}
+                className={`col-span-2 flex items-center justify-center gap-1.5 text-[12px] font-semibold px-3 py-2.5 rounded-lg disabled:opacity-40 transition-colors ${modo === 'avance' ? 'bg-guinda-700 text-white' : 'bg-guinda-600 text-white hover:bg-guinda-700'}`}>
+                <TrendingUp size={14} /> Registrar avance
+              </button>
+              <button disabled={soloLectura || completado} onClick={() => setModo(modo === 'concluir' ? null : 'concluir')}
+                className={`flex items-center justify-center gap-1.5 text-[11px] font-medium px-2.5 py-2 rounded-lg border disabled:opacity-40 transition-colors ${modo === 'concluir' ? 'border-green-400 bg-green-50 text-green-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                <CheckCircle2 size={13} /> Marcar concluido
+              </button>
+              <button disabled={soloLectura} onClick={() => setModo(modo === 'riesgo' ? null : 'riesgo')}
+                className={`flex items-center justify-center gap-1.5 text-[11px] font-medium px-2.5 py-2 rounded-lg border disabled:opacity-40 transition-colors ${modo === 'riesgo' ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                <AlertTriangle size={13} /> Reportar riesgo
+              </button>
+            </div>
+          )}
 
           {modo === 'avance' && (
             <div className="bg-gray-50 rounded-lg p-2.5 space-y-2">
@@ -358,24 +359,30 @@ export default function NodoCard({
             </div>
           )}
 
-          {/* Row 2: contextual actions */}
-          <div className="flex flex-wrap gap-1.5 pt-1 border-t border-gray-100">
-            <BotonContextual icono={MessageSquare} label="Comentar" activo={seccion === 'comentar'} onClick={() => setSeccion(seccion === 'comentar' ? null : 'comentar')} />
-            <BotonContextual icono={Paperclip} label="Adjuntar archivo" activo={seccion === 'adjuntar'} onClick={() => {
-              const next = seccion === 'adjuntar' ? null : 'adjuntar';
-              setSeccion(next);
-              if (next === 'adjuntar' && evidenciasNodo === null) cargarEvidenciasNodo();
-            }} />
-            <BotonContextual icono={Shield} label={`Riesgos${riesgosCount ? ` (${riesgosCount})` : ''}`} activo={seccion === 'riesgos'} onClick={() => setSeccion(seccion === 'riesgos' ? null : 'riesgos')} />
-            <BotonContextual icono={BarChart3} label="Vincular indicador" activo={seccion === 'indicador'} onClick={() => setSeccion(seccion === 'indicador' ? null : 'indicador')} />
-            {permisos?.puedeInvitar && (
-              <BotonContextual icono={UserPlus} label="Invitar participante" activo={seccion === 'invitar'} onClick={() => setSeccion(seccion === 'invitar' ? null : 'invitar')} />
-            )}
-            <BotonContextual icono={MapPin} label="Territorio" activo={seccion === 'territorio'} onClick={() => setSeccion(seccion === 'territorio' ? null : 'territorio')} />
-            {!esContenedor && permisos?.puedeCrearAccion && (tipo === 'accion' || tipo === 'tarea') && (
-              <BotonContextual icono={Copy} label="Duplicar" activo={false} onClick={() => setMostrarDuplicar(true)} />
-            )}
-          </div>
+          {/* Row 2: acciones contextuales, agrupadas detrás de "Más acciones"
+              para no saturar la vista con botones de uso poco frecuente. */}
+          <details className="pt-1 border-t border-gray-100">
+            <summary className="marker:hidden [&::-webkit-details-marker]:hidden list-none flex items-center justify-center gap-1.5 text-[11px] font-medium text-gray-500 border border-dashed border-gray-300 rounded-lg py-1.5 cursor-pointer hover:border-guinda-300 hover:text-guinda-600 transition-colors">
+              <MoreHorizontal size={13} /> Más acciones
+            </summary>
+            <div className="grid grid-cols-2 gap-1.5 mt-1.5">
+              <BotonContextual icono={MessageSquare} label="Comentar" activo={seccion === 'comentar'} onClick={() => setSeccion(seccion === 'comentar' ? null : 'comentar')} />
+              <BotonContextual icono={Paperclip} label="Adjuntar archivo" activo={seccion === 'adjuntar'} onClick={() => {
+                const next = seccion === 'adjuntar' ? null : 'adjuntar';
+                setSeccion(next);
+                if (next === 'adjuntar' && evidenciasNodo === null) cargarEvidenciasNodo();
+              }} />
+              <BotonContextual icono={Shield} label={`Riesgos${riesgosCount ? ` (${riesgosCount})` : ''}`} activo={seccion === 'riesgos'} onClick={() => setSeccion(seccion === 'riesgos' ? null : 'riesgos')} />
+              <BotonContextual icono={BarChart3} label="Vincular indicador" activo={seccion === 'indicador'} onClick={() => setSeccion(seccion === 'indicador' ? null : 'indicador')} />
+              {permisos?.puedeInvitar && (
+                <BotonContextual icono={UserPlus} label="Invitar participante" activo={seccion === 'invitar'} onClick={() => setSeccion(seccion === 'invitar' ? null : 'invitar')} />
+              )}
+              <BotonContextual icono={MapPin} label="Territorio" activo={seccion === 'territorio'} onClick={() => setSeccion(seccion === 'territorio' ? null : 'territorio')} />
+              {!esContenedor && permisos?.puedeCrearAccion && (tipo === 'accion' || tipo === 'tarea') && (
+                <BotonContextual icono={Copy} label="Duplicar" activo={false} onClick={() => setMostrarDuplicar(true)} />
+              )}
+            </div>
+          </details>
 
           {mostrarDuplicar && (
             <ModalDuplicarNodo
@@ -542,8 +549,8 @@ export default function NodoCard({
 function BotonContextual({ icono: Icono, label, activo, onClick }) {
   return (
     <button onClick={onClick}
-      className={`flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md transition-colors ${
-        activo ? 'bg-guinda-100 text-guinda-700' : 'text-gray-500 hover:bg-gray-100'
+      className={`flex items-center justify-center gap-1.5 text-[11px] font-medium px-2.5 py-2 rounded-lg border transition-colors ${
+        activo ? 'border-guinda-400 bg-guinda-50 text-guinda-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
       }`}>
       <Icono size={12} /> {label}
     </button>
