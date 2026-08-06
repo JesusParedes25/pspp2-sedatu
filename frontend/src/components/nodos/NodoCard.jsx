@@ -8,7 +8,7 @@
  *            rápida + acciones contextuales inline, reusando los
  *            componentes ya existentes (miembros, indicadores, territorio).
  */
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ChevronDown, ChevronRight, Lock, CheckCircle2, Circle, AlertTriangle,
@@ -90,7 +90,6 @@ export default function NodoCard({
   const [mostrarDuplicar, setMostrarDuplicar] = useState(false);
   const [editandoFecha, setEditandoFecha] = useState(false);
   const [editandoFechaInicio, setEditandoFechaInicio] = useState(false);
-  const fileInputRef = useRef(null);
 
   const { avance, fecha } = normalizar(tipo, nodo);
   const completado = nodo.estado === 'Completada';
@@ -106,6 +105,28 @@ export default function NodoCard({
 
   async function cargarEvidenciasNodo() {
     try {
+      // Una tarea no tiene tabla de evidencias propia — sus adjuntos se
+      // filtran del stream `actividad` y se normalizan al mismo shape
+      // {nombre_original, categoria, tipo_medio, url, autor_nombre,
+      // created_at, notas} que ya espera SeccionArchivosNodo para etapa/
+      // acción, así el componente no necesita saber de dónde vino cada uno.
+      if (tipo === 'tarea') {
+        const res = await actividadApi.obtenerActividadNodo(tipo, nodo.id);
+        const archivos = (res.datos || [])
+          .filter(a => a.tipo_evento === 'archivo')
+          .map(a => ({
+            id: a.id,
+            nombre_original: a.archivo_nombre,
+            categoria: a.metadata?.categoria || 'Otro',
+            tipo_medio: a.metadata?.tipo_medio || 'archivo',
+            url: a.metadata?.tipo_medio === 'link' ? a.archivo_url : undefined,
+            autor_nombre: a.autor_nombre,
+            created_at: a.created_at,
+            notas: a.metadata?.notas || null,
+          }));
+        setEvidenciasNodo(archivos);
+        return;
+      }
       const res = tipo === 'etapa'
         ? await evidenciasApi.obtenerEvidenciasEtapa(nodo.id)
         : await evidenciasApi.obtenerEvidenciasAccion(nodo.id);
@@ -212,20 +233,6 @@ export default function NodoCard({
     } catch (err) {
       alert(err.response?.data?.mensaje || 'Error al comentar');
     } finally { setGuardando(false); }
-  }
-
-  async function onAdjuntarSeleccion(e) {
-    const archivo = e.target.files?.[0];
-    if (!archivo) return;
-    setGuardando(true);
-    try {
-      if (tipo === 'etapa') await evidenciasApi.subirEvidenciaEtapa(nodo.id, archivo, {});
-      else if (tipo === 'accion') await evidenciasApi.subirEvidenciaAccion(nodo.id, archivo, {});
-      else await actividadApi.adjuntarArchivo(tipo, nodo.id, archivo);
-      cargarActividad();
-    } catch (err) {
-      alert(err.response?.data?.mensaje || 'Error al adjuntar archivo');
-    } finally { setGuardando(false); e.target.value = ''; }
   }
 
   const todosRiesgos = (actividad || []).filter(a => a.tipo_evento === 'riesgo');
@@ -355,15 +362,10 @@ export default function NodoCard({
           <div className="flex flex-wrap gap-1.5 pt-1 border-t border-gray-100">
             <BotonContextual icono={MessageSquare} label="Comentar" activo={seccion === 'comentar'} onClick={() => setSeccion(seccion === 'comentar' ? null : 'comentar')} />
             <BotonContextual icono={Paperclip} label="Adjuntar archivo" activo={seccion === 'adjuntar'} onClick={() => {
-              if (ENTIDAD_TIPO[tipo]) {
-                const next = seccion === 'adjuntar' ? null : 'adjuntar';
-                setSeccion(next);
-                if (next === 'adjuntar' && evidenciasNodo === null) cargarEvidenciasNodo();
-              } else {
-                fileInputRef.current?.click();
-              }
+              const next = seccion === 'adjuntar' ? null : 'adjuntar';
+              setSeccion(next);
+              if (next === 'adjuntar' && evidenciasNodo === null) cargarEvidenciasNodo();
             }} />
-            <input ref={fileInputRef} type="file" className="hidden" onChange={onAdjuntarSeleccion} />
             <BotonContextual icono={Shield} label={`Riesgos${riesgosCount ? ` (${riesgosCount})` : ''}`} activo={seccion === 'riesgos'} onClick={() => setSeccion(seccion === 'riesgos' ? null : 'riesgos')} />
             <BotonContextual icono={BarChart3} label="Vincular indicador" activo={seccion === 'indicador'} onClick={() => setSeccion(seccion === 'indicador' ? null : 'indicador')} />
             {permisos?.puedeInvitar && (
@@ -415,7 +417,7 @@ export default function NodoCard({
             )
           )}
 
-          {seccion === 'adjuntar' && ENTIDAD_TIPO[tipo] && (
+          {seccion === 'adjuntar' && (
             <div className="bg-gray-50 rounded-lg max-h-96 overflow-y-auto">
               <SeccionArchivosNodo
                 evidencias={evidenciasNodo || []}

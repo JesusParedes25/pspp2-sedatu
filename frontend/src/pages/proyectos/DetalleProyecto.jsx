@@ -63,8 +63,8 @@ const PESTANAS = [
 // Kanban y Checklist (y su código) se eliminaron por completo: llevaban
 // tiempo ocultos y sin usar (ver historial de commits).
 const SUBSECCIONES = [
-  { id: 'diagrama', etiqueta: 'Diagrama', icono: GitBranch },
   { id: 'etapas', etiqueta: 'Detalle', icono: Settings },
+  { id: 'diagrama', etiqueta: 'Diagrama', icono: GitBranch },
   { id: 'lista', etiqueta: 'Vista lista', icono: Table2 },
   { id: 'mapa', etiqueta: 'Mapa', icono: MapPin },
   { id: 'cronograma', etiqueta: 'Cronograma', icono: BarChart3 },
@@ -115,7 +115,7 @@ export default function DetalleProyecto() {
   // directamente la pestaña y el nodo correspondiente. Seguimiento/Diagrama
   // son el punto de entrada por defecto — es donde se captura día a día.
   const [pestanaActiva, setPestanaActiva] = useState(() => searchParams.get('tab') || 'seguimiento');
-  const [subseccionActiva, setSubseccionActiva] = useState('diagrama');
+  const [subseccionActiva, setSubseccionActiva] = useState('etapas');
   // Si el usuario navega de un proyecto a otro sin desmontar (mismo patrón de
   // ruta), el useState inicial no vuelve a correr — re-sincroniza con la URL.
   useEffect(() => {

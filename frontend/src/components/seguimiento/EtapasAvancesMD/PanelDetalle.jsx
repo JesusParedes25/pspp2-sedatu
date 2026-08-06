@@ -218,12 +218,15 @@ export default function PanelDetalle({ nodo, proyectoId, permisos, onActualizado
       <aside
         className={[
           'flex-shrink-0 border-l border-gray-200 bg-white overflow-y-auto flex flex-col',
-          /* Desktop: siempre visible como columna inline */
-          'xl:w-[290px] xl:relative xl:translate-x-0',
-          /* Móvil/tablet: slide-over controlado por estado */
+          /* Desktop: siempre visible como columna inline, más ancha que
+             antes (~44% del viewport, con tope) por pedido explícito */
+          'xl:w-[44vw] xl:max-w-[640px] xl:min-w-[420px] xl:relative xl:translate-x-0',
+          /* Móvil/tablet: slide-over controlado por estado — se queda en un
+             ancho fijo razonable (no vw, para no desbordar en pantallas
+             angostas antes de llegar al breakpoint xl de arriba) */
           railAbierto
-            ? 'fixed right-0 top-0 bottom-0 w-[290px] z-30 shadow-2xl translate-x-0'
-            : 'fixed right-0 top-0 bottom-0 w-[290px] z-30 shadow-2xl translate-x-full xl:translate-x-0',
+            ? 'fixed right-0 top-0 bottom-0 w-[320px] max-w-[85vw] z-30 shadow-2xl translate-x-0'
+            : 'fixed right-0 top-0 bottom-0 w-[320px] max-w-[85vw] z-30 shadow-2xl translate-x-full xl:translate-x-0',
           'transition-transform duration-200',
         ].join(' ')}
       >

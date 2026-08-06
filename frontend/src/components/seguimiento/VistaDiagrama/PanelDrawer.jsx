@@ -54,7 +54,7 @@ export default function PanelDrawer({ nodo, proyectoId, permisos, onActualizado,
   const completadosHijos = hijos.filter(h => h.estado === 'Completada').length;
 
   return (
-    <aside className="fixed right-0 top-0 bottom-0 w-full sm:w-[380px] bg-white z-40 shadow-2xl flex flex-col border-l border-gray-200">
+    <aside className="fixed right-0 top-0 bottom-0 w-full sm:w-[44vw] sm:max-w-[640px] sm:min-w-[420px] bg-white z-40 shadow-2xl flex flex-col border-l border-gray-200">
       <div className="relative px-4 pt-3.5 border-b border-gray-100 flex-shrink-0">
         <button onClick={onCerrar} className="absolute top-2.5 right-2.5 p-1.5 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-100">
           <X size={16} />

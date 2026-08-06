@@ -10,6 +10,7 @@
 import { useState } from 'react';
 import { FileText, Link2, Plus, Upload, Trash2, AlertTriangle, Loader2, ChevronRight } from 'lucide-react';
 import * as evidenciasApi from '../../api/evidencias';
+import * as actividadApi from '../../api/actividad';
 import FilePreviewModal from '../evidencias/FilePreviewModal';
 
 const CATEGORIAS_EVIDENCIA = [
@@ -24,6 +25,12 @@ const CATEGORIAS_EVIDENCIA = [
 ];
 
 export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, permisos }) {
+  // Una tarea no tiene tabla de evidencias propia (nunca la tuvo) — sus
+  // adjuntos viven en el stream unificado `actividad` (tipo_evento='archivo'),
+  // mismo wizard categoría→archivo/link→notas, solo que el guardado y la
+  // URL de descarga van por otro endpoint. Eliminar queda deshabilitado
+  // para tarea: /actividad no tiene un DELETE todavía.
+  const esActividad = tipo === 'tarea';
   // Wizard: 'lista' | 'paso1_categoria' | 'paso2_medio'
   const [paso, setPaso] = useState('lista');
   const [categoria, setCategoria] = useState('');
@@ -46,14 +53,18 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
     try {
       if (tipoMedio === 'link') {
         if (!urlLink.trim()) return;
-        if (tipo === 'etapa') {
+        if (esActividad) {
+          await actividadApi.registrarLinkActividad(tipo, id, urlLink.trim(), { categoria, notas });
+        } else if (tipo === 'etapa') {
           await evidenciasApi.registrarLinkEtapa(id, urlLink.trim(), { categoria, notas });
         } else {
           await evidenciasApi.registrarLinkAccion(id, urlLink.trim(), { categoria, notas });
         }
       } else {
         if (!archivo) return;
-        if (tipo === 'etapa') {
+        if (esActividad) {
+          await actividadApi.subirArchivoActividad(tipo, id, archivo, { categoria, notas });
+        } else if (tipo === 'etapa') {
           await evidenciasApi.subirEvidenciaEtapa(id, archivo, { categoria, notas });
         } else {
           await evidenciasApi.subirEvidenciaAccion(id, archivo, { categoria, notas });
@@ -136,13 +147,15 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
                   className="flex items-center gap-1 px-3 py-1 bg-[#7B1C3E] text-white text-xs rounded hover:bg-[#5a1430]">
                   <FileText size={12} /> Vista previa
                 </button>
-                <a href={evidenciasApi.obtenerUrlDescarga(detalleEv.id)} target="_blank" rel="noreferrer"
+                <a href={esActividad ? actividadApi.obtenerUrlDescargaActividad(detalleEv.id) : evidenciasApi.obtenerUrlDescarga(detalleEv.id)} target="_blank" rel="noreferrer"
                   className="flex items-center gap-1 px-3 py-1 border border-gray-300 text-gray-700 text-xs rounded hover:bg-gray-100">
                   <Upload size={12} className="rotate-180" /> Descargar
                 </a>
               </>
             )}
-            {!permisos?.esSoloLectura && (
+            {/* Eliminar solo para evidencias del modelo viejo (etapa/acción)
+                — /actividad todavía no tiene un DELETE de entradas. */}
+            {!permisos?.esSoloLectura && !esActividad && (
               <button onClick={async () => {
                 try { await evidenciasApi.eliminarEvidencia(detalleEv.id); setDetalleEv(null); onRecargar?.(); } catch {}
               }} className="flex items-center gap-1 px-3 py-1 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 rounded">
@@ -150,7 +163,13 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
               </button>
             )}
           </div>
-          {previewEv && <FilePreviewModal evidencia={previewEv} onClose={() => setPreviewEv(null)} />}
+          {previewEv && (
+            <FilePreviewModal
+              evidencia={previewEv}
+              urlOverride={esActividad ? actividadApi.obtenerUrlDescargaActividad(previewEv.id) : undefined}
+              onClose={() => setPreviewEv(null)}
+            />
+          )}
         </div>
       </div>
     );

@@ -41,13 +41,24 @@ async function crear(req, res, next) {
 
     let archivoUrl = null, archivoNombre = null;
     if (tipo_evento === 'archivo') {
-      if (!req.file) return res.status(400).json({ error: true, mensaje: 'Se requiere un archivo', codigo: 'ARCHIVO_REQUERIDO' });
-      const archivo = req.file;
-      const nombreUnico = `${uuidv4()}_${archivo.originalname}`;
-      const rutaMinio = `actividad/${tipo_nodo}/${id_nodo}/${nombreUnico}`;
-      await minioClient.putObject(BUCKET, rutaMinio, archivo.buffer, archivo.size, { 'Content-Type': archivo.mimetype });
-      archivoUrl = rutaMinio;
-      archivoNombre = archivo.originalname;
+      if (metadata.tipo_medio === 'link') {
+        // Enlace externo (igual que evidencias de etapa/acción): sin
+        // archivo real que subir, solo se guarda la URL — se reutilizan
+        // las mismas columnas archivo_url/archivo_nombre para que el
+        // frontend (urlArchivo() en ActividadStream) no necesite un caso
+        // aparte para saber a dónde apunta.
+        if (!metadata.url) return res.status(400).json({ error: true, mensaje: 'Se requiere una URL', codigo: 'URL_REQUERIDA' });
+        archivoUrl = metadata.url;
+        archivoNombre = metadata.url;
+      } else {
+        if (!req.file) return res.status(400).json({ error: true, mensaje: 'Se requiere un archivo', codigo: 'ARCHIVO_REQUERIDO' });
+        const archivo = req.file;
+        const nombreUnico = `${uuidv4()}_${archivo.originalname}`;
+        const rutaMinio = `actividad/${tipo_nodo}/${id_nodo}/${nombreUnico}`;
+        await minioClient.putObject(BUCKET, rutaMinio, archivo.buffer, archivo.size, { 'Content-Type': archivo.mimetype });
+        archivoUrl = rutaMinio;
+        archivoNombre = archivo.originalname;
+      }
     }
 
     const entrada = await actividadQueries.crearActividad({

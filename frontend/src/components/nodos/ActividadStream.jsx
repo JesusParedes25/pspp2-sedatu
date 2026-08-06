@@ -5,13 +5,15 @@
  *            descendientes — se muestra debajo de la lista de tarjetas.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { MessageSquare, Paperclip, AlertTriangle, ArrowRightCircle, Send, Loader2, ExternalLink } from 'lucide-react';
+import { MessageSquare, Paperclip, AlertTriangle, ArrowRightCircle, Send, Loader2, ExternalLink, X, FileText, Upload, Link2 } from 'lucide-react';
 import * as actividadApi from '../../api/actividad';
 import * as evidenciasApi from '../../api/evidencias';
+import FilePreviewModal from '../evidencias/FilePreviewModal';
 
 // El stream mezcla 3 orígenes de archivo: la tabla nueva `actividad`, una
 // evidencia del modelo viejo (trae metadata.evidencia_id), o un link externo
-// (metadata.tipo_medio === 'link') — cada uno resuelve su URL distinto.
+// (metadata.tipo_medio === 'link') — cada uno resuelve su URL de descarga
+// distinto, y solo el primero (evidencia vieja) trae categoría de verdad.
 function urlArchivo(item) {
   if (item.metadata?.tipo_medio === 'link') return item.archivo_url;
   if (item.metadata?.evidencia_id) return evidenciasApi.obtenerUrlDescarga(item.metadata.evidencia_id);
@@ -48,6 +50,8 @@ export default function ActividadStream({ tipo, id }) {
   const [filtro, setFiltro] = useState('todo');
   const [texto, setTexto] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const [detalleItem, setDetalleItem] = useState(null);
+  const [previewItem, setPreviewItem] = useState(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -111,10 +115,10 @@ export default function ActividadStream({ tipo, id }) {
                     {item.contenido && <span className="text-gray-600"> — {item.contenido}</span>}
                   </p>
                   {item.archivo_url && (
-                    <a href={urlArchivo(item)} target="_blank" rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:underline mt-0.5">
+                    <button onClick={() => setDetalleItem(item)}
+                      className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:underline mt-0.5 text-left">
                       {item.metadata?.tipo_medio === 'link' ? <ExternalLink size={10} /> : <Paperclip size={10} />} {item.archivo_nombre}
-                    </a>
+                    </button>
                   )}
                   {item.tipo_evento === 'riesgo' && item.metadata?.nivel && (
                     <span className="inline-flex items-center gap-1 flex-wrap">
@@ -154,6 +158,77 @@ export default function ActividadStream({ tipo, id }) {
           <Send size={13} /> Enviar
         </button>
       </div>
+
+      {/* Detalle de un archivo/enlace — antes clic abría/descargaba de una
+          vez; ahora muestra sus propiedades (categoría, tipo, subido por,
+          fecha) y deja elegir Vista previa/Descargar (o Abrir enlace),
+          igual que ya funciona en la sección de Archivos de etapa/acción. */}
+      {detalleItem && (() => {
+        const esLink = detalleItem.metadata?.tipo_medio === 'link';
+        const categoria = detalleItem.metadata?.categoria;
+        const notas = detalleItem.metadata?.notas;
+        return (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40" onClick={() => setDetalleItem(null)}>
+            <div className="bg-white rounded-xl shadow-2xl w-[90vw] max-w-md" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                <span className="text-sm font-semibold text-gray-800">Detalle del archivo</span>
+                <button onClick={() => setDetalleItem(null)} className="p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-100"><X size={16} /></button>
+              </div>
+              <div className="p-4 space-y-3">
+                <div className="flex items-start gap-2">
+                  {esLink ? <Link2 size={14} className="text-blue-500 flex-shrink-0 mt-0.5" /> : <FileText size={14} className="text-gray-400 flex-shrink-0 mt-0.5" />}
+                  {esLink ? (
+                    <a href={detalleItem.archivo_url} target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline break-all">{detalleItem.archivo_url}</a>
+                  ) : (
+                    <p className="text-sm font-medium text-gray-800 break-all">{detalleItem.archivo_nombre}</p>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                  <div><span className="text-gray-400">Categoría:</span> <span className="text-gray-700 font-medium">{categoria || '—'}</span></div>
+                  <div><span className="text-gray-400">Tipo:</span> <span className="text-gray-700 font-medium">{esLink ? 'Enlace externo' : 'Archivo'}</span></div>
+                  <div><span className="text-gray-400">Subido por:</span> <span className="text-gray-700 font-medium">{detalleItem.autor_nombre || '—'}</span></div>
+                  <div><span className="text-gray-400">Fecha:</span> <span className="text-gray-700 font-medium">
+                    {detalleItem.created_at ? new Date(detalleItem.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                  </span></div>
+                </div>
+                {notas && (
+                  <div className="border-t border-gray-100 pt-2">
+                    <span className="text-[10px] text-gray-400 uppercase">Notas:</span>
+                    <p className="text-xs text-gray-600 mt-0.5">{notas}</p>
+                  </div>
+                )}
+                <div className="flex gap-2 pt-2 border-t border-gray-100">
+                  {esLink ? (
+                    <a href={detalleItem.archivo_url} target="_blank" rel="noreferrer"
+                      className="flex items-center gap-1 px-3 py-1.5 bg-guinda-600 text-white text-xs rounded-lg hover:bg-guinda-700">
+                      <Link2 size={12} /> Abrir enlace
+                    </a>
+                  ) : (
+                    <>
+                      <button onClick={() => setPreviewItem(detalleItem)}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-guinda-600 text-white text-xs rounded-lg hover:bg-guinda-700">
+                        <FileText size={12} /> Vista previa
+                      </button>
+                      <a href={urlArchivo(detalleItem)} target="_blank" rel="noreferrer"
+                        className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 text-gray-700 text-xs rounded-lg hover:bg-gray-50">
+                        <Upload size={12} className="rotate-180" /> Descargar
+                      </a>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {previewItem && (
+        <FilePreviewModal
+          evidencia={{ nombre_original: previewItem.archivo_nombre }}
+          urlOverride={urlArchivo(previewItem)}
+          onClose={() => setPreviewItem(null)}
+        />
+      )}
     </div>
   );
 }

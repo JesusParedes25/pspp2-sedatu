@@ -9,14 +9,17 @@ import { useState, useEffect, useRef } from 'react';
 import { FileText, X, Upload, Loader2, AlertTriangle } from 'lucide-react';
 import * as evidenciasApi from '../../api/evidencias';
 
-export default function FilePreviewModal({ evidencia, onClose }) {
+// urlOverride: para evidencias que no viven en la tabla `evidencias` (p. ej.
+// adjuntos de tarea, que usan el stream `actividad`) — evita que este
+// componente asuma siempre evidenciasApi.obtenerUrlDescarga(evidencia.id).
+export default function FilePreviewModal({ evidencia, onClose, urlOverride }) {
   const [geoData, setGeoData] = useState(null);
   const [geoError, setGeoError] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const nombre = evidencia.nombre_original || evidencia.nombre_archivo || '';
   const ext = nombre.split('.').pop().toLowerCase();
-  const url = evidenciasApi.obtenerUrlDescarga(evidencia.id);
+  const url = urlOverride || evidenciasApi.obtenerUrlDescarga(evidencia.id);
 
   const esPdf = ext === 'pdf';
   const esImagen = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
