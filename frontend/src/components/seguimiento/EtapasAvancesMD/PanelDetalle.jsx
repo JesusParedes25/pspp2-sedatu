@@ -181,7 +181,10 @@ export default function PanelDetalle({
           de localStorage) con el drawer de Diagrama. Solo en desktop
           (xl+); en móvil el rail es un slide-over, no tiene sentido
           arrastrarlo. */}
-      <div className="hidden xl:block flex-shrink-0">
+      {/* xl:flex (no xl:block): el handle depende de que su padre lo
+          estire a lo alto vía flex — con "block" su altura colapsaba a 0
+          y quedaba imposible de arrastrar (bug reportado). */}
+      <div className="hidden xl:flex flex-shrink-0">
         <ResizeHandle lado="izquierdo" label="Redimensionar panel de propiedades" onResize={ajustarAnchoRail} />
       </div>
       <aside

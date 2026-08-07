@@ -122,15 +122,25 @@ export default function DetalleProyecto() {
   // a proyectos" — cuando sale de vista, se muestra una barra fija de una
   // sola línea (título truncado + estatus) en su lugar, para no perder el
   // contexto sin gastar los ~170px del encabezado completo todo el tiempo.
-  const sentinelHeaderRef = useRef(null);
+  // Ref CALLBACK (no un useRef simple): mientras `cargando` es true, este
+  // componente devuelve un esqueleto sin el sentinel real — con un useRef
+  // normal el efecto de abajo mediría una sola vez con el ref en null y
+  // nunca se volvería a disparar cuando el contenido real por fin monta,
+  // dejando este comportamiento roto para siempre (mismo bug que tenía
+  // useAlturaHastaFinal, ver ese archivo).
+  const sentinelElRef = useRef(null);
+  const observerRef = useRef(null);
   const [headerCompacto, setHeaderCompacto] = useState(false);
-  useEffect(() => {
-    const el = sentinelHeaderRef.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(([entry]) => setHeaderCompacto(!entry.isIntersecting), { threshold: 0 });
-    obs.observe(el);
-    return () => obs.disconnect();
+  const sentinelHeaderRef = useCallback(node => {
+    sentinelElRef.current = node;
+    if (observerRef.current) { observerRef.current.disconnect(); observerRef.current = null; }
+    if (node) {
+      const obs = new IntersectionObserver(([entry]) => setHeaderCompacto(!entry.isIntersecting), { threshold: 0 });
+      obs.observe(node);
+      observerRef.current = obs;
+    }
   }, []);
+  useEffect(() => () => observerRef.current?.disconnect(), []);
 
   // Encabezado contraíble por el usuario (distinto del "compacto por
   // scroll" de arriba): arranca contraído la primera vez, y la preferencia
