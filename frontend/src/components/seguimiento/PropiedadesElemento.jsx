@@ -17,7 +17,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect } from 'react';
-import { Info } from 'lucide-react';
+import { Info, SlidersHorizontal, Users, Tag, MapPin } from 'lucide-react';
 import { useJerarquiaProyecto } from '../../hooks/useJerarquiaProyecto';
 import client from '../../api/client';
 import SeccionMiembrosNodo from './SeccionMiembrosNodo';
@@ -152,96 +152,85 @@ export default function PropiedadesElemento({ nodo, permisos, onActualizado, mos
           cubre lo que se define en ESTE nivel sin importar si es
           contenedor u hoja (semáforo, prioridad, fecha límite, responsable),
           más estatus/fecha-inicio cuando sí se editan aquí (nodo hoja). */}
-      <RailCard title="Definido en este nivel" defaultOpen={true}>
-        {!esContenedor && (
-          <>
-            {/* Estatus editable (solo nodos hoja) */}
-            <div className="mb-2">
-              <CampoSelect
-                label="Estatus"
-                valor={data.estado || 'Pendiente'} opciones={ESTADOS}
-                onChange={v => guardarCampo('estado', v)}
-                soloLectura={permisos.esSoloLectura} formatLabel={v => v.replace(/_/g, ' ')}
-              />
-            </div>
-            {/* Sin campo de avance aquí a propósito: es hoja, y "Registrar
-                avance" (en las acciones rápidas de arriba) ya cubre exactamente
-                lo mismo — tenerlo dos veces confundía más de lo que ayudaba. */}
-            {/* Fecha inicio editable (acción/tarea; en etapa siempre es calculada) */}
-            <div className="mb-2">
-              <CampoFecha
-                label="Fecha inicio"
-                valor={data.fecha_inicio ? data.fecha_inicio.substring(0, 10) : ''}
-                onChange={v => guardarCampo('fecha_inicio', v || null)}
-                soloLectura={permisos.esSoloLectura}
-              />
-            </div>
-          </>
-        )}
-
-        {/* Semáforo (override manual — disponible en cualquier nivel) */}
-        <div className="mb-2">
+      <RailCard title="Definido en este nivel" icono={SlidersHorizontal} defaultOpen={true}>
+        {/* Fila de resumen: Estatus (solo hoja) · Semáforo · Prioridad —
+            los tres campos que se leen de un vistazo, como píldoras en
+            línea en vez de una lista vertical de campos idénticos. */}
+        <div className="flex items-center gap-1.5 flex-wrap mb-3">
+          {!esContenedor && (
+            <CampoSelect
+              label="Estatus" variante="chip"
+              valor={data.estado || 'Pendiente'} opciones={ESTADOS}
+              onChange={v => guardarCampo('estado', v)}
+              soloLectura={permisos.esSoloLectura} formatLabel={v => v.replace(/_/g, ' ')}
+            />
+          )}
           <CampoSemaforo
+            variante="chip"
             valor={data.semaforo} override={data.semaforo_override} efectivo={sem}
             onChange={v => guardarCampo('semaforo', v)} soloLectura={permisos.esSoloLectura}
           />
-        </div>
-        {/* Prioridad */}
-        <div className="mb-2">
           <CampoSelect
-            label="Prioridad" valor={data.prioridad || ''} opciones={PRIORIDADES}
+            label="Prioridad" variante="chip"
+            valor={data.prioridad || ''} opciones={PRIORIDADES}
             onChange={v => guardarCampo('prioridad', v)} soloLectura={permisos.esSoloLectura}
           />
         </div>
-        {/* Fecha límite / compromiso — etiqueta y ayuda según nivel;
-            sugiere una fecha desde los hijos cuando está vacía en vez de
-            dejar un dd/mm/aaaa sin explicación. */}
-        <div className="mb-2">
-          <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">{labelFechaLimite}</span>
-          {ayudaFechaLimite && <p className="text-[9px] text-gray-400 leading-snug mb-1">{ayudaFechaLimite}</p>}
-          <CampoFecha
-            valor={data.fecha_limite ? data.fecha_limite.substring(0, 10) : ''}
-            onChange={v => guardarCampo('fecha_limite', v || null)}
-            soloLectura={permisos.esSoloLectura}
-          />
-          {!data.fecha_limite && fechaSugerida && (
-            <div className="mt-1 flex items-center gap-1 text-[10px] text-gray-500">
-              <Info size={10} className="text-gray-400 flex-shrink-0" />
-              <span>Sugerido según {subItemLabel.toLowerCase()}: {formatFecha(fechaSugerida)}</span>
-              {!permisos.esSoloLectura && (
-                <button
-                  onClick={() => guardarCampo('fecha_limite', fechaSugerida)}
-                  className="text-[#7B1C3E] hover:text-[#5a1430] font-medium underline underline-offset-2"
-                >
-                  Usar esta fecha
-                </button>
-              )}
-            </div>
-          )}
-          {!data.fecha_limite && !fechaSugerida && (
-            <p className="mt-1 text-[10px] text-gray-400 italic">Sin fecha definida</p>
-          )}
-        </div>
 
-        {/* Responsable (siempre solo lectura) */}
-        <div className="mb-2">
-          <CampoSelect
-            label="Responsable" valor={data.id_responsable || ''}
-            opciones={catalogs.usuarios.map(u => ({ value: u.id, label: `${u.nombre_completo}${u.dg_siglas ? ' — ' + u.dg_siglas : ''}` }))}
-            onChange={() => {}} soloLectura={true} useObjects
-          />
+        {/* Fechas — mini-grid de 2 columnas (en nodo hoja; en contenedor la
+            fecha de inicio ya se ve en el bloque calculado de arriba, aquí
+            solo va la fecha límite/compromiso, sola). */}
+        <div className={`grid gap-2.5 mb-3 ${esContenedor ? 'grid-cols-1' : 'grid-cols-2'}`}>
+          {!esContenedor && (
+            <CampoFecha
+              label="Fecha inicio"
+              valor={data.fecha_inicio ? data.fecha_inicio.substring(0, 10) : ''}
+              onChange={v => guardarCampo('fecha_inicio', v || null)}
+              soloLectura={permisos.esSoloLectura}
+            />
+          )}
+          <div>
+            <span className="text-[10px] text-gray-400 block mb-0.5">{labelFechaLimite}</span>
+            <CampoFecha
+              valor={data.fecha_limite ? data.fecha_limite.substring(0, 10) : ''}
+              onChange={v => guardarCampo('fecha_limite', v || null)}
+              soloLectura={permisos.esSoloLectura}
+            />
+          </div>
         </div>
-        {/* Última actualización */}
-        <div>
-          <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">Última actualización</span>
-          <span className="text-xs text-gray-400">
+        {ayudaFechaLimite && <p className="text-[10px] text-gray-400 leading-snug -mt-2 mb-2.5">{ayudaFechaLimite}</p>}
+        {!data.fecha_limite && fechaSugerida && (
+          <div className="flex items-center gap-1 text-[10px] text-gray-500 -mt-2 mb-2.5">
+            <Info size={10} className="text-gray-400 flex-shrink-0" />
+            <span>Sugerido según {subItemLabel.toLowerCase()}: {formatFecha(fechaSugerida)}</span>
+            {!permisos.esSoloLectura && (
+              <button
+                onClick={() => guardarCampo('fecha_limite', fechaSugerida)}
+                className="text-[#7B1C3E] hover:text-[#5a1430] font-medium underline underline-offset-2"
+              >
+                Usar esta fecha
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Pie de tarjeta: Responsable + última actualización, en gris,
+            discreto — información de contexto, no algo que se edite aquí. */}
+        <div className="pt-2.5 border-t border-gray-100 flex items-center justify-between gap-2 flex-wrap">
+          <span className="text-xs text-gray-600">
+            {(() => {
+              const resp = catalogs.usuarios.find(u => u.id === data.id_responsable);
+              return resp ? `${resp.nombre_completo}${resp.dg_siglas ? ' — ' + resp.dg_siglas : ''}` : 'Sin responsable asignado';
+            })()}
+          </span>
+          <span className="text-[10px] text-gray-400 flex-shrink-0" title="Última actualización">
             {data.updated_at ? new Date(data.updated_at).toLocaleString('es-MX') : '—'}
           </span>
         </div>
       </RailCard>
 
       {/* ── Tarjeta: Participantes ── */}
-      <RailCard title="Participantes" defaultOpen={true}>
+      <RailCard title="Participantes" icono={Users} defaultOpen={true}>
         <SeccionMiembrosNodo
           tipo={tipo}
           idNodo={id}
@@ -251,7 +240,7 @@ export default function PropiedadesElemento({ nodo, permisos, onActualizado, mos
 
       {/* ── Tarjetas solo para etapas y acciones ── */}
       {tipo !== 'tarea' && (<>
-        <RailCard title="Clasificación" defaultOpen={false}>
+        <RailCard title="Clasificación" icono={Tag} defaultOpen={false}>
           <CampoSelect
             label="Instrumento principal" valor={data.instrumento || ''}
             opciones={catalogs.instrumentos}
@@ -268,7 +257,7 @@ export default function PropiedadesElemento({ nodo, permisos, onActualizado, mos
           </div>
         </RailCard>
 
-        <RailCard title="Territorio" defaultOpen={false}>
+        <RailCard title="Territorio" icono={MapPin} defaultOpen={false}>
           {confirmCambioModo && (
             <div className="mb-3 p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
               <p className="text-[11px] font-medium text-amber-800 mb-2">
@@ -287,62 +276,52 @@ export default function PropiedadesElemento({ nodo, permisos, onActualizado, mos
             </div>
           )}
 
-          {/* Modo A: Estado + Municipio */}
-          <div
-            onClick={() => !permisos.esSoloLectura && modoTerritorio !== 'estado' && requestCambioModo('estado')}
-            className={`rounded-lg border-2 transition-all mb-2 ${modoTerritorio === 'estado' ? 'border-[#7B1C3E] bg-[#fbf3f6]' : 'border-gray-200 bg-gray-50/80 opacity-60 cursor-pointer hover:opacity-75'}`}
-          >
-            <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
-              <div className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${modoTerritorio === 'estado' ? 'border-[#7B1C3E] bg-[#7B1C3E]' : 'border-gray-400'}`}>
-                  {modoTerritorio === 'estado' && <div className="w-1 h-1 bg-white rounded-full"/>}
-                </div>
-                <span className="text-[11px] font-semibold text-gray-700">Modo A · Estado</span>
-              </div>
-              {modoTerritorio !== 'estado' && <span className="text-[9px] text-gray-400">🔒 Bloqueado</span>}
-            </div>
-            {modoTerritorio === 'estado' && (
-              <div className="px-3 pb-3 space-y-2">
-                <p className="text-[10px] text-gray-400 leading-tight">Los municipios pueden ser de distintos estados — usa este selector solo para buscar y agregar, no borra lo ya elegido en otros estados.</p>
-                <CampoSelect label="Buscar municipios de este estado" valor={data.cve_ent || ''}
-                  opciones={catalogs.estados_geo.map(e => ({ value: e.cve_ent, label: e.nombre }))}
-                  onChange={v => { setMuniFilter(v || null); guardarCampo('cve_ent', v || null); }}
-                  soloLectura={permisos.esSoloLectura} useObjects/>
-                <SelectorMunicipiosMultiple
-                  municipios={data.municipios || []}
-                  opciones={catalogs.municipios.map(m => ({ value: m.cvegeo, label: m.nombre }))}
-                  onChange={lista => guardarCampo('municipios', lista)}
-                  soloLectura={permisos.esSoloLectura || !muniFilter}
-                  estadosCatalog={catalogs.estados_geo}
-                />
-              </div>
-            )}
+          {/* Selector segmentado (tipo tab) en vez de dos tarjetas de radio
+              apiladas con candado — mismo cambio de modo, menos alto y sin
+              el emoji 🔒 (inconsistente con los íconos lucide del resto). */}
+          <div className="inline-flex bg-gray-100 rounded-lg p-0.5 mb-3 w-full">
+            <button
+              type="button"
+              onClick={() => !permisos.esSoloLectura && modoTerritorio !== 'estado' && requestCambioModo('estado')}
+              disabled={permisos.esSoloLectura}
+              className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${modoTerritorio === 'estado' ? 'bg-white text-guinda-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Estado
+            </button>
+            <button
+              type="button"
+              onClick={() => !permisos.esSoloLectura && modoTerritorio !== 'zm' && requestCambioModo('zm')}
+              disabled={permisos.esSoloLectura}
+              className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${modoTerritorio === 'zm' ? 'bg-white text-guinda-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Zona Metropolitana
+            </button>
           </div>
 
-          {/* Modo B: Zona Metropolitana */}
-          <div
-            onClick={() => !permisos.esSoloLectura && modoTerritorio !== 'zm' && requestCambioModo('zm')}
-            className={`rounded-lg border-2 transition-all ${modoTerritorio === 'zm' ? 'border-[#7B1C3E] bg-[#fbf3f6]' : 'border-gray-200 bg-gray-50/80 opacity-60 cursor-pointer hover:opacity-75'}`}
-          >
-            <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
-              <div className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${modoTerritorio === 'zm' ? 'border-[#7B1C3E] bg-[#7B1C3E]' : 'border-gray-400'}`}>
-                  {modoTerritorio === 'zm' && <div className="w-1 h-1 bg-white rounded-full"/>}
-                </div>
-                <span className="text-[11px] font-semibold text-gray-700">Modo B · Zona Metropolitana</span>
-              </div>
-              {modoTerritorio !== 'zm' && <span className="text-[9px] text-gray-400">🔒 Bloqueado</span>}
+          {modoTerritorio === 'estado' ? (
+            <div className="space-y-2">
+              <p className="text-[10px] text-gray-400 leading-tight">Los municipios pueden ser de distintos estados — usa este selector solo para buscar y agregar, no borra lo ya elegido en otros estados.</p>
+              <CampoSelect label="Buscar municipios de este estado" valor={data.cve_ent || ''}
+                opciones={catalogs.estados_geo.map(e => ({ value: e.cve_ent, label: e.nombre }))}
+                onChange={v => { setMuniFilter(v || null); guardarCampo('cve_ent', v || null); }}
+                soloLectura={permisos.esSoloLectura} useObjects/>
+              <SelectorMunicipiosMultiple
+                municipios={data.municipios || []}
+                opciones={catalogs.municipios.map(m => ({ value: m.cvegeo, label: m.nombre }))}
+                onChange={lista => guardarCampo('municipios', lista)}
+                soloLectura={permisos.esSoloLectura || !muniFilter}
+                estadosCatalog={catalogs.estados_geo}
+              />
             </div>
-            {modoTerritorio === 'zm' && (
-              <div className="px-3 pb-3 space-y-2">
-                <p className="text-[10px] text-gray-400 leading-tight">La ZM ya contiene sus municipios y estados. No requiere elegir más.</p>
-                <CampoSelect label="Zona Metropolitana" valor={data.id_zm ? String(data.id_zm) : ''}
-                  opciones={catalogs.zm.map(z => ({ value: String(z.gid), label: z.nombre }))}
-                  onChange={v => guardarCampo('id_zm', v ? parseInt(v, 10) : null)}
-                  soloLectura={permisos.esSoloLectura} useObjects/>
-              </div>
-            )}
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-[10px] text-gray-400 leading-tight">La ZM ya contiene sus municipios y estados. No requiere elegir más.</p>
+              <CampoSelect label="Zona Metropolitana" valor={data.id_zm ? String(data.id_zm) : ''}
+                opciones={catalogs.zm.map(z => ({ value: String(z.gid), label: z.nombre }))}
+                onChange={v => guardarCampo('id_zm', v ? parseInt(v, 10) : null)}
+                soloLectura={permisos.esSoloLectura} useObjects/>
+            </div>
+          )}
         </RailCard>
       </>)}
     </>

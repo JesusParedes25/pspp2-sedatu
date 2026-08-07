@@ -21,6 +21,9 @@ import { useEffect, useState } from 'react';
 import { X, ChevronRight } from 'lucide-react';
 import ActividadStream from '../../nodos/ActividadStream';
 import FichaNodo from '../FichaNodo';
+import ResizeHandle from '../../common/ResizeHandle';
+import { useAuth } from '../../../context/AuthContext';
+import { usePanelWidth, keyAnchoPanelPropiedades } from '../../../hooks/usePanelWidth';
 import { resolverRutaConIds } from '../EtapasAvancesMD/utils';
 import { COLORES_SEMAFORO } from '../../common/SemaforoDot';
 import { NIVELES } from '../../../config/niveles';
@@ -31,6 +34,12 @@ export default function PanelDrawer({ nodo, proyectoId, permisos, arbol, onActua
   const { tipo, id, data } = nodo;
   const [tab, setTab] = useState('propiedades');
   const nivel = NIVELES[tipo];
+  const { usuario } = useAuth();
+  // Misma key que el rail de "Detalle" — homologados: ajustar el ancho
+  // aquí también lo cambia allá, y viceversa.
+  const [anchoDrawer, ajustarAnchoDrawer] = usePanelWidth(
+    keyAnchoPanelPropiedades(usuario), { default: 384, min: 280, max: 720 }
+  );
 
   useEffect(() => {
     function onKeyDown(e) { if (e.key === 'Escape') onCerrar(); }
@@ -50,7 +59,15 @@ export default function PanelDrawer({ nodo, proyectoId, permisos, arbol, onActua
   function navegarPorLineage(_tipoDestino, idDestino) { onNavegar(idDestino); }
 
   return (
-    <aside className="fixed right-0 top-0 bottom-0 w-full sm:w-[44vw] sm:max-w-[640px] sm:min-w-[420px] bg-white z-40 shadow-2xl flex flex-col border-l border-gray-200">
+    <aside
+      style={{ '--ancho-drawer': `${anchoDrawer}px` }}
+      className="fixed right-0 top-0 bottom-0 w-full sm:w-[var(--ancho-drawer)] bg-white z-40 shadow-2xl flex flex-col border-l border-gray-200"
+    >
+      {/* Handle en el borde izquierdo del drawer — mismo ancho (misma key
+          de localStorage) que el rail de Detalle, ver keyAnchoPanelPropiedades. */}
+      <div className="absolute left-0 top-0 h-full flex items-stretch -translate-x-1/2 z-10">
+        <ResizeHandle lado="izquierdo" label="Redimensionar panel de propiedades" onResize={ajustarAnchoDrawer} />
+      </div>
       <div className="relative px-4 pt-3 border-b border-gray-100 flex-shrink-0">
         <button onClick={onCerrar} className="absolute top-2 right-2.5 p-1.5 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-100">
           <X size={16} />

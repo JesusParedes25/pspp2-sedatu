@@ -111,6 +111,7 @@ export default function FichaNodo({ nodo, proyectoId, permisos, ruta, onNavegarL
             avance={avance}
             fechaInicio={data.fecha_inicio}
             mostrarFechaInicio={tipo === 'etapa'}
+            sem={sem}
           />
         ) : (
           <BloqueEditable

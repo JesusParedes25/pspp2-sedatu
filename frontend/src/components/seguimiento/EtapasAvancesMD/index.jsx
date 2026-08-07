@@ -11,8 +11,11 @@ import { useSearchParams } from 'react-router-dom';
 import { Loader2, X, SlidersHorizontal, CheckCircle2, Search, Filter, Layers } from 'lucide-react';
 import * as etapasApi from '../../../api/etapas';
 import { useUI } from '../../../context/UIContext';
+import { useAuth } from '../../../context/AuthContext';
 import { useAlturaHastaFinal } from '../../../hooks/useAlturaHastaFinal';
+import { usePanelWidth } from '../../../hooks/usePanelWidth';
 import { COLORES_SEMAFORO } from '../../common/SemaforoDot';
+import ResizeHandle from '../../common/ResizeHandle';
 import NodoArbol from './NodoArbol';
 import PanelDetalle from './PanelDetalle';
 import CrearInline from './CrearInline';
@@ -20,6 +23,12 @@ import { ESTADOS, filtrarArbol, buscarNodoEnArbol, encontrarPath } from './utils
 
 export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSeleccionada, onStatsChange }) {
   const { mostrarToast } = useUI();
+  const { usuario } = useAuth();
+  // Ancho del árbol izquierdo, redimensionable — solo aplica aquí (el árbol
+  // no existe en Diagrama, así que no hay nada que homologar con él).
+  const [anchoArbol, ajustarAnchoArbol] = usePanelWidth(
+    `pspp_ancho_arbol_${usuario?.id || 'anon'}`, { default: 320, min: 220, max: 480 }
+  );
   const [searchParams, setSearchParams] = useSearchParams();
   const [arbol, setArbol] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -238,16 +247,19 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
       )}
 
       {/* ─── Panel izquierdo: Árbol ─── */}
-      <div className={[
-        'flex-shrink-0 border-r border-gray-200 flex flex-col bg-gray-50/50',
-        /* Desktop: siempre visible como columna inline */
-        'lg:w-80 lg:relative lg:translate-x-0',
-        /* Móvil: slide-over controlado por estado */
-        treePanelAbierto
-          ? 'fixed left-0 top-0 bottom-0 w-80 z-30 shadow-2xl translate-x-0'
-          : 'fixed left-0 top-0 bottom-0 w-80 z-30 -translate-x-full lg:translate-x-0',
-        'transition-transform duration-200',
-      ].join(' ')}>
+      <div
+        style={{ '--ancho-arbol': `${anchoArbol}px` }}
+        className={[
+          'flex-shrink-0 border-r border-gray-200 flex flex-col bg-gray-50/50',
+          /* Desktop: siempre visible como columna inline, ancho ajustable
+             por el usuario (arrastrando el ResizeHandle de abajo) */
+          'lg:w-[var(--ancho-arbol)] lg:relative lg:translate-x-0',
+          /* Móvil: slide-over controlado por estado */
+          treePanelAbierto
+            ? 'fixed left-0 top-0 bottom-0 w-80 z-30 shadow-2xl translate-x-0'
+            : 'fixed left-0 top-0 bottom-0 w-80 z-30 -translate-x-full lg:translate-x-0',
+          'transition-transform duration-200',
+        ].join(' ')}>
         {/* Cabecera */}
         <div className="px-3 py-2.5 border-b border-gray-200 flex items-center justify-between">
           <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Estructura del proyecto</h3>
@@ -387,6 +399,8 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
           )}
         </div>
       </div>
+
+      <ResizeHandle lado="derecho" label="Redimensionar árbol" onResize={ajustarAnchoArbol} />
 
       {/* ─── Panel derecho: Detalle ─── */}
       <div className="flex-1 min-w-0 flex flex-col">

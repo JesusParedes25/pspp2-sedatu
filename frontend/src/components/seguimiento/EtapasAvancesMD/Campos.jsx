@@ -6,7 +6,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { Lock } from 'lucide-react';
-import { COLORES_SEMAFORO } from '../../common/SemaforoDot';
+import { COLORES_SEMAFORO, CHIP_BG } from '../../common/SemaforoDot';
 
 // ─── Campo texto inline (click-to-edit) ──────────────────────
 export function CampoTextoInline({ valor, campo, onGuardar, soloLectura, placeholder, className, multiline }) {
@@ -72,10 +72,38 @@ export function CampoEditable({ label, valor, soloLectura }) {
   );
 }
 
-export function CampoSelect({ label, valor, opciones, onChange, soloLectura, formatLabel, useObjects }) {
+// `variante="chip"`: mismo campo, mismo onChange, mismo soloLectura — solo
+// se pinta como una píldora compacta (etiqueta + valor en una línea) en
+// vez de etiqueta arriba + caja abajo. Pensado para la fila de resumen
+// (Estatus · Prioridad) donde varios campos van uno al lado del otro.
+export function CampoSelect({ label, valor, opciones, onChange, soloLectura, formatLabel, useObjects, variante }) {
   const displayVal = useObjects
     ? (opciones.find(o => o.value === valor)?.label || valor || '—')
     : (formatLabel ? formatLabel(valor) : valor || '—');
+
+  if (variante === 'chip') {
+    return (
+      <div className="inline-flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-full pl-2.5 pr-1.5 py-1">
+        <span className="text-[10px] text-gray-400 font-medium flex-shrink-0">{label}</span>
+        {soloLectura ? (
+          <span className="text-xs font-medium text-gray-700">{displayVal}</span>
+        ) : (
+          <select
+            value={valor}
+            onChange={e => onChange(e.target.value)}
+            className="text-xs font-medium text-gray-700 bg-transparent border-none outline-none cursor-pointer max-w-[110px]"
+          >
+            <option value="">—</option>
+            {useObjects
+              ? opciones.map(o => <option key={o.value} value={o.value}>{o.label}</option>)
+              : opciones.map(o => <option key={o} value={o}>{formatLabel ? formatLabel(o) : o}</option>)
+            }
+          </select>
+        )}
+      </div>
+    );
+  }
+
   if (soloLectura) return <CampoEditable label={label} valor={displayVal} soloLectura />;
   return (
     <div>
@@ -226,8 +254,42 @@ export function CampoAvance({ valor, avanceEfectivo, esContenedor, estado, onCha
   );
 }
 
-export function CampoSemaforo({ valor, override, efectivo, onChange, soloLectura }) {
+export function CampoSemaforo({ valor, override, efectivo, onChange, soloLectura, variante }) {
   const colorMostrado = override && valor ? valor : efectivo;
+
+  if (variante === 'chip') {
+    const color = COLORES_SEMAFORO[colorMostrado];
+    return (
+      <div
+        className="inline-flex items-center gap-1.5 rounded-full pl-2 pr-2.5 py-1 border"
+        style={{ backgroundColor: CHIP_BG[colorMostrado], borderColor: `${color}40` }}
+      >
+        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+        {soloLectura ? (
+          <span className="text-xs font-medium capitalize" style={{ color }}>{colorMostrado}</span>
+        ) : (
+          <select
+            value={override ? valor : ''}
+            onChange={e => onChange(e.target.value === '' ? null : e.target.value)}
+            className="text-xs font-medium bg-transparent border-none outline-none cursor-pointer"
+            style={{ color }}
+          >
+            <option value="">Automático</option>
+            <option value="verde">Verde</option>
+            <option value="ambar">Ámbar</option>
+            <option value="rojo">Rojo</option>
+            <option value="gris">Gris</option>
+          </select>
+        )}
+        {override && (
+          <span className="text-[9px] font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full flex-shrink-0" title="Alguien forzó este color a mano — ya no sigue el cálculo automático">
+            Manual
+          </span>
+        )}
+      </div>
+    );
+  }
+
   if (soloLectura) {
     return (
       <div>

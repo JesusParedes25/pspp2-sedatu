@@ -12,7 +12,10 @@
 import { useState, useEffect } from 'react';
 import { ChevronRight, Layers, X } from 'lucide-react';
 import { useJerarquiaProyecto } from '../../../hooks/useJerarquiaProyecto';
+import { useAuth } from '../../../context/AuthContext';
+import { usePanelWidth, keyAnchoPanelPropiedades } from '../../../hooks/usePanelWidth';
 import ActividadStream from '../../nodos/ActividadStream';
+import ResizeHandle from '../../common/ResizeHandle';
 import { COLORES_SEMAFORO } from '../../common/SemaforoDot';
 import { NIVELES } from '../../../config/niveles';
 import EmblemaNivel from '../EmblemaNivel';
@@ -29,6 +32,13 @@ export default function PanelDetalle({
 }) {
   const { tipo, id, data } = foco;
   const { actualizar } = useJerarquiaProyecto(proyectoId);
+  const { usuario } = useAuth();
+  // Mismo ancho (misma key) que el drawer de Diagrama — ver
+  // keyAnchoPanelPropiedades. Rango generoso: 280px (compacto) a 720px
+  // (más ancho que el 44vw/640px original, para quien lo quiera así).
+  const [anchoRail, ajustarAnchoRail] = usePanelWidth(
+    keyAnchoPanelPropiedades(usuario), { default: 384, min: 280, max: 720 }
+  );
   const [railAbierto, setRailAbierto] = useState(false);
   const [descExpandida, setDescExpandida] = useState(false);
 
@@ -167,10 +177,20 @@ export default function PanelDetalle({
           onClick={() => setRailAbierto(false)}
         />
       )}
+      {/* Handle a la izquierda del rail — homologado en ancho (misma key
+          de localStorage) con el drawer de Diagrama. Solo en desktop
+          (xl+); en móvil el rail es un slide-over, no tiene sentido
+          arrastrarlo. */}
+      <div className="hidden xl:block flex-shrink-0">
+        <ResizeHandle lado="izquierdo" label="Redimensionar panel de propiedades" onResize={ajustarAnchoRail} />
+      </div>
       <aside
+        style={{ '--ancho-rail': `${anchoRail}px` }}
         className={[
           'flex-shrink-0 border-l border-gray-200 bg-white overflow-hidden flex flex-col',
-          'xl:w-[44vw] xl:max-w-[640px] xl:min-w-[420px] xl:relative xl:translate-x-0',
+          /* Desktop: ancho ajustable por el usuario, arrastrando el handle
+             de arriba (por defecto ~60% de lo que era antes de pedirlo) */
+          'xl:w-[var(--ancho-rail)] xl:relative xl:translate-x-0',
           railAbierto
             ? 'fixed right-0 top-0 bottom-0 w-[320px] max-w-[85vw] z-30 shadow-2xl translate-x-0'
             : 'fixed right-0 top-0 bottom-0 w-[320px] max-w-[85vw] z-30 shadow-2xl translate-x-full xl:translate-x-0',
