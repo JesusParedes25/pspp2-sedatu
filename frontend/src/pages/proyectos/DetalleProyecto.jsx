@@ -462,16 +462,23 @@ export default function DetalleProyecto() {
               )}
             </div>
 
-            {/* Contenido de la subsección activa — flex-1 min-h-0 también,
-                para que "Detalle" (el único que lo necesita) pueda pedir
-                h-full internamente. Las demás subvistas no cambian: si su
-                contenido no cabe, este mismo div deja que el overflow-y-auto
-                de arriba scrollee, igual que scrolleaba toda la página antes. */}
-            <div className="flex-1 min-h-0">
+            {/* Contenido de la subsección activa. "flex flex-col" (no solo
+                flex-1 min-h-0): Detalle y Diagrama son los únicos que
+                necesitan llenar el alto disponible de verdad, y lo hacen
+                pidiendo flex-1 min-h-0 a SU VEZ sobre este contenedor — eso
+                requiere que este sea un contenedor flex de columna (no un
+                simple bloque), porque flex-grow se resuelve contra el
+                espacio libre real del flex container, sin las ambigüedades
+                de "height: 100%" contra un padre que no sea flex. Las demás
+                subvistas no cambian: al no pedir flex-1, se siguen
+                dimensionando por su contenido y, si no cabe, este mismo div
+                deja que el overflow-y-auto de arriba scrollee, igual que
+                scrolleaba toda la página antes. */}
+            <div className="flex-1 min-h-0 flex flex-col">
               {/* 0. Diagrama — organigrama horizontal, solo lectura por ahora */}
               {subseccionActiva === 'diagrama' && (
                 <Suspense fallback={
-                  <div className="flex items-center justify-center py-16 border border-gray-200 rounded-xl bg-white" style={{ minHeight: '600px' }}>
+                  <div className="flex-1 min-h-0 flex items-center justify-center border border-gray-200 rounded-xl bg-white" style={{ minHeight: 400 }}>
                     <Loader2 size={24} className="animate-spin text-gray-400" />
                     <span className="ml-2 text-sm text-gray-500">Cargando diagrama...</span>
                   </div>

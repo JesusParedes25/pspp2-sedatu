@@ -227,13 +227,16 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
     );
   }
 
-  // h-full (no una altura medida con JS): el padre (DetalleProyecto) ya
-  // cascada un alto real acotado al viewport hasta aquí — ver Layout.jsx
-  // y el flex-1 min-h-0 que envuelve esta subvista. min-h como piso, por
-  // si el padre da menos de lo razonable en una ventana muy chica.
+  // flex-1 min-h-0 (no h-full, y no una altura medida con JS): el padre
+  // (DetalleProyecto) ya cascada un contenedor flex-col acotado al
+  // viewport hasta aquí — ver Layout.jsx. flex-1 pide el espacio libre
+  // real de ese flex container, sin depender de que "height: 100%" se
+  // resuelva contra un ancestro intermedio (frágil si alguno no es flex).
+  // minHeight como piso, por si el padre da menos de lo razonable en una
+  // ventana muy chica.
   return (
     <div
-      className="flex gap-0 border border-gray-200 rounded-xl overflow-hidden bg-white h-full"
+      className="flex gap-0 border border-gray-200 rounded-xl overflow-hidden bg-white flex-1 min-h-0"
       style={{ minHeight: 520 }}
     >
       {/* Overlay para árbol en móvil */}

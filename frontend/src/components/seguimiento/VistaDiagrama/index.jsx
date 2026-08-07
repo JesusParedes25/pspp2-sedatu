@@ -250,7 +250,7 @@ function VistaDiagramaInterna({ proyectoId, permisos }) {
 
   if (cargando) {
     return (
-      <div className="flex items-center justify-center py-16 border border-gray-200 rounded-xl bg-white" style={{ minHeight: '600px' }}>
+      <div className="flex-1 min-h-0 flex items-center justify-center border border-gray-200 rounded-xl bg-white" style={{ minHeight: 400 }}>
         <Loader2 size={24} className="animate-spin text-gray-400" />
         <span className="ml-2 text-sm text-gray-500">Cargando diagrama...</span>
       </div>
@@ -259,7 +259,7 @@ function VistaDiagramaInterna({ proyectoId, permisos }) {
 
   if (arbol.length === 0) {
     return (
-      <div className="flex items-center justify-center py-16 border border-gray-200 rounded-xl bg-white text-gray-400 text-sm" style={{ minHeight: '600px' }}>
+      <div className="flex-1 min-h-0 flex items-center justify-center border border-gray-200 rounded-xl bg-white text-gray-400 text-sm" style={{ minHeight: 400 }}>
         Sin etapas todavía — créalas desde la vista Detalle.
       </div>
     );
@@ -273,15 +273,19 @@ function VistaDiagramaInterna({ proyectoId, permisos }) {
   // que aparece un instante después.
   if (!inicializado) {
     return (
-      <div className="flex items-center justify-center py-16 border border-gray-200 rounded-xl bg-white" style={{ minHeight: '600px' }}>
+      <div className="flex-1 min-h-0 flex items-center justify-center border border-gray-200 rounded-xl bg-white" style={{ minHeight: 400 }}>
         <Loader2 size={24} className="animate-spin text-gray-400" />
         <span className="ml-2 text-sm text-gray-500">Cargando diagrama...</span>
       </div>
     );
   }
 
+  // flex-1 min-h-0 (no una altura fija en px): llena el alto disponible del
+  // flex-col padre (ver DetalleProyecto.jsx), igual que "Detalle". minHeight
+  // como piso solo para ventanas muy chicas — ReactFlow necesita que este
+  // contenedor tenga una altura definida (se la da flex-grow, no un %).
   return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden bg-white" style={{ height: '650px' }}>
+    <div className="flex-1 min-h-0 border border-gray-200 rounded-xl overflow-hidden bg-white" style={{ minHeight: 520 }}>
       <ReactFlow
         nodes={nodesFinal}
         edges={edges}
