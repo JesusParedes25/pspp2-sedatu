@@ -19,7 +19,8 @@
  */
 import { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Star, FileText, Settings, BarChart3, LayoutDashboard, Search, Pencil, FileSpreadsheet, Trash2, Table2, MapPin, GitBranch, Loader2 } from 'lucide-react';
+import { ArrowLeft, Star, FileText, Settings, BarChart3, LayoutDashboard, Search, Pencil, FileSpreadsheet, Trash2, Table2, MapPin, GitBranch, Loader2, ChevronUp, ChevronDown } from 'lucide-react';
+import { prefersReducedMotion } from '../../utils/motion';
 import { useProyecto } from '../../hooks/useProyectos';
 import { useEtapas } from '../../hooks/useEtapas';
 import { useAuth } from '../../context/AuthContext';
@@ -130,6 +131,20 @@ export default function DetalleProyecto() {
     obs.observe(el);
     return () => obs.disconnect();
   }, []);
+
+  // Encabezado contraíble por el usuario (distinto del "compacto por
+  // scroll" de arriba): arranca contraído la primera vez, y la preferencia
+  // se recuerda por USUARIO, no por proyecto — así entrar a otro proyecto
+  // respeta cómo lo dejó, sin depender de qué proyecto sea.
+  const HEADER_EXPANDIDO_KEY = usuario?.id ? `pspp_header_proyecto_expandido_${usuario.id}` : null;
+  const [headerExpandido, setHeaderExpandido] = useState(() => {
+    if (!HEADER_EXPANDIDO_KEY) return false;
+    try { return localStorage.getItem(HEADER_EXPANDIDO_KEY) === 'true'; } catch { return false; }
+  });
+  useEffect(() => {
+    if (!HEADER_EXPANDIDO_KEY) return;
+    try { localStorage.setItem(HEADER_EXPANDIDO_KEY, String(headerExpandido)); } catch {}
+  }, [headerExpandido, HEADER_EXPANDIDO_KEY]);
   // Si el usuario navega de un proyecto a otro sin desmontar (mismo patrón de
   // ruta), el useState inicial no vuelve a correr — re-sincroniza con la URL.
   useEffect(() => {
@@ -277,38 +292,67 @@ export default function DetalleProyecto() {
         </div>
       )}
 
-      {/* Header del proyecto */}
+      {/* Header del proyecto — contraíble. En compacto (default): sin banda
+          propia de "Volver a proyectos" (queda como ícono junto al título)
+          y el selector de Direcciones comparte fila con los tags. En
+          expandido (como estaba antes de este cambio): "Volver a
+          proyectos" en su propia línea y el selector de Direcciones en su
+          propia fila. El contenido es el mismo en ambos casos — solo
+          cambia dónde vive cada pieza. */}
       <div>
         <div ref={sentinelHeaderRef} />
-        <Link to="/proyectos" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-guinda-500 mb-3 transition-colors">
-          <ArrowLeft size={16} />
-          Volver a proyectos
-        </Link>
 
-        <div className="flex items-start justify-between">
-          <div className="flex-1 min-w-0">
-            {/* Título + tags en la misma banda (antes apilados en dos
-                filas) — recupera una fila completa de alto. */}
-            <div className="flex items-center gap-2.5 flex-wrap mb-1">
-              <h1 className="text-2xl font-bold text-gray-900">{proyecto.nombre}</h1>
-              {proyecto.es_prioritario && <Star size={18} className="text-yellow-500 fill-yellow-500 flex-shrink-0" />}
-              <span className="font-medium text-guinda-600 text-sm flex-shrink-0">
-                {proyecto.dg_lider_siglas}{proyecto.direccion_area_lider_siglas && ` / ${proyecto.direccion_area_lider_siglas}`}
-              </span>
-              <SelectorEstado
-                entidadTipo="Proyecto"
-                entidadId={proyecto.id}
-                estadoActual={proyecto.estado}
-                onCambio={() => { recargarProyecto(); incrementarStats(); }}
-                soloLectura={!permisos.puedeEditar}
-              />
-              <span className="text-sm text-gray-500 flex-shrink-0">{proyecto.tipo?.replace(/_/g, ' ')}</span>
-              {proyecto.programa_clave && <span className="text-sm text-gray-400 flex-shrink-0">{proyecto.programa_clave}</span>}
+        {/* "Volver a proyectos" como banda propia — solo expandido */}
+        <div
+          id="detalle-header-volver"
+          className={`overflow-hidden ${prefersReducedMotion ? '' : 'transition-all duration-200'} ${headerExpandido ? 'max-h-8 opacity-100 mb-3' : 'max-h-0 opacity-0'}`}
+        >
+          <Link to="/proyectos" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-guinda-500 transition-colors">
+            <ArrowLeft size={16} />
+            Volver a proyectos
+          </Link>
+        </div>
+
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-1.5 flex-1 min-w-0">
+            {/* Mismo destino que el link de arriba, como ícono — visible
+                solo cuando esa banda está contraída, para no duplicar. */}
+            {!headerExpandido && (
+              <Link
+                to="/proyectos"
+                title="Volver a proyectos"
+                aria-label="Volver a proyectos"
+                className="p-1 -ml-1 mt-1 text-gray-400 hover:text-guinda-500 rounded hover:bg-gray-50 transition-colors flex-shrink-0"
+              >
+                <ArrowLeft size={16} />
+              </Link>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2.5 flex-wrap mb-1">
+                <h1 className="text-2xl font-bold text-gray-900">{proyecto.nombre}</h1>
+                {proyecto.es_prioritario && <Star size={18} className="text-yellow-500 fill-yellow-500 flex-shrink-0" />}
+                <span className="font-medium text-guinda-600 text-sm flex-shrink-0">
+                  {proyecto.dg_lider_siglas}{proyecto.direccion_area_lider_siglas && ` / ${proyecto.direccion_area_lider_siglas}`}
+                </span>
+                <SelectorEstado
+                  entidadTipo="Proyecto"
+                  entidadId={proyecto.id}
+                  estadoActual={proyecto.estado}
+                  onCambio={() => { recargarProyecto(); incrementarStats(); }}
+                  soloLectura={!permisos.puedeEditar}
+                />
+                <span className="text-sm text-gray-500 flex-shrink-0">{proyecto.tipo?.replace(/_/g, ' ')}</span>
+                {proyecto.programa_clave && <span className="text-sm text-gray-400 flex-shrink-0">{proyecto.programa_clave}</span>}
+                {/* Selector de Direcciones, fusionado en la fila de tags — solo compacto */}
+                {!headerExpandido && proyecto.dgs && proyecto.dgs.length > 1 && (
+                  <SelectorDG dgs={proyecto.dgs} dgSeleccionada={dgSeleccionada} onSeleccionar={setDgSeleccionada} />
+                )}
+              </div>
+              {proyecto.descripcion && <DescripcionColapsable texto={proyecto.descripcion} lineasColapsado={1} />}
             </div>
-            {proyecto.descripcion && <DescripcionColapsable texto={proyecto.descripcion} lineasColapsado={1} />}
           </div>
 
-          {/* Botones Editar / Eliminar */}
+          {/* Botones Editar / Eliminar + contraer/expandir */}
           <div className="flex items-center gap-2 flex-shrink-0">
             {permisos.puedeEditar && (
               <button onClick={() => setModalEditar(true)} className="btn-secondary text-sm flex items-center gap-1.5">
@@ -321,6 +365,16 @@ export default function DetalleProyecto() {
                 <Trash2 size={14} /> Eliminar
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => setHeaderExpandido(v => !v)}
+              aria-expanded={headerExpandido}
+              aria-controls="detalle-header-volver detalle-header-dgs"
+              title={headerExpandido ? 'Contraer encabezado' : 'Expandir encabezado'}
+              className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 outline-none focus-visible:ring-2 focus-visible:ring-guinda-400 transition-colors"
+            >
+              {headerExpandido ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
           </div>
         </div>
 
@@ -342,16 +396,17 @@ export default function DetalleProyecto() {
             onGuardado={() => { mostrarToast('Proyecto actualizado', 'exito'); recargarProyecto(); incrementarStats(); }}
           />
         )}
-      </div>
 
-      {/* Selector de DGs */}
-      {proyecto.dgs && proyecto.dgs.length > 1 && (
-        <SelectorDG
-          dgs={proyecto.dgs}
-          dgSeleccionada={dgSeleccionada}
-          onSeleccionar={setDgSeleccionada}
-        />
-      )}
+        {/* Selector de Direcciones en su propia fila — solo expandido */}
+        <div
+          id="detalle-header-dgs"
+          className={`overflow-hidden ${prefersReducedMotion ? '' : 'transition-all duration-200'} ${headerExpandido && proyecto.dgs && proyecto.dgs.length > 1 ? 'max-h-20 opacity-100 mt-3' : 'max-h-0 opacity-0'}`}
+        >
+          {proyecto.dgs && proyecto.dgs.length > 1 && (
+            <SelectorDG dgs={proyecto.dgs} dgSeleccionada={dgSeleccionada} onSeleccionar={setDgSeleccionada} />
+          )}
+        </div>
+      </div>
 
       {/* Pestañas principales */}
       <div className="border-b border-gray-200">
