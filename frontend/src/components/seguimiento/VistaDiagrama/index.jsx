@@ -18,7 +18,6 @@ import '@xyflow/react/dist/base.css';
 import { Search, ZoomIn, ZoomOut, Maximize2, ChevronsDownUp, Loader2, X, CheckCircle2 } from 'lucide-react';
 import * as etapasApi from '../../../api/etapas';
 import { useUI } from '../../../context/UIContext';
-import { useAlturaHastaFinal } from '../../../hooks/useAlturaHastaFinal';
 import { useJerarquiaProyecto } from '../../../hooks/useJerarquiaProyecto';
 import { COLORES_SEMAFORO, LEYENDA_SEMAFORO } from '../../common/SemaforoDot';
 import ConfirmDialog from '../../common/ConfirmDialog';
@@ -69,10 +68,6 @@ function VistaDiagramaInterna({ proyectoId, permisos }) {
   const [confirmEliminar, setConfirmEliminar] = useState(null); // {tipo, id, nombre, numDescendientes}
   const { zoomIn, zoomOut, fitView } = useReactFlow();
   const zoom = useStore(zoomSelector);
-  // Misma altura MEDIDA que usa "Detalle" (useAlturaHastaFinal) — así el
-  // lienzo también llena el alto disponible del viewport en vez de quedar
-  // a una altura fija en px, y ambas subvistas quedan homologadas.
-  const [diagramaRef, alturaDiagrama] = useAlturaHastaFinal(24, 520);
 
   const cargarArbol = useCallback(async (silencioso = false) => {
     if (!proyectoId) return;
@@ -285,15 +280,16 @@ function VistaDiagramaInterna({ proyectoId, permisos }) {
     );
   }
 
-  // Altura MEDIDA (no una altura fija en px): igual que "Detalle", así el
-  // lienzo llena el alto disponible del viewport en vez de quedar fijo a
-  // 650px en monitores donde sobra pantalla. ReactFlow necesita que este
-  // contenedor tenga una altura explícita (se la da alturaDiagrama, no un %).
+  // Altura fija (no medida contra el viewport): igual que el mapa de
+  // cobertura territorial (MapaProyecto, height: 440) — ReactFlow necesita
+  // un contenedor con altura explícita para dibujar su lienzo (no puede
+  // ser "auto"), pero un valor fijo y modesto es lo que hace que esto se
+  // sienta como una sección más de la página, no una caja que intenta
+  // llenar la pantalla.
   return (
     <div
-      ref={diagramaRef}
       className="border border-gray-200 rounded-xl overflow-hidden bg-white"
-      style={{ height: alturaDiagrama ? `${alturaDiagrama}px` : undefined, minHeight: 520 }}
+      style={{ height: 650 }}
     >
       <ReactFlow
         nodes={nodesFinal}

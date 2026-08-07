@@ -126,8 +126,7 @@ export default function DetalleProyecto() {
   // componente devuelve un esqueleto sin el sentinel real — con un useRef
   // normal el efecto de abajo mediría una sola vez con el ref en null y
   // nunca se volvería a disparar cuando el contenido real por fin monta,
-  // dejando este comportamiento roto para siempre (mismo bug que tenía
-  // useAlturaHastaFinal, ver ese archivo).
+  // dejando este comportamiento roto para siempre.
   const sentinelElRef = useRef(null);
   const observerRef = useRef(null);
   const [headerCompacto, setHeaderCompacto] = useState(false);
