@@ -18,6 +18,7 @@ import '@xyflow/react/dist/base.css';
 import { Search, ZoomIn, ZoomOut, Maximize2, ChevronsDownUp, Loader2, X, CheckCircle2 } from 'lucide-react';
 import * as etapasApi from '../../../api/etapas';
 import { useUI } from '../../../context/UIContext';
+import { useAlturaHastaFinal } from '../../../hooks/useAlturaHastaFinal';
 import { useJerarquiaProyecto } from '../../../hooks/useJerarquiaProyecto';
 import { COLORES_SEMAFORO, LEYENDA_SEMAFORO } from '../../common/SemaforoDot';
 import ConfirmDialog from '../../common/ConfirmDialog';
@@ -68,6 +69,10 @@ function VistaDiagramaInterna({ proyectoId, permisos }) {
   const [confirmEliminar, setConfirmEliminar] = useState(null); // {tipo, id, nombre, numDescendientes}
   const { zoomIn, zoomOut, fitView } = useReactFlow();
   const zoom = useStore(zoomSelector);
+  // Misma altura MEDIDA que usa "Detalle" (useAlturaHastaFinal) — así el
+  // lienzo también llena el alto disponible del viewport en vez de quedar
+  // a una altura fija en px, y ambas subvistas quedan homologadas.
+  const [diagramaRef, alturaDiagrama] = useAlturaHastaFinal(24, 520);
 
   const cargarArbol = useCallback(async (silencioso = false) => {
     if (!proyectoId) return;
@@ -250,7 +255,7 @@ function VistaDiagramaInterna({ proyectoId, permisos }) {
 
   if (cargando) {
     return (
-      <div className="flex-1 min-h-0 flex items-center justify-center border border-gray-200 rounded-xl bg-white" style={{ minHeight: 400 }}>
+      <div className="flex items-center justify-center py-16 border border-gray-200 rounded-xl bg-white" style={{ minHeight: '600px' }}>
         <Loader2 size={24} className="animate-spin text-gray-400" />
         <span className="ml-2 text-sm text-gray-500">Cargando diagrama...</span>
       </div>
@@ -259,7 +264,7 @@ function VistaDiagramaInterna({ proyectoId, permisos }) {
 
   if (arbol.length === 0) {
     return (
-      <div className="flex-1 min-h-0 flex items-center justify-center border border-gray-200 rounded-xl bg-white text-gray-400 text-sm" style={{ minHeight: 400 }}>
+      <div className="flex items-center justify-center py-16 border border-gray-200 rounded-xl bg-white text-gray-400 text-sm" style={{ minHeight: '600px' }}>
         Sin etapas todavía — créalas desde la vista Detalle.
       </div>
     );
@@ -273,19 +278,23 @@ function VistaDiagramaInterna({ proyectoId, permisos }) {
   // que aparece un instante después.
   if (!inicializado) {
     return (
-      <div className="flex-1 min-h-0 flex items-center justify-center border border-gray-200 rounded-xl bg-white" style={{ minHeight: 400 }}>
+      <div className="flex items-center justify-center py-16 border border-gray-200 rounded-xl bg-white" style={{ minHeight: '600px' }}>
         <Loader2 size={24} className="animate-spin text-gray-400" />
         <span className="ml-2 text-sm text-gray-500">Cargando diagrama...</span>
       </div>
     );
   }
 
-  // flex-1 min-h-0 (no una altura fija en px): llena el alto disponible del
-  // flex-col padre (ver DetalleProyecto.jsx), igual que "Detalle". minHeight
-  // como piso solo para ventanas muy chicas — ReactFlow necesita que este
-  // contenedor tenga una altura definida (se la da flex-grow, no un %).
+  // Altura MEDIDA (no una altura fija en px): igual que "Detalle", así el
+  // lienzo llena el alto disponible del viewport en vez de quedar fijo a
+  // 650px en monitores donde sobra pantalla. ReactFlow necesita que este
+  // contenedor tenga una altura explícita (se la da alturaDiagrama, no un %).
   return (
-    <div className="flex-1 min-h-0 border border-gray-200 rounded-xl overflow-hidden bg-white" style={{ minHeight: 520 }}>
+    <div
+      ref={diagramaRef}
+      className="border border-gray-200 rounded-xl overflow-hidden bg-white"
+      style={{ height: alturaDiagrama ? `${alturaDiagrama}px` : undefined, minHeight: 520 }}
+    >
       <ReactFlow
         nodes={nodesFinal}
         edges={edges}

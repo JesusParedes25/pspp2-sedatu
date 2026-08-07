@@ -118,13 +118,34 @@ export default function DetalleProyecto() {
   const [pestanaActiva, setPestanaActiva] = useState(() => searchParams.get('tab') || 'seguimiento');
   const [subseccionActiva, setSubseccionActiva] = useState('diagrama');
 
-  // Encabezado contraíble por el usuario: arranca contraído la primera vez
-  // (antes existía además una barra compacta que aparecía sola al hacer
-  // scroll — quedó de más y se quitó: con el layout ahora acotado al alto
-  // real del viewport, ver Layout.jsx, este encabezado ya no se desplaza
-  // fuera de vista, así que ese mecanismo nunca podía dispararse). La
-  // preferencia se recuerda por USUARIO, no por proyecto — así entrar a
-  // otro proyecto respeta cómo lo dejó, sin depender de qué proyecto sea.
+  // Encabezado compacto al hacer scroll: un sentinel justo debajo de "Volver
+  // a proyectos" — cuando sale de vista, se muestra una barra fija de una
+  // sola línea (título truncado + estatus) en su lugar, para no perder el
+  // contexto sin gastar los ~170px del encabezado completo todo el tiempo.
+  // Ref CALLBACK (no un useRef simple): mientras `cargando` es true, este
+  // componente devuelve un esqueleto sin el sentinel real — con un useRef
+  // normal el efecto de abajo mediría una sola vez con el ref en null y
+  // nunca se volvería a disparar cuando el contenido real por fin monta,
+  // dejando este comportamiento roto para siempre (mismo bug que tenía
+  // useAlturaHastaFinal, ver ese archivo).
+  const sentinelElRef = useRef(null);
+  const observerRef = useRef(null);
+  const [headerCompacto, setHeaderCompacto] = useState(false);
+  const sentinelHeaderRef = useCallback(node => {
+    sentinelElRef.current = node;
+    if (observerRef.current) { observerRef.current.disconnect(); observerRef.current = null; }
+    if (node) {
+      const obs = new IntersectionObserver(([entry]) => setHeaderCompacto(!entry.isIntersecting), { threshold: 0 });
+      obs.observe(node);
+      observerRef.current = obs;
+    }
+  }, []);
+  useEffect(() => () => observerRef.current?.disconnect(), []);
+
+  // Encabezado contraíble por el usuario (distinto del "compacto por
+  // scroll" de arriba): arranca contraído la primera vez, y la preferencia
+  // se recuerda por USUARIO, no por proyecto — así entrar a otro proyecto
+  // respeta cómo lo dejó, sin depender de qué proyecto sea.
   const HEADER_EXPANDIDO_KEY = usuario?.id ? `pspp_header_proyecto_expandido_${usuario.id}` : null;
   const [headerExpandido, setHeaderExpandido] = useState(() => {
     if (!HEADER_EXPANDIDO_KEY) return false;
@@ -271,15 +292,16 @@ export default function DetalleProyecto() {
   }
 
   return (
-    // h-full (llena a main, ya acotado en Layout.jsx) + flex-col: el
-    // encabezado y las pestañas son flex-shrink-0 (su alto natural), y el
-    // contenido de la pestaña activa es flex-1 min-h-0 — así "Detalle"
-    // puede pedir h-full de verdad y quedarse exacto al espacio que
-    // sobra, en vez de crecer a su alto de contenido y dejar franja vacía
-    // debajo. Las demás subvistas (Diagrama, Vista lista, Mapa,
-    // Cronograma) no cambian: si su contenido no cabe, este mismo
-    // contenedor scrollea igual que antes hacía toda la página.
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className="space-y-6">
+      {/* Barra compacta — sticky, solo visible cuando el encabezado
+          completo ya salió de vista al hacer scroll. */}
+      {headerCompacto && (
+        <div className="sticky top-0 z-20 -mx-6 px-6 py-2 bg-white border-b border-gray-200 shadow-sm flex items-center gap-2">
+          <span className="text-sm font-semibold text-gray-900 truncate">{proyecto.nombre}</span>
+          <span className="text-xs text-gray-400 flex-shrink-0">{proyecto.estado?.replace(/_/g, ' ')}</span>
+        </div>
+      )}
+
       {/* Header del proyecto — contraíble. En compacto (default): sin banda
           propia de "Volver a proyectos" (queda como ícono junto al título)
           y el selector de Direcciones comparte fila con los tags. En
@@ -287,7 +309,9 @@ export default function DetalleProyecto() {
           proyectos" en su propia línea y el selector de Direcciones en su
           propia fila. El contenido es el mismo en ambos casos — solo
           cambia dónde vive cada pieza. */}
-      <div className="flex-shrink-0">
+      <div>
+        <div ref={sentinelHeaderRef} />
+
         {/* "Volver a proyectos" como banda propia — solo expandido */}
         <div
           id="detalle-header-volver"
@@ -395,7 +419,7 @@ export default function DetalleProyecto() {
       </div>
 
       {/* Pestañas principales */}
-      <div className="flex-shrink-0 mt-6 border-b border-gray-200">
+      <div className="border-b border-gray-200">
         <div className="flex gap-6">
           {PESTANAS.map(tab => (
             <button
@@ -414,181 +438,165 @@ export default function DetalleProyecto() {
         </div>
       </div>
 
-      {/* Contenido de la pestaña activa — flex-1 min-h-0: ocupa el resto
-          del alto disponible. Panorama y Evidencias no lo necesitan (su
-          contenido es naturalmente más corto o ya pagina), así que solo
-          heredan el overflow-y-auto de este contenedor si algún día hace
-          falta — Seguimiento es el único que lo aprovecha de verdad. */}
-      <div className="flex-1 min-h-0 overflow-y-auto mt-6">
-        {/* ═══ PESTAÑA PANORAMA DEL PROYECTO ═══ */}
-        {pestanaActiva === 'resumen' && (
-          <PanoramaProyecto proyecto={proyecto} etapas={etapas} proyectoId={id} refreshKey={statsKey} onNavegarNodo={irANodo} />
-        )}
+      {/* ═══ PESTAÑA PANORAMA DEL PROYECTO ═══ */}
+      {pestanaActiva === 'resumen' && (
+        <PanoramaProyecto proyecto={proyecto} etapas={etapas} proyectoId={id} refreshKey={statsKey} onNavegarNodo={irANodo} />
+      )}
 
-        {/* ═══ PESTAÑA SEGUIMIENTO ═══ */}
-        {pestanaActiva === 'seguimiento' && (
-          <div className="h-full flex flex-col">
-            {/* Subsecciones de seguimiento, fusionadas con Importar/Reporte PDF
-                en la misma banda — antes eran dos filas separadas y las
-                subsecciones se estiraban a todo el ancho sin necesidad. */}
-            <div className="flex-shrink-0 flex items-center gap-3 flex-wrap mb-4">
-              <div className="flex gap-1 bg-gray-100 rounded-lg p-1 flex-1 min-w-0">
-                {SUBSECCIONES.map(sub => (
-                  <button
-                    key={sub.id}
-                    onClick={() => setSubseccionActiva(sub.id)}
-                    className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-md transition-all flex-1 justify-center ${
-                      subseccionActiva === sub.id
-                        ? 'bg-white text-guinda-600 shadow-sm'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    <sub.icono size={14} />
-                    <span className="hidden sm:inline">{sub.etiqueta}</span>
-                  </button>
-                ))}
-              </div>
-              {subseccionActiva === 'etapas' && (
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button onClick={() => setModalCSV(true)}
-                    className="btn-secondary text-sm flex items-center gap-1.5">
-                    <FileSpreadsheet size={14} /> Importar
-                  </button>
-                  <GenerarReporteBtn
-                    proyectoId={id}
-                    proyecto={proyecto}
-                  />
-                </div>
-              )}
+      {/* ═══ PESTAÑA SEGUIMIENTO ═══ */}
+      {pestanaActiva === 'seguimiento' && (
+        <div className="space-y-4">
+          {/* Subsecciones de seguimiento, fusionadas con Importar/Reporte PDF
+              en la misma banda — antes eran dos filas separadas y las
+              subsecciones se estiraban a todo el ancho sin necesidad. */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex gap-1 bg-gray-100 rounded-lg p-1 flex-1 min-w-0">
+              {SUBSECCIONES.map(sub => (
+                <button
+                  key={sub.id}
+                  onClick={() => setSubseccionActiva(sub.id)}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-md transition-all flex-1 justify-center ${
+                    subseccionActiva === sub.id
+                      ? 'bg-white text-guinda-600 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <sub.icono size={14} />
+                  <span className="hidden sm:inline">{sub.etiqueta}</span>
+                </button>
+              ))}
             </div>
-
-            {/* Contenido de la subsección activa. "flex flex-col" (no solo
-                flex-1 min-h-0): Detalle y Diagrama son los únicos que
-                necesitan llenar el alto disponible de verdad, y lo hacen
-                pidiendo flex-1 min-h-0 a SU VEZ sobre este contenedor — eso
-                requiere que este sea un contenedor flex de columna (no un
-                simple bloque), porque flex-grow se resuelve contra el
-                espacio libre real del flex container, sin las ambigüedades
-                de "height: 100%" contra un padre que no sea flex. Las demás
-                subvistas no cambian: al no pedir flex-1, se siguen
-                dimensionando por su contenido y, si no cabe, este mismo div
-                deja que el overflow-y-auto de arriba scrollee, igual que
-                scrolleaba toda la página antes. */}
-            <div className="flex-1 min-h-0 flex flex-col">
-              {/* 0. Diagrama — organigrama horizontal, solo lectura por ahora */}
-              {subseccionActiva === 'diagrama' && (
-                <Suspense fallback={
-                  <div className="flex-1 min-h-0 flex items-center justify-center border border-gray-200 rounded-xl bg-white" style={{ minHeight: 400 }}>
-                    <Loader2 size={24} className="animate-spin text-gray-400" />
-                    <span className="ml-2 text-sm text-gray-500">Cargando diagrama...</span>
-                  </div>
-                }>
-                  <VistaDiagrama proyectoId={id} permisos={permisos} />
-                </Suspense>
-              )}
-
-              {/* 1. Etapas y avances — Maestro-Detalle (Importar/Reporte PDF ya
-                  se muestran arriba, fusionados con la banda de subsecciones) */}
-              {subseccionActiva === 'etapas' && (
-                <EtapasAvancesMD
+            {subseccionActiva === 'etapas' && (
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button onClick={() => setModalCSV(true)}
+                  className="btn-secondary text-sm flex items-center gap-1.5">
+                  <FileSpreadsheet size={14} /> Importar
+                </button>
+                <GenerarReporteBtn
                   proyectoId={id}
                   proyecto={proyecto}
-                  permisos={permisos}
-                  dgSeleccionada={dgSeleccionada}
-                  onStatsChange={() => { recargarEtapasSilencioso(); incrementarStats(); }}
                 />
-              )}
-
-              {/* 2. Vista Lista (DataGrid) */}
-              {subseccionActiva === 'lista' && (
-                <VistaLista
-                  etapas={etapas}
-                  proyectoId={id}
-                  onRefresh={() => { recargarEtapasSilencioso(); incrementarStats(); }}
-                />
-              )}
-
-              {/* 3. Mapa de cobertura territorial */}
-              {subseccionActiva === 'mapa' && (
-                <MapaProyecto
-                  proyectoId={id}
-                  onNavegarEtapas={() => setSubseccionActiva('etapas')}
-                />
-              )}
-
-              {/* 4. Cronograma (Gantt) */}
-              {subseccionActiva === 'cronograma' && (
-                <GanttCronograma
-                  etapas={etapas}
-                  fechaInicioProyecto={proyecto.fecha_inicio}
-                  fechaFinProyecto={proyecto.fecha_limite}
-                />
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ═══ PESTAÑA EVIDENCIAS ═══ */}
-        {pestanaActiva === 'evidencias' && (
-          <div className="space-y-4">
-            {/* Filtros de evidencias */}
-            {evidencias.length > 0 && (
-              <div className="card p-3 flex flex-wrap items-center gap-3">
-                <div className="relative flex-1 min-w-[200px]">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Buscar por nombre, notas o autor..."
-                    value={filtroEvidencias.busqueda}
-                    onChange={e => setFiltroEvidencias(prev => ({ ...prev, busqueda: e.target.value }))}
-                    className="input-base pl-9 text-sm h-9"
-                  />
-                </div>
-                {categoriasUnicas.length > 1 && (
-                  <select
-                    value={filtroEvidencias.categoria}
-                    onChange={e => setFiltroEvidencias(prev => ({ ...prev, categoria: e.target.value }))}
-                    className="input-base text-sm h-9 w-auto"
-                  >
-                    <option value="">Todas las categorías</option>
-                    {categoriasUnicas.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                )}
-                {etapasUnicas.length > 1 && (
-                  <select
-                    value={filtroEvidencias.etapa}
-                    onChange={e => setFiltroEvidencias(prev => ({ ...prev, etapa: e.target.value }))}
-                    className="input-base text-sm h-9 w-auto"
-                  >
-                    <option value="">Todas las etapas</option>
-                    {etapasUnicas.map(et => <option key={et} value={et}>{et}</option>)}
-                  </select>
-                )}
-                {(filtroEvidencias.busqueda || filtroEvidencias.categoria || filtroEvidencias.etapa) && (
-                  <button
-                    onClick={() => setFiltroEvidencias({ busqueda: '', categoria: '', etapa: '' })}
-                    className="text-xs text-guinda-500 hover:text-guinda-700 font-medium"
-                  >
-                    Limpiar
-                  </button>
-                )}
-                <span className="text-xs text-gray-400 ml-auto">{evidenciasFiltradas.length} de {evidencias.length}</span>
               </div>
             )}
-
-            {/* Lista filtrada */}
-            <div className="space-y-2">
-              {evidencias.length === 0 ? (
-                <EmptyState icono={FileText} titulo="Sin evidencias" subtitulo="Las evidencias se suben desde las acciones de cada etapa." />
-              ) : evidenciasFiltradas.length === 0 ? (
-                <EmptyState icono={Search} titulo="Sin resultados" subtitulo="Ninguna evidencia coincide con los filtros aplicados." />
-              ) : (
-                evidenciasFiltradas.map(ev => <EvidenciaRow key={ev.id} evidencia={ev} />)
-              )}
-            </div>
           </div>
-        )}
-      </div>
+
+          {/* Contenido de la subsección activa */}
+
+          {/* 0. Diagrama — organigrama horizontal, solo lectura por ahora */}
+          {subseccionActiva === 'diagrama' && (
+            <Suspense fallback={
+              <div className="flex items-center justify-center py-16 border border-gray-200 rounded-xl bg-white" style={{ minHeight: '600px' }}>
+                <Loader2 size={24} className="animate-spin text-gray-400" />
+                <span className="ml-2 text-sm text-gray-500">Cargando diagrama...</span>
+              </div>
+            }>
+              <VistaDiagrama proyectoId={id} permisos={permisos} />
+            </Suspense>
+          )}
+
+          {/* 1. Etapas y avances — Maestro-Detalle (Importar/Reporte PDF ya
+              se muestran arriba, fusionados con la banda de subsecciones) */}
+          {subseccionActiva === 'etapas' && (
+            <div className="space-y-3">
+              <EtapasAvancesMD
+                proyectoId={id}
+                proyecto={proyecto}
+                permisos={permisos}
+                dgSeleccionada={dgSeleccionada}
+                onStatsChange={() => { recargarEtapasSilencioso(); incrementarStats(); }}
+              />
+            </div>
+          )}
+
+          {/* 2. Vista Lista (DataGrid) */}
+          {subseccionActiva === 'lista' && (
+            <VistaLista
+              etapas={etapas}
+              proyectoId={id}
+              onRefresh={() => { recargarEtapasSilencioso(); incrementarStats(); }}
+            />
+          )}
+
+          {/* 3. Mapa de cobertura territorial */}
+          {subseccionActiva === 'mapa' && (
+            <MapaProyecto
+              proyectoId={id}
+              onNavegarEtapas={() => setSubseccionActiva('etapas')}
+            />
+          )}
+
+          {/* 4. Cronograma (Gantt) */}
+          {subseccionActiva === 'cronograma' && (
+            <GanttCronograma
+              etapas={etapas}
+              fechaInicioProyecto={proyecto.fecha_inicio}
+              fechaFinProyecto={proyecto.fecha_limite}
+            />
+          )}
+
+        </div>
+      )}
+
+      {/* ═══ PESTAÑA EVIDENCIAS ═══ */}
+      {pestanaActiva === 'evidencias' && (
+        <div className="space-y-4">
+          {/* Filtros de evidencias */}
+          {evidencias.length > 0 && (
+            <div className="card p-3 flex flex-wrap items-center gap-3">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar por nombre, notas o autor..."
+                  value={filtroEvidencias.busqueda}
+                  onChange={e => setFiltroEvidencias(prev => ({ ...prev, busqueda: e.target.value }))}
+                  className="input-base pl-9 text-sm h-9"
+                />
+              </div>
+              {categoriasUnicas.length > 1 && (
+                <select
+                  value={filtroEvidencias.categoria}
+                  onChange={e => setFiltroEvidencias(prev => ({ ...prev, categoria: e.target.value }))}
+                  className="input-base text-sm h-9 w-auto"
+                >
+                  <option value="">Todas las categorías</option>
+                  {categoriasUnicas.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              )}
+              {etapasUnicas.length > 1 && (
+                <select
+                  value={filtroEvidencias.etapa}
+                  onChange={e => setFiltroEvidencias(prev => ({ ...prev, etapa: e.target.value }))}
+                  className="input-base text-sm h-9 w-auto"
+                >
+                  <option value="">Todas las etapas</option>
+                  {etapasUnicas.map(et => <option key={et} value={et}>{et}</option>)}
+                </select>
+              )}
+              {(filtroEvidencias.busqueda || filtroEvidencias.categoria || filtroEvidencias.etapa) && (
+                <button
+                  onClick={() => setFiltroEvidencias({ busqueda: '', categoria: '', etapa: '' })}
+                  className="text-xs text-guinda-500 hover:text-guinda-700 font-medium"
+                >
+                  Limpiar
+                </button>
+              )}
+              <span className="text-xs text-gray-400 ml-auto">{evidenciasFiltradas.length} de {evidencias.length}</span>
+            </div>
+          )}
+
+          {/* Lista filtrada */}
+          <div className="space-y-2">
+            {evidencias.length === 0 ? (
+              <EmptyState icono={FileText} titulo="Sin evidencias" subtitulo="Las evidencias se suben desde las acciones de cada etapa." />
+            ) : evidenciasFiltradas.length === 0 ? (
+              <EmptyState icono={Search} titulo="Sin resultados" subtitulo="Ninguna evidencia coincide con los filtros aplicados." />
+            ) : (
+              evidenciasFiltradas.map(ev => <EvidenciaRow key={ev.id} evidencia={ev} />)
+            )}
+          </div>
+        </div>
+      )}
       {/* ═══ MODALES ═══ */}
       {modalEtapa && (
         <ModalNuevaEtapa

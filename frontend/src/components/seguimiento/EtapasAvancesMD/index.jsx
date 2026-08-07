@@ -12,6 +12,7 @@ import { Loader2, X, SlidersHorizontal, CheckCircle2, Search, Filter, Layers } f
 import * as etapasApi from '../../../api/etapas';
 import { useUI } from '../../../context/UIContext';
 import { useAuth } from '../../../context/AuthContext';
+import { useAlturaHastaFinal } from '../../../hooks/useAlturaHastaFinal';
 import { usePanelWidth } from '../../../hooks/usePanelWidth';
 import { COLORES_SEMAFORO } from '../../common/SemaforoDot';
 import ResizeHandle from '../../common/ResizeHandle';
@@ -218,6 +219,13 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
     }
   }, [arbol]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Altura MEDIDA (no adivinada): un overflow-y-auto interno solo funciona
+  // de verdad si este contenedor tiene un alto fijo. Un offset fijo tipo
+  // `calc(100vh - 380px)` se rompe apenas el contenido de arriba cambia
+  // (descripción larga, DGs que envuelven a 2 líneas...) — medir la
+  // posición real evita adivinar y falla menos.
+  const [cuerpoRef, alturaCuerpo] = useAlturaHastaFinal(24, 520);
+
   if (cargando) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -227,17 +235,11 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
     );
   }
 
-  // flex-1 min-h-0 (no h-full, y no una altura medida con JS): el padre
-  // (DetalleProyecto) ya cascada un contenedor flex-col acotado al
-  // viewport hasta aquí — ver Layout.jsx. flex-1 pide el espacio libre
-  // real de ese flex container, sin depender de que "height: 100%" se
-  // resuelva contra un ancestro intermedio (frágil si alguno no es flex).
-  // minHeight como piso, por si el padre da menos de lo razonable en una
-  // ventana muy chica.
   return (
     <div
-      className="flex gap-0 border border-gray-200 rounded-xl overflow-hidden bg-white flex-1 min-h-0"
-      style={{ minHeight: 520 }}
+      ref={cuerpoRef}
+      className="flex gap-0 border border-gray-200 rounded-xl overflow-hidden bg-white"
+      style={{ height: alturaCuerpo ? `${alturaCuerpo}px` : undefined, minHeight: 520 }}
     >
       {/* Overlay para árbol en móvil */}
       {treePanelAbierto && (
