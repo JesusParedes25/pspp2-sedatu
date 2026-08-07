@@ -23,6 +23,7 @@ import { COLORES_SEMAFORO, LEYENDA_SEMAFORO } from '../../common/SemaforoDot';
 import ConfirmDialog from '../../common/ConfirmDialog';
 import CrearInline from '../EtapasAvancesMD/CrearInline';
 import { buscarNodoEnArbol } from '../EtapasAvancesMD/utils';
+import { prefersReducedMotion } from '../../../utils/motion';
 import { useLayoutJerarquia, ROW_HEIGHT, contarDescendientes } from './useLayoutJerarquia';
 import NodoEtapa from './NodoEtapa';
 import NodoAccion from './NodoAccion';
@@ -34,9 +35,6 @@ import { ariaLabelConfigEs } from './ariaLabels';
 const nodeTypes = { etapa: NodoEtapa, accion: NodoAccion, tarea: NodoTarea, ghostEtapa: NodoGhostEtapa };
 
 const TIPO_LABEL_ELIMINAR = { etapa: 'etapa', accion: 'acción', tarea: 'tarea' };
-
-const prefersReducedMotion = typeof window !== 'undefined'
-  && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 // Busca en qué etapa vive un nodo (para saber qué etapa NO colapsar de
 // inicio cuando se entra con ?nodo=<id>).
@@ -377,6 +375,7 @@ function VistaDiagramaInterna({ proyectoId, permisos }) {
           nodo={nodoAbierto}
           proyectoId={proyectoId}
           permisos={permisos}
+          arbol={arbol}
           onActualizado={() => cargarArbol(true)}
           mostrarToast={mostrarToast}
           onCerrar={() => setNodoAbiertoId(null)}

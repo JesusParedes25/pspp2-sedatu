@@ -76,3 +76,39 @@ export function resolverRutaNombres(arbol, targetId) {
   }
   return null;
 }
+
+// Hijos directos de un nodo como {tipo, nodo}[] — una sola fuente para esta
+// regla (antes repetida por separado en PanelDetalle, PropiedadesElemento y
+// la lista central): etapa → acciones; acción → sus subacciones (acciones
+// anidadas) + tareas; tarea nunca tiene hijos.
+export function hijosDe(tipo, data) {
+  if (tipo === 'etapa') return (data.acciones || []).map(a => ({ tipo: 'accion', nodo: a }));
+  if (tipo === 'accion') return [
+    ...(data.subacciones || []).map(s => ({ tipo: 'accion', nodo: s })),
+    ...(data.tareas || []).map(t => ({ tipo: 'tarea', nodo: t })),
+  ];
+  return [];
+}
+
+// Igual que resolverRutaNombres, pero con {tipo, id, nombre} por escalón —
+// para el lineage clicable del panel derecho (subir de nivel sin pasar por
+// el árbol). El propio nodo también viene incluido (último elemento).
+export function resolverRutaConIds(arbol, targetId) {
+  for (const etapa of arbol) {
+    if (etapa.id === targetId) return [{ tipo: 'etapa', id: etapa.id, nombre: etapa.nombre }];
+    for (const acc of (etapa.acciones || [])) {
+      if (acc.id === targetId) return [
+        { tipo: 'etapa', id: etapa.id, nombre: etapa.nombre },
+        { tipo: 'accion', id: acc.id, nombre: acc.nombre },
+      ];
+      for (const tarea of (acc.tareas || [])) {
+        if (tarea.id === targetId) return [
+          { tipo: 'etapa', id: etapa.id, nombre: etapa.nombre },
+          { tipo: 'accion', id: acc.id, nombre: acc.nombre },
+          { tipo: 'tarea', id: tarea.id, nombre: tarea.nombre },
+        ];
+      }
+    }
+  }
+  return null;
+}

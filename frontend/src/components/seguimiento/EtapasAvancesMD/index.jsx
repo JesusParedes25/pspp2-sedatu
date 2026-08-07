@@ -11,6 +11,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Loader2, X, SlidersHorizontal, CheckCircle2, Search, Filter, Layers } from 'lucide-react';
 import * as etapasApi from '../../../api/etapas';
 import { useUI } from '../../../context/UIContext';
+import { useAlturaHastaFinal } from '../../../hooks/useAlturaHastaFinal';
 import { COLORES_SEMAFORO } from '../../common/SemaforoDot';
 import NodoArbol from './NodoArbol';
 import PanelDetalle from './PanelDetalle';
@@ -22,8 +23,22 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
   const [searchParams, setSearchParams] = useSearchParams();
   const [arbol, setArbol] = useState([]);
   const [cargando, setCargando] = useState(true);
-  const [nodoSeleccionado, setNodoSeleccionado] = useState(null); // {tipo, id, data}
-  const [expandidos, setExpandidos] = useState(new Set());
+  // "foco": la rama que muestra el centro (encabezado + lista) — cambia
+  // solo desde el árbol izquierdo o el lineage del propio encabezado.
+  // "seleccionId": el elemento cuya ficha muestra el panel derecho y cuya
+  // Actividad muestra el feed del centro — cambia también al hacer clic en
+  // un hijo dentro de la lista del centro, SIN mover el foco. Arrancan
+  // iguales; se separan cuando el usuario navega dentro de la rama
+  // enfocada sin cambiar de rama.
+  const [foco, setFoco] = useState(null); // {tipo, id, data}
+  const [seleccionId, setSeleccionId] = useState(null);
+  const [expandidos, setExpandidos] = useState(new Set()); // árbol izquierdo
+  const [expandidosCentro, setExpandidosCentro] = useState(new Set()); // lista central
+
+  const seleccion = useMemo(() => {
+    if (!seleccionId) return foco;
+    return buscarNodoEnArbol(arbol, seleccionId) || foco;
+  }, [arbol, seleccionId, foco]);
 
   // Panel del árbol (hamburger en pantallas < lg)
   const [treePanelAbierto, setTreePanelAbierto] = useState(false);
@@ -93,18 +108,28 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
     setFiltroUsuario('');
   }
 
-  // Sincronizar nodo seleccionado con URL
+  // Sincronizar foco/selección con la URL (?foco=&nodo=) — solo la
+  // PRIMERA vez que el árbol carga con datos; después el estado interno
+  // manda y esta misma función escribe la URL, no al revés. Compatible
+  // con enlaces viejos que solo traían `?nodo=`: si falta `foco`, se usa
+  // el mismo id (equivale al comportamiento de antes, foco = selección).
   useEffect(() => {
-    const nodoId = searchParams.get('nodo');
-    if (nodoId && arbol.length > 0) {
-      const found = buscarNodoEnArbol(arbol, nodoId);
-      if (found) {
-        setNodoSeleccionado(found);
-        // Expandir padres
-        expandirHasta(found, arbol);
-      }
+    if (foco || arbol.length === 0) return;
+    const focoId = searchParams.get('foco') || searchParams.get('nodo');
+    const nodoId = searchParams.get('nodo') || searchParams.get('foco');
+    if (!focoId) return;
+    const encontradoFoco = buscarNodoEnArbol(arbol, focoId);
+    if (!encontradoFoco) return;
+    setFoco(encontradoFoco);
+    expandirHasta(encontradoFoco, arbol);
+    setSeleccionId(nodoId);
+    // Si la selección va más profundo que el foco (deep-link directo a un
+    // nieto), expande también esa ruta dentro de la lista central.
+    if (nodoId && nodoId !== focoId) {
+      const pathSeleccion = encontrarPath(arbol, nodoId);
+      if (pathSeleccion) setExpandidosCentro(new Set(pathSeleccion));
     }
-  }, [arbol, searchParams]);
+  }, [arbol]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function expandirHasta(nodo, arbolData) {
     const path = encontrarPath(arbolData, nodo.id);
@@ -117,14 +142,41 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
     }
   }
 
-  function seleccionarNodo(tipo, id, data) {
+  // Cambia de RAMA: árbol izquierdo o lineage del encabezado central. Mueve
+  // foco Y selección juntos, y resetea qué está expandido en el centro —
+  // es una renavegación completa, no un drill-down dentro de lo mismo.
+  function irAFoco(tipo, id, data) {
     const nodo = { tipo, id, data };
-    setNodoSeleccionado(nodo);
+    setFoco(nodo);
+    setSeleccionId(id);
+    setExpandidosCentro(new Set());
     expandirHasta(nodo, arbol);
-    setTreePanelAbierto(false); // cerrar slide-over en móvil al seleccionar
+    setTreePanelAbierto(false);
     setSearchParams(prev => {
-      prev.set('nodo', id);
-      return prev;
+      const next = new URLSearchParams(prev);
+      next.set('foco', id);
+      next.set('nodo', id);
+      return next;
+    }, { replace: true });
+  }
+
+  // Ancla del árbol izquierdo: siempre conocemos tipo+data ahí mismo.
+  function seleccionarDesdeArbol(tipo, id, data) { irAFoco(tipo, id, data); }
+
+  // Ancla del lineage (solo trae id) — busca los datos en el árbol.
+  function navegarFocoPorId(_tipo, id) {
+    const encontrado = buscarNodoEnArbol(arbol, id);
+    if (encontrado) irAFoco(encontrado.tipo, encontrado.id, encontrado.data);
+  }
+
+  // Drill-down DENTRO de la rama enfocada: clic en una fila de la lista
+  // central. Mueve solo la selección — el centro no se reconstruye.
+  function seleccionarEnCentro(tipo, id) {
+    setSeleccionId(id);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('nodo', id);
+      return next;
     }, { replace: true });
   }
 
@@ -136,18 +188,34 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
     });
   }
 
+  function toggleCentroExpandir(id) {
+    setExpandidosCentro(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
   async function recargar() {
     await cargarArbol(true);
     onStatsChange?.();
   }
 
-  // Después de cargar el árbol, actualizar el nodo seleccionado si existe
+  // Después de cargar el árbol, refrescar el foco con datos frescos (la
+  // selección se re-deriva sola vía el useMemo de arriba).
   useEffect(() => {
-    if (nodoSeleccionado && arbol.length > 0) {
-      const found = buscarNodoEnArbol(arbol, nodoSeleccionado.id);
-      if (found) setNodoSeleccionado(found);
+    if (foco && arbol.length > 0) {
+      const found = buscarNodoEnArbol(arbol, foco.id);
+      if (found) setFoco(found);
     }
-  }, [arbol]);
+  }, [arbol]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Altura MEDIDA (no adivinada): un overflow-y-auto interno solo funciona
+  // de verdad si este contenedor tiene un alto fijo. Un offset fijo tipo
+  // `calc(100vh - 380px)` se rompe apenas el contenido de arriba cambia
+  // (descripción larga, DGs que envuelven a 2 líneas...) — medir la
+  // posición real evita adivinar y falla menos.
+  const [cuerpoRef, alturaCuerpo] = useAlturaHastaFinal(24, 520);
 
   if (cargando) {
     return (
@@ -159,12 +227,11 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
   }
 
   return (
-    /* Altura acotada (no solo mínima): un overflow-y-auto interno solo
-       funciona de verdad si este contenedor tiene un alto fijo — con
-       minHeight nada más, el árbol y el rail crecían con su contenido y
-       terminaba desplazándose la página completa en vez de cada columna
-       por separado. */
-    <div className="flex gap-0 border border-gray-200 rounded-xl overflow-hidden bg-white h-[calc(100vh-380px)] min-h-[520px]">
+    <div
+      ref={cuerpoRef}
+      className="flex gap-0 border border-gray-200 rounded-xl overflow-hidden bg-white"
+      style={{ height: alturaCuerpo ? `${alturaCuerpo}px` : undefined, minHeight: 520 }}
+    >
       {/* Overlay para árbol en móvil */}
       {treePanelAbierto && (
         <div className="fixed inset-0 bg-black/20 z-20 lg:hidden" onClick={() => setTreePanelAbierto(false)} />
@@ -308,9 +375,9 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
                 tipo="etapa"
                 nivel={0}
                 expandidos={expandidos}
-                seleccionadoId={nodoSeleccionado?.id}
+                seleccionadoId={foco?.id}
                 onToggle={toggleExpandir}
-                onSelect={seleccionarNodo}
+                onSelect={seleccionarDesdeArbol}
                 permisos={permisos}
                 proyectoId={proyectoId}
                 onCreado={recargar}
@@ -324,7 +391,7 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
       {/* ─── Panel derecho: Detalle ─── */}
       <div className="flex-1 min-w-0 flex flex-col">
         {/* Barra de hamburger visible solo en móvil */}
-        {!nodoSeleccionado && (
+        {!foco && (
           <button
             onClick={() => setTreePanelAbierto(v => !v)}
             className="lg:hidden flex items-center gap-2 px-4 py-2 text-xs text-gray-500 border-b border-gray-100 hover:bg-gray-50"
@@ -333,7 +400,7 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
             <span>Ver estructura</span>
           </button>
         )}
-        {!nodoSeleccionado ? (
+        {!foco ? (
           <div className="flex-1 flex items-center justify-center text-gray-400">
             <div className="text-center">
               <Layers size={40} className="mx-auto mb-3 opacity-30" />
@@ -342,14 +409,18 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
           </div>
         ) : (
           <PanelDetalle
-            key={nodoSeleccionado.id}
-            nodo={nodoSeleccionado}
+            key={foco.id}
+            foco={foco}
+            seleccion={seleccion}
             proyectoId={proyectoId}
             permisos={permisos}
             onActualizado={recargar}
             mostrarToast={mostrarToast}
             arbol={arbol}
-            onSeleccionarNodo={seleccionarNodo}
+            expandidosCentro={expandidosCentro}
+            onToggleCentro={toggleCentroExpandir}
+            onSeleccionarEnCentro={seleccionarEnCentro}
+            onNavegarFoco={navegarFocoPorId}
             onAbrirArbol={() => setTreePanelAbierto(true)}
           />
         )}

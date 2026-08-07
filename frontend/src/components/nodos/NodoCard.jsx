@@ -13,7 +13,7 @@ import { Link } from 'react-router-dom';
 import {
   ChevronDown, ChevronRight, Lock, CheckCircle2, Circle, AlertTriangle,
   MessageSquare, Paperclip, Shield, BarChart3, UserPlus, MapPin, Loader2, X, Send, Copy,
-  TrendingUp, MoreHorizontal,
+  TrendingUp,
 } from 'lucide-react';
 import ModalDuplicarNodo from './ModalDuplicarNodo';
 import * as etapasApi from '../../api/etapas';
@@ -74,6 +74,14 @@ export default function NodoCard({
   tipo, nodo, proyectoId, permisos, esContenedor = false,
   breadcrumb, onProyectoClick, onCambiado, defaultAbierto = false,
   ocultarMetadataFooter = false, ocultarCabecera = false,
+  // Cuando esta tarjeta representa el nodo también mostrado en el rail de
+  // Propiedades (Detalle) o el drawer (Diagrama), el bloque de avance ya
+  // vive ahí, siempre visible (BloqueEditable) — así que "Registrar avance"
+  // no abre su propio slider aquí (sería el mismo dato dos veces), sino que
+  // lleva la vista hasta ese bloque. Sin esta prop (uso normal: tarjeta de
+  // un hijo en una lista), el botón conserva su comportamiento de abrir el
+  // slider inline, que sigue siendo útil para editar un hijo sin navegar.
+  onRegistrarAvanceClick,
 }) {
   const { mostrarToast } = useUI();
   const [abierto, setAbierto] = useState(defaultAbierto);
@@ -293,16 +301,22 @@ export default function NodoCard({
             </div>
           )}
 
-          {/* Row 1: acciones rápidas — "Registrar avance" como botón primario
-              a todo lo ancho (es la acción más usada), el resto en una
-              cuadrícula de 2 columnas debajo. */}
+          {/* Grupo "Avance" — "Registrar avance" como botón primario a todo
+              lo ancho (es la acción más usada), el resto en una cuadrícula
+              de 2 columnas debajo. Todo visible, sin acordeón: como ya no
+              se repite por fila (solo vive aquí, en el panel derecho),
+              mostrarlo completo no satura. */}
+          <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider block -mb-1.5">Avance</span>
           {esContenedor ? (
             <div className="flex items-center gap-1.5 text-[11px] text-gray-400 bg-gray-100 px-3 py-2 rounded-lg">
               <Lock size={12} /> Se calcula desde sus partes
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-1.5">
-              <button disabled={soloLectura || completado} onClick={() => { setModo(modo === 'avance' ? null : 'avance'); setAvanceTemp(avance); }}
+              <button disabled={soloLectura || completado} onClick={() => {
+                  if (onRegistrarAvanceClick) { onRegistrarAvanceClick(); return; }
+                  setModo(modo === 'avance' ? null : 'avance'); setAvanceTemp(avance);
+                }}
                 className={`col-span-2 flex items-center justify-center gap-1.5 text-[12px] font-semibold px-3 py-2.5 rounded-lg disabled:opacity-40 transition-colors ${modo === 'avance' ? 'bg-guinda-700 text-white' : 'bg-guinda-600 text-white hover:bg-guinda-700'}`}>
                 <TrendingUp size={14} /> Registrar avance
               </button>
@@ -317,7 +331,7 @@ export default function NodoCard({
             </div>
           )}
 
-          {modo === 'avance' && (
+          {modo === 'avance' && !onRegistrarAvanceClick && (
             <div className="bg-gray-50 rounded-lg p-2.5 space-y-2">
               <input type="range" min={0} max={99} value={avanceTemp ?? 0} onChange={e => setAvanceTemp(Number(e.target.value))} className="w-full accent-[#7B1C3E]" />
               <div className="flex items-center justify-between">
@@ -359,13 +373,11 @@ export default function NodoCard({
             </div>
           )}
 
-          {/* Row 2: acciones contextuales, agrupadas detrás de "Más acciones"
-              para no saturar la vista con botones de uso poco frecuente. */}
-          <details className="pt-1 border-t border-gray-100">
-            <summary className="marker:hidden [&::-webkit-details-marker]:hidden list-none flex items-center justify-center gap-1.5 text-[11px] font-medium text-gray-500 border border-dashed border-gray-300 rounded-lg py-1.5 cursor-pointer hover:border-guinda-300 hover:text-guinda-600 transition-colors">
-              <MoreHorizontal size={13} /> Más acciones
-            </summary>
-            <div className="grid grid-cols-2 gap-1.5 mt-1.5">
+          {/* Grupo "Registro y vínculos" — antes agrupado detrás de "Más
+              acciones"; ya no hay acordeón: todas visibles, siempre. */}
+          <div className="pt-2 border-t border-gray-100">
+            <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider block mb-1.5">Registro y vínculos</span>
+            <div className="grid grid-cols-2 gap-1.5">
               <BotonContextual icono={MessageSquare} label="Comentar" activo={seccion === 'comentar'} onClick={() => setSeccion(seccion === 'comentar' ? null : 'comentar')} />
               <BotonContextual icono={Paperclip} label="Adjuntar archivo" activo={seccion === 'adjuntar'} onClick={() => {
                 const next = seccion === 'adjuntar' ? null : 'adjuntar';
@@ -382,7 +394,7 @@ export default function NodoCard({
                 <BotonContextual icono={Copy} label="Duplicar" activo={false} onClick={() => setMostrarDuplicar(true)} />
               )}
             </div>
-          </details>
+          </div>
 
           {mostrarDuplicar && (
             <ModalDuplicarNodo

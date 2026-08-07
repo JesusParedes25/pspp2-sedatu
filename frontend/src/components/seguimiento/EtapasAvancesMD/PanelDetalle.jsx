@@ -1,47 +1,44 @@
 /**
  * ARCHIVO: PanelDetalle.jsx
- * PROPÓSITO: Columna central del nodo seleccionado (breadcrumb, título,
- *            descripción, avance, hijos, actividad) en la vista Detalle,
- *            más el contenedor del rail — el contenido del rail en sí vive
- *            en PropiedadesElemento (compartido con la futura vista
- *            Diagrama, que lo monta en un drawer en vez de esta columna).
+ * PROPÓSITO: Columna central (identidad de nivel de la rama ENFOCADA,
+ *            lista de hijos navegable/expandible, Actividad al fondo
+ *            atada a la SELECCIÓN) + rail derecho (ficha de la selección).
+ *            "Foco" es la rama que muestra el centro (cambia solo desde el
+ *            árbol izquierdo o el lineage); "selección" es el elemento
+ *            cuya ficha muestra la derecha y cuya actividad muestra el
+ *            feed (cambia también al hacer clic en un hijo del centro, sin
+ *            mover el foco). Ver EtapasAvancesMD/index.jsx para el estado.
  */
 import { useState, useEffect } from 'react';
-import { ChevronRight, Lock, Layers, X } from 'lucide-react';
+import { ChevronRight, Layers, X } from 'lucide-react';
 import { useJerarquiaProyecto } from '../../../hooks/useJerarquiaProyecto';
-import NodoCard from '../../nodos/NodoCard';
 import ActividadStream from '../../nodos/ActividadStream';
-import { estaVencida } from '../../../utils/fecha';
-import { COLORES_SEMAFORO, CHIP_BG } from '../../common/SemaforoDot';
-import PropiedadesElemento from '../PropiedadesElemento';
-import CrearInline from './CrearInline';
+import { COLORES_SEMAFORO } from '../../common/SemaforoDot';
+import { NIVELES } from '../../../config/niveles';
+import EmblemaNivel from '../EmblemaNivel';
+import LadderJerarquia from '../LadderJerarquia';
+import LineageClicable from '../LineageClicable';
+import FichaNodo from '../FichaNodo';
+import ListaHijos from '../ListaHijos';
 import { CampoTextoInline } from './Campos';
-import { resolverRutaNombres } from './utils';
+import { resolverRutaConIds, hijosDe } from './utils';
 
-export default function PanelDetalle({ nodo, proyectoId, permisos, onActualizado, mostrarToast, arbol, onSeleccionarNodo, onAbrirArbol }) {
-  const { tipo, id, data } = nodo;
+export default function PanelDetalle({
+  foco, seleccion, proyectoId, permisos, onActualizado, mostrarToast, arbol,
+  expandidosCentro, onToggleCentro, onSeleccionarEnCentro, onNavegarFoco, onAbrirArbol,
+}) {
+  const { tipo, id, data } = foco;
   const { actualizar } = useJerarquiaProyecto(proyectoId);
   const [railAbierto, setRailAbierto] = useState(false);
   const [descExpandida, setDescExpandida] = useState(false);
 
   useEffect(() => { setDescExpandida(false); setRailAbierto(false); }, [id]);
 
+  const nivel = NIVELES[tipo];
   const sem = data.semaforo_efectivo || 'gris';
   const avance = data.avance_efectivo ?? (tipo === 'etapa' ? parseFloat(data.porcentaje_calculado || 0) : parseFloat(data.porcentaje_avance || 0));
   const esContenedor = tipo === 'etapa' || (data.es_hoja === false);
-  const tipoLabel = tipo === 'etapa' ? 'ETAPA' : (tipo === 'tarea' ? 'TAREA' : (data.id_accion_padre ? 'TAREA' : 'ACCIÓN'));
-
-  // Hijos como tarjetas expandibles uniformes (PART 3): etapa → acciones;
-  // acción → sus subacciones (acciones anidadas) + tareas (tabla propia).
-  const hijos = tipo === 'etapa'
-    ? (data.acciones || []).map(a => ({ tipo: 'accion', nodo: a, esContenedor: (a.tareas?.length > 0 || a.subacciones?.length > 0) }))
-    : tipo === 'accion'
-      ? [
-          ...(data.subacciones || []).map(s => ({ tipo: 'accion', nodo: s, esContenedor: (s.tareas?.length > 0) })),
-          ...(data.tareas || []).map(t => ({ tipo: 'tarea', nodo: t, esContenedor: false })),
-        ]
-      : [];
-  const subItemLabel = tipo === 'etapa' ? 'Acciones' : 'Tareas';
+  const hijos = hijosDe(tipo, data);
 
   // ─── PATCH handler (título/descripción de la columna central) ───
   async function guardarCampo(campo, valor) {
@@ -54,23 +51,13 @@ export default function PanelDetalle({ nodo, proyectoId, permisos, onActualizado
     }
   }
 
-  // Ruta de contexto (breadcrumb): a qué etapa/acción pertenece este nodo,
-  // para no depender de mirar el panel central para saberlo.
-  const ruta = resolverRutaNombres(arbol, id) || [data.nombre];
+  const rutaFoco = resolverRutaConIds(arbol, id) || [{ tipo, id, nombre: data.nombre }];
+  const rutaSeleccion = seleccion.id === id ? rutaFoco : (resolverRutaConIds(arbol, seleccion.id) || [{ tipo: seleccion.tipo, id: seleccion.id, nombre: seleccion.data.nombre }]);
 
-  // Resumen cuantitativo de hijos (solo si el nodo agrega de otros) — le da
-  // respaldo concreto al % calculado sin tener que expandir el árbol.
   const resumenHijos = (() => {
     if (hijos.length === 0) return null;
     const completadas = hijos.filter(h => h.nodo.estado === 'Completada').length;
-    const vencidas = hijos.filter(h =>
-      !['Completada', 'Cancelada'].includes(h.nodo.estado) && estaVencida(h.nodo.fecha_limite || h.nodo.fecha_fin)
-    ).length;
-    const enProceso = hijos.filter(h => h.nodo.estado === 'En_proceso').length;
-    let texto = `${completadas} de ${hijos.length} ${subItemLabel.toLowerCase()} completadas`;
-    if (vencidas > 0) texto += ` · ${vencidas} vencida${vencidas > 1 ? 's' : ''}`;
-    if (enProceso > 0) texto += ` · ${enProceso} en proceso`;
-    return texto;
+    return `${completadas} de ${hijos.length} ${(nivel.hijoLabelPlural || '').toLowerCase()} completadas`;
   })();
 
   return (
@@ -79,30 +66,15 @@ export default function PanelDetalle({ nodo, proyectoId, permisos, onActualizado
       {/* ── COLUMNA CENTRAL ─────────────────────────────────────── */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
 
-        {/* Cabecera pegajosa */}
+        {/* Cabecera pegajosa de la rama ENFOCADA — no cambia al seleccionar
+            hijos, solo al elegir otra rama en el árbol o navegar la ruta. */}
         <div className="flex-shrink-0 px-5 pt-4 border-b border-gray-100">
-          {/* Fila 0: ruta de contexto — a qué etapa/acción pertenece este nodo */}
-          <div className="text-[10px] text-gray-400 font-medium mb-1.5 truncate" title={`${tipoLabel} · ${ruta.join(' → ')}`}>
-            {tipoLabel} · {ruta.join(' → ')}
-          </div>
-
-          {/* Fila 1: chips de tipo, estado y toggle de propiedades */}
-          <div className="flex items-center gap-2 mb-2 flex-wrap">
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#7B1C3E] text-white uppercase tracking-wider">
-              {tipoLabel}
-            </span>
-            {esContenedor && (
-              <span className="flex items-center gap-0.5 text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                <Lock size={9} /> calculado
-              </span>
-            )}
-            {data.prioridad && (
-              <span className="text-[10px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                {data.prioridad}
-              </span>
-            )}
-            {/* Botones responsive: hamburger árbol (< lg) y toggle rail (< xl) */}
-            <div className="ml-auto flex items-center gap-1">
+          <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap min-w-0">
+              <LadderJerarquia tipoActual={tipo} compacto />
+              <LineageClicable ruta={rutaFoco} onNavegar={onNavegarFoco} />
+            </div>
+            <div className="flex items-center gap-1 flex-shrink-0">
               <button
                 onClick={onAbrirArbol}
                 className="lg:hidden flex items-center gap-1 text-[10px] border border-gray-200 px-2 py-0.5 rounded text-gray-500 hover:bg-gray-50 transition-colors"
@@ -119,7 +91,10 @@ export default function PanelDetalle({ nodo, proyectoId, permisos, onActualizado
             </div>
           </div>
 
-          {/* Fila 2: título editable */}
+          <div className="mb-2.5">
+            <EmblemaNivel tipo={tipo} esContenedor={esContenedor} estado={data.estado} sem={sem} />
+          </div>
+
           <CampoTextoInline
             valor={data.nombre}
             campo="nombre"
@@ -128,7 +103,6 @@ export default function PanelDetalle({ nodo, proyectoId, permisos, onActualizado
             className="text-xl font-bold text-gray-900 leading-tight"
           />
 
-          {/* Fila 3: descripción con clamp */}
           <div className="mt-1.5 mb-1">
             {permisos.esSoloLectura ? (
               <>
@@ -154,7 +128,6 @@ export default function PanelDetalle({ nodo, proyectoId, permisos, onActualizado
             )}
           </div>
 
-          {/* Fila 4: barra de avance */}
           <div className="mt-2 flex items-center gap-3">
             <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
               <div
@@ -169,46 +142,25 @@ export default function PanelDetalle({ nodo, proyectoId, permisos, onActualizado
           {resumenHijos && (
             <p className="text-[10px] text-gray-400 mt-1">{resumenHijos}</p>
           )}
-
         </div>
 
-        {/* Contenido: tarjetas de hijos (o la propia tarjeta si es hoja) + stream de actividad */}
+        {/* Lista de navegación de la rama enfocada (expande en sitio, sin
+            botones de acción) + Actividad al fondo, atada a la SELECCIÓN */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
-          {hijos.length > 0 ? (
-            <>
-              {hijos.map(h => (
-                <NodoCard
-                  key={h.nodo.id}
-                  tipo={h.tipo}
-                  nodo={h.nodo}
-                  esContenedor={h.esContenedor}
-                  proyectoId={proyectoId}
-                  permisos={permisos}
-                  onCambiado={onActualizado}
-                />
-              ))}
-              {permisos.puedeCrearAccion && (
-                <CrearInline tipo={tipo === 'etapa' ? 'accion' : 'tarea'} padreId={id} proyectoId={proyectoId} onCreado={onActualizado} />
-              )}
-            </>
-          ) : (
-            <NodoCard
-              tipo={tipo}
-              nodo={data}
-              esContenedor={esContenedor}
-              proyectoId={proyectoId}
-              permisos={permisos}
-              onCambiado={onActualizado}
-              ocultarMetadataFooter
-              defaultAbierto
-            />
-          )}
-          <ActividadStream tipo={tipo} id={id} />
+          <ListaHijos
+            tipo={tipo}
+            esContenedor={esContenedor}
+            hijos={hijos}
+            expandidos={expandidosCentro}
+            onToggle={onToggleCentro}
+            seleccionId={seleccion.id}
+            onSeleccionar={onSeleccionarEnCentro}
+          />
+          <ActividadStream tipo={seleccion.tipo} id={seleccion.id} titulo={seleccion.data.nombre} />
         </div>
       </div>
 
-      {/* ── RAIL DERECHO ────────────────────────────────────────── */}
-      {/* Overlay para slide-over en pantallas < xl */}
+      {/* ── RAIL DERECHO — ficha de la SELECCIÓN ────────────────── */}
       {railAbierto && (
         <div
           className="fixed inset-0 bg-black/20 z-20 xl:hidden"
@@ -218,65 +170,35 @@ export default function PanelDetalle({ nodo, proyectoId, permisos, onActualizado
       <aside
         className={[
           'flex-shrink-0 border-l border-gray-200 bg-white overflow-hidden flex flex-col',
-          /* Desktop: siempre visible como columna inline, más ancha que
-             antes (~44% del viewport, con tope) por pedido explícito */
           'xl:w-[44vw] xl:max-w-[640px] xl:min-w-[420px] xl:relative xl:translate-x-0',
-          /* Móvil/tablet: slide-over controlado por estado — se queda en un
-             ancho fijo razonable (no vw, para no desbordar en pantallas
-             angostas antes de llegar al breakpoint xl de arriba) */
           railAbierto
             ? 'fixed right-0 top-0 bottom-0 w-[320px] max-w-[85vw] z-30 shadow-2xl translate-x-0'
             : 'fixed right-0 top-0 bottom-0 w-[320px] max-w-[85vw] z-30 shadow-2xl translate-x-full xl:translate-x-0',
           'transition-transform duration-200',
         ].join(' ')}
       >
-        {/* Botón de cierre visible solo en móvil */}
         <div className="xl:hidden flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex-shrink-0">
           <span className="text-xs font-semibold text-gray-600">Propiedades</span>
           <button onClick={() => setRailAbierto(false)} className="p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-200">
             <X size={14} />
           </button>
         </div>
-
-        {/* Cabecera pegajosa del rail — se queda visible al hacer scroll en
-            el contenido de abajo, para no perder de vista qué elemento se
-            está editando (mismo criterio que la cabecera de la columna
-            central y que el drawer de Diagrama). */}
-        <div className="flex-shrink-0 px-4 pt-3.5 pb-3 border-b border-gray-100">
-          <div className="text-[10px] text-gray-400 font-medium mb-1.5 truncate" title={`${tipoLabel} · ${ruta.join(' → ')}`}>
-            {tipoLabel} · {ruta.join(' → ')}
-          </div>
-          <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#7B1C3E] text-white uppercase tracking-wider">
-              {tipoLabel}
-            </span>
-            <span
-              className="text-[10px] font-semibold px-2 py-0.5 rounded"
-              style={{ backgroundColor: CHIP_BG[sem], color: COLORES_SEMAFORO[sem] }}
-            >
-              {(data.estado || 'Pendiente').replace(/_/g, ' ')}
-            </span>
-            {esContenedor && (
-              <span className="flex items-center gap-0.5 text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                <Lock size={9} /> calculado
-              </span>
-            )}
-            {data.prioridad && (
-              <span className="text-[10px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{data.prioridad}</span>
-            )}
-          </div>
-          <p className="text-sm font-bold text-gray-900 leading-snug truncate" title={data.nombre}>{data.nombre}</p>
-        </div>
-
-        {/* Cuerpo con scroll propio, independiente del árbol y la columna central */}
-        <div className="flex-1 overflow-y-auto">
-          <PropiedadesElemento
-            nodo={nodo}
-            permisos={permisos}
-            onActualizado={onActualizado}
-            mostrarToast={mostrarToast}
-          />
-        </div>
+        <FichaNodo
+          key={seleccion.id}
+          nodo={seleccion}
+          proyectoId={proyectoId}
+          permisos={permisos}
+          ruta={rutaSeleccion}
+          // Los ancestros que se ven aquí siempre están dentro de la rama ya
+          // enfocada (la selección nunca sale de ahí) — así que subir de
+          // nivel desde la ficha solo mueve la selección, no reconstruye el
+          // centro ni resetea qué está expandido. Refocar de verdad solo
+          // pasa desde el árbol o desde el lineage del propio encabezado
+          // central (onNavegarFoco, arriba).
+          onNavegarLineage={onSeleccionarEnCentro}
+          onActualizado={onActualizado}
+          mostrarToast={mostrarToast}
+        />
       </aside>
     </div>
   );

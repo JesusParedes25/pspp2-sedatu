@@ -44,7 +44,13 @@ function rel(fecha) {
   return `hace ${Math.floor(h / 24)}d`;
 }
 
-export default function ActividadStream({ tipo, id }) {
+// `titulo`: opcional — cuando el feed vive en un lugar donde ya no es obvio
+// de quién es la actividad que se muestra (la columna central de Detalle,
+// donde el feed sigue a la selección y no al encabezado de la rama
+// enfocada), se pasa el nombre del elemento seleccionado para no dejarlo
+// ambiguo al cambiar de selección. En el drawer de Diagrama no hace falta
+// (la pestaña ya tiene el título del nodo arriba), así que se omite ahí.
+export default function ActividadStream({ tipo, id, titulo }) {
   const [items, setItems] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [filtro, setFiltro] = useState('todo');
@@ -86,8 +92,10 @@ export default function ActividadStream({ tipo, id }) {
 
   return (
     <div className="border-t border-gray-100 pt-4 mt-2">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Actividad</h3>
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-y-1.5">
+        <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+          Actividad{titulo && <span className="font-normal normal-case text-gray-400"> · {titulo}</span>}
+        </h3>
         <div className="flex gap-1">
           {FILTROS.map(f => (
             <button key={f.id} onClick={() => setFiltro(f.id)}

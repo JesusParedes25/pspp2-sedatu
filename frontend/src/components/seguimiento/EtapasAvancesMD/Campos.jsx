@@ -235,7 +235,11 @@ export function CampoSemaforo({ valor, override, efectivo, onChange, soloLectura
         <div className="flex items-center gap-1.5">
           <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: COLORES_SEMAFORO[colorMostrado] }} />
           <span className="text-xs capitalize">{colorMostrado}</span>
-          {override && <span className="text-[8px] bg-gray-200 text-gray-600 px-1 rounded font-bold">M</span>}
+          {override && (
+            <span className="text-[9px] font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded" title="Alguien forzó este color a mano — ya no sigue el cálculo automático">
+              Manual
+            </span>
+          )}
         </div>
       </div>
     );

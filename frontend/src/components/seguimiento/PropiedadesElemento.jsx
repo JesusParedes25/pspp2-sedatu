@@ -17,14 +17,14 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect } from 'react';
-import { Lock, Info } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { useJerarquiaProyecto } from '../../hooks/useJerarquiaProyecto';
 import client from '../../api/client';
 import SeccionMiembrosNodo from './SeccionMiembrosNodo';
 import CampoFecha from '../common/CampoFecha';
 import { formatFecha, estaVencida } from '../../utils/fecha';
 import RailCard from './EtapasAvancesMD/RailCard';
-import { CampoSelect, CampoAvance, CampoSemaforo, SelectorMunicipiosMultiple } from './EtapasAvancesMD/Campos';
+import { CampoSelect, CampoSemaforo, SelectorMunicipiosMultiple } from './EtapasAvancesMD/Campos';
 import { ESTADOS, PRIORIDADES } from './EtapasAvancesMD/utils';
 
 export default function PropiedadesElemento({ nodo, permisos, onActualizado, mostrarToast }) {
@@ -124,14 +124,6 @@ export default function PropiedadesElemento({ nodo, permisos, onActualizado, mos
     }
   }
 
-  const tooltipCalculado = 'Se calcula a partir de sus partes. Actualiza las tareas/acciones que contiene.';
-  // La fecha de inicio de una ETAPA se recalcula automáticamente (la más
-  // temprana entre sus acciones, ver recalcularEtapa en recalculos.js) cada
-  // vez que cambia cualquier acción de la etapa — editarla a mano aquí no
-  // sirve de nada porque se sobrescribe en el siguiente recálculo.
-  const fechaInicioCalculada = tipo === 'etapa';
-  const tooltipFechaInicio = 'La fecha de inicio de una etapa se calcula automáticamente como la más temprana entre sus acciones.';
-
   // "Fecha límite" cambia de nombre y de ayuda según el nivel — en una
   // etapa es un compromiso agregado que puede no coincidir con ninguna
   // fecha de sus acciones; en acción/tarea es simplemente su vencimiento.
@@ -152,50 +144,15 @@ export default function PropiedadesElemento({ nodo, permisos, onActualizado, mos
 
   return (
     <>
-      {/* ── Tarjeta: Seguimiento ── */}
-      <RailCard title="Seguimiento" defaultOpen={true}>
-        {/* Bloque "calculado" — separación visual real (no solo un
-            candado chico) de lo que se agrega automáticamente de los
-            hijos vs. lo que se define en este nivel. */}
-        {esContenedor && (
-          <div className="mb-3 -mx-1 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-lg">
-            <div className="flex items-center gap-1 mb-2">
-              <Lock size={10} className="text-gray-400" />
-              <span className="text-[9px] font-semibold text-gray-500 uppercase tracking-wider">Calculado desde sus acciones</span>
-            </div>
-            {/* Estatus */}
-            <div className="mb-2">
-              <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">Estatus</span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-gray-600">{(data.estado || 'Pendiente').replace(/_/g, ' ')}</span>
-                <span title={tooltipCalculado} className="w-3.5 h-3.5 rounded-full border border-gray-300 text-[9px] text-gray-400 flex items-center justify-center cursor-help font-bold flex-shrink-0">?</span>
-              </div>
-            </div>
-            {/* Avance */}
-            <div className="mb-1">
-              <CampoAvance
-                valor={data.avance_actual} avanceEfectivo={avance} esContenedor={true}
-                estado={data.estado} onChange={() => {}}
-                soloLectura={true}
-              />
-            </div>
-            {/* Fecha inicio (solo etapa, ver fechaInicioCalculada) */}
-            {fechaInicioCalculada && (
-              <div className="mt-2">
-                <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">Fecha inicio</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-gray-600">{formatFecha(data.fecha_inicio) || 'Sin definir'}</span>
-                  <span title={tooltipFechaInicio} className="w-3.5 h-3.5 rounded-full border border-gray-300 text-[9px] text-gray-400 flex items-center justify-center cursor-help font-bold flex-shrink-0">?</span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="mb-2">
-          <span className="text-[9px] font-semibold text-gray-500 uppercase tracking-wider">Definido para este nivel</span>
-        </div>
-
+      {/* ── Tarjeta: Definido en este nivel ── */}
+      {/* El bloque "calculado desde sus X" / "avance editable" ya NO vive
+          aquí — se movió a BloqueCalculado/BloqueEditable, montados por
+          quien use este componente (PanelDetalle, PanelDrawer) justo
+          arriba, fuera de esta tarjeta colapsable. Esta tarjeta solo
+          cubre lo que se define en ESTE nivel sin importar si es
+          contenedor u hoja (semáforo, prioridad, fecha límite, responsable),
+          más estatus/fecha-inicio cuando sí se editan aquí (nodo hoja). */}
+      <RailCard title="Definido en este nivel" defaultOpen={true}>
         {!esContenedor && (
           <>
             {/* Estatus editable (solo nodos hoja) */}

@@ -70,7 +70,7 @@ const SUBSECCIONES = [
   { id: 'cronograma', etiqueta: 'Cronograma', icono: BarChart3 },
 ];
 
-function DescripcionColapsable({ texto }) {
+function DescripcionColapsable({ texto, lineasColapsado = 2 }) {
   const [expandida, setExpandida] = useState(false);
   const refTexto = useRef(null);
   const [necesitaToggle, setNecesitaToggle] = useState(false);
@@ -85,7 +85,7 @@ function DescripcionColapsable({ texto }) {
       <p
         ref={refTexto}
         className="text-sm text-gray-500"
-        style={expandida ? {} : { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+        style={expandida ? {} : { display: '-webkit-box', WebkitLineClamp: lineasColapsado, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
       >
         {texto}
       </p>
@@ -116,6 +116,20 @@ export default function DetalleProyecto() {
   // son el punto de entrada por defecto — es donde se captura día a día.
   const [pestanaActiva, setPestanaActiva] = useState(() => searchParams.get('tab') || 'seguimiento');
   const [subseccionActiva, setSubseccionActiva] = useState('diagrama');
+
+  // Encabezado compacto al hacer scroll: un sentinel justo debajo de "Volver
+  // a proyectos" — cuando sale de vista, se muestra una barra fija de una
+  // sola línea (título truncado + estatus) en su lugar, para no perder el
+  // contexto sin gastar los ~170px del encabezado completo todo el tiempo.
+  const sentinelHeaderRef = useRef(null);
+  const [headerCompacto, setHeaderCompacto] = useState(false);
+  useEffect(() => {
+    const el = sentinelHeaderRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => setHeaderCompacto(!entry.isIntersecting), { threshold: 0 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
   // Si el usuario navega de un proyecto a otro sin desmontar (mismo patrón de
   // ruta), el useState inicial no vuelve a correr — re-sincroniza con la URL.
   useEffect(() => {
@@ -254,23 +268,33 @@ export default function DetalleProyecto() {
 
   return (
     <div className="space-y-6">
+      {/* Barra compacta — sticky, solo visible cuando el encabezado
+          completo ya salió de vista al hacer scroll. */}
+      {headerCompacto && (
+        <div className="sticky top-0 z-20 -mx-6 px-6 py-2 bg-white border-b border-gray-200 shadow-sm flex items-center gap-2">
+          <span className="text-sm font-semibold text-gray-900 truncate">{proyecto.nombre}</span>
+          <span className="text-xs text-gray-400 flex-shrink-0">{proyecto.estado?.replace(/_/g, ' ')}</span>
+        </div>
+      )}
+
       {/* Header del proyecto */}
       <div>
+        <div ref={sentinelHeaderRef} />
         <Link to="/proyectos" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-guinda-500 mb-3 transition-colors">
           <ArrowLeft size={16} />
           Volver a proyectos
         </Link>
 
         <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
+          <div className="flex-1 min-w-0">
+            {/* Título + tags en la misma banda (antes apilados en dos
+                filas) — recupera una fila completa de alto. */}
+            <div className="flex items-center gap-2.5 flex-wrap mb-1">
               <h1 className="text-2xl font-bold text-gray-900">{proyecto.nombre}</h1>
-              {proyecto.es_prioritario && <Star size={20} className="text-yellow-500 fill-yellow-500" />}
-            </div>
-            {proyecto.descripcion && <DescripcionColapsable texto={proyecto.descripcion} />}
-            <div className="flex items-center gap-3 text-sm text-gray-500">
-              <span className="font-medium text-guinda-600">{proyecto.dg_lider_siglas}</span>
-              {proyecto.direccion_area_lider_siglas && <span>/ {proyecto.direccion_area_lider_siglas}</span>}
+              {proyecto.es_prioritario && <Star size={18} className="text-yellow-500 fill-yellow-500 flex-shrink-0" />}
+              <span className="font-medium text-guinda-600 text-sm flex-shrink-0">
+                {proyecto.dg_lider_siglas}{proyecto.direccion_area_lider_siglas && ` / ${proyecto.direccion_area_lider_siglas}`}
+              </span>
               <SelectorEstado
                 entidadTipo="Proyecto"
                 entidadId={proyecto.id}
@@ -278,9 +302,10 @@ export default function DetalleProyecto() {
                 onCambio={() => { recargarProyecto(); incrementarStats(); }}
                 soloLectura={!permisos.puedeEditar}
               />
-              <span>{proyecto.tipo?.replace(/_/g, ' ')}</span>
-              {proyecto.programa_clave && <span className="text-gray-400">{proyecto.programa_clave}</span>}
+              <span className="text-sm text-gray-500 flex-shrink-0">{proyecto.tipo?.replace(/_/g, ' ')}</span>
+              {proyecto.programa_clave && <span className="text-sm text-gray-400 flex-shrink-0">{proyecto.programa_clave}</span>}
             </div>
+            {proyecto.descripcion && <DescripcionColapsable texto={proyecto.descripcion} lineasColapsado={1} />}
           </div>
 
           {/* Botones Editar / Eliminar */}
@@ -356,22 +381,38 @@ export default function DetalleProyecto() {
       {/* ═══ PESTAÑA SEGUIMIENTO ═══ */}
       {pestanaActiva === 'seguimiento' && (
         <div className="space-y-4">
-          {/* Subsecciones de seguimiento */}
-          <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-            {SUBSECCIONES.map(sub => (
-              <button
-                key={sub.id}
-                onClick={() => setSubseccionActiva(sub.id)}
-                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-md transition-all flex-1 justify-center ${
-                  subseccionActiva === sub.id
-                    ? 'bg-white text-guinda-600 shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <sub.icono size={14} />
-                <span className="hidden sm:inline">{sub.etiqueta}</span>
-              </button>
-            ))}
+          {/* Subsecciones de seguimiento, fusionadas con Importar/Reporte PDF
+              en la misma banda — antes eran dos filas separadas y las
+              subsecciones se estiraban a todo el ancho sin necesidad. */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex gap-1 bg-gray-100 rounded-lg p-1 flex-1 min-w-0">
+              {SUBSECCIONES.map(sub => (
+                <button
+                  key={sub.id}
+                  onClick={() => setSubseccionActiva(sub.id)}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-md transition-all flex-1 justify-center ${
+                    subseccionActiva === sub.id
+                      ? 'bg-white text-guinda-600 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <sub.icono size={14} />
+                  <span className="hidden sm:inline">{sub.etiqueta}</span>
+                </button>
+              ))}
+            </div>
+            {subseccionActiva === 'etapas' && (
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button onClick={() => setModalCSV(true)}
+                  className="btn-secondary text-sm flex items-center gap-1.5">
+                  <FileSpreadsheet size={14} /> Importar
+                </button>
+                <GenerarReporteBtn
+                  proyectoId={id}
+                  proyecto={proyecto}
+                />
+              </div>
+            )}
           </div>
 
           {/* Contenido de la subsección activa */}
@@ -388,21 +429,10 @@ export default function DetalleProyecto() {
             </Suspense>
           )}
 
-          {/* 1. Etapas y avances — Maestro-Detalle */}
+          {/* 1. Etapas y avances — Maestro-Detalle (Importar/Reporte PDF ya
+              se muestran arriba, fusionados con la banda de subsecciones) */}
           {subseccionActiva === 'etapas' && (
             <div className="space-y-3">
-              {/* Barra de acciones superior */}
-              <div className="flex items-center gap-2">
-                <button onClick={() => setModalCSV(true)}
-                  className="btn-secondary text-sm flex items-center gap-1.5">
-                  <FileSpreadsheet size={14} /> Importar
-                </button>
-                <GenerarReporteBtn
-                  proyectoId={id}
-                  proyecto={proyecto}
-                />
-              </div>
-
               <EtapasAvancesMD
                 proyectoId={id}
                 proyecto={proyecto}
