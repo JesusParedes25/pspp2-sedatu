@@ -2,7 +2,7 @@
  * ARCHIVO: DetalleProyecto.jsx
  * PROPÓSITO: Página de detalle de un proyecto con tres pestañas principales
  *            (Seguimiento, Panorama del proyecto y Evidencias). Seguimiento
- *            tiene 5 subsecciones: Diagrama (default), Detalle, Vista lista,
+ *            tiene 5 subsecciones: Detalle (default), Diagrama, Vista lista,
  *            Mapa y Cronograma.
  *
  * MINI-CLASE: Pestañas + subsecciones como navegación interna
@@ -113,10 +113,10 @@ export default function DetalleProyecto() {
   const { etapas, cargando: cargandoEtapas, recargar: recargarEtapas, recargarSilencioso: recargarEtapasSilencioso } = useEtapas(id, dgSeleccionada);
   const [searchParams, setSearchParams] = useSearchParams();
   // Deep-link desde Inicio/Panorama: ?tab=seguimiento&nodo=<id> debe abrir
-  // directamente la pestaña y el nodo correspondiente. Seguimiento/Diagrama
+  // directamente la pestaña y el nodo correspondiente. Seguimiento/Detalle
   // son el punto de entrada por defecto — es donde se captura día a día.
   const [pestanaActiva, setPestanaActiva] = useState(() => searchParams.get('tab') || 'seguimiento');
-  const [subseccionActiva, setSubseccionActiva] = useState('diagrama');
+  const [subseccionActiva, setSubseccionActiva] = useState('etapas');
 
   // Encabezado compacto al hacer scroll: un sentinel justo debajo de "Volver
   // a proyectos" — cuando sale de vista, se muestra una barra fija de una
