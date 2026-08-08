@@ -338,21 +338,53 @@ async function purgarProyecto(proyectoId) {
   return rows[0] || null;
 }
 
-// Obtiene las DGs participantes de un proyecto
+// Obtiene las DGs participantes de un proyecto — CALCULADO, no leído de
+// una tabla curada a mano (proyecto_dgs quedó sin ninguna forma de
+// llenarse desde la interfaz). Una DG "participa" si es la DG líder del
+// proyecto, o si cualquier persona de esa DG es responsable o colaboradora
+// de CUALQUIER parte del proyecto (el proyecto en general, o una etapa,
+// acción o tarea específica) — nada de curación manual.
 async function obtenerDGsProyecto(proyectoId) {
   const resultado = await pool.query(`
+    WITH dgs_detectadas AS (
+      SELECT p.id_dg_lider AS id_dg FROM proyectos p WHERE p.id = $1 AND p.id_dg_lider IS NOT NULL
+      UNION
+      SELECT e.id_dg FROM etapas e WHERE e.id_proyecto = $1 AND e.id_dg IS NOT NULL
+      UNION
+      SELECT a.id_dg FROM acciones a WHERE a.id_proyecto = $1 AND a.id_dg IS NOT NULL
+      UNION
+      SELECT u.id_dg FROM etapas e JOIN usuarios u ON u.id = e.id_responsable
+        WHERE e.id_proyecto = $1 AND u.id_dg IS NOT NULL
+      UNION
+      SELECT u.id_dg FROM acciones a JOIN usuarios u ON u.id = a.id_responsable
+        WHERE a.id_proyecto = $1 AND u.id_dg IS NOT NULL
+      UNION
+      SELECT u.id_dg FROM tareas t
+        JOIN acciones a ON a.id = t.id_accion
+        JOIN usuarios u ON u.id = t.id_responsable
+        WHERE a.id_proyecto = $1 AND u.id_dg IS NOT NULL
+      UNION
+      SELECT u.id_dg FROM proyecto_usuarios pu JOIN usuarios u ON u.id = pu.id_usuario
+        WHERE pu.id_proyecto = $1 AND u.id_dg IS NOT NULL
+      UNION
+      SELECT u.id_dg FROM nodo_miembros nm JOIN usuarios u ON u.id = nm.id_usuario
+        WHERE u.id_dg IS NOT NULL AND (
+          (nm.tipo_nodo = 'etapa' AND EXISTS (SELECT 1 FROM etapas e WHERE e.id = nm.id_nodo AND e.id_proyecto = $1))
+          OR (nm.tipo_nodo = 'accion' AND EXISTS (SELECT 1 FROM acciones a WHERE a.id = nm.id_nodo AND a.id_proyecto = $1))
+          OR (nm.tipo_nodo = 'tarea' AND EXISTS (
+                SELECT 1 FROM tareas t JOIN acciones a ON a.id = t.id_accion
+                WHERE t.id = nm.id_nodo AND a.id_proyecto = $1))
+        )
+    )
     SELECT
-      pd.*,
+      dg.id AS id_dg,
       dg.siglas AS dg_siglas,
       dg.nombre AS dg_nombre,
-      da.siglas AS direccion_area_siglas,
-      u.nombre_completo AS responsable_nombre
-    FROM proyecto_dgs pd
-    LEFT JOIN direcciones_generales dg ON dg.id = pd.id_dg
-    LEFT JOIN direcciones_area da ON da.id = pd.id_direccion_area
-    LEFT JOIN usuarios u ON u.id = pd.id_responsable
-    WHERE pd.id_proyecto = $1
-    ORDER BY pd.rol_en_proyecto ASC
+      CASE WHEN dg.id = p.id_dg_lider THEN 'Lider' ELSE 'Colaboradora' END AS rol_en_proyecto
+    FROM dgs_detectadas dd
+    JOIN direcciones_generales dg ON dg.id = dd.id_dg
+    CROSS JOIN (SELECT id_dg_lider FROM proyectos WHERE id = $1) p
+    ORDER BY (dg.id = p.id_dg_lider) DESC, dg.siglas ASC
   `, [proyectoId]);
 
   return resultado.rows;

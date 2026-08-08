@@ -20,9 +20,32 @@ async function obtenerEtapasPorProyecto(proyectoId, idDg) {
   const condiciones = ['e.id_proyecto = $1'];
   const parametros = [proyectoId];
 
-  // Filtro opcional por DG (para el SelectorDG del frontend)
+  // Filtro opcional por DG (para el SelectorDG del frontend) — una etapa
+  // entra si esa DG la toca EN CUALQUIER NIVEL: la etapa misma (id_dg,
+  // responsable o colaborador de la etapa), o cualquiera de sus acciones
+  // (id_dg, responsable, colaborador), o cualquier tarea de esas acciones
+  // (responsable). No basta con mirar solo la columna id_dg de la etapa —
+  // eso dejaba fuera DGs que solo participan vía una acción o tarea.
   if (idDg) {
-    condiciones.push('e.id_dg = $2');
+    condiciones.push(`(
+      e.id_dg = $2
+      OR e.id_responsable IN (SELECT id FROM usuarios WHERE id_dg = $2)
+      OR EXISTS (SELECT 1 FROM nodo_miembros nm JOIN usuarios un ON un.id = nm.id_usuario
+                 WHERE nm.tipo_nodo = 'etapa' AND nm.id_nodo = e.id AND un.id_dg = $2)
+      OR EXISTS (
+        SELECT 1 FROM acciones a WHERE a.id_etapa = e.id AND (
+          a.id_dg = $2
+          OR a.id_responsable IN (SELECT id FROM usuarios WHERE id_dg = $2)
+          OR EXISTS (SELECT 1 FROM tareas t JOIN usuarios ut ON ut.id = t.id_responsable
+                     WHERE t.id_accion = a.id AND ut.id_dg = $2)
+          OR EXISTS (SELECT 1 FROM nodo_miembros nm JOIN usuarios un ON un.id = nm.id_usuario
+                     WHERE nm.tipo_nodo = 'accion' AND nm.id_nodo = a.id AND un.id_dg = $2)
+          OR EXISTS (SELECT 1 FROM nodo_miembros nm JOIN usuarios un ON un.id = nm.id_usuario
+                     JOIN tareas t2 ON t2.id = nm.id_nodo
+                     WHERE nm.tipo_nodo = 'tarea' AND t2.id_accion = a.id AND un.id_dg = $2)
+        )
+      )
+    )`);
     parametros.push(idDg);
   }
 
