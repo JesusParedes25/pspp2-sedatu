@@ -336,11 +336,16 @@ function ProyectoCard({ proyecto }) {
               ) : (
                 <ul className="space-y-1 max-h-32 overflow-y-auto mb-2">
                   {popover.datos.etapas.slice(0, 6).map(et => (
-                    <li key={et.id} className="flex items-center gap-1.5 text-[11px]">
-                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: SEM[et.semaforo || 'gris'] }} />
-                      <span className="truncate text-gray-700 flex-1">{et.nombre}</span>
-                      <span className="text-gray-400 flex-shrink-0">{et.acciones_completadas}/{et.total_acciones}</span>
-                      <span className="text-gray-400 tabular-nums flex-shrink-0 w-8 text-right">{Math.round(et.avance)}%</span>
+                    <li key={et.id} className="text-[11px]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: SEM[et.semaforo || 'gris'] }} />
+                        <span className="truncate text-gray-700 flex-1">{et.nombre}</span>
+                        <span className="text-gray-400 flex-shrink-0">{et.acciones_completadas}/{et.total_acciones}</span>
+                        <span className="text-gray-400 tabular-nums flex-shrink-0 w-8 text-right">{Math.round(et.avance)}%</span>
+                      </div>
+                      {et.estatus_cualitativo && (
+                        <p className="text-[10px] text-gray-400 italic truncate pl-3">{et.estatus_cualitativo}</p>
+                      )}
                     </li>
                   ))}
                   {popover.datos.etapas.length > 6 && (

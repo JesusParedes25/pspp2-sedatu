@@ -9,7 +9,7 @@ import { Lock } from 'lucide-react';
 import { COLORES_SEMAFORO, CHIP_BG } from '../../common/SemaforoDot';
 
 // ─── Campo texto inline (click-to-edit) ──────────────────────
-export function CampoTextoInline({ valor, campo, onGuardar, soloLectura, placeholder, className, multiline }) {
+export function CampoTextoInline({ valor, campo, onGuardar, soloLectura, placeholder, className, multiline, maxLength }) {
   const [editando, setEditando] = useState(false);
   const [texto, setTexto] = useState(valor || '');
   const ref = useRef(null);
@@ -57,6 +57,7 @@ export function CampoTextoInline({ valor, campo, onGuardar, soloLectura, placeho
       onBlur={confirmar}
       onKeyDown={e => { if (e.key === 'Enter') confirmar(); if (e.key === 'Escape') { setTexto(valor || ''); setEditando(false); } }}
       placeholder={placeholder}
+      maxLength={maxLength}
       className={`${className} w-full border border-[#7B1C3E]/30 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-[#7B1C3E]/20`}
     />
   );

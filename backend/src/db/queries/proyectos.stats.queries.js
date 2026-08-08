@@ -206,6 +206,7 @@ async function obtenerAtrasadas(proyectoId) {
       a.estado,
       a.fecha_fin,
       a.id_accion_padre,
+      a.estatus_cualitativo,
       EXTRACT(DAY FROM NOW() - a.fecha_fin)::int AS dias_atraso
     FROM acciones a
     WHERE a.id_proyecto = $1
@@ -228,6 +229,7 @@ async function obtenerProximasAVencer(proyectoId) {
       a.estado,
       a.fecha_fin,
       a.id_accion_padre,
+      a.estatus_cualitativo,
       EXTRACT(DAY FROM a.fecha_fin - NOW())::int AS dias_restantes
     FROM acciones a
     WHERE a.id_proyecto = $1

@@ -17,14 +17,14 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect } from 'react';
-import { Info, SlidersHorizontal, Users, Tag, MapPin } from 'lucide-react';
+import { Info, SlidersHorizontal, Users, Tag, MapPin, Pencil } from 'lucide-react';
 import { useJerarquiaProyecto } from '../../hooks/useJerarquiaProyecto';
 import client from '../../api/client';
 import SeccionMiembrosNodo from './SeccionMiembrosNodo';
 import CampoFecha from '../common/CampoFecha';
 import { formatFecha, estaVencida } from '../../utils/fecha';
 import RailCard from './EtapasAvancesMD/RailCard';
-import { CampoSelect, CampoSemaforo, SelectorMunicipiosMultiple } from './EtapasAvancesMD/Campos';
+import { CampoSelect, CampoSemaforo, CampoTextoInline, SelectorMunicipiosMultiple } from './EtapasAvancesMD/Campos';
 import { ESTADOS, PRIORIDADES } from './EtapasAvancesMD/utils';
 
 export default function PropiedadesElemento({ nodo, permisos, onActualizado, mostrarToast }) {
@@ -175,6 +175,33 @@ export default function PropiedadesElemento({ nodo, permisos, onActualizado, mos
             valor={data.prioridad || ''} opciones={PRIORIDADES}
             onChange={v => guardarCampo('prioridad', v)} soloLectura={permisos.esSoloLectura}
           />
+        </div>
+
+        {/* Estatus cualitativo — una frase corta, texto libre, escrita a
+            mano ("¿cómo va esto ahora mismo?"). Distinto de Estatus
+            (enum rígido), Semáforo (color calculado) y Avance (número):
+            es la única señal narrativa, pensada para verse de un
+            vistazo en Tablero y Panorama del proyecto. Cada cambio
+            también queda en el historial de Actividad de este nodo.
+            Envuelto en una caja con borde punteado + ícono de lápiz: sin
+            eso, el texto en cursiva se leía como una nota informativa
+            cualquiera, no como un campo capturable (bug reportado). */}
+        <div className="mb-3">
+          <label className="text-[10px] text-gray-400 font-medium uppercase tracking-wide block mb-0.5">
+            Estatus cualitativo
+          </label>
+          <div className={`flex items-center gap-1.5 border border-dashed rounded-md px-2 py-1.5 ${permisos.esSoloLectura ? 'border-gray-100' : 'border-gray-300 bg-gray-50/60'}`}>
+            <CampoTextoInline
+              valor={data.estatus_cualitativo || ''}
+              campo="estatus_cualitativo"
+              onGuardar={v => guardarCampo('estatus_cualitativo', v)}
+              soloLectura={permisos.esSoloLectura}
+              placeholder="¿Cómo va esto ahora mismo?"
+              className="text-xs text-gray-700 italic flex-1 min-w-0"
+              maxLength={100}
+            />
+            {!permisos.esSoloLectura && <Pencil size={11} className="text-gray-400 flex-shrink-0" />}
+          </div>
         </div>
 
         {/* Fechas — mini-grid de 2 columnas (en nodo hoja; en contenedor la

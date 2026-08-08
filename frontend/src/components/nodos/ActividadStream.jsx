@@ -5,7 +5,7 @@
  *            descendientes — se muestra debajo de la lista de tarjetas.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { MessageSquare, Paperclip, AlertTriangle, ArrowRightCircle, Send, Loader2, ExternalLink, X, FileText, Upload, Link2 } from 'lucide-react';
+import { MessageSquare, Paperclip, AlertTriangle, ArrowRightCircle, Send, Loader2, ExternalLink, X, FileText, Upload, Link2, Sparkles } from 'lucide-react';
 import * as actividadApi from '../../api/actividad';
 import * as evidenciasApi from '../../api/evidencias';
 import FilePreviewModal from '../evidencias/FilePreviewModal';
@@ -31,6 +31,7 @@ function iconoEvento(tipo) {
   if (tipo === 'comentario') return { I: MessageSquare, cls: 'bg-guinda-100 text-guinda-700' };
   if (tipo === 'archivo') return { I: Paperclip, cls: 'bg-blue-100 text-blue-700' };
   if (tipo === 'riesgo') return { I: AlertTriangle, cls: 'bg-amber-100 text-amber-700' };
+  if (tipo === 'estatus_cualitativo') return { I: Sparkles, cls: 'bg-emerald-100 text-emerald-700' };
   return { I: ArrowRightCircle, cls: 'bg-gray-100 text-gray-500' };
 }
 

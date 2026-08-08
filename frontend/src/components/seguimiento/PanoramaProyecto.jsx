@@ -211,6 +211,9 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
                         <p className="text-[11px] text-gray-500">
                           {a.id_accion_padre ? 'Subacción' : 'Acción'} · -{a.dias_atraso}d atraso
                         </p>
+                        {a.estatus_cualitativo && (
+                          <p className="text-[11px] text-gray-500 italic truncate mt-0.5">"{a.estatus_cualitativo}"</p>
+                        )}
                       </div>
                     </button>
                   </li>
@@ -230,6 +233,9 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
                         <p className="text-[11px] text-gray-500">
                           {a.id_accion_padre ? 'Subacción' : 'Acción'} · {a.dias_restantes}d restantes
                         </p>
+                        {a.estatus_cualitativo && (
+                          <p className="text-[11px] text-gray-500 italic truncate mt-0.5">"{a.estatus_cualitativo}"</p>
+                        )}
                       </div>
                     </button>
                   </li>

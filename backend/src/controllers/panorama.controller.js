@@ -214,6 +214,7 @@ async function obtenerPanoramaRapido(req, res, next) {
           avance: e.avance_actual ?? Number(e.porcentaje_calculado) ?? 0,
           total_acciones: Number(e.total_acciones) || 0,
           acciones_completadas: Number(e.acciones_completadas) || 0,
+          estatus_cualitativo: e.estatus_cualitativo,
         })),
         actividad: actividad.slice(0, 6),
       },

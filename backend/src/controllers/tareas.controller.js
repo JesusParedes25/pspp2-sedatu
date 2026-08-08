@@ -91,7 +91,7 @@ async function patchAvanceSemaforo(req, res, next) {
       return res.status(404).json({ error: true, mensaje: 'Tarea no encontrada' });
     }
 
-    const { avance_actual, semaforo, estado, prioridad, fecha_inicio, fecha_limite, nombre, descripcion, cve_ent, municipios } = req.body;
+    const { avance_actual, semaforo, estado, prioridad, fecha_inicio, fecha_limite, nombre, descripcion, estatus_cualitativo, cve_ent, municipios } = req.body;
     const sets = []; const params = []; let idx = 1;
 
     // ── Estado (tareas siempre son hojas) ──
@@ -147,6 +147,10 @@ async function patchAvanceSemaforo(req, res, next) {
     if (fecha_limite !== undefined) { sets.push(`fecha_limite = $${idx}`); params.push(fecha_limite); idx++; }
     if (nombre !== undefined) { sets.push(`nombre = $${idx}`); params.push(nombre); idx++; }
     if (descripcion !== undefined) { sets.push(`descripcion = $${idx}`); params.push(descripcion); idx++; }
+    if (estatus_cualitativo !== undefined) {
+      sets.push(`estatus_cualitativo = $${idx}`); params.push(estatus_cualitativo || null); idx++;
+      sets.push('estatus_cualitativo_fecha = NOW()');
+    }
     if (cve_ent !== undefined) { sets.push(`cve_ent = $${idx}`); params.push(cve_ent || null); idx++; }
 
     // Municipios (relación N:N) — reemplaza el conjunto completo si se
@@ -202,6 +206,13 @@ async function patchAvanceSemaforo(req, res, next) {
         tipoNodo: 'tarea', idNodo: req.params.id, tipoEvento: 'cambio_avance',
         idUsuario: req.usuario?.id, contenido: `Avance actualizado a ${avance_actual ?? 0}%`,
         metadata: { avance_actual },
+      }, client);
+    }
+    if (estatus_cualitativo !== undefined) {
+      await actividadQueries.crearActividad({
+        tipoNodo: 'tarea', idNodo: req.params.id, tipoEvento: 'estatus_cualitativo',
+        idUsuario: req.usuario?.id, contenido: estatus_cualitativo,
+        metadata: { estatus_cualitativo },
       }, client);
     }
 

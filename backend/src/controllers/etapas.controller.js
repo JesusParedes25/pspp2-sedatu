@@ -206,7 +206,7 @@ async function patchAvanceSemaforo(req, res, next) {
   const etapaId = req.params.id;
   const { avance_actual, semaforo, estado, prioridad, fecha_limite, fecha_inicio,
           escala_territorial, instrumento, cve_ent, cve_mun, id_zm, tipo, id_responsable,
-          nombre, descripcion, municipios } = req.body;
+          nombre, descripcion, estatus_cualitativo, municipios } = req.body;
 
   const client = await pool.connect();
   try {
@@ -362,6 +362,11 @@ async function patchAvanceSemaforo(req, res, next) {
       sets.push(`descripcion = $${idx}`);
       params.push(descripcion); idx++;
     }
+    if (estatus_cualitativo !== undefined) {
+      sets.push(`estatus_cualitativo = $${idx}`);
+      params.push(estatus_cualitativo || null); idx++;
+      sets.push('estatus_cualitativo_fecha = NOW()');
+    }
 
     if (sets.length > 0) {
       sets.push('updated_at = NOW()');
@@ -393,6 +398,13 @@ async function patchAvanceSemaforo(req, res, next) {
         tipoNodo: 'etapa', idNodo: etapaId, tipoEvento: 'cambio_avance',
         idUsuario: req.usuario?.id, contenido: `Avance actualizado a ${avance_actual ?? 0}%`,
         metadata: { avance_actual },
+      }, client);
+    }
+    if (estatus_cualitativo !== undefined) {
+      await actividadQueries.crearActividad({
+        tipoNodo: 'etapa', idNodo: etapaId, tipoEvento: 'estatus_cualitativo',
+        idUsuario: req.usuario?.id, contenido: estatus_cualitativo,
+        metadata: { estatus_cualitativo },
       }, client);
     }
 
