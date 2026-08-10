@@ -23,6 +23,7 @@ const { ejecutarMigraciones } = require('./db/migrate');
 const ejecutarSeeders = require('./db/seeders/index');
 const asegurarSuperAdmin = require('./db/seeders/00_superadmin');
 const { iniciarPurgaAutomatica } = require('./utils/purgarProyectos');
+const { iniciarAlertasAutomaticas } = require('./utils/alertasVencimiento');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -96,6 +97,7 @@ async function iniciar() {
   }
 
   iniciarPurgaAutomatica();
+  iniciarAlertasAutomaticas();
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`✓ PSPP Backend corriendo en puerto ${PORT}`);

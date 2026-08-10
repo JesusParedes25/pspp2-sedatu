@@ -13,17 +13,25 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const comentariosQueries = require('../db/queries/comentarios.queries');
-const { crearNotificacion } = require('../utils/notificaciones');
+const { notificarEquipoProyecto } = require('../utils/notificaciones');
 const { registrarActividad } = require('../utils/actividad-log');
 const pool = require('../db/pool');
 
 async function resolverProyectoIdComentario(entidad_tipo, entidad_id) {
-  if (entidad_tipo === 'proyecto') return entidad_id;
-  if (entidad_tipo === 'etapa') {
+  // El frontend siempre manda entidad_tipo con mayúscula inicial ('Etapa',
+  // 'Accion', 'Proyecto' — así lo exige el CHECK constraint de la tabla
+  // comentarios), pero las comparaciones de abajo eran en minúsculas y por
+  // eso nunca hacían match: pId quedaba en null y ni el registro de
+  // actividad ni ninguna notificación llegaban a dispararse para
+  // comentarios en etapa/acción. Normalizamos aquí para que sí funcione,
+  // sin depender de que cada llamador mande el casing exacto.
+  const t = (entidad_tipo || '').toLowerCase();
+  if (t === 'proyecto') return entidad_id;
+  if (t === 'etapa') {
     const { rows } = await pool.query('SELECT id_proyecto FROM etapas WHERE id = $1', [entidad_id]);
     return rows[0]?.id_proyecto;
   }
-  if (entidad_tipo === 'accion' || entidad_tipo === 'subaccion') {
+  if (t === 'accion' || t === 'subaccion') {
     const { rows } = await pool.query('SELECT id_proyecto, id_etapa FROM acciones WHERE id = $1', [entidad_id]);
     if (rows[0]?.id_proyecto) return rows[0].id_proyecto;
     if (rows[0]?.id_etapa) {
@@ -75,7 +83,14 @@ async function crear(req, res, next) {
     });
 
     const pId = await resolverProyectoIdComentario(entidad_tipo, entidad_id);
-    if (pId) await registrarActividad({ id_proyecto: pId, id_usuario: req.usuario.id, tipo: 'comentario', titulo: 'Comentario publicado', descripcion: contenido.substring(0, 200), entidad_tipo, entidad_id });
+    if (pId) {
+      await registrarActividad({ id_proyecto: pId, id_usuario: req.usuario.id, tipo: 'comentario', titulo: 'Comentario publicado', descripcion: contenido.substring(0, 200), entidad_tipo, entidad_id });
+      await notificarEquipoProyecto(
+        pId, 'Comentario',
+        `${req.usuario.nombre_completo || 'Alguien'} comentó: "${contenido.substring(0, 140)}"`,
+        entidad_tipo, entidad_id, req.usuario.id
+      );
+    }
 
     res.status(201).json({ datos: comentario, mensaje: 'Comentario creado' });
   } catch (err) {
@@ -100,6 +115,15 @@ async function responder(req, res, next) {
       contenido,
       id_autor: req.usuario.id
     });
+
+    const pId = await resolverProyectoIdComentario(respuesta.entidad_tipo, respuesta.entidad_id);
+    if (pId) {
+      await notificarEquipoProyecto(
+        pId, 'Comentario',
+        `${req.usuario.nombre_completo || 'Alguien'} respondió: "${contenido.substring(0, 140)}"`,
+        respuesta.entidad_tipo, respuesta.entidad_id, req.usuario.id
+      );
+    }
 
     res.status(201).json({ datos: respuesta, mensaje: 'Respuesta creada' });
   } catch (err) {

@@ -4,6 +4,8 @@
  */
 const nodoMiembrosQueries = require('../db/queries/nodo-miembros.queries');
 const { puedeGestionarNodo } = require('../utils/autorizacion');
+const { crearNotificacion } = require('../utils/notificaciones');
+const pool = require('../db/pool');
 
 // Extrae tipo ('etapa' | 'accion') del path y el id del nodo
 function parseTipoId(req) {
@@ -11,6 +13,29 @@ function parseTipoId(req) {
   if (req.params.accionId !== undefined) return { tipo: 'accion', idNodo: req.params.accionId };
   if (req.params.tareaId !== undefined) return { tipo: 'tarea', idNodo: req.params.tareaId };
   return null;
+}
+
+const TABLA_POR_TIPO = { etapa: 'etapas', accion: 'acciones', tarea: 'tareas' };
+const ENTIDAD_TIPO_POR_TIPO = { etapa: 'Etapa', accion: 'Accion', tarea: 'Tarea' };
+const ETIQUETA_POR_TIPO = { etapa: 'la etapa', accion: 'la acción', tarea: 'la tarea' };
+
+// Notifica al usuario agregado a un nodo puntual (no lanza error: la
+// membresía ya quedó creada, que es lo importante).
+async function notificarNuevoMiembroNodo(tipo, idNodo, idUsuarioNuevo, rol) {
+  try {
+    const tabla = TABLA_POR_TIPO[tipo];
+    const { rows } = await pool.query(`SELECT nombre FROM ${tabla} WHERE id = $1`, [idNodo]);
+    const nombreNodo = rows[0]?.nombre || 'un elemento del proyecto';
+    await crearNotificacion({
+      tipo: 'PermisoNuevo',
+      mensaje: `Fuiste agregado a ${ETIQUETA_POR_TIPO[tipo]} "${nombreNodo}" como ${rol || 'colaborador'}.`,
+      entidadTipo: ENTIDAD_TIPO_POR_TIPO[tipo],
+      entidadId: idNodo,
+      idUsuario: idUsuarioNuevo,
+    });
+  } catch (err) {
+    console.error('[nodo-miembros] Error al notificar nuevo miembro:', err.message);
+  }
 }
 
 // GET /etapas/:etapaId/miembros-nodo
@@ -42,6 +67,7 @@ async function agregar(req, res, next) {
       return res.status(403).json({ error: true, mensaje: 'No tienes permisos para agregar miembros a este nodo', codigo: 'FORBIDDEN' });
     }
     const miembro = await nodoMiembrosQueries.agregarMiembro(tipo, idNodo, id_usuario, rol, req.usuario?.id);
+    await notificarNuevoMiembroNodo(tipo, idNodo, id_usuario, rol);
     res.status(201).json({ datos: miembro, mensaje: 'Miembro agregado' });
   } catch (err) {
     next(err);

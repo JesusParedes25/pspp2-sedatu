@@ -14,7 +14,31 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const riesgosQueries = require('../db/queries/riesgos.queries');
-const { crearNotificacion } = require('../utils/notificaciones');
+const { notificarEquipoProyecto } = require('../utils/notificaciones');
+const pool = require('../db/pool');
+
+// Resuelve el id_proyecto de un riesgo a partir de su entidad vinculada,
+// igual que resolverProyectoIdComentario en comentarios.controller.js.
+async function resolverProyectoIdRiesgo(entidad_tipo, entidad_id) {
+  // entidad_tipo llega con mayúscula inicial ('Etapa','Accion','Proyecto',
+  // igual que exige el CHECK de la tabla riesgos) — normalizamos para no
+  // depender de que quien llame mande el casing exacto.
+  const t = (entidad_tipo || '').toLowerCase();
+  if (t === 'proyecto') return entidad_id;
+  if (t === 'etapa') {
+    const { rows } = await pool.query('SELECT id_proyecto FROM etapas WHERE id = $1', [entidad_id]);
+    return rows[0]?.id_proyecto;
+  }
+  if (t === 'accion' || t === 'subaccion') {
+    const { rows } = await pool.query('SELECT id_proyecto, id_etapa FROM acciones WHERE id = $1', [entidad_id]);
+    if (rows[0]?.id_proyecto) return rows[0].id_proyecto;
+    if (rows[0]?.id_etapa) {
+      const { rows: e } = await pool.query('SELECT id_proyecto FROM etapas WHERE id = $1', [rows[0].id_etapa]);
+      return e[0]?.id_proyecto;
+    }
+  }
+  return null;
+}
 
 // GET /proyectos/:id/riesgos — Listar riesgos del proyecto
 async function listarPorProyecto(req, res, next) {
@@ -64,6 +88,16 @@ async function crear(req, res, next) {
     };
 
     const riesgo = await riesgosQueries.crearRiesgo(datos);
+
+    const pId = await resolverProyectoIdRiesgo(riesgo.entidad_tipo, riesgo.entidad_id);
+    if (pId) {
+      const etiquetaTipo = riesgo.tipo === 'Problema' ? 'Problema' : 'Riesgo';
+      await notificarEquipoProyecto(
+        pId, 'Riesgo',
+        `${etiquetaTipo} reportado (nivel ${riesgo.nivel}): "${riesgo.titulo}"`,
+        riesgo.entidad_tipo, riesgo.entidad_id, req.usuario.id
+      );
+    }
 
     res.status(201).json({ datos: riesgo, mensaje: 'Riesgo registrado exitosamente' });
   } catch (err) {

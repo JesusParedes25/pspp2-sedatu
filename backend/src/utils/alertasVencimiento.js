@@ -81,4 +81,17 @@ async function revisarInactividad(diasInactividad = 7) {
   }
 }
 
-module.exports = { revisarVencimientos, revisarInactividad };
+// Corre una vez al iniciar y luego cada 6h — las acciones consultan por
+// fecha (no por hora), así que no hace falta más granularidad; evita
+// además golpear la BD con la consulta de vencimientos con demasiada
+// frecuencia. Mismo patrón que iniciarPurgaAutomatica en purgarProyectos.js.
+function iniciarAlertasAutomaticas() {
+  revisarVencimientos();
+  revisarInactividad();
+  setInterval(() => {
+    revisarVencimientos();
+    revisarInactividad();
+  }, 6 * 60 * 60 * 1000);
+}
+
+module.exports = { revisarVencimientos, revisarInactividad, iniciarAlertasAutomaticas };

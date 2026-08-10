@@ -14,36 +14,48 @@
  */
 const pool = require('../db/pool');
 
-// Crea una notificación para un usuario específico
+// Crea una notificación para un usuario específico. No lanza error para no
+// interrumpir la operación principal que la disparó (mismo criterio que
+// registrarActividad en actividad-log.js) — a lo sumo, un usuario se queda
+// sin ver una notificación puntual, pero su acción original (invitar,
+// comentar, reportar un riesgo) no debe fallar por esto.
 async function crearNotificacion({ tipo, mensaje, entidadTipo, entidadId, idUsuario }, client) {
+  if (!idUsuario) return;
   const db = client || pool;
-
-  await db.query(`
-    INSERT INTO notificaciones (tipo, mensaje, entidad_tipo, entidad_id, id_usuario)
-    VALUES ($1, $2, $3, $4, $5)
-  `, [tipo, mensaje, entidadTipo, entidadId, idUsuario]);
+  try {
+    await db.query(`
+      INSERT INTO notificaciones (tipo, mensaje, entidad_tipo, entidad_id, id_usuario)
+      VALUES ($1, $2, $3, $4, $5)
+    `, [tipo, mensaje, entidadTipo, entidadId, idUsuario]);
+  } catch (err) {
+    console.error('[notificaciones] Error al crear notificación:', err.message);
+  }
 }
 
-// Notifica a todos los responsables de un proyecto (excepto al autor de la acción)
+// Notifica a todos los responsables de un proyecto (excepto a quien disparó
+// el evento, si se indica).
 async function notificarEquipoProyecto(proyectoId, tipo, mensaje, entidadTipo, entidadId, excluirUsuarioId, client) {
   const db = client || pool;
+  try {
+    // Obtener todos los responsables del proyecto (de proyecto_dgs)
+    const resultado = await db.query(`
+      SELECT DISTINCT id_responsable
+      FROM proyecto_dgs
+      WHERE id_proyecto = $1 AND id_responsable IS NOT NULL AND id_responsable != $2
+    `, [proyectoId, excluirUsuarioId || null]);
 
-  // Obtener todos los responsables del proyecto (de proyecto_dgs)
-  const resultado = await db.query(`
-    SELECT DISTINCT id_responsable
-    FROM proyecto_dgs
-    WHERE id_proyecto = $1 AND id_responsable IS NOT NULL AND id_responsable != $2
-  `, [proyectoId, excluirUsuarioId]);
-
-  // Crear una notificación para cada responsable
-  for (const fila of resultado.rows) {
-    await crearNotificacion({
-      tipo,
-      mensaje,
-      entidadTipo,
-      entidadId,
-      idUsuario: fila.id_responsable
-    }, db);
+    // Crear una notificación para cada responsable
+    for (const fila of resultado.rows) {
+      await crearNotificacion({
+        tipo,
+        mensaje,
+        entidadTipo,
+        entidadId,
+        idUsuario: fila.id_responsable
+      }, db);
+    }
+  } catch (err) {
+    console.error('[notificaciones] Error al notificar equipo de proyecto:', err.message);
   }
 }
 

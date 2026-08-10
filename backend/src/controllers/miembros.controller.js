@@ -4,7 +4,27 @@
  */
 const miembrosQueries = require('../db/queries/miembros.queries');
 const { registrarActividad } = require('../utils/actividad-log');
+const { crearNotificacion } = require('../utils/notificaciones');
 const pool = require('../db/pool');
+
+// Notifica al usuario que fue agregado a un proyecto. No lanza error: si
+// falla, la membresía ya quedó creada (lo importante) y no queremos que
+// la petición completa se caiga por una notificación.
+async function notificarNuevoMiembro(proyectoId, idUsuarioNuevo, rol) {
+  try {
+    const { rows } = await pool.query('SELECT nombre FROM proyectos WHERE id = $1', [proyectoId]);
+    const nombreProyecto = rows[0]?.nombre || 'un proyecto';
+    await crearNotificacion({
+      tipo: 'PermisoNuevo',
+      mensaje: `Fuiste agregado al proyecto "${nombreProyecto}" como ${rol}.`,
+      entidadTipo: 'Proyecto',
+      entidadId: proyectoId,
+      idUsuario: idUsuarioNuevo,
+    });
+  } catch (err) {
+    console.error('[miembros] Error al notificar nuevo miembro:', err.message);
+  }
+}
 
 // GET /proyectos/:id/miembros
 async function listarMiembros(req, res, next) {
@@ -30,6 +50,7 @@ async function agregarMiembro(req, res, next) {
 
     const miembro = await miembrosQueries.agregarMiembro(req.params.id, id_usuario, rol, req.usuario.id);
     await registrarActividad({ id_proyecto: req.params.id, id_usuario: req.usuario.id, tipo: 'miembro', titulo: 'Nuevo miembro agregado al proyecto', entidad_tipo: 'proyecto', entidad_id: req.params.id, metadata: { id_usuario_nuevo: id_usuario, rol } });
+    await notificarNuevoMiembro(req.params.id, id_usuario, rol);
     res.status(201).json({ datos: miembro, mensaje: 'Miembro agregado' });
   } catch (err) { next(err); }
 }
@@ -75,6 +96,7 @@ async function crearInvitacion(req, res, next) {
 
     const miembro = await miembrosQueries.agregarMiembro(req.params.id, id_usuario, rol || 'colaborador', req.usuario.id);
     await registrarActividad({ id_proyecto: req.params.id, id_usuario: req.usuario.id, tipo: 'miembro', titulo: 'Usuario agregado al proyecto', entidad_tipo: 'proyecto', entidad_id: req.params.id, metadata: { id_usuario_nuevo: id_usuario, rol } });
+    await notificarNuevoMiembro(req.params.id, id_usuario, rol || 'colaborador');
     res.status(201).json({ datos: miembro, mensaje: 'Usuario agregado al proyecto' });
   } catch (err) { next(err); }
 }
