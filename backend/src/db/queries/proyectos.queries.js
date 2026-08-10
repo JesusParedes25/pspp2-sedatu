@@ -55,6 +55,8 @@ async function listarProyectos({ estado, tipo, idDg, busqueda, pagina = 1, limit
       u.nombre_completo AS creador_nombre,
       pr.nombre AS programa_nombre,
       pr.clave AS programa_clave,
+      cp.cartera_id,
+      c.nombre AS cartera_nombre,
       (SELECT COUNT(*) FROM etapas e WHERE e.id_proyecto = p.id) AS total_etapas,
       (SELECT COUNT(*) FROM acciones a WHERE a.id_proyecto = p.id AND a.estado NOT IN ('Completada','Cancelada')) AS acciones_pendientes,
       (SELECT COUNT(*) FROM riesgos r WHERE r.entidad_tipo = 'Proyecto' AND r.entidad_id = p.id AND r.estado IN ('Abierto','En_mitigacion')) AS riesgos_activos
@@ -63,6 +65,8 @@ async function listarProyectos({ estado, tipo, idDg, busqueda, pagina = 1, limit
     LEFT JOIN direcciones_area da ON da.id = p.id_direccion_area_lider
     LEFT JOIN usuarios u ON u.id = p.id_creador
     LEFT JOIN programas pr ON pr.id = p.id_programa
+    LEFT JOIN cartera_proyecto cp ON cp.proyecto_id = p.id AND cp.es_principal = true
+    LEFT JOIN carteras c ON c.id = cp.cartera_id
     WHERE ${whereClause}
     ORDER BY p.es_prioritario DESC, p.updated_at DESC
     LIMIT $${indice++} OFFSET $${indice}

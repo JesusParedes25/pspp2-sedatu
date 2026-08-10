@@ -77,10 +77,6 @@ export default function NuevoProyecto() {
     meta_descripcion: '',
     indicadores: [],
     es_prioritario: false,
-    ciclo_anual: false,
-    dependencia_externa: false,
-    descripcion_dependencia: '',
-    tiene_subproyectos: false,
     fecha_inicio: '',
     fecha_limite: '',
     id_dg_lider: usuario?.id_dg || '',
@@ -163,19 +159,39 @@ export default function NuevoProyecto() {
           console.error('Error subiendo imagen de portada:', imgErr);
         }
       }
-      // Crear etapas y acciones planificadas
+      // Crear etapas y acciones planificadas. El proyecto ya existe en este
+      // punto, así que un fallo aquí no debe tratarse como fatal — pero
+      // tampoco debe pasar inadvertido: antes se descartaba el error en
+      // silencio y el usuario nunca se enteraba de que parte de la
+      // estructura que capturó no se guardó.
+      let fallosEstructura = 0;
       for (const ep of etapasPlaneadas) {
         try {
           const resEtapa = await etapasApi.crearEtapa(nuevoId, { nombre: ep.nombre });
           const etapaId = resEtapa.datos?.id;
           if (etapaId && ep.acciones?.length) {
             for (const acc of ep.acciones) {
-              try { await accionesApi.crearAccionEnEtapa(etapaId, { nombre: acc }); } catch {}
+              try {
+                await accionesApi.crearAccionEnEtapa(etapaId, { nombre: acc });
+              } catch (accErr) {
+                console.error('Error creando acción planificada:', accErr);
+                fallosEstructura++;
+              }
             }
           }
-        } catch {}
+        } catch (etapaErr) {
+          console.error('Error creando etapa planificada:', etapaErr);
+          fallosEstructura += 1 + (ep.acciones?.length || 0);
+        }
       }
-      mostrarToast('Proyecto creado exitosamente', 'exito');
+      if (fallosEstructura > 0) {
+        // Toast solo soporta 'exito'|'error'|'info' (Toast.jsx) — esto es un
+        // éxito parcial, pero 'error' es más honesto que 'info' aquí: algo
+        // que el usuario capturó no se guardó y necesita revisarlo.
+        mostrarToast(`Proyecto creado, pero ${fallosEstructura} elemento(s) de la estructura no se guardaron — revísala desde el proyecto`, 'error');
+      } else {
+        mostrarToast('Proyecto creado exitosamente', 'exito');
+      }
       navigate(`/proyectos/${nuevoId}`);
     } catch (err) {
       mostrarToast(err.response?.data?.mensaje || 'Error al crear proyecto', 'error');
@@ -257,7 +273,9 @@ export default function NuevoProyecto() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">DG Líder</label>
-              <select value={datos.id_dg_lider} onChange={e => actualizar('id_dg_lider', e.target.value)} className="input-base">
+              <select value={datos.id_dg_lider}
+                onChange={e => setDatos(prev => ({ ...prev, id_dg_lider: e.target.value, id_direccion_area_lider: '' }))}
+                className="input-base">
                 <option value="">Seleccionar DG...</option>
                 {dgs.map(dg => <option key={dg.id} value={dg.id}>{dg.siglas} — {dg.nombre}</option>)}
               </select>
@@ -340,27 +358,7 @@ export default function NuevoProyecto() {
                 <input type="checkbox" checked={datos.es_prioritario} onChange={e => actualizar('es_prioritario', e.target.checked)} className="rounded border-gray-300 text-guinda-500 focus:ring-guinda-500" />
                 <span className="text-sm text-gray-700">Es proyecto prioritario</span>
               </label>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={datos.ciclo_anual} onChange={e => actualizar('ciclo_anual', e.target.checked)} className="rounded border-gray-300 text-guinda-500 focus:ring-guinda-500" />
-                <span className="text-sm text-gray-700">Ciclo anual (se repite cada año)</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={datos.tiene_subproyectos} onChange={e => actualizar('tiene_subproyectos', e.target.checked)} className="rounded border-gray-300 text-guinda-500 focus:ring-guinda-500" />
-                <span className="text-sm text-gray-700">Tiene subproyectos</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={datos.dependencia_externa} onChange={e => actualizar('dependencia_externa', e.target.checked)} className="rounded border-gray-300 text-guinda-500 focus:ring-guinda-500" />
-                <span className="text-sm text-gray-700">Depende de entidad externa</span>
-              </label>
             </div>
-            {datos.dependencia_externa && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Descripción de la dependencia externa</label>
-                <input type="text" value={datos.descripcion_dependencia} onChange={e => actualizar('descripcion_dependencia', e.target.value)}
-                  className="input-base" placeholder="Ej: Requiere aprobación de CONAGUA" />
-              </div>
-            )}
-
           </div>
         )}
 
@@ -542,6 +540,7 @@ export default function NuevoProyecto() {
               <ResumenCampo titulo="Nombre" valor={datos.nombre} />
               <ResumenCampo titulo="Tipo" valor={datos.tipo?.replace(/_/g, ' ')} />
               <ResumenCampo titulo="DG Líder" valor={dgs.find(d => String(d.id) === String(datos.id_dg_lider))?.siglas || 'No seleccionada'} />
+              <ResumenCampo titulo="Dirección de área" valor={direccionesArea.find(d => String(d.id) === String(datos.id_direccion_area_lider))?.siglas || 'No especificada'} />
               <ResumenCampo titulo="Fechas" valor={`${datos.fecha_inicio || '—'} a ${datos.fecha_limite || '—'}`} />
               <ResumenCampo titulo="Programa" valor={(() => { const p = programas.find(pr => String(pr.id) === String(datos.id_programa)); return p ? `${p.clave} — ${p.nombre}` : 'Sin programa específico'; })()} />
               <ResumenCampo titulo="Meta" valor={datos.meta_descripcion || 'Sin descripción'} />

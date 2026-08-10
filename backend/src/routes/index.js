@@ -58,6 +58,7 @@ const miembrosController = require('../controllers/miembros.controller');
 const nodoMiembrosController = require('../controllers/nodo-miembros.controller');
 const inicioController = require('../controllers/inicio.controller');
 const panoramaController = require('../controllers/panorama.controller');
+const carterasController = require('../controllers/carteras.controller');
 
 const router = Router();
 
@@ -221,5 +222,17 @@ router.get('/proyectos/:id/invitaciones', miembrosController.listarInvitaciones)
 router.post('/proyectos/:id/invitaciones', miembrosController.crearInvitacion);
 router.post('/invitaciones/:token/aceptar', miembrosController.aceptarInvitacion);
 router.delete('/invitaciones/:id', miembrosController.cancelarInvitacion);
+
+// Carteras de proyectos
+router.get('/carteras', carterasController.listar);
+router.post('/carteras', carterasController.crear);
+router.get('/carteras/:id', carterasController.obtener);
+router.put('/carteras/:id', carterasController.actualizar);
+router.delete('/carteras/:id', carterasController.eliminar);
+router.get('/carteras/:id/confirmar-eliminar', carterasController.confirmarEliminar);
+router.get('/carteras/:id/proyectos', carterasController.listarProyectos);
+router.get('/carteras/:id/resumen', carterasController.resumen);
+router.post('/carteras/:id/proyectos', carterasController.agregarProyectos);
+router.delete('/carteras/:id/proyectos/:proyectoId', carterasController.quitarProyecto);
 
 module.exports = router;

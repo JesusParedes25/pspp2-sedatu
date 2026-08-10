@@ -394,34 +394,21 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
                   rows={2} className="input-base resize-none" placeholder="Ej: Regularizar 92 ZMs a nivel nacional…" />
               </div>
               <div className="flex flex-col gap-2.5">
-                {[
-                  ['es_prioritario', 'Proyecto prioritario'],
-                  ['ciclo_anual', 'Ciclo anual (se repite cada año)'],
-                  ['tiene_subproyectos', 'Tiene subproyectos'],
-                  ['dependencia_externa', 'Depende de entidad externa'],
-                ].map(([campo, etiqueta]) => (
-                  <label key={campo} className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={!!datos[campo]} onChange={e => actualizar(campo, e.target.checked)}
-                      className="rounded border-gray-300 text-guinda-500 focus:ring-guinda-500" />
-                    <span className="text-sm text-gray-700">{etiqueta}</span>
-                  </label>
-                ))}
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={!!datos.es_prioritario} onChange={e => actualizar('es_prioritario', e.target.checked)}
+                    className="rounded border-gray-300 text-guinda-500 focus:ring-guinda-500" />
+                  <span className="text-sm text-gray-700">Proyecto prioritario</span>
+                </label>
               </div>
-              {datos.dependencia_externa && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Descripción de la dependencia</label>
-                  <input type="text" value={datos.descripcion_dependencia}
-                    onChange={e => actualizar('descripcion_dependencia', e.target.value)}
-                    className="input-base" placeholder="Ej: Requiere aprobación de CONAGUA" />
-                </div>
-              )}
             </Section>
 
             {/* ── SECCIÓN: Organización ── */}
             <Section titulo="Organización">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">DG Líder</label>
-                <select value={datos.id_dg_lider} onChange={e => actualizar('id_dg_lider', e.target.value)} className="input-base">
+                <select value={datos.id_dg_lider}
+                  onChange={e => setDatos(prev => ({ ...prev, id_dg_lider: e.target.value, id_direccion_area_lider: '' }))}
+                  className="input-base">
                   <option value="">Seleccionar DG…</option>
                   {dgs.map(dg => <option key={dg.id} value={dg.id}>{dg.siglas} — {dg.nombre}</option>)}
                 </select>
