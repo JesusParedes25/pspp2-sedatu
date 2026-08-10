@@ -32,26 +32,27 @@ async function crearNotificacion({ tipo, mensaje, entidadTipo, entidadId, idUsua
   }
 }
 
-// Notifica a todos los responsables de un proyecto (excepto a quien disparó
-// el evento, si se indica).
+// Notifica a todos los miembros de un proyecto (excepto a quien disparó el
+// evento, si se indica). Fuente de verdad: proyecto_usuarios — según
+// CLAUDE.md, proyecto_dgs quedó huérfana (nada la cura desde que no hay UI
+// que llame agregarDGProyecto/eliminarDGProyecto) y ya no refleja quién
+// participa realmente en el proyecto.
 async function notificarEquipoProyecto(proyectoId, tipo, mensaje, entidadTipo, entidadId, excluirUsuarioId, client) {
   const db = client || pool;
   try {
-    // Obtener todos los responsables del proyecto (de proyecto_dgs)
     const resultado = await db.query(`
-      SELECT DISTINCT id_responsable
-      FROM proyecto_dgs
-      WHERE id_proyecto = $1 AND id_responsable IS NOT NULL AND id_responsable != $2
+      SELECT DISTINCT id_usuario
+      FROM proyecto_usuarios
+      WHERE id_proyecto = $1 AND id_usuario != $2
     `, [proyectoId, excluirUsuarioId || null]);
 
-    // Crear una notificación para cada responsable
     for (const fila of resultado.rows) {
       await crearNotificacion({
         tipo,
         mensaje,
         entidadTipo,
         entidadId,
-        idUsuario: fila.id_responsable
+        idUsuario: fila.id_usuario
       }, db);
     }
   } catch (err) {
