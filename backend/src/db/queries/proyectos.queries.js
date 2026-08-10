@@ -15,7 +15,7 @@ const pool = require('../pool');
 const indicadoresQueries = require('./indicadores.queries');
 
 // Lista proyectos con filtros opcionales, paginación y datos del líder
-async function listarProyectos({ estado, tipo, idDg, busqueda, pagina = 1, limite = 12 }) {
+async function listarProyectos({ estado, tipo, idDg, busqueda, carteraId, sinCartera, pagina = 1, limite = 12 }) {
   const condiciones = ['p.deleted_at IS NULL'];
   const parametros = [];
   let indice = 1;
@@ -39,6 +39,18 @@ async function listarProyectos({ estado, tipo, idDg, busqueda, pagina = 1, limit
     condiciones.push(`(p.nombre ILIKE $${indice} OR p.descripcion ILIKE $${indice})`);
     parametros.push(`%${busqueda}%`);
     indice++;
+  }
+  if (carteraId) {
+    condiciones.push(`EXISTS (
+      SELECT 1 FROM cartera_proyecto cp2 WHERE cp2.proyecto_id = p.id AND cp2.cartera_id = $${indice}
+    )`);
+    parametros.push(carteraId);
+    indice++;
+  }
+  if (sinCartera) {
+    condiciones.push(`NOT EXISTS (
+      SELECT 1 FROM cartera_proyecto cp3 WHERE cp3.proyecto_id = p.id
+    )`);
   }
 
   const offset = (pagina - 1) * limite;

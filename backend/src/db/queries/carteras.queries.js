@@ -27,7 +27,7 @@ async function listarCarteras({ busqueda } = {}) {
       u.nombre_completo AS responsable_nombre,
       (SELECT COUNT(*) FROM cartera_proyecto cp WHERE cp.cartera_id = c.id) AS total_proyectos,
       (
-        SELECT COUNT(*) FROM cartera_proyecto cp
+        SELECT COUNT(DISTINCT p.id) FROM cartera_proyecto cp
         JOIN proyectos p ON p.id = cp.proyecto_id AND p.deleted_at IS NULL
         LEFT JOIN riesgos r ON r.entidad_tipo = 'Proyecto' AND r.entidad_id = p.id AND r.estado IN ('Abierto','En_mitigacion')
         WHERE cp.cartera_id = c.id

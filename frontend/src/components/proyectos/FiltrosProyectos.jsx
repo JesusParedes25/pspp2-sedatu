@@ -31,7 +31,7 @@ const tipos = [
   { valor: 'Otro', etiqueta: 'Otro' },
 ];
 
-export default function FiltrosProyectos({ filtros, onCambio }) {
+export default function FiltrosProyectos({ filtros, onCambio, carteras }) {
   return (
     <div className="space-y-3">
       {/* Búsqueda */}
@@ -68,7 +68,7 @@ export default function FiltrosProyectos({ filtros, onCambio }) {
       </div>
 
       {/* Select de tipo */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-gray-500">Tipo:</span>
         <select
           value={filtros.tipo || ''}
@@ -80,6 +80,22 @@ export default function FiltrosProyectos({ filtros, onCambio }) {
             <option key={tipo.valor} value={tipo.valor}>{tipo.etiqueta}</option>
           ))}
         </select>
+
+        {carteras && (
+          <>
+            <span className="text-xs text-gray-500 ml-2">Cartera:</span>
+            <select
+              value={filtros.cartera || ''}
+              onChange={e => onCambio({ cartera: e.target.value || undefined, pagina: 1 })}
+              className="input-base w-auto text-xs"
+            >
+              <option value="">Todas las carteras</option>
+              {carteras.map(c => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
+              ))}
+            </select>
+          </>
+        )}
       </div>
     </div>
   );

@@ -19,6 +19,7 @@ import { useNotificaciones } from '../../hooks/useNotificaciones';
 const nombresRutas = {
   '': 'Inicio',
   'proyectos': 'Proyectos',
+  'carteras': 'Carteras',
   'nuevo': 'Nuevo proyecto',
   'mapa': 'Territorio',
   'agenda': 'Agenda',

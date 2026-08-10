@@ -14,7 +14,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
+import { useNavigate, useSearchParams, Navigate } from 'react-router-dom';
 import { useUI } from '../../context/UIContext';
 import { useAuth } from '../../context/AuthContext';
 import { usePermisosGlobales } from '../../hooks/usePermisos';
@@ -22,7 +22,9 @@ import * as proyectosApi from '../../api/proyectos';
 import * as catalogosApi from '../../api/catalogos';
 import * as etapasApi from '../../api/etapas';
 import * as accionesApi from '../../api/acciones';
-import { ImagePlus, X, Plus, Trash2, ChevronDown } from 'lucide-react';
+import * as carterasApi from '../../api/carteras';
+import ModalCartera from '../../components/carteras/ModalCartera';
+import { ImagePlus, X, Plus, Trash2, ChevronDown, Briefcase } from 'lucide-react';
 
 const PASOS = [
   'Información general',
@@ -58,6 +60,7 @@ const INDICADOR_NUEVO = () => ({
 
 export default function NuevoProyecto() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { mostrarToast } = useUI();
   const { usuario } = useAuth();
   const { puedeCrearProyecto } = usePermisosGlobales();
@@ -68,6 +71,8 @@ export default function NuevoProyecto() {
   const [dgs, setDgs] = useState([]);
   const [programas, setProgramas] = useState([]);
   const [direccionesArea, setDireccionesArea] = useState([]);
+  const [carteras, setCarteras] = useState([]);
+  const [mostrarNuevaCartera, setMostrarNuevaCartera] = useState(false);
 
   // Datos del formulario
   const [datos, setDatos] = useState({
@@ -83,6 +88,11 @@ export default function NuevoProyecto() {
     id_direccion_area_lider: usuario?.id_direccion_area || '',
     id_programa: '',
     etiquetas: [],
+    // Cartera opcional a la que pertenecerá este proyecto (se agrega como
+    // su cartera principal después de crearlo — no es una columna de
+    // proyectos, se resuelve con cartera_proyecto). Si se llega aquí desde
+    // el tablero de una cartera (?cartera_id=), se precarga.
+    cartera_id: searchParams.get('cartera_id') || '',
   });
 
   // Estructura planificada (etapas + acciones locales, se crean tras POST proyecto)
@@ -102,20 +112,28 @@ export default function NuevoProyecto() {
   useEffect(() => {
     async function cargarCatalogos() {
       try {
-        const [resDgs, resProg, resDA] = await Promise.all([
+        const [resDgs, resProg, resDA, resCarteras] = await Promise.all([
           catalogosApi.obtenerDGs(),
           catalogosApi.obtenerProgramas(),
-          catalogosApi.obtenerDireccionesArea()
+          catalogosApi.obtenerDireccionesArea(),
+          carterasApi.listarCarteras(),
         ]);
         setDgs(resDgs.datos);
         setProgramas(resProg.datos);
         setDireccionesArea(resDA.datos);
+        setCarteras(resCarteras.datos);
       } catch (err) {
         console.error('Error cargando catálogos:', err);
       }
     }
     cargarCatalogos();
   }, []);
+
+  function carteraCreada(nuevaCartera) {
+    setCarteras(prev => [...prev, nuevaCartera]);
+    actualizar('cartera_id', nuevaCartera.id);
+    setMostrarNuevaCartera(false);
+  }
 
   // Operativo no puede crear proyectos
   if (!puedeCrearProyecto) return <Navigate to="/proyectos" replace />;
@@ -152,6 +170,14 @@ export default function NuevoProyecto() {
     try {
       const respuesta = await proyectosApi.crearProyecto(datos);
       const nuevoId = respuesta.datos.id;
+      if (datos.cartera_id) {
+        try {
+          await carterasApi.agregarProyectosACartera(datos.cartera_id, [nuevoId], true);
+        } catch (carteraErr) {
+          console.error('Error agregando el proyecto a la cartera:', carteraErr);
+          mostrarToast('Proyecto creado, pero no se pudo agregar a la cartera seleccionada', 'error');
+        }
+      }
       if (imagenPortada) {
         try {
           await proyectosApi.subirImagenProyecto(nuevoId, imagenPortada);
@@ -353,6 +379,20 @@ export default function NuevoProyecto() {
                 );
               })()}
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Cartera <span className="text-gray-400 font-normal">(opcional)</span></label>
+              <div className="flex items-center gap-2">
+                <select value={datos.cartera_id} onChange={e => actualizar('cartera_id', e.target.value)} className="input-base flex-1">
+                  <option value="">Sin cartera</option>
+                  {carteras.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+                <button type="button" onClick={() => setMostrarNuevaCartera(true)}
+                  className="flex items-center gap-1 text-xs text-guinda-600 hover:text-guinda-700 font-medium px-2 py-2 whitespace-nowrap">
+                  <Briefcase size={13} /> Nueva
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">Agrupa este proyecto con otros relacionados. Puedes agregarlo a más carteras después.</p>
+            </div>
             <div className="flex flex-col gap-3">
               <label className="flex items-center gap-2">
                 <input type="checkbox" checked={datos.es_prioritario} onChange={e => actualizar('es_prioritario', e.target.checked)} className="rounded border-gray-300 text-guinda-500 focus:ring-guinda-500" />
@@ -543,6 +583,7 @@ export default function NuevoProyecto() {
               <ResumenCampo titulo="Dirección de área" valor={direccionesArea.find(d => String(d.id) === String(datos.id_direccion_area_lider))?.siglas || 'No especificada'} />
               <ResumenCampo titulo="Fechas" valor={`${datos.fecha_inicio || '—'} a ${datos.fecha_limite || '—'}`} />
               <ResumenCampo titulo="Programa" valor={(() => { const p = programas.find(pr => String(pr.id) === String(datos.id_programa)); return p ? `${p.clave} — ${p.nombre}` : 'Sin programa específico'; })()} />
+              <ResumenCampo titulo="Cartera" valor={carteras.find(c => String(c.id) === String(datos.cartera_id))?.nombre || 'Sin cartera'} />
               <ResumenCampo titulo="Meta" valor={datos.meta_descripcion || 'Sin descripción'} />
               <ResumenCampo titulo="Indicadores" valor={datos.indicadores.length > 0 ? `${datos.indicadores.length} indicador(es)` : 'Ninguno'} />
               <ResumenCampo titulo="Etapas" valor={etapasPlaneadas.length > 0 ? `${etapasPlaneadas.length} etapa(s), ${etapasPlaneadas.reduce((s, e) => s + e.acciones.length, 0)} acción(es)` : 'Sin estructura inicial'} />
@@ -573,6 +614,10 @@ export default function NuevoProyecto() {
           </button>
         )}
       </div>
+
+      {mostrarNuevaCartera && (
+        <ModalCartera onCerrar={() => setMostrarNuevaCartera(false)} onGuardada={carteraCreada} />
+      )}
     </div>
   );
 }

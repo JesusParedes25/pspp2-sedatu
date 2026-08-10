@@ -14,7 +14,7 @@
 import { Link } from 'react-router-dom';
 import EstadoChip from '../common/EstadoChip';
 import BarraProgreso from '../common/BarraProgreso';
-import { Star, AlertTriangle, Building2, Map, FileText, Landmark, Wrench } from 'lucide-react';
+import { Star, AlertTriangle, Building2, Map, FileText, Landmark, Wrench, Briefcase } from 'lucide-react';
 
 // Gradientes y íconos por tipo de proyecto (para cuando no hay imagen)
 const estilosPorTipo = {
@@ -75,6 +75,14 @@ export default function TarjetaProyecto({ proyecto }) {
             <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{proyecto.programa_clave}</span>
           )}
         </div>
+
+        {/* Cartera principal, si tiene */}
+        {proyecto.cartera_nombre && (
+          <div className="flex items-center gap-1 mb-2 text-[11px] text-guinda-600">
+            <Briefcase size={11} className="flex-shrink-0" />
+            <span className="truncate">{proyecto.cartera_nombre}</span>
+          </div>
+        )}
 
         {/* Barra de progreso */}
         <BarraProgreso porcentaje={proyecto.porcentaje_calculado} className="mb-3" />
