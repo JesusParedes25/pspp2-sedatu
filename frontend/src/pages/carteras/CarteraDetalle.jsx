@@ -18,7 +18,6 @@ import {
 import { useCartera } from '../../hooks/useCarteras';
 import { useUI } from '../../context/UIContext';
 import * as carterasApi from '../../api/carteras';
-import EstadoChip from '../../components/common/EstadoChip';
 import EmptyState from '../../components/common/EmptyState';
 import ModalCartera from '../../components/carteras/ModalCartera';
 import ModalAgregarProyectos from '../../components/carteras/ModalAgregarProyectos';
@@ -263,10 +262,25 @@ export default function CarteraDetalle() {
               onAccion={() => setMostrarAgregar(true)}
             />
           ) : (
-            <div className="card divide-y divide-gray-100">
-              {proyectos.map(p => (
-                <FilaProyectoCartera key={p.id} proyecto={p} carteraId={id} onCambio={recargar} />
-              ))}
+            <div className="card p-5 overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="text-left text-[10px] uppercase tracking-wide text-gray-400 font-semibold border-b border-gray-200">
+                    <th className="pb-2.5 pr-3">Proyecto</th>
+                    <th className="pb-2.5 pr-3">Dependencia</th>
+                    <th className="pb-2.5 pr-3">Estatus</th>
+                    <th className="pb-2.5 pr-3 w-40">Avance</th>
+                    <th className="pb-2.5 pr-3">Responsable</th>
+                    <th className="pb-2.5 pr-3">Fecha límite</th>
+                    <th className="pb-2.5"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {proyectos.map(p => (
+                    <FilaProyectoCartera key={p.id} proyecto={p} carteraId={id} onCambio={recargar} />
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
@@ -331,39 +345,73 @@ function FilaProyectoCartera({ proyecto, carteraId, onCambio }) {
     }
   }
 
+  const punto = puntoEstado(proyecto);
+  const avance = Math.round(parseFloat(proyecto.porcentaje_calculado) || 0);
+
   return (
-    <div className="flex items-center gap-3 px-4 py-3">
-      <div className="min-w-0 flex-1">
-        <Link to={`/proyectos/${proyecto.id}`} className="text-sm font-medium text-gray-800 hover:text-guinda-600 truncate block">
+    <tr className="border-b border-gray-50 last:border-0 hover:bg-guinda-50/40 transition-colors">
+      <td className="py-2.5 pr-3">
+        <Link to={`/proyectos/${proyecto.id}`} className="text-sm font-medium text-gray-800 hover:text-guinda-600">
           {proyecto.nombre}
         </Link>
-        <div className="flex items-center gap-2 mt-1 flex-wrap">
-          <EstadoChip estado={proyecto.estado} />
-          {proyecto.dg_siglas && <span className="text-[10px] text-gray-400">{proyecto.dg_siglas}</span>}
-          {parseInt(proyecto.riesgos_abiertos) > 0 && (
-            <span className="flex items-center text-[10px] text-orange-500">
-              <AlertTriangle size={10} className="mr-0.5" /> {proyecto.riesgos_abiertos}
+        <div className="flex items-center gap-1.5 mt-0.5">
+          {proyecto.es_principal && (
+            <span className="flex items-center gap-0.5 text-[10px] text-guinda-600 font-semibold" title="Cartera principal de este proyecto">
+              <Star size={10} className="fill-guinda-500 text-guinda-500" /> Principal
             </span>
           )}
-          {proyecto.vencido && <span className="text-[10px] text-red-500 font-medium">Vencido</span>}
+          {parseInt(proyecto.riesgos_abiertos) > 0 && (
+            <span className="flex items-center text-[10px] text-orange-500">
+              <AlertTriangle size={10} className="mr-0.5" /> {proyecto.riesgos_abiertos} riesgo(s)
+            </span>
+          )}
         </div>
-      </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
-        {proyecto.es_principal ? (
-          <span className="flex items-center gap-1 text-[11px] text-guinda-600 font-medium" title="Cartera principal de este proyecto">
-            <Star size={12} className="fill-guinda-500 text-guinda-500" /> Principal
+      </td>
+      <td className="py-2.5 pr-3">
+        {proyecto.dg_siglas && (
+          <span className="text-[10px] font-semibold bg-blue-50 text-blue-700 rounded px-1.5 py-0.5">{proyecto.dg_siglas}</span>
+        )}
+      </td>
+      <td className="py-2.5 pr-3">
+        <span className="flex items-center gap-1.5 text-xs text-gray-700 whitespace-nowrap">
+          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${punto.color}`} />
+          {punto.texto}
+        </span>
+      </td>
+      <td className="py-2.5 pr-3">
+        <div className="flex items-center gap-2">
+          <span className="w-16 h-1.5 rounded-full bg-gray-100 overflow-hidden inline-block flex-shrink-0">
+            <span className={`block h-full rounded-full ${punto.color}`} style={{ width: `${avance}%` }} />
           </span>
-        ) : (
-          <button onClick={marcarPrincipal} disabled={procesando} className="text-[11px] text-gray-400 hover:text-guinda-600 disabled:opacity-40">
+          <span className="text-xs font-semibold text-gray-700 tabular-nums">{avance}%</span>
+        </div>
+      </td>
+      <td className="py-2.5 pr-3 text-xs text-gray-600 whitespace-nowrap">{proyecto.creador_nombre || '—'}</td>
+      <td className="py-2.5 pr-3 text-xs text-gray-600 whitespace-nowrap">{proyecto.fecha_limite?.slice(0, 10) || '—'}</td>
+      <td className="py-2.5 text-right whitespace-nowrap">
+        {!proyecto.es_principal && (
+          <button onClick={marcarPrincipal} disabled={procesando} className="text-[11px] text-gray-400 hover:text-guinda-600 disabled:opacity-40 mr-2">
             Marcar principal
           </button>
         )}
-        <button onClick={quitar} disabled={procesando} className="p-1 text-gray-300 hover:text-red-500 disabled:opacity-40" title="Quitar de esta cartera">
-          <X size={15} />
+        <button onClick={quitar} disabled={procesando} className="p-1 text-gray-300 hover:text-red-500 disabled:opacity-40 align-middle" title="Quitar de esta cartera">
+          <X size={14} />
         </button>
-      </div>
-    </div>
+      </td>
+    </tr>
   );
+}
+
+// Punto de color + etiqueta de estatus para la tabla de proyectos — igual
+// criterio que el resto de la plataforma (vencido pesa más que el estado
+// crudo), pero en el formato compacto punto+texto del mockup.
+function puntoEstado(p) {
+  if (p.vencido) return { color: 'bg-red-500', texto: 'Vencido' };
+  if (p.estado === 'Completada') return { color: 'bg-green-500', texto: 'Concluido' };
+  if (p.estado === 'En_proceso') return { color: 'bg-blue-500', texto: 'En proceso' };
+  if (p.estado === 'Bloqueada') return { color: 'bg-red-500', texto: 'Bloqueada' };
+  if (p.estado === 'Cancelada') return { color: 'bg-gray-400', texto: 'Cancelada' };
+  return { color: 'bg-gray-300', texto: 'Pendiente' };
 }
 
 function ModalEliminarCartera({ cartera, onCerrar, onEliminada }) {
