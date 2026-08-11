@@ -158,7 +158,7 @@ export default function CarteraDetalle() {
             <TarjetaKPI etiqueta="En riesgo" valor={resumen.proyectos_en_riesgo} color="text-red-600"
               nota="vencidos o con riesgo reportado" />
             <TarjetaKPI etiqueta="Por vencer (30 días)" valor={resumen.por_vencer.length} color="text-amber-600"
-              nota={resumen.por_vencer[0] ? `${resumen.por_vencer[0].nombre} — ${resumen.por_vencer[0].dias_restantes}d` : undefined} />
+              nota={resumen.por_vencer[0] ? `${resumen.por_vencer[0].nombre} (${resumen.por_vencer[0].proyecto_nombre}) — ${resumen.por_vencer[0].dias_restantes}d` : undefined} />
             <TarjetaKPI etiqueta="Concluidos" valor={resumen.distribucion.concluido} color="text-green-600"
               nota={`de ${resumen.total_proyectos} proyecto(s)`} />
           </div>
@@ -195,18 +195,18 @@ export default function CarteraDetalle() {
             <h2 className="text-sm font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
               <AlertTriangle size={14} className="text-red-500" /> Atención inmediata
             </h2>
-            <p className="text-xs text-gray-400 mb-3">Proyectos vencidos o con riesgo abierto reportado por su responsable.</p>
+            <p className="text-xs text-gray-400 mb-3">Acciones vencidas o riesgos abiertos reportados por su responsable, en los proyectos de esta cartera.</p>
             {resumen.vencidos.length === 0 && resumen.riesgos.length === 0 ? (
-              <p className="text-sm text-gray-400 italic">Sin proyectos vencidos ni riesgos abiertos en esta cartera.</p>
+              <p className="text-sm text-gray-400 italic">Sin acciones vencidas ni riesgos abiertos en esta cartera.</p>
             ) : (
               <div className="space-y-2.5 max-h-96 overflow-y-auto">
-                {resumen.vencidos.map(p => (
-                  <Link key={`v-${p.id}`} to={`/proyectos/${p.id}`}
+                {resumen.vencidos.map(a => (
+                  <Link key={`v-${a.id}`} to={`/proyectos/${a.id_proyecto}`}
                     className="flex gap-3 items-start bg-red-50 border border-red-100 rounded-lg p-3 hover:border-red-300 transition-colors">
                     <AlertTriangle size={15} className="text-red-500 flex-shrink-0 mt-0.5" />
                     <p className="text-xs text-red-900 leading-relaxed">
-                      <strong>{p.nombre}</strong> — vencido hace {p.dias_vencido} día{p.dias_vencido !== 1 ? 's' : ''}.
-                      {p.dg_siglas && <span className="text-red-700"> {p.dg_siglas}</span>}
+                      <strong>{a.nombre}</strong> — vencida hace {a.dias_atraso} día{a.dias_atraso !== 1 ? 's' : ''}.
+                      <span className="text-red-700"> {a.proyecto_nombre}{a.etapa_nombre ? ` · ${a.etapa_nombre}` : ''}{a.dg_siglas ? ` · ${a.dg_siglas}` : ''}</span>
                     </p>
                   </Link>
                 ))}
@@ -224,19 +224,23 @@ export default function CarteraDetalle() {
             )}
           </div>
 
-          {/* Próximos vencimientos (aún no vencidos) */}
+          {/* Próximos vencimientos (acciones aún no vencidas, dentro de 30 días) */}
           <div className="card p-5">
-            <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
               <Clock size={14} className="text-amber-500" /> Próximos vencimientos ({resumen.por_vencer.length})
             </h2>
+            <p className="text-xs text-gray-400 mb-3">Acciones con fecha límite en los próximos 30 días, en los proyectos de esta cartera.</p>
             {resumen.por_vencer.length === 0 ? (
-              <p className="text-xs text-gray-400 italic">Sin vencimientos en los próximos 30 días.</p>
+              <p className="text-xs text-gray-400 italic">Sin acciones por vencer en los próximos 30 días.</p>
             ) : (
               <div className="space-y-2 max-h-80 overflow-y-auto">
-                {resumen.por_vencer.map(p => (
-                  <Link key={p.id} to={`/proyectos/${p.id}`} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                    <span className="text-xs text-gray-700 truncate">{p.nombre}</span>
-                    <span className="text-[11px] text-amber-600 font-medium flex-shrink-0 ml-2">en {p.dias_restantes}d — {p.fecha_limite?.slice(0, 10)}</span>
+                {resumen.por_vencer.map(a => (
+                  <Link key={a.id} to={`/proyectos/${a.id_proyecto}`} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors gap-2">
+                    <span className="text-xs text-gray-700 min-w-0">
+                      <span className="truncate block">{a.nombre}</span>
+                      <span className="text-[10.5px] text-gray-400 truncate block">{a.proyecto_nombre}{a.etapa_nombre ? ` · ${a.etapa_nombre}` : ''}</span>
+                    </span>
+                    <span className="text-[11px] text-amber-600 font-medium flex-shrink-0">en {a.dias_restantes}d — {a.fecha_fin?.slice(0, 10)}</span>
                   </Link>
                 ))}
               </div>

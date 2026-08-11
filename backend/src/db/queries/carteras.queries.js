@@ -23,6 +23,23 @@ const COND_RIESGO_DE_PROYECTO = `(
   OR (r.entidad_tipo = 'Subaccion' AND r.entidad_id IN (SELECT id FROM acciones WHERE id_proyecto = p.id AND id_accion_padre IS NOT NULL))
 )`;
 
+// El campo proyectos.fecha_limite es una meta general del proyecto y en la
+// práctica muchos proyectos lo dejan vacío — el vencimiento real del día a
+// día vive en las acciones (acciones.fecha_fin), que es de donde el
+// Tablero/Inicio ya calcula sus propios "vencidos"/"por vencer" (ver
+// inicio.queries.js obtenerVencidos/obtenerPorVencer). Un proyecto cuenta
+// como vencido si su propia fecha_limite ya pasó O si tiene alguna acción
+// vencida — antes esta condición solo miraba fecha_limite del proyecto,
+// por eso "Atención inmediata" aparecía vacía en carteras reales.
+const COND_PROYECTO_TIENE_ACCION_VENCIDA = `EXISTS (
+  SELECT 1 FROM acciones ac WHERE ac.id_proyecto = p.id
+    AND ac.fecha_fin < NOW() AND ac.estado NOT IN ('Completada','Cancelada')
+)`;
+const COND_PROYECTO_VENCIDO = `(
+  (p.fecha_limite IS NOT NULL AND p.fecha_limite < CURRENT_DATE AND p.estado NOT IN ('Concluido','Cancelado'))
+  OR ${COND_PROYECTO_TIENE_ACCION_VENCIDA}
+)`;
+
 async function listarCarteras({ busqueda } = {}) {
   const condiciones = [];
   const parametros = [];
@@ -43,10 +60,7 @@ async function listarCarteras({ busqueda } = {}) {
         JOIN proyectos p ON p.id = cp.proyecto_id AND p.deleted_at IS NULL
         LEFT JOIN riesgos r ON ${COND_RIESGO_DE_PROYECTO} AND r.estado IN ('Abierto','En_mitigacion')
         WHERE cp.cartera_id = c.id
-          AND (
-            (p.estado NOT IN ('Concluido','Cancelado') AND p.fecha_limite IS NOT NULL AND p.fecha_limite < CURRENT_DATE)
-            OR r.id IS NOT NULL
-          )
+          AND (${COND_PROYECTO_VENCIDO} OR r.id IS NOT NULL)
       ) AS proyectos_en_riesgo
     FROM carteras c
     LEFT JOIN direcciones_generales dg ON dg.id = c.id_dg_lider
@@ -123,7 +137,7 @@ async function listarProyectosDeCartera(carteraId) {
       dg.siglas AS dg_siglas,
       u.nombre_completo AS creador_nombre,
       (SELECT COUNT(*) FROM riesgos r WHERE ${COND_RIESGO_DE_PROYECTO} AND r.estado IN ('Abierto','En_mitigacion')) AS riesgos_abiertos,
-      (p.fecha_limite IS NOT NULL AND p.fecha_limite < CURRENT_DATE AND p.estado NOT IN ('Concluido','Cancelado')) AS vencido
+      ${COND_PROYECTO_VENCIDO} AS vencido
     FROM cartera_proyecto cp
     JOIN proyectos p ON p.id = cp.proyecto_id AND p.deleted_at IS NULL
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
@@ -136,11 +150,13 @@ async function listarProyectosDeCartera(carteraId) {
 
 // Resumen agregado para la pestaña "Resumen" del tablero: distribución
 // por estado (nunca un % único, ver CLAUDE.md / decisión de producto),
-// riesgos, y próximos vencimientos.
+// riesgos, y vencimientos. Los vencimientos se calculan a nivel ACCIÓN
+// (acciones.fecha_fin), igual que el Tablero/Inicio — no a nivel
+// proyecto (proyectos.fecha_limite), que casi siempre está vacío.
 async function resumenCartera(carteraId) {
   const { rows: proyectos } = await pool.query(`
     SELECT p.id, p.nombre, p.estado, p.fecha_limite, dg.siglas AS dg_siglas,
-      (p.fecha_limite IS NOT NULL AND p.fecha_limite < CURRENT_DATE AND p.estado NOT IN ('Concluido','Cancelado')) AS vencido
+      ${COND_PROYECTO_VENCIDO} AS vencido
     FROM cartera_proyecto cp
     JOIN proyectos p ON p.id = cp.proyecto_id AND p.deleted_at IS NULL
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
@@ -169,41 +185,49 @@ async function resumenCartera(carteraId) {
     ORDER BY r.created_at DESC
   `, [carteraId]);
 
-  const { rows: porVencer } = await pool.query(`
-    SELECT p.id, p.nombre, p.fecha_limite
+  // Acciones vencidas y por vencer de los proyectos de la cartera — mismo
+  // criterio que obtenerVencidos/obtenerPorVencer en inicio.queries.js.
+  const { rows: vencidos } = await pool.query(`
+    SELECT a.id, a.nombre, a.estado, a.fecha_fin,
+      EXTRACT(DAY FROM NOW() - a.fecha_fin)::int AS dias_atraso,
+      p.id AS id_proyecto, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas,
+      e.nombre AS etapa_nombre
     FROM cartera_proyecto cp
-    JOIN proyectos p ON p.id = cp.proyecto_id AND p.deleted_at IS NULL
+    JOIN acciones a ON a.id_proyecto = cp.proyecto_id
+    JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
+    LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
+    LEFT JOIN etapas e ON e.id = a.id_etapa
     WHERE cp.cartera_id = $1
-      AND p.estado NOT IN ('Concluido','Cancelado')
-      AND p.fecha_limite BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'
-    ORDER BY p.fecha_limite
+      AND a.fecha_fin < NOW() AND a.estado NOT IN ('Completada','Cancelada')
+    ORDER BY a.fecha_fin ASC
   `, [carteraId]);
 
-  const MS_DIA = 86400000;
-  const hoy = Date.now();
-  const vencidos = proyectos
-    .filter(p => p.vencido)
-    .map(p => ({
-      id: p.id, nombre: p.nombre, fecha_limite: p.fecha_limite, dg_siglas: p.dg_siglas,
-      dias_vencido: Math.floor((hoy - new Date(p.fecha_limite).getTime()) / MS_DIA),
-    }))
-    .sort((a, b) => b.dias_vencido - a.dias_vencido);
-
-  const porVencerConDias = porVencer.map(p => ({
-    ...p,
-    dias_restantes: Math.ceil((new Date(p.fecha_limite).getTime() - hoy) / MS_DIA),
-  }));
+  const { rows: porVencer } = await pool.query(`
+    SELECT a.id, a.nombre, a.estado, a.fecha_fin,
+      EXTRACT(DAY FROM a.fecha_fin - NOW())::int AS dias_restantes,
+      p.id AS id_proyecto, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas,
+      e.nombre AS etapa_nombre
+    FROM cartera_proyecto cp
+    JOIN acciones a ON a.id_proyecto = cp.proyecto_id
+    JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
+    LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
+    LEFT JOIN etapas e ON e.id = a.id_etapa
+    WHERE cp.cartera_id = $1
+      AND a.fecha_fin >= NOW() AND a.fecha_fin <= NOW() + INTERVAL '30 days'
+      AND a.estado NOT IN ('Completada','Cancelada')
+    ORDER BY a.fecha_fin ASC
+  `, [carteraId]);
 
   return {
     total_proyectos: proyectos.length,
     distribucion,
     proyectos_en_riesgo: new Set([
-      ...vencidos.map(p => p.id),
+      ...proyectos.filter(p => p.vencido).map(p => p.id),
       ...riesgos.map(r => r.id_proyecto),
     ]).size,
     riesgos,
     vencidos,
-    por_vencer: porVencerConDias,
+    por_vencer: porVencer,
   };
 }
 
