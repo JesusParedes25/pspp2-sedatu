@@ -269,24 +269,34 @@ export default function CarteraDetalle() {
 
           {/* Indicadores — misma tarjeta que el Tablero (IndicadoresResumen
               en Inicio.jsx), agrupados por tipo, agregando los de todos los
-              proyectos de la cartera */}
-          {resumen.indicadores.length > 0 && (
-            <div className="card p-5">
-              <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5 text-guinda-700">
-                <Target size={14} className="text-blue-500" /> Indicadores
-              </h2>
+              proyectos de la cartera. Siempre visible (con mensaje si está
+              vacía) — antes desaparecía por completo sin datos, y eso se
+              leía como "no funciona" en vez de "sin datos todavía". */}
+          <div className="card p-5">
+            <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5 text-guinda-700">
+              <Target size={14} className="text-blue-500" /> Indicadores
+            </h2>
+            {resumen.indicadores.length === 0 ? (
+              <p className="text-xs text-gray-400 italic">
+                Ningún proyecto de esta cartera tiene indicadores capturados. Se agregan desde la pestaña "Panorama del proyecto" de cada proyecto.
+              </p>
+            ) : (
               <IndicadoresResumen indicadores={resumen.indicadores} />
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Estatus cualitativo — nota corta de texto libre por etapa
               (migración 047), mismo nivel que ya muestra el popover de
               proyecto en el Tablero: "¿cómo va esto ahora mismo?" */}
-          {resumen.estatus_cualitativo.length > 0 && (
-            <div className="card p-5">
-              <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5 text-guinda-700">
-                <MessageSquare size={14} className="text-teal-600" /> Estatus cualitativo
-              </h2>
+          <div className="card p-5">
+            <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5 text-guinda-700">
+              <MessageSquare size={14} className="text-teal-600" /> Estatus cualitativo
+            </h2>
+            {resumen.estatus_cualitativo.length === 0 ? (
+              <p className="text-xs text-gray-400 italic">
+                Ninguna etapa de los proyectos de esta cartera tiene un estatus cualitativo capturado todavía.
+              </p>
+            ) : (
               <div className="space-y-2.5 max-h-80 overflow-y-auto">
                 {resumen.estatus_cualitativo.map(e => (
                   <Link
@@ -301,8 +311,8 @@ export default function CarteraDetalle() {
                   </Link>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Acciones vencidas + Por vencer — mismo bloque de dos columnas
               y mismo estilo compacto de punto de color que el Tablero */}
