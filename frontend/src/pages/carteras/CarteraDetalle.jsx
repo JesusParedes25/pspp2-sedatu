@@ -43,6 +43,16 @@ const COLOR_DIST = {
   sin_iniciar: 'bg-gray-300',
 };
 
+function TarjetaKPI({ etiqueta, valor, color = 'text-gray-900', nota }) {
+  return (
+    <div className="card p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1.5">{etiqueta}</p>
+      <p className={`text-2xl font-extrabold tabular-nums ${color}`}>{valor}</p>
+      {nota && <p className="text-[11px] text-gray-400 mt-1 truncate">{nota}</p>}
+    </div>
+  );
+}
+
 export default function CarteraDetalle() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -136,22 +146,37 @@ export default function CarteraDetalle() {
       {/* Resumen */}
       {pestanaActiva === 'resumen' && resumen && (
         <div className="space-y-5">
+          {/* KPIs */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+            <TarjetaKPI etiqueta="Proyectos" valor={resumen.total_proyectos} />
+            <TarjetaKPI etiqueta="En riesgo" valor={resumen.proyectos_en_riesgo} color="text-red-600"
+              nota="vencidos o con riesgo reportado" />
+            <TarjetaKPI etiqueta="Por vencer (30 días)" valor={resumen.por_vencer.length} color="text-amber-600"
+              nota={resumen.por_vencer[0] ? `${resumen.por_vencer[0].nombre} — ${resumen.por_vencer[0].dias_restantes}d` : undefined} />
+            <TarjetaKPI etiqueta="Concluidos" valor={resumen.distribucion.concluido} color="text-green-600"
+              nota={`de ${resumen.total_proyectos} proyecto(s)`} />
+          </div>
+
+          {/* Distribución por estado */}
           <div className="card p-5">
-            <h2 className="text-sm font-semibold text-gray-700 mb-3">Distribución por estado — {resumen.total_proyectos} proyecto(s)</h2>
+            <h2 className="text-sm font-semibold text-gray-700 mb-1">Distribución por estado</h2>
+            <p className="text-xs text-gray-400 mb-3">
+              No se promedia el avance de los proyectos de la cartera — uno de 3 etapas no es comparable con uno de 40. En su lugar, cuántos hay en cada estado.
+            </p>
             {totalDist === 0 ? (
               <p className="text-sm text-gray-400 italic">Sin proyectos en esta cartera todavía.</p>
             ) : (
               <>
-                <div className="flex h-3 rounded-full overflow-hidden mb-3">
+                <div className="flex h-3.5 rounded-full overflow-hidden mb-3">
                   {Object.entries(resumen.distribucion).filter(([, v]) => v > 0).map(([clave, valor]) => (
                     <div key={clave} className={COLOR_DIST[clave]} style={{ width: `${(valor / totalDist) * 100}%` }} title={`${ETIQUETA_DIST[clave]}: ${valor}`} />
                   ))}
                 </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                <div className="flex flex-wrap gap-x-5 gap-y-1.5">
                   {Object.entries(resumen.distribucion).map(([clave, valor]) => (
                     <span key={clave} className="flex items-center gap-1.5 text-xs text-gray-600">
-                      <span className={`w-2 h-2 rounded-full ${COLOR_DIST[clave]}`} />
-                      {ETIQUETA_DIST[clave]}: <strong>{valor}</strong>
+                      <span className={`w-2.5 h-2.5 rounded-full ${COLOR_DIST[clave]}`} />
+                      <strong className="text-gray-800">{valor}</strong> {ETIQUETA_DIST[clave].toLowerCase()}
                     </span>
                   ))}
                 </div>
@@ -159,42 +184,57 @@ export default function CarteraDetalle() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div className="card p-5">
-              <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
-                <AlertTriangle size={14} className="text-orange-500" /> Riesgos abiertos ({resumen.riesgos.length})
-              </h2>
-              {resumen.riesgos.length === 0 ? (
-                <p className="text-xs text-gray-400 italic">Sin riesgos abiertos en los proyectos de esta cartera.</p>
-              ) : (
-                <div className="space-y-2.5 max-h-80 overflow-y-auto">
-                  {resumen.riesgos.map(r => (
-                    <Link key={r.id} to={`/proyectos/${r.id_proyecto}`} className="block p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                      <p className="text-xs font-medium text-gray-800 truncate">{r.titulo}</p>
-                      <p className="text-[11px] text-gray-400 truncate">{r.proyecto_nombre} · nivel {r.nivel}</p>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
+          {/* Atención inmediata: vencidos + riesgos abiertos, juntos */}
+          <div className="card p-5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
+              <AlertTriangle size={14} className="text-red-500" /> Atención inmediata
+            </h2>
+            <p className="text-xs text-gray-400 mb-3">Proyectos vencidos o con riesgo abierto reportado por su responsable.</p>
+            {resumen.vencidos.length === 0 && resumen.riesgos.length === 0 ? (
+              <p className="text-sm text-gray-400 italic">Sin proyectos vencidos ni riesgos abiertos en esta cartera.</p>
+            ) : (
+              <div className="space-y-2.5 max-h-96 overflow-y-auto">
+                {resumen.vencidos.map(p => (
+                  <Link key={`v-${p.id}`} to={`/proyectos/${p.id}`}
+                    className="flex gap-3 items-start bg-red-50 border border-red-100 rounded-lg p-3 hover:border-red-300 transition-colors">
+                    <AlertTriangle size={15} className="text-red-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-red-900 leading-relaxed">
+                      <strong>{p.nombre}</strong> — vencido hace {p.dias_vencido} día{p.dias_vencido !== 1 ? 's' : ''}.
+                      {p.dg_siglas && <span className="text-red-700"> {p.dg_siglas}</span>}
+                    </p>
+                  </Link>
+                ))}
+                {resumen.riesgos.map(r => (
+                  <Link key={`r-${r.id}`} to={`/proyectos/${r.id_proyecto}`}
+                    className="flex gap-3 items-start bg-red-50 border border-red-100 rounded-lg p-3 hover:border-red-300 transition-colors">
+                    <AlertTriangle size={15} className="text-red-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-red-900 leading-relaxed">
+                      <strong>{r.proyecto_nombre}</strong> — riesgo reportado ({r.nivel}): {r.titulo}.
+                      {r.responsable_nombre && <span className="text-red-700"> {r.responsable_nombre}{r.dg_siglas ? ` · ${r.dg_siglas}` : ''}</span>}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
 
-            <div className="card p-5">
-              <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
-                <Clock size={14} className="text-amber-500" /> Próximos vencimientos ({resumen.por_vencer.length})
-              </h2>
-              {resumen.por_vencer.length === 0 ? (
-                <p className="text-xs text-gray-400 italic">Sin vencimientos en los próximos 30 días.</p>
-              ) : (
-                <div className="space-y-2.5 max-h-80 overflow-y-auto">
-                  {resumen.por_vencer.map(p => (
-                    <Link key={p.id} to={`/proyectos/${p.id}`} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                      <span className="text-xs text-gray-700 truncate">{p.nombre}</span>
-                      <span className="text-[11px] text-gray-400 flex-shrink-0 ml-2">{p.fecha_limite?.slice(0, 10)}</span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
+          {/* Próximos vencimientos (aún no vencidos) */}
+          <div className="card p-5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
+              <Clock size={14} className="text-amber-500" /> Próximos vencimientos ({resumen.por_vencer.length})
+            </h2>
+            {resumen.por_vencer.length === 0 ? (
+              <p className="text-xs text-gray-400 italic">Sin vencimientos en los próximos 30 días.</p>
+            ) : (
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {resumen.por_vencer.map(p => (
+                  <Link key={p.id} to={`/proyectos/${p.id}`} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                    <span className="text-xs text-gray-700 truncate">{p.nombre}</span>
+                    <span className="text-[11px] text-amber-600 font-medium flex-shrink-0 ml-2">en {p.dias_restantes}d — {p.fecha_limite?.slice(0, 10)}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

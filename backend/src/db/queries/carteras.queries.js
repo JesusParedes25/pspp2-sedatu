@@ -127,10 +127,11 @@ async function listarProyectosDeCartera(carteraId) {
 // riesgos, y próximos vencimientos.
 async function resumenCartera(carteraId) {
   const { rows: proyectos } = await pool.query(`
-    SELECT p.id, p.nombre, p.estado, p.fecha_limite,
+    SELECT p.id, p.nombre, p.estado, p.fecha_limite, dg.siglas AS dg_siglas,
       (p.fecha_limite IS NOT NULL AND p.fecha_limite < CURRENT_DATE AND p.estado NOT IN ('Concluido','Cancelado')) AS vencido
     FROM cartera_proyecto cp
     JOIN proyectos p ON p.id = cp.proyecto_id AND p.deleted_at IS NULL
+    LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
     WHERE cp.cartera_id = $1
   `, [carteraId]);
 
@@ -146,10 +147,11 @@ async function resumenCartera(carteraId) {
 
   const { rows: riesgos } = await pool.query(`
     SELECT r.id, r.titulo, r.nivel, r.descripcion, r.tipo, p.id AS id_proyecto, p.nombre AS proyecto_nombre,
-      u.nombre_completo AS responsable_nombre
+      dg.siglas AS dg_siglas, u.nombre_completo AS responsable_nombre
     FROM cartera_proyecto cp
     JOIN proyectos p ON p.id = cp.proyecto_id AND p.deleted_at IS NULL
     JOIN riesgos r ON r.entidad_tipo = 'Proyecto' AND r.entidad_id = p.id AND r.estado IN ('Abierto','En_mitigacion')
+    LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
     LEFT JOIN usuarios u ON u.id = r.id_responsable
     WHERE cp.cartera_id = $1
     ORDER BY r.created_at DESC
@@ -165,15 +167,31 @@ async function resumenCartera(carteraId) {
     ORDER BY p.fecha_limite
   `, [carteraId]);
 
+  const MS_DIA = 86400000;
+  const hoy = Date.now();
+  const vencidos = proyectos
+    .filter(p => p.vencido)
+    .map(p => ({
+      id: p.id, nombre: p.nombre, fecha_limite: p.fecha_limite, dg_siglas: p.dg_siglas,
+      dias_vencido: Math.floor((hoy - new Date(p.fecha_limite).getTime()) / MS_DIA),
+    }))
+    .sort((a, b) => b.dias_vencido - a.dias_vencido);
+
+  const porVencerConDias = porVencer.map(p => ({
+    ...p,
+    dias_restantes: Math.ceil((new Date(p.fecha_limite).getTime() - hoy) / MS_DIA),
+  }));
+
   return {
     total_proyectos: proyectos.length,
     distribucion,
     proyectos_en_riesgo: new Set([
-      ...proyectos.filter(p => p.vencido).map(p => p.id),
+      ...vencidos.map(p => p.id),
       ...riesgos.map(r => r.id_proyecto),
     ]).size,
     riesgos,
-    por_vencer: porVencer,
+    vencidos,
+    por_vencer: porVencerConDias,
   };
 }
 
