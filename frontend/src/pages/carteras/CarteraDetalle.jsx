@@ -1,13 +1,13 @@
 /**
  * ARCHIVO: CarteraDetalle.jsx
  * PROPÓSITO: Tablero de una cartera de proyectos — pestañas Resumen
- *            (distribución por estado, riesgos, próximos vencimientos;
- *            deliberadamente SIN un % de avance único, ver
- *            carteras.queries.js), Proyectos (alta/baja de proyectos,
- *            marcar cartera principal), Cronograma (línea de tiempo
- *            consolidada por proyecto), Mapa (territorio filtrado a
- *            los proyectos de la cartera) y Actividad (timeline
- *            cruzado de todos sus proyectos).
+ *            (tipo Tablero: métricas, proyectos de la cartera con alta/
+ *            baja y marcar principal, indicadores, estatus cualitativo,
+ *            riesgos y vencimientos; ver carteras.queries.js), Cronograma
+ *            (línea de tiempo consolidada por proyecto), Mapa (territorio
+ *            filtrado a los proyectos de la cartera) y Actividad (timeline
+ *            cruzado de todos sus proyectos). No hay pestaña "Proyectos"
+ *            aparte — su gestión vive dentro de Resumen.
  */
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
@@ -25,30 +25,13 @@ import ModalAgregarProyectos from '../../components/carteras/ModalAgregarProyect
 import CronogramaCartera from '../../components/carteras/CronogramaCartera';
 import MapaCartera from '../../components/carteras/MapaCartera';
 import ActividadCartera from '../../components/carteras/ActividadCartera';
-import TarjetaProyecto from '../../components/proyectos/TarjetaProyecto';
 
 const PESTANAS = [
   { id: 'resumen', etiqueta: 'Resumen', icono: LayoutDashboard },
-  { id: 'proyectos', etiqueta: 'Proyectos', icono: FolderKanban },
   { id: 'cronograma', etiqueta: 'Cronograma', icono: Calendar },
   { id: 'mapa', etiqueta: 'Mapa', icono: Map },
   { id: 'actividad', etiqueta: 'Actividad', icono: Activity },
 ];
-
-const ETIQUETA_DIST = {
-  concluido: 'Concluidos',
-  en_proceso: 'En proceso',
-  vencido: 'Vencidos',
-  pausado: 'Pausados',
-  sin_iniciar: 'Sin iniciar',
-};
-const COLOR_DIST = {
-  concluido: 'bg-green-500',
-  en_proceso: 'bg-blue-500',
-  vencido: 'bg-red-500',
-  pausado: 'bg-gray-400',
-  sin_iniciar: 'bg-gray-300',
-};
 
 // Misma tarjeta de métrica que usa el Tablero (Inicio.jsx) — icono en
 // círculo de color + número grande + etiqueta. Se replica aquí en vez de
@@ -154,8 +137,6 @@ export default function CarteraDetalle() {
     );
   }
 
-  const totalDist = resumen ? Object.values(resumen.distribucion).reduce((a, b) => a + b, 0) : 0;
-
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -227,45 +208,57 @@ export default function CarteraDetalle() {
             <MetricaCard icono={Shield} titulo="Riesgos abiertos" valor={resumen.riesgos.length} color="bg-orange-50 text-orange-600" />
           </div>
 
-          {/* Proyectos de la cartera — igual a "Mis proyectos" del Tablero */}
-          {proyectos.length > 0 && (
-            <section>
-              <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5 text-guinda-700">
+          {/* Proyectos de esta cartera — alta/baja y gestión, antes vivía en
+              su propia pestaña "Proyectos"; se unificó aquí. El estado de
+              cada proyecto ya se distingue con el punto de color + etiqueta
+              en la columna Estatus de la tabla, sin necesitar un bloque de
+              distribución aparte. */}
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold flex items-center gap-1.5 text-guinda-700">
                 <FolderKanban size={14} /> Proyectos de esta cartera
               </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {proyectos.map(p => <TarjetaProyecto key={p.id} proyecto={p} />)}
+              <div className="flex items-center gap-2">
+                <Link to={`/proyectos/nuevo?cartera_id=${id}`} className="btn-secondary text-xs flex items-center gap-1.5">
+                  <Plus size={14} /> Nuevo proyecto
+                </Link>
+                <button onClick={() => setMostrarAgregar(true)} className="btn-primary text-xs flex items-center gap-1.5">
+                  <Plus size={14} /> Agregar existentes
+                </button>
               </div>
-            </section>
-          )}
+            </div>
 
-          {/* Distribución por estado — valor agregado propio de la cartera:
-              nunca un % único, ver carteras.queries.js */}
-          <div className="card p-5">
-            <h2 className="text-sm font-semibold text-gray-700 mb-1">Distribución por estado</h2>
-            <p className="text-xs text-gray-400 mb-3">
-              No se promedia el avance de los proyectos de la cartera — uno de 3 etapas no es comparable con uno de 40. En su lugar, cuántos hay en cada estado.
-            </p>
-            {totalDist === 0 ? (
-              <p className="text-sm text-gray-400 italic">Sin proyectos en esta cartera todavía.</p>
+            {proyectos.length === 0 ? (
+              <EmptyState
+                icono={FolderKanban}
+                titulo="Sin proyectos"
+                subtitulo="Esta cartera todavía no tiene proyectos asociados."
+                accion="Agregar proyectos"
+                onAccion={() => setMostrarAgregar(true)}
+              />
             ) : (
-              <>
-                <div className="flex h-3.5 rounded-full overflow-hidden mb-3">
-                  {Object.entries(resumen.distribucion).filter(([, v]) => v > 0).map(([clave, valor]) => (
-                    <div key={clave} className={COLOR_DIST[clave]} style={{ width: `${(valor / totalDist) * 100}%` }} title={`${ETIQUETA_DIST[clave]}: ${valor}`} />
-                  ))}
-                </div>
-                <div className="flex flex-wrap gap-x-5 gap-y-1.5">
-                  {Object.entries(resumen.distribucion).map(([clave, valor]) => (
-                    <span key={clave} className="flex items-center gap-1.5 text-xs text-gray-600">
-                      <span className={`w-2.5 h-2.5 rounded-full ${COLOR_DIST[clave]}`} />
-                      <strong className="text-gray-800">{valor}</strong> {ETIQUETA_DIST[clave].toLowerCase()}
-                    </span>
-                  ))}
-                </div>
-              </>
+              <div className="card p-5 overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="text-left text-[10px] uppercase tracking-wide text-gray-400 font-semibold border-b border-gray-200">
+                      <th className="pb-2.5 pr-3">Proyecto</th>
+                      <th className="pb-2.5 pr-3">Dependencia</th>
+                      <th className="pb-2.5 pr-3">Estatus</th>
+                      <th className="pb-2.5 pr-3 w-40">Avance</th>
+                      <th className="pb-2.5 pr-3">Responsable</th>
+                      <th className="pb-2.5 pr-3">Fecha límite</th>
+                      <th className="pb-2.5"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {proyectos.map(p => (
+                      <FilaProyectoCartera key={p.id} proyecto={p} carteraId={id} onCambio={recargar} />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
-          </div>
+          </section>
 
           {/* Indicadores — misma tarjeta que el Tablero (IndicadoresResumen
               en Inicio.jsx), agrupados por tipo, agregando los de todos los
@@ -395,54 +388,6 @@ export default function CarteraDetalle() {
 
           {resumen.vencidos.length === 0 && resumen.por_vencer.length === 0 && resumen.riesgos.length === 0 && (
             <p className="text-sm text-gray-400 italic text-center py-6">Sin acciones vencidas, por vencer ni riesgos abiertos en esta cartera.</p>
-          )}
-        </div>
-      )}
-
-      {/* Proyectos */}
-      {pestanaActiva === 'proyectos' && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500">{proyectos.length} proyecto(s) en esta cartera</p>
-            <div className="flex items-center gap-2">
-              <Link to={`/proyectos/nuevo?cartera_id=${id}`} className="btn-secondary text-xs flex items-center gap-1.5">
-                <Plus size={14} /> Nuevo proyecto
-              </Link>
-              <button onClick={() => setMostrarAgregar(true)} className="btn-primary text-xs flex items-center gap-1.5">
-                <Plus size={14} /> Agregar existentes
-              </button>
-            </div>
-          </div>
-
-          {proyectos.length === 0 ? (
-            <EmptyState
-              icono={FolderKanban}
-              titulo="Sin proyectos"
-              subtitulo="Esta cartera todavía no tiene proyectos asociados."
-              accion="Agregar proyectos"
-              onAccion={() => setMostrarAgregar(true)}
-            />
-          ) : (
-            <div className="card p-5 overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="text-left text-[10px] uppercase tracking-wide text-gray-400 font-semibold border-b border-gray-200">
-                    <th className="pb-2.5 pr-3">Proyecto</th>
-                    <th className="pb-2.5 pr-3">Dependencia</th>
-                    <th className="pb-2.5 pr-3">Estatus</th>
-                    <th className="pb-2.5 pr-3 w-40">Avance</th>
-                    <th className="pb-2.5 pr-3">Responsable</th>
-                    <th className="pb-2.5 pr-3">Fecha límite</th>
-                    <th className="pb-2.5"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {proyectos.map(p => (
-                    <FilaProyectoCartera key={p.id} proyecto={p} carteraId={id} onCambio={recargar} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
           )}
         </div>
       )}
