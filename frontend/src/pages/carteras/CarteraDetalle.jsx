@@ -14,7 +14,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Briefcase, Pencil, Trash2, AlertTriangle, Clock,
   LayoutDashboard, FolderKanban, Plus, Star, X, Loader2, Building2,
-  Calendar, Map, Activity,
+  Calendar, Map, Activity, Shield,
 } from 'lucide-react';
 import { useCartera } from '../../hooks/useCarteras';
 import { useUI } from '../../context/UIContext';
@@ -25,6 +25,7 @@ import ModalAgregarProyectos from '../../components/carteras/ModalAgregarProyect
 import CronogramaCartera from '../../components/carteras/CronogramaCartera';
 import MapaCartera from '../../components/carteras/MapaCartera';
 import ActividadCartera from '../../components/carteras/ActividadCartera';
+import TarjetaProyecto from '../../components/proyectos/TarjetaProyecto';
 
 const PESTANAS = [
   { id: 'resumen', etiqueta: 'Resumen', icono: LayoutDashboard },
@@ -49,12 +50,19 @@ const COLOR_DIST = {
   sin_iniciar: 'bg-gray-300',
 };
 
-function TarjetaKPI({ etiqueta, valor, color = 'text-gray-900', nota }) {
+// Misma tarjeta de métrica que usa el Tablero (Inicio.jsx) — icono en
+// círculo de color + número grande + etiqueta. Se replica aquí en vez de
+// importarla porque Inicio.jsx no la exporta como componente aparte.
+function MetricaCard({ icono: Icono, titulo, valor, color }) {
   return (
-    <div className="card p-4">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1.5">{etiqueta}</p>
-      <p className={`text-2xl font-extrabold tabular-nums ${color}`}>{valor}</p>
-      {nota && <p className="text-[11px] text-gray-400 mt-1 truncate">{nota}</p>}
+    <div className="card p-4 flex items-center gap-4">
+      <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${color}`}>
+        <Icono size={22} />
+      </div>
+      <div>
+        <p className="text-2xl font-bold text-gray-900">{valor}</p>
+        <p className="text-xs text-gray-500">{titulo}</p>
+      </div>
     </div>
   );
 }
@@ -149,21 +157,33 @@ export default function CarteraDetalle() {
         </div>
       </div>
 
-      {/* Resumen */}
+      {/* Resumen — mismo lenguaje visual que el Tablero (Inicio.jsx),
+          pero acotado a los proyectos de esta cartera en vez de a los
+          proyectos del usuario. */}
       {pestanaActiva === 'resumen' && resumen && (
-        <div className="space-y-5">
-          {/* KPIs */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-            <TarjetaKPI etiqueta="Proyectos" valor={resumen.total_proyectos} />
-            <TarjetaKPI etiqueta="En riesgo" valor={resumen.proyectos_en_riesgo} color="text-red-600"
-              nota="vencidos o con riesgo reportado" />
-            <TarjetaKPI etiqueta="Por vencer (30 días)" valor={resumen.por_vencer.length} color="text-amber-600"
-              nota={resumen.por_vencer[0] ? `${resumen.por_vencer[0].nombre} (${resumen.por_vencer[0].proyecto_nombre}) — ${resumen.por_vencer[0].dias_restantes}d` : undefined} />
-            <TarjetaKPI etiqueta="Concluidos" valor={resumen.distribucion.concluido} color="text-green-600"
-              nota={`de ${resumen.total_proyectos} proyecto(s)`} />
+        <div className="space-y-6">
+          {/* Métricas — igual a las 4 tarjetas del Tablero */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <MetricaCard icono={FolderKanban} titulo="Proyectos" valor={resumen.total_proyectos} color="bg-guinda-50 text-guinda-600" />
+            <MetricaCard icono={AlertTriangle} titulo="Acciones vencidas" valor={resumen.vencidos.length} color="bg-red-50 text-red-600" />
+            <MetricaCard icono={Clock} titulo="Por vencer (30d)" valor={resumen.por_vencer.length} color="bg-yellow-50 text-yellow-600" />
+            <MetricaCard icono={Shield} titulo="Riesgos abiertos" valor={resumen.riesgos.length} color="bg-orange-50 text-orange-600" />
           </div>
 
-          {/* Distribución por estado */}
+          {/* Proyectos de la cartera — igual a "Mis proyectos" del Tablero */}
+          {proyectos.length > 0 && (
+            <section>
+              <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5 text-guinda-700">
+                <FolderKanban size={14} /> Proyectos de esta cartera
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {proyectos.map(p => <TarjetaProyecto key={p.id} proyecto={p} />)}
+              </div>
+            </section>
+          )}
+
+          {/* Distribución por estado — valor agregado propio de la cartera:
+              nunca un % único, ver carteras.queries.js */}
           <div className="card p-5">
             <h2 className="text-sm font-semibold text-gray-700 mb-1">Distribución por estado</h2>
             <p className="text-xs text-gray-400 mb-3">
@@ -190,62 +210,88 @@ export default function CarteraDetalle() {
             )}
           </div>
 
-          {/* Atención inmediata: vencidos + riesgos abiertos, juntos */}
-          <div className="card p-5">
-            <h2 className="text-sm font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
-              <AlertTriangle size={14} className="text-red-500" /> Atención inmediata
-            </h2>
-            <p className="text-xs text-gray-400 mb-3">Acciones vencidas o riesgos abiertos reportados por su responsable, en los proyectos de esta cartera.</p>
-            {resumen.vencidos.length === 0 && resumen.riesgos.length === 0 ? (
-              <p className="text-sm text-gray-400 italic">Sin acciones vencidas ni riesgos abiertos en esta cartera.</p>
-            ) : (
-              <div className="space-y-2.5 max-h-96 overflow-y-auto">
-                {resumen.vencidos.map(a => (
-                  <Link key={`v-${a.id}`} to={`/proyectos/${a.id_proyecto}`}
-                    className="flex gap-3 items-start bg-red-50 border border-red-100 rounded-lg p-3 hover:border-red-300 transition-colors">
-                    <AlertTriangle size={15} className="text-red-500 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-red-900 leading-relaxed">
-                      <strong>{a.nombre}</strong> — vencida hace {a.dias_atraso} día{a.dias_atraso !== 1 ? 's' : ''}.
-                      <span className="text-red-700"> {a.proyecto_nombre}{a.etapa_nombre ? ` · ${a.etapa_nombre}` : ''}{a.dg_siglas ? ` · ${a.dg_siglas}` : ''}</span>
-                    </p>
-                  </Link>
-                ))}
-                {resumen.riesgos.map(r => (
-                  <Link key={`r-${r.id}`} to={`/proyectos/${r.id_proyecto}`}
-                    className="flex gap-3 items-start bg-red-50 border border-red-100 rounded-lg p-3 hover:border-red-300 transition-colors">
-                    <AlertTriangle size={15} className="text-red-500 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-red-900 leading-relaxed">
-                      <strong>{r.proyecto_nombre}</strong> — riesgo reportado ({r.nivel}): {r.titulo}.
-                      {r.responsable_nombre && <span className="text-red-700"> {r.responsable_nombre}{r.dg_siglas ? ` · ${r.dg_siglas}` : ''}</span>}
-                    </p>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Acciones vencidas + Por vencer — mismo bloque de dos columnas
+              y mismo estilo compacto de punto de color que el Tablero */}
+          {(resumen.vencidos.length > 0 || resumen.por_vencer.length > 0) && (
+            <div className={`grid grid-cols-1 gap-6 ${resumen.vencidos.length > 0 && resumen.por_vencer.length > 0 ? 'lg:grid-cols-2' : ''}`}>
+              {resumen.vencidos.length > 0 && (
+                <div className="card p-5">
+                  <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5 text-guinda-700">
+                    <AlertTriangle size={14} className="text-red-500" /> Acciones vencidas
+                  </h2>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {resumen.vencidos.map(a => (
+                      <Link
+                        key={a.id}
+                        to={`/proyectos/${a.id_proyecto}?tab=seguimiento&nodo=${a.id}`}
+                        className="flex items-start gap-2 p-2 rounded hover:bg-red-50 border border-transparent hover:border-red-100 transition"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5 flex-shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs text-gray-800 truncate font-medium">{a.nombre}</p>
+                          <p className="text-[10px] text-gray-500">{a.proyecto_nombre}{a.etapa_nombre ? ` › ${a.etapa_nombre}` : ''} · -{a.dias_atraso}d</p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {resumen.por_vencer.length > 0 && (
+                <div className="card p-5">
+                  <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5 text-guinda-700">
+                    <Clock size={14} className="text-yellow-600" /> Por vencer (30 días)
+                  </h2>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {resumen.por_vencer.map(a => (
+                      <Link
+                        key={a.id}
+                        to={`/proyectos/${a.id_proyecto}?tab=seguimiento&nodo=${a.id}`}
+                        className="flex items-start gap-2 p-2 rounded hover:bg-yellow-50 border border-transparent hover:border-yellow-100 transition"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 mt-1.5 flex-shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs text-gray-800 truncate font-medium">{a.nombre}</p>
+                          <p className="text-[10px] text-gray-500">{a.proyecto_nombre}{a.etapa_nombre ? ` › ${a.etapa_nombre}` : ''} · {a.dias_restantes}d restantes</p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
-          {/* Próximos vencimientos (acciones aún no vencidas, dentro de 30 días) */}
-          <div className="card p-5">
-            <h2 className="text-sm font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
-              <Clock size={14} className="text-amber-500" /> Próximos vencimientos ({resumen.por_vencer.length})
-            </h2>
-            <p className="text-xs text-gray-400 mb-3">Acciones con fecha límite en los próximos 30 días, en los proyectos de esta cartera.</p>
-            {resumen.por_vencer.length === 0 ? (
-              <p className="text-xs text-gray-400 italic">Sin acciones por vencer en los próximos 30 días.</p>
-            ) : (
-              <div className="space-y-2 max-h-80 overflow-y-auto">
-                {resumen.por_vencer.map(a => (
-                  <Link key={a.id} to={`/proyectos/${a.id_proyecto}`} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors gap-2">
-                    <span className="text-xs text-gray-700 min-w-0">
-                      <span className="truncate block">{a.nombre}</span>
-                      <span className="text-[10.5px] text-gray-400 truncate block">{a.proyecto_nombre}{a.etapa_nombre ? ` · ${a.etapa_nombre}` : ''}</span>
-                    </span>
-                    <span className="text-[11px] text-amber-600 font-medium flex-shrink-0">en {a.dias_restantes}d — {a.fecha_fin?.slice(0, 10)}</span>
+          {/* Riesgos abiertos — misma grilla de 3 columnas del Tablero */}
+          {resumen.riesgos.length > 0 && (
+            <div className="card p-5">
+              <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5 text-guinda-700">
+                <Shield size={14} className="text-orange-500" /> Riesgos abiertos
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {resumen.riesgos.map(r => (
+                  <Link
+                    key={r.id}
+                    to={`/proyectos/${r.id_proyecto}?tab=seguimiento&nodo=${r.entidad_id}`}
+                    className="flex items-center gap-2 p-2 rounded hover:bg-orange-50 border border-gray-100 hover:border-orange-200 transition"
+                  >
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                      r.nivel === 'Critico' ? 'bg-red-600' :
+                      r.nivel === 'Alto' ? 'bg-orange-500' :
+                      r.nivel === 'Medio' ? 'bg-yellow-500' : 'bg-gray-400'
+                    }`} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-gray-800 truncate">{r.titulo}</p>
+                      <p className="text-[10px] text-gray-500">{r.proyecto_nombre} · {r.nivel}</p>
+                    </div>
                   </Link>
                 ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
+
+          {resumen.vencidos.length === 0 && resumen.por_vencer.length === 0 && resumen.riesgos.length === 0 && (
+            <p className="text-sm text-gray-400 italic text-center py-6">Sin acciones vencidas, por vencer ni riesgos abiertos en esta cartera.</p>
+          )}
         </div>
       )}
 
@@ -413,7 +459,7 @@ function FilaProyectoCartera({ proyecto, carteraId, onCambio }) {
         </div>
       </td>
       <td className="py-2.5 pr-3 text-xs text-gray-600 whitespace-nowrap">{proyecto.creador_nombre || '—'}</td>
-      <td className="py-2.5 pr-3 text-xs text-gray-600 whitespace-nowrap">{proyecto.fecha_limite?.slice(0, 10) || '—'}</td>
+      <td className="py-2.5 pr-3 text-xs text-gray-600 whitespace-nowrap">{(proyecto.fecha_fin_efectiva || proyecto.fecha_limite)?.slice(0, 10) || '—'}</td>
       <td className="py-2.5 text-right whitespace-nowrap">
         {!proyecto.es_principal && (
           <button onClick={marcarPrincipal} disabled={procesando} className="text-[11px] text-gray-400 hover:text-guinda-600 disabled:opacity-40 mr-2">

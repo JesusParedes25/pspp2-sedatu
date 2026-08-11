@@ -1,9 +1,16 @@
 /**
  * ARCHIVO: CronogramaCartera.jsx
  * PROPÓSITO: Línea de tiempo consolidada de la cartera — una barra por
- *            proyecto (fecha_inicio a fecha_limite), no por etapa/acción
- *            (eso ya existe por proyecto en GanttCronograma.jsx). Sirve
- *            para ver traslapes entre los proyectos de la cartera.
+ *            proyecto, no por etapa/acción (eso ya existe por proyecto
+ *            individual en GanttCronograma.jsx). Sirve para ver
+ *            traslapes entre los proyectos de la cartera.
+ *
+ * Usa fecha_inicio_efectiva/fecha_fin_efectiva (carteras.queries.js):
+ * proyectos.fecha_inicio/fecha_limite son campos manuales opcionales del
+ * formulario de creación y casi siempre quedan vacíos — la fecha real se
+ * calcula a partir de etapas.fecha_inicio/fecha_fin (que a su vez se
+ * recalculan automáticamente desde acciones/tareas), con el campo del
+ * proyecto solo como respaldo si la etapa no tiene fechas.
  */
 import { Link } from 'react-router-dom';
 import { Calendar } from 'lucide-react';
@@ -22,7 +29,7 @@ function colorBarra(p) {
 
 export default function CronogramaCartera({ proyectos = [] }) {
   const conFechas = proyectos
-    .map(p => ({ ...p, ini: parseFechaLocal(p.fecha_inicio), fin: parseFechaLocal(p.fecha_limite) }))
+    .map(p => ({ ...p, ini: parseFechaLocal(p.fecha_inicio_efectiva), fin: parseFechaLocal(p.fecha_fin_efectiva) }))
     .filter(p => p.ini && p.fin && p.fin > p.ini);
 
   if (conFechas.length === 0) {
@@ -56,7 +63,7 @@ export default function CronogramaCartera({ proyectos = [] }) {
         <Calendar size={14} className="text-guinda-500" /> Cronograma consolidado
       </h2>
       <p className="text-xs text-gray-400 mb-4">
-        Ventana de ejecución (fecha de inicio a fecha límite) de cada proyecto de la cartera, en una sola línea de tiempo.
+        Ventana de ejecución de cada proyecto de la cartera (calculada a partir de sus etapas), en una sola línea de tiempo.
       </p>
       <div className="overflow-x-auto">
         <div style={{ minWidth: 720 }}>
@@ -86,7 +93,7 @@ export default function CronogramaCartera({ proyectos = [] }) {
                     <div
                       className={`absolute top-0.5 h-4 rounded-full flex items-center px-2 text-white text-[9px] font-bold overflow-hidden whitespace-nowrap ${colorBarra(p)}`}
                       style={{ left: `${izq}%`, width: `${ancho}%` }}
-                      title={`${p.nombre}: ${p.fecha_inicio?.slice(0, 10)} a ${p.fecha_limite?.slice(0, 10)} — ${avance}%`}
+                      title={`${p.nombre}: ${p.fecha_inicio_efectiva?.slice(0, 10)} a ${p.fecha_fin_efectiva?.slice(0, 10)} — ${avance}%`}
                     >
                       {avance}%
                     </div>

@@ -137,7 +137,22 @@ async function listarProyectosDeCartera(carteraId) {
       dg.siglas AS dg_siglas,
       u.nombre_completo AS creador_nombre,
       (SELECT COUNT(*) FROM riesgos r WHERE ${COND_RIESGO_DE_PROYECTO} AND r.estado IN ('Abierto','En_mitigacion')) AS riesgos_abiertos,
-      ${COND_PROYECTO_VENCIDO} AS vencido
+      ${COND_PROYECTO_VENCIDO} AS vencido,
+      -- proyectos.fecha_inicio/fecha_limite son campos manuales opcionales
+      -- del formulario de creación y casi siempre quedan vacíos. La fecha
+      -- real y confiable vive en etapas.fecha_inicio/fecha_fin, que se
+      -- recalcula automáticamente desde acciones/tareas (ver
+      -- utils/recalculos.js y migración 043) — se usa como fuente
+      -- principal para el Cronograma, con el campo del proyecto de
+      -- respaldo si la etapa no tiene fechas.
+      COALESCE(
+        (SELECT MIN(e.fecha_inicio) FROM etapas e WHERE e.id_proyecto = p.id AND e.fecha_inicio IS NOT NULL),
+        p.fecha_inicio
+      ) AS fecha_inicio_efectiva,
+      COALESCE(
+        (SELECT MAX(e.fecha_fin) FROM etapas e WHERE e.id_proyecto = p.id AND e.fecha_fin IS NOT NULL),
+        p.fecha_limite
+      ) AS fecha_fin_efectiva
     FROM cartera_proyecto cp
     JOIN proyectos p ON p.id = cp.proyecto_id AND p.deleted_at IS NULL
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
@@ -174,7 +189,8 @@ async function resumenCartera(carteraId) {
   }
 
   const { rows: riesgos } = await pool.query(`
-    SELECT r.id, r.titulo, r.nivel, r.descripcion, r.tipo, p.id AS id_proyecto, p.nombre AS proyecto_nombre,
+    SELECT r.id, r.titulo, r.nivel, r.descripcion, r.tipo, r.entidad_tipo, r.entidad_id,
+      p.id AS id_proyecto, p.nombre AS proyecto_nombre,
       dg.siglas AS dg_siglas, u.nombre_completo AS responsable_nombre
     FROM cartera_proyecto cp
     JOIN proyectos p ON p.id = cp.proyecto_id AND p.deleted_at IS NULL
