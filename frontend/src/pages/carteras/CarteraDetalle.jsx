@@ -3,17 +3,18 @@
  * PROPÓSITO: Tablero de una cartera de proyectos — pestañas Resumen
  *            (distribución por estado, riesgos, próximos vencimientos;
  *            deliberadamente SIN un % de avance único, ver
- *            carteras.queries.js) y Proyectos (alta/baja de proyectos,
- *            marcar cartera principal).
- *
- * Cronograma, Mapa y Actividad (vistas cruzadas de todos los proyectos
- * de la cartera) quedan pendientes para una siguiente iteración.
+ *            carteras.queries.js), Proyectos (alta/baja de proyectos,
+ *            marcar cartera principal), Cronograma (línea de tiempo
+ *            consolidada por proyecto), Mapa (territorio filtrado a
+ *            los proyectos de la cartera) y Actividad (timeline
+ *            cruzado de todos sus proyectos).
  */
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Briefcase, Pencil, Trash2, AlertTriangle, Clock,
   LayoutDashboard, FolderKanban, Plus, Star, X, Loader2, Building2,
+  Calendar, Map, Activity,
 } from 'lucide-react';
 import { useCartera } from '../../hooks/useCarteras';
 import { useUI } from '../../context/UIContext';
@@ -21,10 +22,16 @@ import * as carterasApi from '../../api/carteras';
 import EmptyState from '../../components/common/EmptyState';
 import ModalCartera from '../../components/carteras/ModalCartera';
 import ModalAgregarProyectos from '../../components/carteras/ModalAgregarProyectos';
+import CronogramaCartera from '../../components/carteras/CronogramaCartera';
+import MapaCartera from '../../components/carteras/MapaCartera';
+import ActividadCartera from '../../components/carteras/ActividadCartera';
 
 const PESTANAS = [
   { id: 'resumen', etiqueta: 'Resumen', icono: LayoutDashboard },
   { id: 'proyectos', etiqueta: 'Proyectos', icono: FolderKanban },
+  { id: 'cronograma', etiqueta: 'Cronograma', icono: Calendar },
+  { id: 'mapa', etiqueta: 'Mapa', icono: Map },
+  { id: 'actividad', etiqueta: 'Actividad', icono: Activity },
 ];
 
 const ETIQUETA_DIST = {
@@ -284,6 +291,21 @@ export default function CarteraDetalle() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Cronograma */}
+      {pestanaActiva === 'cronograma' && (
+        <CronogramaCartera proyectos={proyectos} />
+      )}
+
+      {/* Mapa */}
+      {pestanaActiva === 'mapa' && (
+        <MapaCartera proyectoIds={proyectos.map(p => p.id)} />
+      )}
+
+      {/* Actividad */}
+      {pestanaActiva === 'actividad' && (
+        <ActividadCartera carteraId={id} />
       )}
 
       {mostrarEditar && (

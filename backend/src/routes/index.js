@@ -232,6 +232,7 @@ router.delete('/carteras/:id', carterasController.eliminar);
 router.get('/carteras/:id/confirmar-eliminar', carterasController.confirmarEliminar);
 router.get('/carteras/:id/proyectos', carterasController.listarProyectos);
 router.get('/carteras/:id/resumen', carterasController.resumen);
+router.get('/carteras/:id/actividad', carterasController.actividad);
 router.post('/carteras/:id/proyectos', carterasController.agregarProyectos);
 router.delete('/carteras/:id/proyectos/:proyectoId', carterasController.quitarProyecto);
 

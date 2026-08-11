@@ -11,6 +11,18 @@
  */
 const pool = require('../pool');
 
+// Un riesgo puede vivir en cualquier nivel del proyecto — Proyecto, Etapa,
+// Acción o Subacción (ver riesgos.controller.js) — casi nunca se crea al
+// nivel "Proyecto" directamente, la UI real los crea desde NodoCard en
+// etapas/acciones. Filtrar solo por entidad_tipo='Proyecto' (como hacía
+// antes esta consulta) dejaba fuera casi todos los riesgos reales.
+const COND_RIESGO_DE_PROYECTO = `(
+  (r.entidad_tipo = 'Proyecto' AND r.entidad_id = p.id)
+  OR (r.entidad_tipo = 'Etapa' AND r.entidad_id IN (SELECT id FROM etapas WHERE id_proyecto = p.id))
+  OR (r.entidad_tipo = 'Accion' AND r.entidad_id IN (SELECT id FROM acciones WHERE id_proyecto = p.id AND id_accion_padre IS NULL))
+  OR (r.entidad_tipo = 'Subaccion' AND r.entidad_id IN (SELECT id FROM acciones WHERE id_proyecto = p.id AND id_accion_padre IS NOT NULL))
+)`;
+
 async function listarCarteras({ busqueda } = {}) {
   const condiciones = [];
   const parametros = [];
@@ -29,7 +41,7 @@ async function listarCarteras({ busqueda } = {}) {
       (
         SELECT COUNT(DISTINCT p.id) FROM cartera_proyecto cp
         JOIN proyectos p ON p.id = cp.proyecto_id AND p.deleted_at IS NULL
-        LEFT JOIN riesgos r ON r.entidad_tipo = 'Proyecto' AND r.entidad_id = p.id AND r.estado IN ('Abierto','En_mitigacion')
+        LEFT JOIN riesgos r ON ${COND_RIESGO_DE_PROYECTO} AND r.estado IN ('Abierto','En_mitigacion')
         WHERE cp.cartera_id = c.id
           AND (
             (p.estado NOT IN ('Concluido','Cancelado') AND p.fecha_limite IS NOT NULL AND p.fecha_limite < CURRENT_DATE)
@@ -106,11 +118,11 @@ async function contarPrincipalesQueQuedanSinCartera(carteraId) {
 
 async function listarProyectosDeCartera(carteraId) {
   const { rows } = await pool.query(`
-    SELECT p.id, p.nombre, p.estado, p.porcentaje_calculado, p.fecha_limite, p.id_creador,
+    SELECT p.id, p.nombre, p.estado, p.porcentaje_calculado, p.fecha_inicio, p.fecha_limite, p.id_creador,
       cp.es_principal,
       dg.siglas AS dg_siglas,
       u.nombre_completo AS creador_nombre,
-      (SELECT COUNT(*) FROM riesgos r WHERE r.entidad_tipo = 'Proyecto' AND r.entidad_id = p.id AND r.estado IN ('Abierto','En_mitigacion')) AS riesgos_abiertos,
+      (SELECT COUNT(*) FROM riesgos r WHERE ${COND_RIESGO_DE_PROYECTO} AND r.estado IN ('Abierto','En_mitigacion')) AS riesgos_abiertos,
       (p.fecha_limite IS NOT NULL AND p.fecha_limite < CURRENT_DATE AND p.estado NOT IN ('Concluido','Cancelado')) AS vencido
     FROM cartera_proyecto cp
     JOIN proyectos p ON p.id = cp.proyecto_id AND p.deleted_at IS NULL
@@ -150,7 +162,7 @@ async function resumenCartera(carteraId) {
       dg.siglas AS dg_siglas, u.nombre_completo AS responsable_nombre
     FROM cartera_proyecto cp
     JOIN proyectos p ON p.id = cp.proyecto_id AND p.deleted_at IS NULL
-    JOIN riesgos r ON r.entidad_tipo = 'Proyecto' AND r.entidad_id = p.id AND r.estado IN ('Abierto','En_mitigacion')
+    JOIN riesgos r ON ${COND_RIESGO_DE_PROYECTO} AND r.estado IN ('Abierto','En_mitigacion')
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
     LEFT JOIN usuarios u ON u.id = r.id_responsable
     WHERE cp.cartera_id = $1
@@ -237,6 +249,27 @@ async function quitarProyecto(carteraId, proyectoId) {
   return rows[0] || null;
 }
 
+// Actividad cruzada de todos los proyectos de la cartera — reusa
+// actividad_log (la misma tabla del panel "Actividad reciente" de
+// Inicio, ver inicio.queries.js), acotada a los proyectos de esta
+// cartera en vez de a los proyectos del usuario.
+async function actividadCartera(carteraId, limite = 50) {
+  const { rows } = await pool.query(`
+    SELECT
+      al.id, al.tipo, al.titulo, al.descripcion, al.entidad_tipo, al.entidad_id,
+      al.metadata, al.created_at,
+      al.id_proyecto AS proyecto_id, p.nombre AS proyecto_nombre,
+      u.nombre_completo AS actor, u.id AS actor_id
+    FROM actividad_log al
+    JOIN cartera_proyecto cp ON cp.proyecto_id = al.id_proyecto AND cp.cartera_id = $1
+    JOIN proyectos p ON p.id = al.id_proyecto
+    LEFT JOIN usuarios u ON u.id = al.id_usuario
+    ORDER BY al.created_at DESC
+    LIMIT $2
+  `, [carteraId, limite]);
+  return rows;
+}
+
 // Cartera(s) de un proyecto — usado por el listado de "Todos los
 // proyectos" para mostrar a qué cartera pertenece cada uno (solo la
 // principal, que es la relevante para no confundir).
@@ -265,4 +298,5 @@ module.exports = {
   agregarProyectos,
   quitarProyecto,
   obtenerCarteraPrincipalDeProyectos,
+  actividadCartera,
 };

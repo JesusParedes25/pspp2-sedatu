@@ -80,6 +80,14 @@ async function resumen(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// GET /carteras/:id/actividad
+async function actividad(req, res, next) {
+  try {
+    const datos = await carterasQueries.actividadCartera(req.params.id);
+    res.json({ datos });
+  } catch (err) { next(err); }
+}
+
 // POST /carteras/:id/proyectos  { proyecto_ids: [...], es_principal }
 async function agregarProyectos(req, res, next) {
   try {
@@ -113,6 +121,7 @@ module.exports = {
   confirmarEliminar,
   listarProyectos,
   resumen,
+  actividad,
   agregarProyectos,
   quitarProyecto,
 };

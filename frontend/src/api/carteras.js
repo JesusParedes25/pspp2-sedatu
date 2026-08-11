@@ -44,6 +44,11 @@ export async function obtenerResumenCartera(id) {
   return data;
 }
 
+export async function obtenerActividadCartera(id) {
+  const { data } = await client.get(`/carteras/${id}/actividad`);
+  return data;
+}
+
 export async function agregarProyectosACartera(id, proyectoIds, esPrincipal = false) {
   const { data } = await client.post(`/carteras/${id}/proyectos`, { proyecto_ids: proyectoIds, es_principal: esPrincipal });
   return data;
