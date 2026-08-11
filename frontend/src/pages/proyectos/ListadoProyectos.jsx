@@ -154,7 +154,7 @@ function VistaAgrupada() {
 
       {/* Carteras */}
       <div>
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">Carteras {!cargandoCarteras && `(${carteras.length})`}</h2>
+        <h2 className="text-sm font-semibold text-gray-700 mb-3">Carteras de Proyectos {!cargandoCarteras && `(${carteras.length})`}</h2>
         {cargandoCarteras ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[1, 2, 3].map(i => <div key={i} className="card p-5 animate-pulse h-32" />)}
@@ -172,7 +172,7 @@ function VistaAgrupada() {
 
       {/* Proyectos sin cartera */}
       <div>
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">Proyectos sin cartera {!cargandoSinCartera && `(${sinCartera.length})`}</h2>
+        <h2 className="text-sm font-semibold text-gray-700 mb-3">Proyectos {!cargandoSinCartera && `(${sinCartera.length})`}</h2>
         {cargandoSinCartera ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[1, 2, 3].map(i => <div key={i} className="card p-5 animate-pulse h-40" />)}
