@@ -14,7 +14,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Briefcase, Pencil, Trash2, AlertTriangle, Clock,
   LayoutDashboard, FolderKanban, Plus, Star, X, Loader2, Building2,
-  Calendar, Map, Activity, Shield,
+  Calendar, Map, Activity, Shield, Target,
 } from 'lucide-react';
 import { useCartera } from '../../hooks/useCarteras';
 import { useUI } from '../../context/UIContext';
@@ -63,6 +63,63 @@ function MetricaCard({ icono: Icono, titulo, valor, color }) {
         <p className="text-2xl font-bold text-gray-900">{valor}</p>
         <p className="text-xs text-gray-500">{titulo}</p>
       </div>
+    </div>
+  );
+}
+
+const GUINDA = '#7B1C3E';
+
+// Misma tarjeta de indicadores que el Tablero (IndicadoresResumen en
+// Inicio.jsx) — agrupa por tipo, muestra barra de meta si tiene meta_global
+// o el valor crudo si es numeralía sin meta. Se replica aquí porque
+// Inicio.jsx no la exporta como componente aparte.
+function IndicadoresResumen({ indicadores }) {
+  const grouped = {};
+  for (const ind of indicadores) {
+    const tipo = ind.tipo || 'Otro';
+    if (!grouped[tipo]) grouped[tipo] = [];
+    grouped[tipo].push(ind);
+  }
+
+  return (
+    <div className="space-y-4">
+      {Object.entries(grouped).map(([tipo, inds]) => (
+        <div key={tipo}>
+          <p className="text-xs font-medium text-gray-700 mb-2">{tipo}</p>
+          <div className="space-y-2">
+            {inds.map(ind => {
+              const meta = parseFloat(ind.meta_global) || 0;
+              const valor = parseFloat(ind.valor_actual) || 0;
+              const tieneMeta = meta > 0;
+              const pct = tieneMeta ? Math.min(100, (valor / meta) * 100) : null;
+              const unidad = ind.unidad_personalizada || ind.unidad || '';
+              return (
+                <div key={ind.id} className="border border-gray-100 rounded-lg p-2.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs text-gray-800 font-medium leading-snug break-words">{ind.nombre}</p>
+                      <p className="text-[10px] text-gray-500 leading-snug break-words">{ind.proyecto_nombre} · {ind.dg_siglas}</p>
+                    </div>
+                    {!tieneMeta && (
+                      <p className="text-xs font-bold flex-shrink-0 whitespace-nowrap" style={{ color: GUINDA }}>
+                        {valor.toLocaleString()} {unidad}
+                      </p>
+                    )}
+                  </div>
+                  {tieneMeta && (
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${pct || 0}%`, backgroundColor: GUINDA }} />
+                      </div>
+                      <span className="text-[10px] font-semibold text-gray-600 flex-shrink-0">{pct !== null ? `${pct.toFixed(0)}%` : '—'}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -209,6 +266,18 @@ export default function CarteraDetalle() {
               </>
             )}
           </div>
+
+          {/* Indicadores — misma tarjeta que el Tablero (IndicadoresResumen
+              en Inicio.jsx), agrupados por tipo, agregando los de todos los
+              proyectos de la cartera */}
+          {resumen.indicadores.length > 0 && (
+            <div className="card p-5">
+              <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5 text-guinda-700">
+                <Target size={14} className="text-blue-500" /> Indicadores
+              </h2>
+              <IndicadoresResumen indicadores={resumen.indicadores} />
+            </div>
+          )}
 
           {/* Acciones vencidas + Por vencer — mismo bloque de dos columnas
               y mismo estilo compacto de punto de color que el Tablero */}

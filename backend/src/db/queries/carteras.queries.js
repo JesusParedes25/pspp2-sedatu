@@ -234,6 +234,25 @@ async function resumenCartera(carteraId) {
     ORDER BY a.fecha_fin ASC
   `, [carteraId]);
 
+  // Indicadores de los proyectos de la cartera — mismo criterio que
+  // obtenerIndicadoresAgregados en inicio.queries.js.
+  const { rows: indicadoresCrudos } = await pool.query(`
+    SELECT i.id, i.nombre, i.tipo, i.unidad, i.unidad_personalizada,
+      i.meta_global, i.valor_actual,
+      p.id AS proyecto_id, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas
+    FROM cartera_proyecto cp
+    JOIN indicadores i ON i.id_proyecto = cp.proyecto_id AND i.activo = true
+    JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL
+    LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
+    WHERE cp.cartera_id = $1
+    ORDER BY i.tipo, p.nombre, i.nombre
+  `, [carteraId]);
+  const indicadores = indicadoresCrudos.map(i => ({
+    ...i,
+    meta_global: parseFloat(i.meta_global) || 0,
+    valor_actual: parseFloat(i.valor_actual) || 0,
+  }));
+
   return {
     total_proyectos: proyectos.length,
     distribucion,
@@ -244,6 +263,7 @@ async function resumenCartera(carteraId) {
     riesgos,
     vencidos,
     por_vencer: porVencer,
+    indicadores,
   };
 }
 
