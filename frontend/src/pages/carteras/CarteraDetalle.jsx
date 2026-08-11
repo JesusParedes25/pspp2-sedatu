@@ -14,7 +14,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Briefcase, Pencil, Trash2, AlertTriangle, Clock,
   LayoutDashboard, FolderKanban, Plus, Star, X, Loader2, Building2,
-  Calendar, Map, Activity, Shield, Target,
+  Calendar, Map, Activity, Shield, Target, MessageSquare,
 } from 'lucide-react';
 import { useCartera } from '../../hooks/useCarteras';
 import { useUI } from '../../context/UIContext';
@@ -276,6 +276,31 @@ export default function CarteraDetalle() {
                 <Target size={14} className="text-blue-500" /> Indicadores
               </h2>
               <IndicadoresResumen indicadores={resumen.indicadores} />
+            </div>
+          )}
+
+          {/* Estatus cualitativo — nota corta de texto libre por etapa
+              (migración 047), mismo nivel que ya muestra el popover de
+              proyecto en el Tablero: "¿cómo va esto ahora mismo?" */}
+          {resumen.estatus_cualitativo.length > 0 && (
+            <div className="card p-5">
+              <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5 text-guinda-700">
+                <MessageSquare size={14} className="text-teal-600" /> Estatus cualitativo
+              </h2>
+              <div className="space-y-2.5 max-h-80 overflow-y-auto">
+                {resumen.estatus_cualitativo.map(e => (
+                  <Link
+                    key={e.id}
+                    to={`/proyectos/${e.id_proyecto}?tab=seguimiento&nodo=${e.id}`}
+                    className="block p-2.5 rounded-lg hover:bg-teal-50 border border-transparent hover:border-teal-100 transition"
+                  >
+                    <p className="text-[11px] text-gray-500 mb-0.5">
+                      {e.proyecto_nombre} › {e.etapa_nombre}{e.dg_siglas ? ` · ${e.dg_siglas}` : ''}
+                    </p>
+                    <p className="text-xs text-gray-800 italic">"{e.estatus_cualitativo}"</p>
+                  </Link>
+                ))}
+              </div>
             </div>
           )}
 

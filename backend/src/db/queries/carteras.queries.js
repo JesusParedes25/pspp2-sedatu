@@ -253,6 +253,22 @@ async function resumenCartera(carteraId) {
     valor_actual: parseFloat(i.valor_actual) || 0,
   }));
 
+  // Estatus cualitativo (nota corta de texto libre, migración 047) de las
+  // etapas de los proyectos de la cartera — mismo nivel que ya usa el
+  // popover de proyecto en Inicio.jsx (ProyectoCard), no a nivel acción ni
+  // tarea: es la señal de "¿cómo va esto ahora mismo?" por fase principal.
+  const { rows: estatusCualitativo } = await pool.query(`
+    SELECT e.id, e.nombre AS etapa_nombre, e.estatus_cualitativo, e.estatus_cualitativo_fecha,
+      p.id AS id_proyecto, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas
+    FROM cartera_proyecto cp
+    JOIN etapas e ON e.id_proyecto = cp.proyecto_id
+    JOIN proyectos p ON p.id = e.id_proyecto AND p.deleted_at IS NULL
+    LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
+    WHERE cp.cartera_id = $1
+      AND e.estatus_cualitativo IS NOT NULL AND e.estatus_cualitativo != ''
+    ORDER BY e.estatus_cualitativo_fecha DESC NULLS LAST
+  `, [carteraId]);
+
   return {
     total_proyectos: proyectos.length,
     distribucion,
@@ -261,6 +277,7 @@ async function resumenCartera(carteraId) {
       ...riesgos.map(r => r.id_proyecto),
     ]).size,
     riesgos,
+    estatus_cualitativo: estatusCualitativo,
     vencidos,
     por_vencer: porVencer,
     indicadores,
