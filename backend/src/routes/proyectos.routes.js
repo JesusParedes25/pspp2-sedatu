@@ -33,6 +33,9 @@ router.get('/:id', proyectosController.obtenerPorId);
 router.put('/:id', proyectosController.actualizar);
 router.delete('/:id', proyectosController.eliminar);
 
+// Crear un proyecto nuevo copiando la estructura de este
+router.post('/:id/duplicar', proyectosController.duplicar);
+
 // Imagen de encabezado
 router.post('/:id/imagen', upload.single('imagen'), proyectosController.subirImagen);
 

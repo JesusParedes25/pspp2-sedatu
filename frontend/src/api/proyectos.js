@@ -80,3 +80,10 @@ export async function subirImagenProyecto(id, archivo) {
   });
   return data;
 }
+
+// Crea un proyecto nuevo copiando la estructura de `id`.
+// `incluir` es { fechas, territorio, indicadores, participantes, archivos }.
+export async function duplicarProyecto(id, { nombre, incluir }) {
+  const { data } = await client.post(`/proyectos/${id}/duplicar`, { nombre, incluir });
+  return data;
+}

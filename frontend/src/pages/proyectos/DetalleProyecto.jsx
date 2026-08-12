@@ -19,13 +19,13 @@
  */
 import { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Star, FileText, Settings, BarChart3, LayoutDashboard, Search, Pencil, FileSpreadsheet, Trash2, Table2, MapPin, GitBranch, Loader2, ChevronUp, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Star, FileText, Settings, BarChart3, LayoutDashboard, Search, Pencil, FileSpreadsheet, Trash2, Table2, MapPin, GitBranch, Loader2, ChevronUp, ChevronDown, Copy } from 'lucide-react';
 import { prefersReducedMotion } from '../../utils/motion';
 import { useProyecto } from '../../hooks/useProyectos';
 import { useEtapas } from '../../hooks/useEtapas';
 import { useAuth } from '../../context/AuthContext';
 import { useUI } from '../../context/UIContext';
-import { usePermisosProyecto } from '../../hooks/usePermisos';
+import { usePermisosProyecto, usePermisosGlobales } from '../../hooks/usePermisos';
 import EstadoChip from '../../components/common/EstadoChip';
 import SelectorEstado from '../../components/common/SelectorEstado';
 import GanttCronograma from '../../components/seguimiento/GanttCronograma';
@@ -43,6 +43,7 @@ import EtapasAvancesMD from '../../components/seguimiento/EtapasAvancesMD';
 const VistaDiagrama = lazy(() => import('../../components/seguimiento/VistaDiagrama'));
 import ModalEditarProyecto from '../../components/proyectos/ModalEditarProyecto';
 import ModalEliminarProyecto from '../../components/proyectos/ModalEliminarProyecto';
+import ModalDuplicarProyecto from '../../components/proyectos/ModalDuplicarProyecto';
 import VistaLista from '../../components/seguimiento/VistaLista';
 import MapaProyecto from '../../components/seguimiento/MapaProyecto';
 import GenerarReporteBtn from '../../components/reportes/GenerarReporteBtn';
@@ -109,6 +110,7 @@ export default function DetalleProyecto() {
   const { mostrarToast, sidebarAbierto } = useUI();
   const { proyecto, cargando, error, recargar: recargarProyecto } = useProyecto(id);
   const permisos = usePermisosProyecto(proyecto);
+  const { puedeCrearProyecto } = usePermisosGlobales();
   const [dgSeleccionada, setDgSeleccionada] = useState(null);
   const { etapas, cargando: cargandoEtapas, recargar: recargarEtapas, recargarSilencioso: recargarEtapasSilencioso } = useEtapas(id, dgSeleccionada);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -211,6 +213,7 @@ export default function DetalleProyecto() {
   // Modal de edición de proyecto
   const [modalEditar, setModalEditar] = useState(false);
   const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
+  const [mostrarDuplicar, setMostrarDuplicar] = useState(false);
   const [eliminando, setEliminando] = useState(false);
 
   // Clave de refresco para el resumen — se incrementa en cada mutación relevante
@@ -427,6 +430,17 @@ export default function DetalleProyecto() {
                 <Pencil size={14} /> Editar
               </button>
             )}
+            {/* Duplicar: el punto natural para pedirlo es estando parado en
+                el proyecto que se quiere repetir. No exige permisos sobre
+                ESTE proyecto — crea uno nuevo aparte y no toca el original —
+                solo poder crear proyectos, que es lo que valida el backend. */}
+            {puedeCrearProyecto && (
+              <button onClick={() => setMostrarDuplicar(true)}
+                title="Crear un proyecto nuevo con esta misma estructura"
+                className="btn-secondary text-sm flex items-center gap-1.5">
+                <Copy size={14} /> Duplicar
+              </button>
+            )}
             {permisos.puedeEliminar && (
               <button onClick={() => setConfirmandoEliminar(true)}
                 className="text-sm flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-red-500 border border-red-200 hover:bg-red-50 transition-colors">
@@ -445,6 +459,18 @@ export default function DetalleProyecto() {
             </button>
           </div>
         </div>
+
+        {mostrarDuplicar && (
+          <ModalDuplicarProyecto
+            proyectoOrigen={proyecto}
+            onCerrar={() => setMostrarDuplicar(false)}
+            mostrarToast={mostrarToast}
+            onDuplicado={(nuevo) => {
+              setMostrarDuplicar(false);
+              navigate(`/proyectos/${nuevo.id}?tab=seguimiento`);
+            }}
+          />
+        )}
 
         {/* ─── Modal eliminar proyecto ─── */}
         {confirmandoEliminar && (

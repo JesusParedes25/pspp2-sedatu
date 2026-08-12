@@ -24,7 +24,8 @@ import * as etapasApi from '../../api/etapas';
 import * as accionesApi from '../../api/acciones';
 import * as carterasApi from '../../api/carteras';
 import ModalCartera from '../../components/carteras/ModalCartera';
-import { ImagePlus, X, Plus, Trash2, ChevronDown, Briefcase } from 'lucide-react';
+import { ImagePlus, X, Plus, Trash2, ChevronDown, Briefcase, Copy } from 'lucide-react';
+import ModalDuplicarProyecto from '../../components/proyectos/ModalDuplicarProyecto';
 
 const PASOS = [
   'Información general',
@@ -73,6 +74,7 @@ export default function NuevoProyecto() {
   const [direccionesArea, setDireccionesArea] = useState([]);
   const [carteras, setCarteras] = useState([]);
   const [mostrarNuevaCartera, setMostrarNuevaCartera] = useState(false);
+  const [mostrarDuplicar, setMostrarDuplicar] = useState(false);
 
   // Datos del formulario
   const [datos, setDatos] = useState({
@@ -233,6 +235,38 @@ export default function NuevoProyecto() {
         <h1 className="text-2xl font-bold text-gray-900">Nuevo proyecto</h1>
         <p className="text-sm text-gray-500 mt-1">Completa la información en {PASOS.length} pasos</p>
       </div>
+
+      {/* Atajo para el caso "ya tengo uno igual": se ofrece ANTES de empezar
+          a llenar los 5 pasos, que es cuando sirve. Después de invertir
+          tiempo en el formulario, enterarse de que existía un duplicado ya
+          no ayuda. Solo se muestra en el primer paso para no distraer a
+          quien ya decidió capturar desde cero. */}
+      {pasoActual === 0 && (
+        <div className="flex items-start justify-between gap-3 px-4 py-3 border border-gray-200 rounded-xl bg-gray-50">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-gray-800">¿Ya existe un proyecto con esta misma estructura?</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Duplícalo y ahórrate capturar las etapas y acciones de nuevo. Puedes elegir si traer
+              fechas, indicadores, territorio y más.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMostrarDuplicar(true)}
+            className="btn-secondary text-sm flex items-center gap-1.5 flex-shrink-0"
+          >
+            <Copy size={14} /> Duplicar uno existente
+          </button>
+        </div>
+      )}
+
+      {mostrarDuplicar && (
+        <ModalDuplicarProyecto
+          onCerrar={() => setMostrarDuplicar(false)}
+          mostrarToast={mostrarToast}
+          onDuplicado={(proyecto) => navigate(`/proyectos/${proyecto.id}?tab=seguimiento`)}
+        />
+      )}
 
       {/* Indicador de pasos */}
       <div className="flex items-center gap-2">

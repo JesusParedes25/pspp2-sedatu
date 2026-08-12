@@ -13,6 +13,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const proyectosQueries = require('../db/queries/proyectos.queries');
+const { duplicarProyecto } = require('../db/queries/duplicar.queries');
 const indicadoresQueries = require('../db/queries/indicadores.queries');
 const miembrosQueries = require('../db/queries/miembros.queries');
 const pool = require('../db/pool');
@@ -102,6 +103,54 @@ async function crear(req, res, next) {
     res.status(201).json({
       datos: proyecto,
       mensaje: 'Proyecto creado exitosamente'
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /proyectos/:id/duplicar — Crear un proyecto nuevo con la estructura
+// de este. Requiere poder ver el proyecto origen (mismo criterio que el
+// listado: si no aparece para este usuario, no puede copiarlo) y no ser
+// 'externo', que es quien no puede crear proyectos.
+async function duplicar(req, res, next) {
+  try {
+    if (req.usuario?.rol === 'externo') {
+      return res.status(403).json({
+        error: true,
+        mensaje: 'No tienes permisos para crear proyectos',
+        codigo: 'FORBIDDEN'
+      });
+    }
+
+    const nombre = (req.body?.nombre || '').trim();
+    if (!nombre) {
+      return res.status(400).json({
+        error: true,
+        mensaje: 'El proyecto nuevo necesita un nombre',
+        codigo: 'CAMPOS_REQUERIDOS'
+      });
+    }
+
+    const origen = await proyectosQueries.obtenerProyectoPorId(req.params.id);
+    if (!origen) {
+      return res.status(404).json({
+        error: true,
+        mensaje: 'Proyecto no encontrado',
+        codigo: 'NO_ENCONTRADO'
+      });
+    }
+
+    const resultado = await duplicarProyecto(
+      req.params.id,
+      { nombre, incluir: req.body?.incluir || {} },
+      req.usuario.id
+    );
+
+    res.status(201).json({
+      datos: resultado.proyecto,
+      resumen: resultado.copiado,
+      mensaje: 'Proyecto duplicado'
     });
   } catch (err) {
     next(err);
@@ -343,4 +392,4 @@ async function servirImagen(req, res, next) {
   }
 }
 
-module.exports = { listar, obtenerPorId, crear, actualizar, eliminar, listarEliminados, restaurar, eliminarDefinitivamente, obtenerDGs, agregarDG, eliminarDG, obtenerEtiquetas, subirImagen, servirImagen };
+module.exports = { listar, obtenerPorId, crear, duplicar, actualizar, eliminar, listarEliminados, restaurar, eliminarDefinitivamente, obtenerDGs, agregarDG, eliminarDG, obtenerEtiquetas, subirImagen, servirImagen };
