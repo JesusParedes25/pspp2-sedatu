@@ -16,7 +16,18 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  base: process.env.NODE_ENV === 'production' ? '/pspp/' : '/',
+  // Ruta base donde se sirve la app. Producción hoy vive en la raíz del
+  // dominio, así que el default es '/' y el build de prod no necesita
+  // tocarse. Antes esto era `NODE_ENV === 'production' ? '/pspp/' : '/'`
+  // (preparación para una eventual migración a
+  // sistemas.sedatu.gob.mx/pspp/), lo que obligaba a editar este archivo
+  // en el servidor tras cada `git pull` — y ese cambio local sin commitear
+  // hacía fallar el pull siguiente. Si algún día la app sí se sirve bajo
+  // un subpath, se define VITE_BASE_PATH=/pspp/ en el entorno del build
+  // (docker-compose.prod.yml → servicio frontend-build) en vez de editar
+  // código. El router lee este mismo valor vía import.meta.env.BASE_URL
+  // (ver main.jsx), así que los dos quedan sincronizados solos.
+  base: process.env.VITE_BASE_PATH || '/',
   build: {
     // El Diagrama (VistaDiagrama, cargado vía React.lazy en
     // DetalleProyecto.jsx) ya forma su propio chunk lazy de forma

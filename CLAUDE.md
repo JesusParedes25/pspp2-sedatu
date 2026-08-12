@@ -61,6 +61,27 @@ docker compose -f docker-compose.prod.yml up -d frontend-build
 docker compose -f docker-compose.prod.yml restart nginx
 ```
 
+**El deploy no requiere editar ningún archivo en el servidor.** Hubo una
+época en que `frontend/vite.config.js` traía
+`base: NODE_ENV === 'production' ? '/pspp/' : '/'` (preparación para una
+eventual migración a un subpath) y había que corregirlo a mano en el VPS
+tras cada `git pull`; ese cambio local sin commitear terminaba abortando
+el `git pull` siguiente con *"Your local changes would be overwritten"*,
+y como el pull fallaba en silencio se desplegaba código viejo. Hoy `base`
+sale de `VITE_BASE_PATH` con default `/` (la raíz del dominio, que es
+donde vive producción), así que el build de prod funciona sin tocarlo.
+Si algún día la app se sirve bajo `/pspp/`, se define
+`VITE_BASE_PATH=/pspp/` en el servicio `frontend-build` de
+`docker-compose.prod.yml` — el router toma ese mismo valor vía
+`import.meta.env.BASE_URL` (ver `main.jsx`), así que ambos quedan
+sincronizados sin editar código.
+
+**Reconstruir frontend y backend juntos cuando el cambio toca los dos.**
+Las imágenes son independientes: actualizar solo una deja la otra en la
+versión vieja. Si el frontend nuevo consume campos o endpoints que el
+backend viejo no tiene, la vista truena con `Cannot read properties of
+undefined` — ya pasó una vez con el Resumen de carteras.
+
 **Por qué el `restart nginx` es obligatorio y se olvida fácil**:
 `nginx/default.conf` usa `proxy_pass http://backend:3000;` con el nombre
 del servicio directo (sin variable + `resolver`), así que nginx resuelve

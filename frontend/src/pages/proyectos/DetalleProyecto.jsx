@@ -106,7 +106,7 @@ function DescripcionColapsable({ texto, lineasColapsado = 2 }) {
 export default function DetalleProyecto() {
   const { id } = useParams();
   const { usuario } = useAuth();
-  const { mostrarToast } = useUI();
+  const { mostrarToast, sidebarAbierto } = useUI();
   const { proyecto, cargando, error, recargar: recargarProyecto } = useProyecto(id);
   const permisos = usePermisosProyecto(proyecto);
   const [dgSeleccionada, setDgSeleccionada] = useState(null);
@@ -292,10 +292,23 @@ export default function DetalleProyecto() {
 
   return (
     <div className="space-y-6">
-      {/* Barra compacta — sticky, solo visible cuando el encabezado
-          completo ya salió de vista al hacer scroll. */}
+      {/* Barra compacta — solo visible cuando el encabezado completo ya
+          salió de vista al hacer scroll.
+
+          Va `fixed`, NO `sticky`: siendo sticky ocupaba lugar en el flujo,
+          así que aparecer empujaba ~64px hacia abajo todo lo que sigue —
+          incluido el sentinel que dispara este mismo estado. El sentinel
+          volvía a entrar en pantalla → la barra se ocultaba → el contenido
+          subía → el sentinel salía otra vez, en bucle: la página "vibraba"
+          al detener el scroll justo en ese punto. Fuera del flujo no
+          desplaza nada, así que el sentinel no se mueve y el bucle no
+          existe. Se posiciona contra el borde del contenido (el sidebar es
+          fixed, w-64/w-16 según esté abierto). */}
       {headerCompacto && (
-        <div className="sticky top-0 z-20 -mx-6 px-6 py-2 bg-white border-b border-gray-200 shadow-sm flex items-center gap-2">
+        <div
+          className="fixed top-0 right-0 z-20 px-6 py-2 bg-white border-b border-gray-200 shadow-sm flex items-center gap-2 transition-all duration-300"
+          style={{ left: sidebarAbierto ? '16rem' : '4rem' }}
+        >
           <span className="text-sm font-semibold text-gray-900 truncate">{proyecto.nombre}</span>
           <span className="text-xs text-gray-400 flex-shrink-0">{proyecto.estado?.replace(/_/g, ' ')}</span>
         </div>
