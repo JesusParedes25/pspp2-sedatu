@@ -220,6 +220,14 @@ export default function PanelDetalle({
           // central (onNavegarFoco, arriba).
           onNavegarLineage={onSeleccionarEnCentro}
           onActualizado={onActualizado}
+          // Al eliminar el nodo seleccionado, la selección tiene que subir a
+          // su padre antes de recargar — si se queda en el id borrado, el
+          // rail busca un nodo que ya no está en el árbol.
+          onEliminado={() => {
+            const padre = rutaSeleccion[rutaSeleccion.length - 2];
+            if (padre) onSeleccionarEnCentro(padre.tipo, padre.id);
+            onActualizado?.();
+          }}
           mostrarToast={mostrarToast}
         />
       </aside>

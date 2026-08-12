@@ -30,7 +30,7 @@ import { COLORES_SEMAFORO, CHIP_BG } from '../common/SemaforoDot';
 import { NIVELES } from '../../config/niveles';
 import { prefersReducedMotion } from '../../utils/motion';
 
-export default function FichaNodo({ nodo, proyectoId, permisos, ruta, onNavegarLineage, onActualizado, mostrarToast }) {
+export default function FichaNodo({ nodo, proyectoId, permisos, ruta, onNavegarLineage, onActualizado, onEliminado, mostrarToast }) {
   const { tipo, id, data } = nodo;
   const nivel = NIVELES[tipo];
   // El botón "Registrar avance" (dentro de NodoCard, más abajo) y el bloque
@@ -132,6 +132,10 @@ export default function FichaNodo({ nodo, proyectoId, permisos, ruta, onNavegarL
           proyectoId={proyectoId}
           permisos={permisos}
           onCambiado={onActualizado}
+          // El nodo eliminado es justo el que esta ficha está mostrando, así
+          // que el contenedor tiene que soltar la selección además de
+          // recargar — si no, queda apuntando a un id que ya no existe.
+          onEliminado={onEliminado}
           ocultarMetadataFooter
           ocultarCabecera
           defaultAbierto

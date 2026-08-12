@@ -9,6 +9,7 @@ const { recalcularIndicadoresProyecto } = require('../db/queries/indicadores.que
 const { recalcularEtapa, recalcularProyecto } = require('../utils/recalculos');
 const actividadQueries = require('../db/queries/actividad.queries');
 const municipiosNodoQueries = require('../db/queries/municipios-nodo.queries');
+const { puedeGestionarNodo } = require('../utils/autorizacion');
 
 async function listar(req, res, next) {
   try {
@@ -58,6 +59,18 @@ async function actualizar(req, res, next) {
 
 async function eliminar(req, res, next) {
   try {
+    // DELETE /etapas/:id y DELETE /acciones/:id ya validaban esto; aquí
+    // faltaba, así que cualquier usuario autenticado podía borrar una tarea
+    // de un proyecto ajeno con una llamada directa a la API.
+    const permitido = await puedeGestionarNodo({ usuario: req.usuario, tipoNodo: 'tarea', idNodo: req.params.id });
+    if (!permitido) {
+      return res.status(403).json({
+        error: true,
+        mensaje: 'No tienes permisos para eliminar esta tarea',
+        codigo: 'FORBIDDEN'
+      });
+    }
+
     const tarea = await tareasQueries.eliminarTarea(req.params.id);
     if (!tarea) return res.status(404).json({ error: true, mensaje: 'Tarea no encontrada' });
 

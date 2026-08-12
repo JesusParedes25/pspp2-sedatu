@@ -101,6 +101,10 @@ export default function PanelDrawer({ nodo, proyectoId, permisos, arbol, onActua
             ruta={ruta}
             onNavegarLineage={navegarPorLineage}
             onActualizado={onActualizado}
+            // El drawer muestra justo el nodo que se elimina: se cierra y se
+            // recarga el lienzo, en vez de quedarse abierto sobre un nodo
+            // que ya no existe.
+            onEliminado={() => { onCerrar(); onActualizado?.(); }}
             mostrarToast={mostrarToast}
           />
 

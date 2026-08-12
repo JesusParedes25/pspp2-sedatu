@@ -13,9 +13,10 @@ import { Link } from 'react-router-dom';
 import {
   ChevronDown, ChevronRight, Lock, CheckCircle2, Circle, AlertTriangle,
   MessageSquare, Paperclip, Shield, BarChart3, UserPlus, MapPin, Loader2, X, Send, Copy,
-  TrendingUp,
+  TrendingUp, Trash2,
 } from 'lucide-react';
 import ModalDuplicarNodo from './ModalDuplicarNodo';
+import ConfirmDialog from '../common/ConfirmDialog';
 import * as etapasApi from '../../api/etapas';
 import * as accionesApi from '../../api/acciones';
 import * as tareasApi from '../../api/tareas';
@@ -37,6 +38,22 @@ const TIPO_LABEL = { etapa: 'Etapa', accion: 'Acción', tarea: 'Tarea' };
 // comentarios/riesgos son del modelo viejo (entidad_tipo genérico) y NUNCA
 // soportaron 'Tarea' — por eso solo etapa/accion mapean aquí.
 const ENTIDAD_TIPO = { etapa: 'Etapa', accion: 'Accion' };
+const TIPO_LABEL_MIN = { etapa: 'etapa', accion: 'acción', tarea: 'tarea' };
+
+// Cuántos elementos se van junto con este nodo. El borrado en la API es en
+// cascada (una etapa arrastra sus acciones y las tareas de esas acciones),
+// así que la confirmación tiene que decirlo — mismo criterio que el
+// contarDescendientes del Diagrama, replicado aquí porque NodoCard también
+// se usa fuera de esa vista (Detalle, Mis actividades) y no siempre recibe
+// el árbol completo: si el nodo no trae hijos cargados, cuenta 0 y la
+// confirmación se queda en el mensaje simple.
+function contarHijos(tipo, nodo) {
+  if (tipo === 'accion') return (nodo.tareas || []).length + (nodo.subacciones || []).length;
+  if (tipo === 'etapa') {
+    return (nodo.acciones || []).reduce((suma, a) => suma + 1 + contarHijos('accion', a), 0);
+  }
+  return 0;
+}
 
 function Iniciales({ nombre }) {
   const parts = (nombre || '').split(' ').filter(Boolean);
@@ -82,6 +99,10 @@ export default function NodoCard({
   // un hijo en una lista), el botón conserva su comportamiento de abrir el
   // slider inline, que sigue siendo útil para editar un hijo sin navegar.
   onRegistrarAvanceClick,
+  // Opcional: al eliminar este nodo, el contenedor puede necesitar algo más
+  // que recargar (p. ej. deseleccionarlo antes, porque la ficha abierta es
+  // justo la del nodo que desaparece). Sin esta prop se usa onCambiado.
+  onEliminado,
 }) {
   const { mostrarToast } = useUI();
   const [abierto, setAbierto] = useState(defaultAbierto);
@@ -97,6 +118,8 @@ export default function NodoCard({
   const [actividad, setActividad] = useState(null); // se carga lazy al expandir
   const [evidenciasNodo, setEvidenciasNodo] = useState(null); // se carga lazy al abrir "Adjuntar archivo"
   const [mostrarDuplicar, setMostrarDuplicar] = useState(false);
+  const [confirmEliminar, setConfirmEliminar] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
   const [editandoFecha, setEditandoFecha] = useState(false);
   const [editandoFechaInicio, setEditandoFechaInicio] = useState(false);
 
@@ -171,6 +194,25 @@ export default function NodoCard({
   async function toggleChecklist() {
     if (esContenedor || soloLectura) return;
     await patch({ estado: completado ? 'Pendiente' : 'Completada' });
+  }
+
+  async function confirmarEliminar() {
+    setEliminando(true);
+    try {
+      if (tipo === 'etapa') await etapasApi.eliminarEtapa(nodo.id);
+      else if (tipo === 'accion') await accionesApi.eliminarAccion(nodo.id);
+      else await tareasApi.eliminarTarea(nodo.id);
+      setConfirmEliminar(false);
+      mostrarToast(`${TIPO_LABEL[tipo]} eliminada`, 'exito');
+      // onCambiado recarga el árbol del padre; esta tarjeta se desmonta con
+      // él, así que no hay estado local que limpiar después.
+      onEliminado ? onEliminado() : onCambiado?.();
+    } catch (err) {
+      mostrarToast(err.response?.data?.mensaje || 'Error al eliminar', 'error');
+      setConfirmEliminar(false);
+    } finally {
+      setEliminando(false);
+    }
   }
 
   async function guardarAvance() {
@@ -251,6 +293,7 @@ export default function NodoCard({
   // Las entradas del stream nuevo (reportadas desde una tarea) no traen
   // metadata.estado, así que se consideran abiertas por defecto.
   const riesgoActivo = todosRiesgos.find(a => !a.metadata?.estado || ['Abierto', 'En_mitigacion'].includes(a.metadata.estado));
+  const numHijosAEliminar = contarHijos(tipo, nodo);
   const numMunicipios = nodo.municipios?.length || 0;
   const territorioLabel = nodo.id_zm
     ? 'Zona Metropolitana asignada'
@@ -394,7 +437,34 @@ export default function NodoCard({
                 <BotonContextual icono={Copy} label="Duplicar" activo={false} onClick={() => setMostrarDuplicar(true)} />
               )}
             </div>
+
+            {/* Eliminar — destructivo y en cascada, así que va separado del
+                resto de la rejilla y en rojo, no mezclado entre acciones
+                cotidianas. permisos.puedeEliminar ya es "creador o
+                responsable del proyecto" (o superadmin/ejecutivo), la misma
+                regla que valida el backend en DELETE /etapas|acciones|tareas. */}
+            {permisos?.puedeEliminar && (
+              <button
+                onClick={() => setConfirmEliminar(true)}
+                className="mt-1.5 w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-red-600 border border-red-200 rounded-md hover:bg-red-50 transition-colors"
+              >
+                <Trash2 size={12} /> Eliminar {TIPO_LABEL_MIN[tipo]}
+              </button>
+            )}
           </div>
+
+          <ConfirmDialog
+            abierto={confirmEliminar}
+            titulo={`Eliminar ${TIPO_LABEL_MIN[tipo]}`}
+            mensaje={
+              numHijosAEliminar > 0
+                ? `"${nodo.nombre}" y sus ${numHijosAEliminar} elemento${numHijosAEliminar > 1 ? 's' : ''} relacionados se eliminarán permanentemente. Esta acción no se puede deshacer.`
+                : `"${nodo.nombre}" se eliminará permanentemente. Esta acción no se puede deshacer.`
+            }
+            textoConfirmar={eliminando ? 'Eliminando...' : 'Eliminar'}
+            onConfirmar={confirmarEliminar}
+            onCancelar={() => setConfirmEliminar(false)}
+          />
 
           {mostrarDuplicar && (
             <ModalDuplicarNodo

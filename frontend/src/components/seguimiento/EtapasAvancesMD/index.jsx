@@ -211,11 +211,23 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
 
   // Después de cargar el árbol, refrescar el foco con datos frescos (la
   // selección se re-deriva sola vía el useMemo de arriba).
+  //
+  // Si el nodo enfocado ya NO está en el árbol es que se eliminó (desde el
+  // botón de la ficha, desde el Diagrama, o por otro usuario): hay que
+  // soltarlo, porque `foco` guarda una copia de sus datos y el `seleccion`
+  // de arriba cae de vuelta en él cuando no encuentra el id — sin esto el
+  // centro y el rail se quedaban mostrando un elemento ya borrado. Se cae a
+  // la primera etapa que quede, o a nada si el proyecto se quedó vacío.
   useEffect(() => {
-    if (foco && arbol.length > 0) {
-      const found = buscarNodoEnArbol(arbol, foco.id);
-      if (found) setFoco(found);
+    if (!foco || arbol.length === 0) return;
+    const found = buscarNodoEnArbol(arbol, foco.id);
+    if (found) {
+      setFoco(found);
+      return;
     }
+    const primera = arbol[0];
+    setFoco(primera ? { tipo: 'etapa', id: primera.id, data: primera } : null);
+    setSeleccionId(null);
   }, [arbol]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (cargando) {
