@@ -18,28 +18,24 @@ export default defineConfig({
   plugins: [react()],
   base: process.env.NODE_ENV === 'production' ? '/pspp/' : '/',
   build: {
-    rollupOptions: {
-      output: {
-        // El Diagrama ya carga @xyflow/react + d3-hierarchy vía React.lazy
-        // (no entran al bundle inicial), pero sin esto Rollup podía repartir
-        // sus módulos entre distintos chunks dinámicos según qué más se
-        // importe junto — agruparlos explícito en su propio vendor chunk
-        // los mantiene juntos y cacheables por separado del resto del app.
-        manualChunks(id) {
-          if (id.includes('node_modules/@xyflow') || id.includes('node_modules/d3-')) {
-            return 'vendor-diagrama';
-          }
-        },
-      },
-    },
-    // Darle nombre propio a ese chunk (arriba) hace que Vite lo trate como
-    // "vendor" y le agregue un <link rel="modulepreload"> en el index.html
-    // — es decir, TODOS los usuarios lo descargarían de fondo en cada carga
-    // inicial, aunque nunca abran el Diagrama. Se excluye explícitamente
-    // para que solo se pida cuando el React.lazy() realmente lo necesita.
-    modulePreload: {
-      resolveDependencies: (filename, deps) => deps.filter(d => !d.includes('vendor-diagrama')),
-    },
+    // El Diagrama (VistaDiagrama, cargado vía React.lazy en
+    // DetalleProyecto.jsx) ya forma su propio chunk lazy de forma
+    // automática por ser un import() dinámico — no hace falta
+    // manualChunks para eso. Hubo un intento de agrupar @xyflow/react +
+    // d3-hierarchy en un chunk 'vendor-diagrama' nombrado explícitamente
+    // (para que cachearan aparte), pero @xyflow/react importa 'react-dom'
+    // por su entrada clásica (createPortal), distinta del archivo
+    // 'react-dom/client' que usa main.jsx — Rollup, al forzar ese chunk,
+    // terminaba metiendo ahí TODO lo que solo era alcanzable desde
+    // @xyflow, incluyendo React/ReactDOM/Scheduler completos, y el chunk
+    // principal (main.jsx) pasaba a importar createRoot/hydrateRoot
+    // *desde* ese chunk — es decir, el chunk "solo para el Diagrama" se
+    // descargaba y ejecutaba en TODA carga de página, no solo al abrir
+    // el Diagrama. Eso producía crashes intermitentes tipo "Cannot read
+    // properties of undefined (reading 'length')" en código interno de
+    // React/Scheduler al navegar. Sin manualChunks, Vite vuelve a poner
+    // React/ReactDOM en el chunk principal (se necesitan de entrada) y
+    // @xyflow/d3-hierarchy quedan solo en el chunk lazy real del Diagrama.
   },
   server: {
     host: '0.0.0.0',
