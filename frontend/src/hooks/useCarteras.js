@@ -30,6 +30,25 @@ export function useCarteras(filtrosIniciales = {}) {
   return { carteras, cargando, error, recargar: cargar, filtros, setFiltros };
 }
 
+// El Resumen de cartera lee varias listas del backend (resumenCartera en
+// carteras.queries.js) directamente con .length y .map. Si el backend
+// desplegado es más viejo que el frontend — pasa cuando se reconstruye la
+// imagen del frontend pero no la del backend, que en prod van por separado
+// — esos campos llegan undefined y la página entera truena con "Cannot read
+// properties of undefined (reading 'length')". Normalizar aquí hace que un
+// desajuste de versiones se vea como secciones vacías (degradado) en vez de
+// una pantalla en blanco.
+const LISTAS_RESUMEN = ['vencidos', 'por_vencer', 'riesgos', 'indicadores', 'estatus_cualitativo'];
+
+function normalizarResumen(datos) {
+  if (!datos) return datos;
+  const normalizado = { ...datos };
+  for (const clave of LISTAS_RESUMEN) {
+    if (!Array.isArray(normalizado[clave])) normalizado[clave] = [];
+  }
+  return normalizado;
+}
+
 export function useCartera(carteraId) {
   const [cartera, setCartera] = useState(null);
   const [proyectos, setProyectos] = useState([]);
@@ -48,8 +67,8 @@ export function useCartera(carteraId) {
         carterasApi.obtenerResumenCartera(carteraId),
       ]);
       setCartera(resCartera.datos);
-      setProyectos(resProyectos.datos);
-      setResumen(resResumen.datos);
+      setProyectos(Array.isArray(resProyectos.datos) ? resProyectos.datos : []);
+      setResumen(normalizarResumen(resResumen.datos));
     } catch (err) {
       setError(err.response?.data?.mensaje || 'Error al cargar la cartera');
     } finally {
