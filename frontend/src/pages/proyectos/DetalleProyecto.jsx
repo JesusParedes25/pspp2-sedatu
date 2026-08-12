@@ -127,19 +127,46 @@ export default function DetalleProyecto() {
   // normal el efecto de abajo mediría una sola vez con el ref en null y
   // nunca se volvería a disparar cuando el contenido real por fin monta,
   // dejando este comportamiento roto para siempre.
+  //
+  // El estado se decide con DOS observadores y una banda muerta entre
+  // ellos (histéresis), no con uno solo. Con un único umbral, cualquier
+  // cosa que desplace el layout aunque sea unos pocos píxeles al mostrar
+  // la barra devuelve el sentinel a pantalla, el estado se revierte, el
+  // layout vuelve, el sentinel sale... y la página "vibra" a la velocidad
+  // de refresco. Ya pasó dos veces por caminos distintos: la barra siendo
+  // `sticky` (aportaba su alto al flujo) y luego siendo hija del
+  // contenedor `space-y-6` (aportaba 24px de gap aun sin alto propio).
+  // Con la banda muerta, un desfase menor a BANDA_MUERTA_PX no puede
+  // volver a cruzar el umbral contrario, así que el bucle es imposible
+  // por construcción, venga el desplazamiento de donde venga.
+  const BANDA_MUERTA_PX = 64;
   const sentinelElRef = useRef(null);
-  const observerRef = useRef(null);
+  const observersRef = useRef([]);
   const [headerCompacto, setHeaderCompacto] = useState(false);
+  const desconectarObservers = () => {
+    observersRef.current.forEach(o => o.disconnect());
+    observersRef.current = [];
+  };
   const sentinelHeaderRef = useCallback(node => {
     sentinelElRef.current = node;
-    if (observerRef.current) { observerRef.current.disconnect(); observerRef.current = null; }
-    if (node) {
-      const obs = new IntersectionObserver(([entry]) => setHeaderCompacto(!entry.isIntersecting), { threshold: 0 });
-      obs.observe(node);
-      observerRef.current = obs;
-    }
+    desconectarObservers();
+    if (!node) return;
+    // Compactar en cuanto el sentinel sale por arriba del viewport.
+    const obsCompactar = new IntersectionObserver(
+      ([entry]) => { if (!entry.isIntersecting) setHeaderCompacto(true); },
+      { threshold: 0 }
+    );
+    // Volver al encabezado completo solo cuando el sentinel está de vuelta
+    // bien dentro de la pantalla, no apenas asomando.
+    const obsExpandir = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setHeaderCompacto(false); },
+      { threshold: 0, rootMargin: `-${BANDA_MUERTA_PX}px 0px 0px 0px` }
+    );
+    obsCompactar.observe(node);
+    obsExpandir.observe(node);
+    observersRef.current = [obsCompactar, obsExpandir];
   }, []);
-  useEffect(() => () => observerRef.current?.disconnect(), []);
+  useEffect(() => () => desconectarObservers(), []);
 
   // Encabezado contraíble por el usuario (distinto del "compacto por
   // scroll" de arriba): arranca contraído la primera vez, y la preferencia
