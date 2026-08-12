@@ -8,29 +8,13 @@
 
 @layer base {
   html {
-    /* Reserva SIEMPRE el carril de la barra de scroll.
-     *
-     * Sin esto, una página cuyo contenido queda justo en el umbral de
-     * necesitar barra entra en un bucle de layout: aparece la barra → el
-     * ancho útil baja (las barras clásicas de Chrome de escritorio ocupan
-     * espacio, a diferencia de las superpuestas de macOS/móvil) → el
-     * contenido reflowea y encoge → ya no hace falta la barra → desaparece
-     * → el ancho vuelve a crecer → el contenido crece → hace falta otra
-     * vez... A ojo se ve como la página "vibrando" arriba y abajo a
-     * supervelocidad tras un solo click de rueda, y se dispara con más
-     * facilidad cuanto más cerca esté el contenido de ese umbral.
-     *
-     * Con el carril reservado el ancho nunca cambia, así que el bucle no
-     * puede formarse. Cuesta los 5px de la barra personalizada de abajo.
-     */
+    /* Reserva siempre el carril de la barra de scroll, para que aparecer o
+     * desaparecer no cambie el ancho disponible ni provoque un reflujo del
+     * contenido. Cuesta los 5px de la barra personalizada de abajo.
+     * (Medida preventiva: el "scroll jitter" que se reportó resultó ser
+     * otra cosa — ver el comentario de la barra compacta en
+     * DetalleProyecto.jsx — pero este carril evita esa familia de bucles.) */
     scrollbar-gutter: stable;
-    /* Desactiva el "scroll anchoring" de Chrome, que reajusta solo la
-     * posición del scroll cuando algo por encima del viewport cambia de
-     * alto. Esta app carga mucho contenido de forma asíncrona (árboles,
-     * fichas, listas que crecen al llegar los datos); si algo oscila de
-     * alto, el anclaje persigue el cambio y amplifica el salto en vez de
-     * absorberlo. */
-    overflow-anchor: none;
   }
 
   body {

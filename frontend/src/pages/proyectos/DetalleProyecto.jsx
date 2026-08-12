@@ -291,22 +291,40 @@ export default function DetalleProyecto() {
   }
 
   return (
-    <div className="space-y-6">
+    <>
       {/* Barra compacta — solo visible cuando el encabezado completo ya
           salió de vista al hacer scroll.
 
-          Va `fixed`, NO `sticky`: siendo sticky ocupaba lugar en el flujo,
-          así que aparecer empujaba ~64px hacia abajo todo lo que sigue —
-          incluido el sentinel que dispara este mismo estado. El sentinel
-          volvía a entrar en pantalla → la barra se ocultaba → el contenido
-          subía → el sentinel salía otra vez, en bucle: la página "vibraba"
-          al detener el scroll justo en ese punto. Fuera del flujo no
-          desplaza nada, así que el sentinel no se mueve y el bucle no
-          existe. Se posiciona contra el borde del contenido (el sidebar es
-          fixed, w-64/w-16 según esté abierto). */}
+          DOS cosas la mantienen fuera del layout, y hacen falta las dos:
+
+          1. `fixed` (no `sticky`): sticky ocupa lugar en el flujo, así que
+             aparecer empujaba ~37px hacia abajo todo lo que seguía.
+          2. Fuera del `<div className="space-y-6">` de abajo. Aunque un
+             elemento `fixed` no aporta altura, Tailwind pone
+             `margin-top: 1.5rem` a todo hijo que NO sea el primero
+             (`> * + *`): al montarse la barra como primer hijo, el header
+             pasaba a ser el segundo y ganaba 24px de margen. La página
+             crecía 24px con la barra puesta aunque la barra no midiera
+             nada en el flujo.
+
+          Cualquiera de las dos por separado deja vivo el bucle: la página
+          crece → el sentinel que dispara este estado vuelve a entrar en
+          pantalla → la barra se oculta → la página encoge → el sentinel
+          sale → la barra aparece... alternando en cada cuadro. Se ve como
+          la página vibrando arriba y abajo tras un solo click de rueda,
+          con el scroll inmóvil (lo que se mueve es el contenido).
+
+          Se posiciona contra el borde del contenido (el sidebar es fixed,
+          w-64/w-16 según esté abierto).
+
+          z-40 y no z-20: el panel del árbol de "Detalle" es `relative z-30`,
+          así que con z-20 el contenido se pintaba ENCIMA de esta barra al
+          pasarle por debajo al scrollear. Queda por debajo de modales y
+          toasts (z-50), y del drawer del Diagrama (z-40 pero posterior en
+          el DOM, así que gana él). */}
       {headerCompacto && (
         <div
-          className="fixed top-0 right-0 z-20 px-6 py-2 bg-white border-b border-gray-200 shadow-sm flex items-center gap-2 transition-all duration-300"
+          className="fixed top-0 right-0 z-40 px-6 py-2 bg-white border-b border-gray-200 shadow-sm flex items-center gap-2 transition-all duration-300"
           style={{ left: sidebarAbierto ? '16rem' : '4rem' }}
         >
           <span className="text-sm font-semibold text-gray-900 truncate">{proyecto.nombre}</span>
@@ -314,6 +332,7 @@ export default function DetalleProyecto() {
         </div>
       )}
 
+      <div className="space-y-6">
       {/* Header del proyecto — contraíble. En compacto (default): sin banda
           propia de "Volver a proyectos" (queda como ícono junto al título)
           y el selector de Direcciones comparte fila con los tags. En
@@ -635,6 +654,7 @@ export default function DetalleProyecto() {
           onCerrar={() => setModalCSV(false)}
         />
       )}
-    </div>
+      </div>
+    </>
   );
 }
