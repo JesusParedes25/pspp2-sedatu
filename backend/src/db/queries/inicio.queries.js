@@ -192,6 +192,31 @@ async function obtenerActividadReciente(proyectoIds) {
   return rows;
 }
 
+// Estatus cualitativo — la nota corta de texto libre por etapa
+// (migración 047) que responde "¿cómo va esto ahora mismo?". Hasta
+// ahora en el Tablero solo se veía dentro del popover de un proyecto,
+// o sea únicamente si el usuario pasaba el mouse por la tarjeta
+// correcta: en la práctica, invisible. Mismo criterio que el Resumen de
+// cartera — solo etapas, que es el nivel donde se captura.
+async function obtenerEstatusCualitativo(proyectoIds) {
+  if (!proyectoIds || proyectoIds.length === 0) return [];
+  const { rows } = await pool.query(`
+    SELECT e.id, e.nombre AS etapa_nombre, e.estatus_cualitativo,
+           e.estatus_cualitativo_fecha,
+           p.id AS id_proyecto, p.nombre AS proyecto_nombre,
+           dg.siglas AS dg_siglas
+      FROM etapas e
+      JOIN proyectos p ON p.id = e.id_proyecto AND p.deleted_at IS NULL
+      LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
+     WHERE e.id_proyecto = ANY($1::uuid[])
+       AND e.estatus_cualitativo IS NOT NULL
+       AND e.estatus_cualitativo <> \'\'
+     ORDER BY e.estatus_cualitativo_fecha DESC NULLS LAST
+     LIMIT 20
+  `, [proyectoIds]);
+  return rows;
+}
+
 module.exports = {
   obtenerProyectosUsuario,
   obtenerVencidos,
@@ -199,5 +224,6 @@ module.exports = {
   obtenerRiesgosAbiertos,
   obtenerMapaIncidencia,
   obtenerIndicadoresAgregados,
-  obtenerActividadReciente
+  obtenerActividadReciente,
+  obtenerEstatusCualitativo
 };

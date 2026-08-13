@@ -37,7 +37,7 @@ async function obtenerInicio(req, res, next) {
       });
     }
 
-    const [proyectos, vencidos, porVencer, riesgos, mapaIncidencia, indicadores, actividad] = await Promise.all([
+    const [proyectos, vencidos, porVencer, riesgos, mapaIncidencia, indicadores, actividad, estatusCualitativo] = await Promise.all([
       inicioQueries.obtenerProyectosUsuario(proyectoIds),
       inicioQueries.obtenerVencidos(proyectoIds),
       inicioQueries.obtenerPorVencer(proyectoIds),
@@ -45,6 +45,7 @@ async function obtenerInicio(req, res, next) {
       inicioQueries.obtenerMapaIncidencia(proyectoIds),
       inicioQueries.obtenerIndicadoresAgregados(proyectoIds),
       inicioQueries.obtenerActividadReciente(proyectoIds),
+      inicioQueries.obtenerEstatusCualitativo(proyectoIds),
     ]);
 
     res.json({
@@ -55,7 +56,8 @@ async function obtenerInicio(req, res, next) {
         riesgos,
         mapa_incidencia: mapaIncidencia,
         indicadores,
-        actividad
+        actividad,
+        estatus_cualitativo: estatusCualitativo
       }
     });
   } catch (err) {

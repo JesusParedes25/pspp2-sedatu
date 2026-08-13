@@ -7,7 +7,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Users, UserPlus, Target, MapPin, AlertTriangle, Clock, Activity,
-  TrendingUp, Calendar, Shield, ChevronRight, X, Trash2, Search, Loader2
+  TrendingUp, Calendar, Shield, ChevronRight, X, Trash2, Search, Loader2, MessageSquare
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useAuth } from '../../context/AuthContext';
@@ -17,6 +17,7 @@ import { agregarMiembroNodo } from '../../api/nodo-miembros';
 import { calcularColorSemaforo } from '../../utils/semaforoColor';
 import client from '../../api/client';
 import TarjetaIndicador from '../indicadores/TarjetaIndicador';
+import ListaEstatusCualitativo from '../indicadores/ListaEstatusCualitativo';
 
 const GUINDA = '#7B1C3E';
 const GUINDA_LIGHT = '#9f2241';
@@ -80,7 +81,7 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
 
   if (!datos) return <p className="text-center text-gray-500 py-10">Error al cargar panorama</p>;
 
-  const { miembros, indicadores, cobertura, vencidos, por_vencer, riesgos, actividad } = datos;
+  const { miembros, indicadores, cobertura, vencidos, por_vencer, riesgos, actividad, estatus_cualitativo = [] } = datos;
   const pct = parseFloat(proyecto?.porcentaje_calculado) || 0;
   const sem = calcularColorSemaforo(pct, proyecto?.fecha_inicio, proyecto?.fecha_limite);
 
@@ -176,6 +177,16 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
               <IndicadorCard key={ind.id} indicador={ind} />
             ))}
           </div>
+        </SeccionCard>
+      )}
+
+      {/* ═══ ESTATUS CUALITATIVO ═══
+          Contraparte de los indicadores: el número dice cuánto, esto
+          dice por qué. Aquí no se repite el nombre del proyecto en cada
+          línea — ya se sabe cuál es. */}
+      {estatus_cualitativo.length > 0 && (
+        <SeccionCard titulo="Estatus cualitativo" icono={MessageSquare}>
+          <ListaEstatusCualitativo items={estatus_cualitativo} dentroDeProyecto maxAltura="max-h-72" />
         </SeccionCard>
       )}
 

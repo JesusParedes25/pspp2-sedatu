@@ -33,7 +33,7 @@ async function obtenerPanorama(req, res, next) {
     }
 
     // Fetch all panorama data in parallel
-    const [miembros, indicadores, cobertura, vencidos, porVencer, riesgos, actividad] = await Promise.all([
+    const [miembros, indicadores, cobertura, vencidos, porVencer, riesgos, actividad, estatusCualitativo] = await Promise.all([
       obtenerTodosParticipantes(proyectoId),
       obtenerIndicadoresCompletos(proyectoId),
       obtenerCoberturaProyecto(proyectoId),
@@ -41,6 +41,10 @@ async function obtenerPanorama(req, res, next) {
       statsQueries.obtenerProximasAVencer(proyectoId),
       statsQueries.obtenerRiesgosDetalle(proyectoId),
       statsQueries.obtenerActividadReciente(proyectoId),
+      // Estatus cualitativo de las etapas de ESTE proyecto. Se reusa la
+      // consulta del Tablero pasándole un solo proyecto, para no tener
+      // dos definiciones del mismo dato.
+      inicioQueries.obtenerEstatusCualitativo([proyectoId]),
     ]);
 
     res.json({
@@ -52,7 +56,8 @@ async function obtenerPanorama(req, res, next) {
         vencidos,
         por_vencer: porVencer,
         riesgos,
-        actividad
+        actividad,
+        estatus_cualitativo: estatusCualitativo
       }
     });
   } catch (err) {

@@ -15,6 +15,7 @@ import { obtenerInicio } from '../api/inicio';
 import client from '../api/client';
 import MapaTerritorialInicio from '../components/inicio/MapaTerritorialInicio';
 import TarjetaIndicador, { ETIQUETA_TIPO_INDICADOR } from '../components/indicadores/TarjetaIndicador';
+import ListaEstatusCualitativo, { TituloEstatusCualitativo } from '../components/indicadores/ListaEstatusCualitativo';
 
 const GUINDA = '#7B1C3E';
 const SEM = { verde: '#22c55e', ambar: '#f59e0b', rojo: '#ef4444', gris: '#9ca3af' };
@@ -46,7 +47,7 @@ export default function Inicio() {
     );
   }
 
-  const { proyectos = [], vencidos = [], por_vencer = [], riesgos = [], mapa_incidencia = [], indicadores = [], actividad = [] } = data || {};
+  const { proyectos = [], vencidos = [], por_vencer = [], riesgos = [], mapa_incidencia = [], indicadores = [], actividad = [], estatus_cualitativo = [] } = data || {};
 
   return (
     <div className="space-y-6">
@@ -105,6 +106,20 @@ export default function Inicio() {
           </div>
         )}
       </div>
+
+      {/* ═══ ESTATUS CUALITATIVO ═══
+          La nota corta por etapa que responde "¿cómo va esto ahora
+          mismo?". Antes solo se veía pasando el mouse por la tarjeta de
+          un proyecto, o sea casi nunca: alguien se tomaba el trabajo de
+          escribirla y nadie la leía. Va después de los indicadores
+          porque es su contraparte — el número dice cuánto, esto dice
+          por qué. */}
+      {estatus_cualitativo.length > 0 && (
+        <div className="card p-5">
+          <TituloEstatusCualitativo />
+          <ListaEstatusCualitativo items={estatus_cualitativo} maxAltura="max-h-72" />
+        </div>
+      )}
 
       {/* ═══ VENCIDOS + POR VENCER (mitad de ancho cada uno; el que falte, el otro ocupa todo) ═══ */}
       {(vencidos.length > 0 || por_vencer.length > 0) && (

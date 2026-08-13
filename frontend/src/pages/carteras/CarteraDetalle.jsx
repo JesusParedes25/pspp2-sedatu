@@ -26,6 +26,7 @@ import CronogramaCartera from '../../components/carteras/CronogramaCartera';
 import MapaCartera from '../../components/carteras/MapaCartera';
 import ActividadCartera from '../../components/carteras/ActividadCartera';
 import TarjetaIndicador, { ETIQUETA_TIPO_INDICADOR } from '../../components/indicadores/TarjetaIndicador';
+import ListaEstatusCualitativo, { TituloEstatusCualitativo } from '../../components/indicadores/ListaEstatusCualitativo';
 
 const PESTANAS = [
   { id: 'resumen', etiqueta: 'Resumen', icono: LayoutDashboard },
@@ -259,33 +260,15 @@ export default function CarteraDetalle() {
             )}
           </div>
 
-          {/* Estatus cualitativo — nota corta de texto libre por etapa
-              (migración 047), mismo nivel que ya muestra el popover de
-              proyecto en el Tablero: "¿cómo va esto ahora mismo?" */}
+          {/* Estatus cualitativo — la nota corta por etapa (migración 047)
+              que dice "¿cómo va esto ahora mismo?". Misma sección y mismo
+              componente que el Tablero y el Panorama del proyecto. */}
           <div className="card p-5">
-            <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5 text-guinda-700">
-              <MessageSquare size={14} className="text-teal-600" /> Estatus cualitativo
-            </h2>
-            {resumen.estatus_cualitativo.length === 0 ? (
-              <p className="text-xs text-gray-400 italic">
-                Ninguna etapa de los proyectos de esta cartera tiene un estatus cualitativo capturado todavía.
-              </p>
-            ) : (
-              <div className="space-y-2.5 max-h-80 overflow-y-auto">
-                {resumen.estatus_cualitativo.map(e => (
-                  <Link
-                    key={e.id}
-                    to={`/proyectos/${e.id_proyecto}?tab=seguimiento&nodo=${e.id}`}
-                    className="block p-2.5 rounded-lg hover:bg-teal-50 border border-transparent hover:border-teal-100 transition"
-                  >
-                    <p className="text-[11px] text-gray-500 mb-0.5">
-                      {e.proyecto_nombre} › {e.etapa_nombre}{e.dg_siglas ? ` · ${e.dg_siglas}` : ''}
-                    </p>
-                    <p className="text-xs text-gray-800 italic">"{e.estatus_cualitativo}"</p>
-                  </Link>
-                ))}
-              </div>
-            )}
+            <TituloEstatusCualitativo />
+            <ListaEstatusCualitativo
+              items={resumen.estatus_cualitativo}
+              vacio="Ninguna etapa de los proyectos de esta cartera tiene un estatus cualitativo capturado todavía."
+            />
           </div>
 
           {/* Acciones vencidas + Por vencer — mismo bloque de dos columnas
