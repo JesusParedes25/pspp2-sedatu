@@ -14,7 +14,7 @@
  */
 const proyectosQueries = require('../db/queries/proyectos.queries');
 const { duplicarProyecto } = require('../db/queries/duplicar.queries');
-const { puedeEditarProyecto } = require('../utils/autorizacion');
+const { puedeEditarProyecto, puedeGestionarProyecto } = require('../utils/autorizacion');
 const indicadoresQueries = require('../db/queries/indicadores.queries');
 const miembrosQueries = require('../db/queries/miembros.queries');
 const pool = require('../db/pool');
@@ -35,7 +35,7 @@ const BUCKET = process.env.MINIO_BUCKET || 'pspp-evidencias';
 // GET /proyectos — Listar proyectos con filtros y paginación
 async function listar(req, res, next) {
   try {
-    const { estado, tipo, dg, busqueda, cartera, sin_cartera, pagina, limite } = req.query;
+    const { estado, tipo, dg, busqueda, cartera, sin_cartera, participacion, pagina, limite } = req.query;
 
     const resultado = await proyectosQueries.listarProyectos({
       estado,
@@ -44,6 +44,11 @@ async function listar(req, res, next) {
       busqueda,
       carteraId: cartera,
       sinCartera: sin_cartera === 'true',
+      // 'participo' | 'responsable' — acota el listado a los proyectos del
+      // usuario. No es un control de acceso: la visibilidad sigue siendo
+      // total, esto es una comodidad para encontrar lo propio.
+      participacion,
+      usuarioId: req.usuario?.id,
       pagina: parseInt(pagina) || 1,
       limite: parseInt(limite) || 12
     });
@@ -235,12 +240,13 @@ async function actualizar(req, res, next) {
 // proyecto_usuarios). Antes este endpoint no tenía NINGÚN chequeo server-side
 // — cualquier usuario autenticado podía borrar cualquier proyecto por API
 // directa, el botón simplemente no existía en la UI.
+// Borrar es la operación más destructiva, así que usa la MISMA regla que
+// el resto de la gestión (autorizacion.js) en vez de una copia propia:
+// antes esta función repetía el criterio y por eso el 'ejecutivo' podía
+// borrar proyectos de cualquier DG mientras el resto de la plataforma
+// evolucionaba por otro lado.
 async function puedeEliminarProyecto(proyectoId, usuario) {
-  if (usuario.rol === 'superadmin' || usuario.rol === 'ejecutivo') return true;
-  const { rows } = await pool.query('SELECT id_creador FROM proyectos WHERE id = $1', [proyectoId]);
-  if (rows[0]?.id_creador === usuario.id) return true;
-  const rolProyecto = await miembrosQueries.obtenerRolUsuario(proyectoId, usuario.id);
-  return rolProyecto === 'responsable';
+  return puedeGestionarProyecto({ usuario, idProyecto: proyectoId });
 }
 
 // DELETE /proyectos/:id — Soft delete (deleted_at = NOW()); se purga

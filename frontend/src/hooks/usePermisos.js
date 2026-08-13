@@ -65,8 +65,8 @@ export function usePermisosProyecto(proyecto) {
     const esResponsableProyecto = rolProyecto === 'responsable';
     const esParticipante = esMismaDG || esCreador || !!rolProyecto;
 
-    // superadmin y ejecutivo: todo
-    if (rol === 'superadmin' || rol === 'ejecutivo') {
+    // superadmin: sin límites (administra la plataforma).
+    if (rol === 'superadmin') {
       return {
         puedeEditar: true,
         puedeEliminar: true,
@@ -75,6 +75,26 @@ export function usePermisosProyecto(proyecto) {
         puedeEditarAccion: true,
         puedeCambiarEstado: true,
         puedeInvitar: true,
+        esParticipante: true,
+        esSoloLectura: false,
+      };
+    }
+
+    // ejecutivo: ve y EDITA toda la Secretaría —dar seguimiento es su
+    // función— pero solo BORRA e invita en proyectos de su propia DG (o
+    // en los que creó / donde es responsable). Un subsecretario no debe
+    // poder eliminar el trabajo de un área ajena. Misma regla que aplica
+    // el backend en autorizacion.js › puedeGestionarProyecto.
+    if (rol === 'ejecutivo') {
+      const mandaAqui = esMismaDG || esCreador || esResponsableProyecto;
+      return {
+        puedeEditar: true,
+        puedeEliminar: mandaAqui,
+        puedeCrearEtapa: true,
+        puedeCrearAccion: true,
+        puedeEditarAccion: true,
+        puedeCambiarEstado: true,
+        puedeInvitar: mandaAqui,
         esParticipante: true,
         esSoloLectura: false,
       };

@@ -15,7 +15,7 @@ const pool = require('../pool');
 const indicadoresQueries = require('./indicadores.queries');
 
 // Lista proyectos con filtros opcionales, paginación y datos del líder
-async function listarProyectos({ estado, tipo, idDg, busqueda, carteraId, sinCartera, pagina = 1, limite = 12 }) {
+async function listarProyectos({ estado, tipo, idDg, busqueda, carteraId, sinCartera, participacion, usuarioId, pagina = 1, limite = 12 }) {
   const condiciones = ['p.deleted_at IS NULL'];
   const parametros = [];
   let indice = 1;
@@ -52,6 +52,26 @@ async function listarProyectos({ estado, tipo, idDg, busqueda, carteraId, sinCar
       SELECT 1 FROM cartera_proyecto cp3 WHERE cp3.proyecto_id = p.id
     )`);
   }
+  // Filtro "¿dónde participo?". La visibilidad NO cambia — todos siguen
+  // pudiendo ver todos los proyectos; esto solo acota el listado para que
+  // cada quien encuentre lo suyo entre decenas. Participar es ser creador
+  // o estar en proyecto_usuarios: el permiso que da el cargo (ejecutivo,
+  // director de la DG) no cuenta como participación.
+  if (usuarioId && (participacion === 'participo' || participacion === 'responsable')) {
+    const soloResponsable = participacion === 'responsable'
+      ? `AND pu_f.rol = 'responsable'` : '';
+    condiciones.push(`(p.id_creador = $${indice} OR EXISTS (
+      SELECT 1 FROM proyecto_usuarios pu_f
+       WHERE pu_f.id_proyecto = p.id AND pu_f.id_usuario = $${indice} ${soloResponsable}
+    ))`);
+    parametros.push(usuarioId);
+    indice++;
+  }
+
+  // El usuario que consulta, para resolver su papel en cada fila. Va antes
+  // de limite/offset para que su índice no dependa de la paginación.
+  const indiceUsuario = indice++;
+  parametros.push(usuarioId || null);
 
   const offset = (pagina - 1) * limite;
   parametros.push(limite, offset);
@@ -71,7 +91,14 @@ async function listarProyectos({ estado, tipo, idDg, busqueda, carteraId, sinCar
       c.nombre AS cartera_nombre,
       (SELECT COUNT(*) FROM etapas e WHERE e.id_proyecto = p.id) AS total_etapas,
       (SELECT COUNT(*) FROM acciones a WHERE a.id_proyecto = p.id AND a.estado NOT IN ('Completada','Cancelada')) AS acciones_pendientes,
-      (SELECT COUNT(*) FROM riesgos r WHERE r.entidad_tipo = 'Proyecto' AND r.entidad_id = p.id AND r.estado IN ('Abierto','En_mitigacion')) AS riesgos_activos
+      (SELECT COUNT(*) FROM riesgos r WHERE r.entidad_tipo = 'Proyecto' AND r.entidad_id = p.id AND r.estado IN ('Abierto','En_mitigacion')) AS riesgos_activos,
+      -- Papel del usuario que consulta EN ESTE proyecto ('responsable',
+      -- 'colaborador' o NULL). El frontend lo combina con el rol global
+      -- para etiquetar la tarjeta (ver utils/papelProyecto.js): así se ve
+      -- de un vistazo qué puede hacer uno en cada proyecto, en vez de
+      -- deducirlo por qué botones aparecen.
+      (SELECT pu.rol FROM proyecto_usuarios pu
+        WHERE pu.id_proyecto = p.id AND pu.id_usuario = $${indiceUsuario}) AS mi_rol_proyecto
     FROM proyectos p
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
     LEFT JOIN direcciones_area da ON da.id = p.id_direccion_area_lider
@@ -85,9 +112,11 @@ async function listarProyectos({ estado, tipo, idDg, busqueda, carteraId, sinCar
   `, parametros);
 
   // Conteo total para paginación
+  // El conteo reusa el mismo WHERE pero sin los parámetros que solo usa
+  // el SELECT (usuario para el papel) ni los de paginación.
   const conteo = await pool.query(`
     SELECT COUNT(*) AS total FROM proyectos p WHERE ${whereClause}
-  `, parametros.slice(0, -2));
+  `, parametros.slice(0, -3));
 
   return {
     proyectos: resultado.rows,

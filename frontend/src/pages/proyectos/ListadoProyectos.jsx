@@ -201,7 +201,33 @@ function VistaTodos() {
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-gray-500">{total} proyecto(s) encontrado(s)</p>
+      {/* Alcance: todos / donde participo. La visibilidad sigue siendo
+          total —cualquiera puede consultar cualquier proyecto— esto solo
+          acota el listado, que con decenas de proyectos es lo que hace
+          falta para encontrar lo propio. */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
+          {[
+            { valor: undefined, etiqueta: 'Todos' },
+            { valor: 'participo', etiqueta: 'Donde participo' },
+            { valor: 'responsable', etiqueta: 'Donde soy responsable' },
+          ].map(op => {
+            const activo = (filtros.participacion || undefined) === op.valor;
+            return (
+              <button
+                key={op.etiqueta}
+                onClick={() => actualizarFiltros({ participacion: op.valor, pagina: 1 })}
+                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                  activo ? 'bg-guinda-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {op.etiqueta}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-sm text-gray-500">{total} proyecto(s) encontrado(s)</p>
+      </div>
 
       {/* Filtros */}
       <div className="card p-4">

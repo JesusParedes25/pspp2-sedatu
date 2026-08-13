@@ -43,14 +43,32 @@ async function obtenerProyectoIdDeNodo(tipoNodo, idNodo, db) {
   return null;
 }
 
-// ¿Puede este usuario gestionar (eliminar / invitar) el proyecto dado?
+// ¿Puede este usuario gestionar (eliminar, invitar) el proyecto dado?
+//
+// Gestionar es lo destructivo y lo de control. Aquí el 'ejecutivo' NO
+// tiene barra libre: manda en los proyectos de SU Dirección General, no
+// en los de otras áreas. Un subsecretario necesita ver toda la Secretaría
+// y dar seguimiento, no borrar el trabajo de una DG ajena.
+//
+// Ojo con el caso real: hay usuarios 'ejecutivo' SIN DG asignada. Por eso
+// la regla no es solo "misma DG" — se conservan siempre las vías de
+// creador y responsable, para que nadie pierda el control de lo suyo por
+// no tener una DG capturada.
+//
+// superadmin sigue sin límites: es quien administra la plataforma y tiene
+// la papelera de 30 días para revertir.
 async function puedeGestionarProyecto({ usuario, idProyecto }, db) {
   if (!usuario || !idProyecto) return false;
-  if (usuario.rol === 'superadmin' || usuario.rol === 'ejecutivo') return true;
+  if (usuario.rol === 'superadmin') return true;
 
   const conn = db || pool;
-  const { rows } = await conn.query('SELECT id_creador FROM proyectos WHERE id = $1', [idProyecto]);
-  if (rows[0]?.id_creador === usuario.id) return true;
+  const { rows } = await conn.query(
+    'SELECT id_creador, id_dg_lider FROM proyectos WHERE id = $1', [idProyecto]
+  );
+  if (!rows[0]) return false;
+
+  if (rows[0].id_creador === usuario.id) return true;
+  if (usuario.rol === 'ejecutivo' && usuario.id_dg && rows[0].id_dg_lider === usuario.id_dg) return true;
 
   const rolProyecto = await miembrosQueries.obtenerRolUsuario(idProyecto, usuario.id);
   return rolProyecto === 'responsable';
@@ -73,6 +91,12 @@ async function puedeGestionarProyecto({ usuario, idProyecto }, db) {
 // esté escondido.
 async function puedeEditarProyecto({ usuario, idProyecto }, db) {
   if (!usuario || !idProyecto) return false;
+
+  // El 'ejecutivo' sí edita en toda la Secretaría: dar seguimiento y
+  // corregir datos de cualquier proyecto es su función. Lo que no puede
+  // es BORRAR fuera de su DG — eso lo decide puedeGestionarProyecto.
+  if (usuario.rol === 'ejecutivo') return true;
+
   if (await puedeGestionarProyecto({ usuario, idProyecto }, db)) return true;
 
   if (usuario.rol === 'direccion' && usuario.id_dg) {
