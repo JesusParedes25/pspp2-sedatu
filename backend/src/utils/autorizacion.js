@@ -56,6 +56,36 @@ async function puedeGestionarProyecto({ usuario, idProyecto }, db) {
   return rolProyecto === 'responsable';
 }
 
+// ¿Puede este usuario EDITAR los datos del proyecto (nombre, fechas,
+// clasificación, indicadores)?
+//
+// Editar es más permisivo que gestionar: además de quien puede gestionar,
+// un 'direccion' puede editar los proyectos liderados por SU Dirección
+// General aunque no sea su creador ni responsable — mandar sobre lo de su
+// área es justamente su función.
+//
+// Se separa de puedeGestionarProyecto a propósito. Esa función decide
+// operaciones destructivas o de control (borrar, invitar), donde ser del
+// área NO alcanza: para borrar hay que ser dueño del proyecto. Esta regla
+// es exactamente la que ya aplicaba la interfaz en usePermisos.js
+// (`puedeEditar`), así que nadie gana ni pierde capacidades; lo que cambia
+// es que ahora el servidor la verifica en vez de confiar en que el botón
+// esté escondido.
+async function puedeEditarProyecto({ usuario, idProyecto }, db) {
+  if (!usuario || !idProyecto) return false;
+  if (await puedeGestionarProyecto({ usuario, idProyecto }, db)) return true;
+
+  if (usuario.rol === 'direccion' && usuario.id_dg) {
+    const conn = db || pool;
+    const { rows } = await conn.query(
+      'SELECT id_dg_lider FROM proyectos WHERE id = $1', [idProyecto]
+    );
+    return rows[0]?.id_dg_lider === usuario.id_dg;
+  }
+
+  return false;
+}
+
 // ¿Puede este usuario gestionar (eliminar / invitar) un nodo específico?
 // Resuelve el proyecto dueño del nodo y aplica la misma regla.
 async function puedeGestionarNodo({ usuario, tipoNodo, idNodo }, db) {
@@ -67,5 +97,6 @@ async function puedeGestionarNodo({ usuario, tipoNodo, idNodo }, db) {
 module.exports = {
   obtenerProyectoIdDeNodo,
   puedeGestionarProyecto,
+  puedeEditarProyecto,
   puedeGestionarNodo,
 };

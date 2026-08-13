@@ -14,6 +14,7 @@
  */
 const proyectosQueries = require('../db/queries/proyectos.queries');
 const { duplicarProyecto } = require('../db/queries/duplicar.queries');
+const { puedeEditarProyecto } = require('../utils/autorizacion');
 const indicadoresQueries = require('../db/queries/indicadores.queries');
 const miembrosQueries = require('../db/queries/miembros.queries');
 const pool = require('../db/pool');
@@ -163,6 +164,26 @@ async function actualizar(req, res, next) {
   const { estado, motivo_bloqueo, nota_resolucion, ...otrosDatos } = req.body;
   const proyectoId = req.params.id;
   const idUsuario = req.usuario?.id;
+
+  // Este endpoint no verificaba NADA: cualquier usuario autenticado podía
+  // modificar cualquier proyecto llamando a la API directamente. La
+  // interfaz esconde el botón "Editar" a quien no debe verlo, pero eso es
+  // comodidad, no seguridad — quien arma la petición a mano se la salta.
+  // Es el mismo hueco que ya se cerró en DELETE; aquí se había quedado.
+  // La regla aplicada es la que la propia interfaz ya concedía, así que
+  // nadie pierde una capacidad que tuviera.
+  try {
+    const autorizado = await puedeEditarProyecto({ usuario: req.usuario, idProyecto: proyectoId });
+    if (!autorizado) {
+      return res.status(403).json({
+        error: true,
+        mensaje: 'Solo el creador, el responsable del proyecto, la Dirección General que lo lidera o un superadmin/ejecutivo pueden modificarlo.',
+        codigo: 'NO_AUTORIZADO'
+      });
+    }
+  } catch (err) {
+    return next(err);
+  }
 
   if (estado) {
     const client = await pool.connect();
