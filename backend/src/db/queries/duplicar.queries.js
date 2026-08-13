@@ -248,8 +248,9 @@ async function duplicarProyecto(idOrigen, opciones, creadorId) {
           INSERT INTO indicadores (
             id_proyecto, id_etapa, nombre, tipo, unidad, unidad_personalizada,
             etiqueta_unidad, meta_global, temporalidad, anio_inicio, anio_fin,
-            descripcion, orden, activo, modo_calculo, es_publicable, valor_actual
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,0)
+            descripcion, orden, activo, modo_calculo, es_publicable, valor_actual,
+            id_catalogo, id_creador
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,0,$17,$18)
           RETURNING id
         `, [
           nuevo.id,
@@ -258,6 +259,10 @@ async function duplicarProyecto(idOrigen, opciones, creadorId) {
           ind.etiqueta_unidad, ind.meta_global, ind.temporalidad,
           ind.anio_inicio, ind.anio_fin, ind.descripcion, ind.orden,
           ind.activo, ind.modo_calculo, ind.es_publicable,
+          // El vínculo al catálogo viaja (es la identidad del indicador);
+          // el autor pasa a ser quien duplica, que es quien lo dio de alta
+          // en ESTE proyecto.
+          ind.id_catalogo || null, creadorId,
         ]);
 
         await client.query(`

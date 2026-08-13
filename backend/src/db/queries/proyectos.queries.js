@@ -188,7 +188,8 @@ async function crearProyecto(datos, creadorId) {
         await indicadoresQueries.crear(
           proyecto.id,
           { ...datos.indicadores[i], orden: i + 1 },
-          client
+          client,
+          creadorId
         );
       }
     }

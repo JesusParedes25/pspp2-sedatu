@@ -25,6 +25,7 @@ import ModalAgregarProyectos from '../../components/carteras/ModalAgregarProyect
 import CronogramaCartera from '../../components/carteras/CronogramaCartera';
 import MapaCartera from '../../components/carteras/MapaCartera';
 import ActividadCartera from '../../components/carteras/ActividadCartera';
+import TarjetaIndicador, { ETIQUETA_TIPO_INDICADOR } from '../../components/indicadores/TarjetaIndicador';
 
 const PESTANAS = [
   { id: 'resumen', etiqueta: 'Resumen', icono: LayoutDashboard },
@@ -57,49 +58,29 @@ const GUINDA = '#7B1C3E';
 // o el valor crudo si es numeralía sin meta. Se replica aquí porque
 // Inicio.jsx no la exporta como componente aparte.
 function IndicadoresResumen({ indicadores }) {
-  const grouped = {};
+  // Misma tarjeta que el Tablero y el Panorama del proyecto — ver
+  // TarjetaIndicador. Antes esto era una copia del componente de
+  // Inicio.jsx y ya había divergido de él.
+  const grupos = {};
   for (const ind of indicadores) {
     const tipo = ind.tipo || 'Otro';
-    if (!grouped[tipo]) grouped[tipo] = [];
-    grouped[tipo].push(ind);
+    (grupos[tipo] = grupos[tipo] || []).push(ind);
   }
 
   return (
     <div className="space-y-4">
-      {Object.entries(grouped).map(([tipo, inds]) => (
+      {Object.entries(grupos).map(([tipo, inds]) => (
         <div key={tipo}>
-          <p className="text-xs font-medium text-gray-700 mb-2">{tipo}</p>
-          <div className="space-y-2">
-            {inds.map(ind => {
-              const meta = parseFloat(ind.meta_global) || 0;
-              const valor = parseFloat(ind.valor_actual) || 0;
-              const tieneMeta = meta > 0;
-              const pct = tieneMeta ? Math.min(100, (valor / meta) * 100) : null;
-              const unidad = ind.unidad_personalizada || ind.unidad || '';
-              return (
-                <div key={ind.id} className="border border-gray-100 rounded-lg p-2.5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs text-gray-800 font-medium leading-snug break-words">{ind.nombre}</p>
-                      <p className="text-[10px] text-gray-500 leading-snug break-words">{ind.proyecto_nombre} · {ind.dg_siglas}</p>
-                    </div>
-                    {!tieneMeta && (
-                      <p className="text-xs font-bold flex-shrink-0 whitespace-nowrap" style={{ color: GUINDA }}>
-                        {valor.toLocaleString()} {unidad}
-                      </p>
-                    )}
-                  </div>
-                  {tieneMeta && (
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full" style={{ width: `${pct || 0}%`, backgroundColor: GUINDA }} />
-                      </div>
-                      <span className="text-[10px] font-semibold text-gray-600 flex-shrink-0">{pct !== null ? `${pct.toFixed(0)}%` : '—'}</span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+          <p className="text-xs font-medium text-gray-700 mb-2">{ETIQUETA_TIPO_INDICADOR[tipo] || tipo}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {inds.map(ind => (
+              <TarjetaIndicador
+                key={ind.id}
+                indicador={ind}
+                variante="compacto"
+                contexto={[ind.proyecto_nombre, ind.dg_siglas].filter(Boolean).join(' \u00b7 ')}
+              />
+            ))}
           </div>
         </div>
       ))}

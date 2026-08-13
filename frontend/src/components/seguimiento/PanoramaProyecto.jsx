@@ -16,6 +16,7 @@ import { obtenerPanorama, crearInvitacion, eliminarMiembro, cancelarInvitacion }
 import { agregarMiembroNodo } from '../../api/nodo-miembros';
 import { calcularColorSemaforo } from '../../utils/semaforoColor';
 import client from '../../api/client';
+import TarjetaIndicador from '../indicadores/TarjetaIndicador';
 
 const GUINDA = '#7B1C3E';
 const GUINDA_LIGHT = '#9f2241';
@@ -404,65 +405,20 @@ function ParticipanteCard({ miembro: m, puedeEliminar, onEliminar }) {
 
 // ─── Indicador Card ───────────────────────────────────────────
 function IndicadorCard({ indicador }) {
-  const meta = parseFloat(indicador.meta_global) || 0;
-  const valor = parseFloat(indicador.valor_actual) || 0;
-  const tieneMeta = meta > 0;
-  const pct = tieneMeta ? Math.min(100, (valor / meta) * 100) : null;
-  const unidad = indicador.unidad === 'Porcentaje' ? '%'
-    : indicador.unidad === 'Moneda_MXN' ? '$MXN'
-    : indicador.etiqueta_unidad || indicador.unidad_personalizada || '#';
-
-  // Data for metas anuales chart
+  // La tarjeta es la compartida con Tablero y Resumen de cartera; aquí
+  // se le agrega, como hijo, la gráfica de metas anuales, que solo tiene
+  // sentido dentro del proyecto (es su desglose por año).
   const chartData = (indicador.metas_anuales || []).map(m => ({
     anio: m.anio,
     meta: parseFloat(m.valor_meta) || 0,
-    real: parseFloat(m.valor_real) || 0
+    real: parseFloat(m.valor_real) || 0,
   }));
 
   return (
-    <div className="border border-gray-200 rounded-lg p-3 space-y-2">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="text-sm font-medium text-gray-800">{indicador.nombre}</p>
-          {indicador.etapa_nombre && (
-            <p className="text-[11px] text-gray-500">Etapa: {indicador.etapa_nombre}</p>
-          )}
-        </div>
-        {tieneMeta ? (
-          <span className="text-xs font-bold tabular-nums" style={{ color: GUINDA }}>
-            {pct.toFixed(0)}%
-          </span>
-        ) : (
-          <span className="text-xs font-bold tabular-nums" style={{ color: GUINDA }}>
-            {valor.toLocaleString()} {unidad}
-          </span>
-        )}
-      </div>
-
-      {/* Progress bar — only when meta > 0 */}
-      {tieneMeta && (
-        <div className="space-y-1">
-          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all"
-              style={{ width: `${Math.min(100, pct || 0)}%`, backgroundColor: GUINDA_LIGHT }}
-            />
-          </div>
-          <div className="flex justify-between text-[11px] text-gray-500">
-            <span>{valor.toLocaleString()} {unidad}</span>
-            <span>Meta: {meta.toLocaleString()} {unidad}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Numeralia — when no meta */}
-      {!tieneMeta && valor > 0 && (
-        <p className="text-sm font-semibold" style={{ color: GUINDA }}>
-          {valor.toLocaleString()} {unidad}
-        </p>
-      )}
-
-      {/* Metas anuales chart */}
+    <TarjetaIndicador
+      indicador={indicador}
+      contexto={indicador.etapa_nombre ? `Etapa: ${indicador.etapa_nombre}` : null}
+    >
       {chartData.length > 0 && (
         <div className="h-24 mt-2">
           <ResponsiveContainer width="100%" height="100%">
@@ -476,7 +432,7 @@ function IndicadorCard({ indicador }) {
           </ResponsiveContainer>
         </div>
       )}
-    </div>
+    </TarjetaIndicador>
   );
 }
 

@@ -51,7 +51,7 @@ async function listarPorProyecto(proyectoId) {
 
 // Crea un indicador con sus metas anuales opcionales
 // Si datos.id_etapa viene, es un indicador de nivel etapa; si no, es de proyecto.
-async function crear(proyectoId, datos, client = null) {
+async function crear(proyectoId, datos, client = null, creadorId = null) {
   const db = client || pool;
 
   // Sanitizar campos numéricos: convertir "" a null
@@ -65,8 +65,8 @@ async function crear(proyectoId, datos, client = null) {
     INSERT INTO indicadores (
       id_proyecto, id_etapa, nombre, tipo, unidad, unidad_personalizada,
       etiqueta_unidad, meta_global, temporalidad, anio_inicio, anio_fin,
-      descripcion, orden, id_catalogo
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+      descripcion, orden, id_catalogo, id_creador
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
     RETURNING *
   `, [
     proyectoId, idEtapa, datos.nombre, datos.tipo, datos.unidad,
@@ -78,7 +78,10 @@ async function crear(proyectoId, datos, client = null) {
     // Enlace opcional al catálogo: lo manda el selector del formulario.
     // Sigue siendo válido capturar un indicador suelto (id_catalogo NULL),
     // que es como quedaron todos los anteriores a la migración 049.
-    datos.id_catalogo || null
+    datos.id_catalogo || null,
+    // Quién dio de alta este indicador. Lo necesita la API externa para
+    // atribuir el dato, y sirve para saber a quién preguntarle.
+    creadorId || datos.id_creador || null
   ]);
 
   const indicador = resultado.rows[0];

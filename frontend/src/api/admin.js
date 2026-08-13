@@ -117,3 +117,19 @@ export async function obtenerConfigPublico() {
   const { data } = await API.get('/admin/config/publico');
   return data;
 }
+
+// ─── Tokens de servicio de la API de indicadores ─────────────────
+export async function listarApiTokens() {
+  const { data } = await API.get('/admin/api-tokens');
+  return data;
+}
+
+export async function crearApiToken(datos) {
+  const { data } = await API.post('/admin/api-tokens', datos);
+  return data;
+}
+
+export async function revocarApiToken(id) {
+  const { data } = await API.delete(`/admin/api-tokens/${id}`);
+  return data;
+}

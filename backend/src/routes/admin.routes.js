@@ -47,4 +47,11 @@ router.put('/areas/das/:id', adminController.editarDA);
 router.get('/config', adminController.obtenerConfig);
 router.put('/config', adminController.actualizarConfig);
 
+// ─── Tokens de servicio de la API de indicadores ─────────────────
+// Administrables desde el panel para no tener que tocar código ni
+// variables de entorno al dar, rotar o revocar un acceso.
+router.get('/api-tokens', adminController.listarApiTokens);
+router.post('/api-tokens', adminController.crearApiToken);
+router.delete('/api-tokens/:id', adminController.revocarApiToken);
+
 module.exports = router;

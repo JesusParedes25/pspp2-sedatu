@@ -14,6 +14,7 @@ import { useAuth } from '../context/AuthContext';
 import { obtenerInicio } from '../api/inicio';
 import client from '../api/client';
 import MapaTerritorialInicio from '../components/inicio/MapaTerritorialInicio';
+import TarjetaIndicador, { ETIQUETA_TIPO_INDICADOR } from '../components/indicadores/TarjetaIndicador';
 
 const GUINDA = '#7B1C3E';
 const SEM = { verde: '#22c55e', ambar: '#f59e0b', rojo: '#ef4444', gris: '#9ca3af' };
@@ -396,50 +397,30 @@ function MetricaCard({ icono: Icono, titulo, valor, color }) {
 
 // ─── Indicadores Resumen ──────────────────────────────────────
 function IndicadoresResumen({ indicadores }) {
-  // Group by tipo
-  const grouped = {};
+  // Agrupado por tipo, igual que antes. La tarjeta en sí vive en
+  // TarjetaIndicador y la comparten Tablero, Resumen de cartera y
+  // Panorama del proyecto — antes eran tres copias que ya habían
+  // divergido (solo una mostraba el valor junto al porcentaje).
+  const grupos = {};
   for (const ind of indicadores) {
     const tipo = ind.tipo || 'Otro';
-    if (!grouped[tipo]) grouped[tipo] = [];
-    grouped[tipo].push(ind);
+    (grupos[tipo] = grupos[tipo] || []).push(ind);
   }
 
   return (
     <div className="space-y-4">
-      {Object.entries(grouped).map(([tipo, inds]) => (
+      {Object.entries(grupos).map(([tipo, inds]) => (
         <div key={tipo}>
-          <p className="text-xs font-medium text-gray-700 mb-2">{tipo}</p>
+          <p className="text-xs font-medium text-gray-700 mb-2">{ETIQUETA_TIPO_INDICADOR[tipo] || tipo}</p>
           <div className="space-y-2">
-            {inds.slice(0, 6).map(ind => {
-              const meta = parseFloat(ind.meta_global) || 0;
-              const valor = parseFloat(ind.valor_actual) || 0;
-              const tieneMeta = meta > 0;
-              const pct = tieneMeta ? Math.min(100, (valor / meta) * 100) : null;
-              const unidad = ind.etiqueta_unidad || ind.unidad_personalizada || ind.unidad || '';
-              return (
-                <div key={ind.id} className="border border-gray-100 rounded-lg p-2.5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs text-gray-800 font-medium leading-snug break-words">{ind.nombre}</p>
-                      <p className="text-[10px] text-gray-500 leading-snug break-words">{ind.proyecto_nombre} · {ind.dg_siglas}</p>
-                    </div>
-                    {!tieneMeta && (
-                      <p className="text-xs font-bold flex-shrink-0 whitespace-nowrap" style={{ color: GUINDA }}>
-                        {valor.toLocaleString()} {unidad}
-                      </p>
-                    )}
-                  </div>
-                  {tieneMeta && (
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full" style={{ width: `${pct || 0}%`, backgroundColor: GUINDA }} />
-                      </div>
-                      <span className="text-[10px] font-semibold text-gray-600 flex-shrink-0">{pct !== null ? `${pct.toFixed(0)}%` : '—'}</span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {inds.slice(0, 6).map(ind => (
+              <TarjetaIndicador
+                key={ind.id}
+                indicador={ind}
+                variante="compacto"
+                contexto={[ind.proyecto_nombre, ind.dg_siglas].filter(Boolean).join(' \u00b7 ')}
+              />
+            ))}
           </div>
         </div>
       ))}

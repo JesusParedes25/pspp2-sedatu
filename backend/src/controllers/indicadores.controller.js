@@ -45,7 +45,7 @@ async function listarTodosPorProyecto(req, res, next) {
 // POST /proyectos/:id/indicadores
 async function crear(req, res, next) {
   try {
-    const indicador = await indicadoresQueries.crear(req.params.id, req.body);
+    const indicador = await indicadoresQueries.crear(req.params.id, req.body, null, req.usuario?.id);
     res.status(201).json({ datos: indicador, mensaje: 'Indicador creado' });
   } catch (err) {
     next(err);

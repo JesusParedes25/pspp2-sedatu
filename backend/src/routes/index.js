@@ -70,6 +70,13 @@ router.use('/auth', authRoutes);
 const proyectosController = require('../controllers/proyectos.controller');
 router.get('/proyectos/:id/imagen', proyectosController.servirImagen);
 
+// API de salida para el tablero ejecutivo externo. Va ANTES de
+// verificarToken porque no la consume un usuario con sesión, sino otra
+// plataforma con un token de servicio (ver api-token.middleware.js).
+const publicoController = require('../controllers/publico.controller');
+const { requiereApiToken } = require('../middleware/api-token.middleware');
+router.get('/publico/indicadores', requiereApiToken, publicoController.indicadores);
+
 // ─── Middleware de autenticación para todas las rutas siguientes ─
 router.use(verificarToken);
 

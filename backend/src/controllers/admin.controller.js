@@ -470,7 +470,37 @@ async function obtenerConfigPublico(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// ─── Tokens de servicio para la API de indicadores ───────────────
+const apiTokensQueries = require('../db/queries/api-tokens.queries');
+
+async function listarApiTokens(req, res, next) {
+  try {
+    res.json({ datos: await apiTokensQueries.listar() });
+  } catch (err) { next(err); }
+}
+
+async function crearApiToken(req, res, next) {
+  try {
+    const nombre = (req.body?.nombre || '').trim();
+    if (!nombre) {
+      return res.status(400).json({ error: true, mensaje: 'El token necesita un nombre que diga para qué es', codigo: 'CAMPOS_REQUERIDOS' });
+    }
+    const datos = await apiTokensQueries.crear({ nombre, descripcion: req.body?.descripcion }, req.usuario.id);
+    // `datos.token` viene en claro SOLO en esta respuesta.
+    res.status(201).json({ datos, mensaje: 'Token creado. Cópialo ahora: no se vuelve a mostrar.' });
+  } catch (err) { next(err); }
+}
+
+async function revocarApiToken(req, res, next) {
+  try {
+    const datos = await apiTokensQueries.revocar(req.params.id);
+    if (!datos) return res.status(404).json({ error: true, mensaje: 'Token no encontrado', codigo: 'NO_ENCONTRADO' });
+    res.json({ datos, mensaje: 'Token revocado' });
+  } catch (err) { next(err); }
+}
+
 module.exports = {
+  listarApiTokens, crearApiToken, revocarApiToken,
   listarCatalogos,
   agregarValorCatalogo,
   editarValorCatalogo,
