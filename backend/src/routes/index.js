@@ -39,6 +39,7 @@ const adminRoutes = require('./admin.routes');
 const tareasRoutes = require('./tareas.routes');
 const geoRoutes = require('./geo.routes');
 const actividadRoutes = require('./actividad.routes');
+const catalogoIndicadoresRoutes = require('./catalogo-indicadores.routes');
 
 // Importar controllers para rutas anidadas
 const etapasController = require('../controllers/etapas.controller');
@@ -88,6 +89,7 @@ router.use('/plantillas-importacion', plantillasRoutes);
 router.use('/admin', adminRoutes);
 router.use('/geo', geoRoutes);
 router.use('/actividad', actividadRoutes);
+router.use('/catalogo-indicadores', catalogoIndicadoresRoutes);
 
 // ─── Rutas anidadas (conectan controllers de diferentes recursos) ─
 

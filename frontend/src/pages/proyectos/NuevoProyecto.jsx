@@ -26,6 +26,7 @@ import * as carterasApi from '../../api/carteras';
 import ModalCartera from '../../components/carteras/ModalCartera';
 import { ImagePlus, X, Plus, Trash2, ChevronDown, Briefcase, Copy } from 'lucide-react';
 import ModalDuplicarProyecto from '../../components/proyectos/ModalDuplicarProyecto';
+import SelectorIndicadorCatalogo from '../../components/indicadores/SelectorIndicadorCatalogo';
 
 const PASOS = [
   'Información general',
@@ -75,6 +76,7 @@ export default function NuevoProyecto() {
   const [carteras, setCarteras] = useState([]);
   const [mostrarNuevaCartera, setMostrarNuevaCartera] = useState(false);
   const [mostrarDuplicar, setMostrarDuplicar] = useState(false);
+  const [mostrarCatalogoInd, setMostrarCatalogoInd] = useState(false);
 
   // Datos del formulario
   const [datos, setDatos] = useState({
@@ -444,14 +446,40 @@ export default function NuevoProyecto() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-sm font-medium text-gray-700">Indicadores cuantitativos</p>
-                <button type="button" onClick={() => actualizar('indicadores', [...datos.indicadores, INDICADOR_NUEVO()])}
+                <button type="button" onClick={() => setMostrarCatalogoInd(true)}
                   className="text-xs text-guinda-600 hover:text-guinda-700 font-medium flex items-center gap-1">
                   <span className="text-base leading-none">+</span> Agregar indicador
                 </button>
               </div>
 
               {datos.indicadores.length === 0 && (
-                <p className="text-xs text-gray-400 italic">Sin indicadores. Puedes agregar uno o más indicadores de avance, financieros, cobertura, etc.</p>
+                <p className="text-xs text-gray-400 italic">
+                  Sin indicadores. Se eligen del catálogo compartido, para que dos proyectos que
+                  miden lo mismo queden comparables entre sí.
+                </p>
+              )}
+
+              {/* Los indicadores se eligen del catálogo en vez de teclearse:
+                  así el mismo indicador no acaba capturado de tres formas
+                  distintas y puede consolidarse entre proyectos. Si falta
+                  alguno se da de alta desde el mismo modal. */}
+              {mostrarCatalogoInd && (
+                <SelectorIndicadorCatalogo
+                  yaUsados={datos.indicadores.map(i => i.id_catalogo)}
+                  onCerrar={() => setMostrarCatalogoInd(false)}
+                  onElegir={(delCatalogo) => {
+                    actualizar('indicadores', [...datos.indicadores, {
+                      ...INDICADOR_NUEVO(),
+                      id_catalogo: delCatalogo.id,
+                      nombre: delCatalogo.nombre,
+                      tipo: delCatalogo.tipo,
+                      unidad: delCatalogo.unidad,
+                      unidad_personalizada: delCatalogo.unidad_personalizada || '',
+                      descripcion: delCatalogo.descripcion || '',
+                    }]);
+                    setMostrarCatalogoInd(false);
+                  }}
+                />
               )}
 
               <div className="space-y-3">
@@ -708,33 +736,54 @@ function FormIndicador({ indicador, indice, onChange, onEliminar, onToggle }) {
       {/* Cuerpo expandido */}
       {indicador._abierto && (
         <div className="p-4 space-y-3 border-t border-gray-100">
+          {/* Nombre, tipo y unidad definen la IDENTIDAD del indicador y
+              viven en el catálogo: si se pudieran editar aquí, dos
+              proyectos ligados a la misma entrada mostrarían cosas
+              distintas y el consolidado dejaría de cuadrar. Lo que sí es
+              propio de cada proyecto (meta, temporalidad) sigue editable
+              más abajo. Para cambiar la definición se edita el catálogo. */}
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Nombre del indicador *</label>
-            <input type="text" value={indicador.nombre} onChange={e => onChange('nombre', e.target.value)}
-              className="input-base text-sm" placeholder="Ej: Viviendas construidas, Presupuesto ejercido..." />
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Nombre del indicador {indicador.id_catalogo && <span className="font-normal text-gray-400">— del catálogo</span>}
+            </label>
+            {indicador.id_catalogo ? (
+              <p className="text-sm text-gray-800 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">{indicador.nombre}</p>
+            ) : (
+              <input type="text" value={indicador.nombre} onChange={e => onChange('nombre', e.target.value)}
+                className="input-base text-sm" placeholder="Ej: Viviendas construidas, Presupuesto ejercido..." />
+            )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Tipo</label>
-              <select value={indicador.tipo} onChange={e => onChange('tipo', e.target.value)} className="input-base text-sm">
-                {TIPOS_INDICADOR.map(t => <option key={t.valor} value={t.valor}>{t.etiqueta}</option>)}
-              </select>
+          {indicador.id_catalogo ? (
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">{etiquetaTipo}</span>
+              <span>se mide en {etiquetaUnidad === '#' ? 'número' : etiquetaUnidad}</span>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Unidad de medida</label>
-              <select value={indicador.unidad} onChange={e => onChange('unidad', e.target.value)} className="input-base text-sm">
-                {UNIDADES_INDICADOR.map(u => <option key={u.valor} value={u.valor}>{u.etiqueta}</option>)}
-              </select>
-            </div>
-          </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Tipo</label>
+                  <select value={indicador.tipo} onChange={e => onChange('tipo', e.target.value)} className="input-base text-sm">
+                    {TIPOS_INDICADOR.map(t => <option key={t.valor} value={t.valor}>{t.etiqueta}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Unidad de medida</label>
+                  <select value={indicador.unidad} onChange={e => onChange('unidad', e.target.value)} className="input-base text-sm">
+                    {UNIDADES_INDICADOR.map(u => <option key={u.valor} value={u.valor}>{u.etiqueta}</option>)}
+                  </select>
+                </div>
+              </div>
 
-          {indicador.unidad === 'Numero' && (
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Etiqueta de la unidad</label>
-              <input type="text" value={indicador.unidad_personalizada} onChange={e => onChange('unidad_personalizada', e.target.value)}
-                className="input-base text-sm" placeholder="Ej: viviendas, hectáreas, ZMs, expedientes..." />
-            </div>
+              {indicador.unidad === 'Numero' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Etiqueta de la unidad</label>
+                  <input type="text" value={indicador.unidad_personalizada} onChange={e => onChange('unidad_personalizada', e.target.value)}
+                    className="input-base text-sm" placeholder="Ej: viviendas, hectáreas, ZMs, expedientes..." />
+                </div>
+              )}
+            </>
           )}
 
           <div>

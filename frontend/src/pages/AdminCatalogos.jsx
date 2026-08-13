@@ -7,9 +7,10 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Plus, Pencil, Trash2, RotateCcw, AlertTriangle, Shield, ChevronDown, ChevronRight,
   Loader2, Save, X, Users, Building2, Settings, Mail, ToggleLeft, ToggleRight,
-  RefreshCw, CheckCircle, EyeOff, Eye
+  RefreshCw, CheckCircle, EyeOff, Eye, BarChart3
 } from 'lucide-react';
 import * as adminApi from '../api/admin';
+import TabIndicadores from '../components/admin/TabIndicadores';
 import * as proyectosApi from '../api/proyectos';
 import emailjs from '@emailjs/browser';
 import ConfirmDialog from '../components/common/ConfirmDialog';
@@ -575,6 +576,7 @@ function TabBtn({ active, onClick, children }) {
 // ─── Componente principal ─────────────────────────────────────────
 const TABS = [
   { id: 'catalogos', label: 'Catálogos', icon: Shield },
+  { id: 'indicadores', label: 'Indicadores', icon: BarChart3 },
   { id: 'usuarios', label: 'Usuarios', icon: Users },
   { id: 'areas', label: 'Áreas', icon: Building2 },
   { id: 'papelera', label: 'Papelera', icon: Trash2 },
@@ -742,6 +744,7 @@ export default function AdminCatalogos() {
       </div>
 
       {tab === 'catalogos' && <TabCatalogos />}
+      {tab === 'indicadores' && <TabIndicadores />}
       {tab === 'usuarios' && <TabUsuarios dgs={dgs} das={das} />}
       {tab === 'areas' && <TabAreas dgs={dgs} das={das} recargar={cargarAreas} />}
       {tab === 'papelera' && <TabPapelera />}

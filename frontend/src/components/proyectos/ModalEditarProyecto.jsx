@@ -16,6 +16,7 @@ import { X, Plus, Trash2, ChevronDown, ChevronUp, ImagePlus } from 'lucide-react
 import * as catalogosApi from '../../api/catalogos';
 import * as proyectosApi from '../../api/proyectos';
 import * as indicadoresApi from '../../api/indicadores';
+import SelectorIndicadorCatalogo from '../indicadores/SelectorIndicadorCatalogo';
 import * as etapasApi from '../../api/etapas';
 import * as accionesApi from '../../api/acciones';
 import { usePermisosProyecto } from '../../hooks/usePermisos';
@@ -53,6 +54,7 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
   const [direccionesArea, setDireccionesArea] = useState([]);
   const [cargando, setCargando]             = useState(true);
   const [enviando, setEnviando]             = useState(false);
+  const [mostrarCatalogoInd, setMostrarCatalogoInd] = useState(false);
   const [textoEtiqueta, setTextoEtiqueta]   = useState('');
   const [imagenPortada, setImagenPortada]   = useState(null);
   const [previewPortada, setPreviewPortada] = useState(proyecto.imagen_url || null);
@@ -210,6 +212,25 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
     if (!archivo) return;
     setImagenPortada(archivo);
     setPreviewPortada(URL.createObjectURL(archivo));
+  }
+
+  // Los indicadores se eligen del catálogo compartido (ver
+  // SelectorIndicadorCatalogo): tecleados a mano, el mismo indicador
+  // terminaba escrito distinto en cada proyecto y no se podía consolidar.
+  function agregarDelCatalogo(delCatalogo) {
+    setDatos(prev => ({
+      ...prev,
+      indicadores: [...prev.indicadores, {
+        ...INDICADOR_NUEVO(),
+        id_catalogo: delCatalogo.id,
+        nombre: delCatalogo.nombre,
+        tipo: delCatalogo.tipo,
+        unidad: delCatalogo.unidad,
+        unidad_personalizada: delCatalogo.unidad_personalizada || '',
+        descripcion: delCatalogo.descripcion || '',
+      }],
+    }));
+    setMostrarCatalogoInd(false);
   }
 
   function agregarIndicador() {
@@ -460,11 +481,18 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
             <Section titulo="Indicadores">
               <div className="flex items-center justify-between">
                 <p className="text-xs text-gray-400">Indicadores cuantitativos de avance del proyecto.</p>
-                <button type="button" onClick={agregarIndicador}
+                <button type="button" onClick={() => setMostrarCatalogoInd(true)}
                   className="text-xs text-guinda-600 hover:text-guinda-700 font-medium flex items-center gap-1">
                   <Plus size={13} /> Agregar
                 </button>
               </div>
+              {mostrarCatalogoInd && (
+                <SelectorIndicadorCatalogo
+                  yaUsados={datos.indicadores.map(i => i.id_catalogo)}
+                  onCerrar={() => setMostrarCatalogoInd(false)}
+                  onElegir={agregarDelCatalogo}
+                />
+              )}
               {indicadoresVisibles.length === 0 && (
                 <p className="text-xs text-gray-300 italic text-center py-3">Sin indicadores. Usa el botón para agregar.</p>
               )}

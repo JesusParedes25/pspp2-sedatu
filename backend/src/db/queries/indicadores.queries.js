@@ -65,8 +65,8 @@ async function crear(proyectoId, datos, client = null) {
     INSERT INTO indicadores (
       id_proyecto, id_etapa, nombre, tipo, unidad, unidad_personalizada,
       etiqueta_unidad, meta_global, temporalidad, anio_inicio, anio_fin,
-      descripcion, orden
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      descripcion, orden, id_catalogo
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
     RETURNING *
   `, [
     proyectoId, idEtapa, datos.nombre, datos.tipo, datos.unidad,
@@ -74,7 +74,11 @@ async function crear(proyectoId, datos, client = null) {
     datos.etiqueta_unidad || datos.unidad_personalizada || null, metaGlobal,
     datos.temporalidad || 'Global',
     anioInicio, anioFin,
-    datos.descripcion || null, orden
+    datos.descripcion || null, orden,
+    // Enlace opcional al catálogo: lo manda el selector del formulario.
+    // Sigue siendo válido capturar un indicador suelto (id_catalogo NULL),
+    // que es como quedaron todos los anteriores a la migración 049.
+    datos.id_catalogo || null
   ]);
 
   const indicador = resultado.rows[0];
