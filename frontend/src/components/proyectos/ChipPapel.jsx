@@ -14,16 +14,17 @@
  */
 import { useAuth } from '../../context/AuthContext';
 import {
-  calcularPapel, ETIQUETA_PAPEL, DESCRIPCION_PAPEL, COLOR_PAPEL, PAPEL,
+  calcularPapel, papelRelevanteEnListado,
+  ETIQUETA_PAPEL, DESCRIPCION_PAPEL, COLOR_PAPEL,
 } from '../../utils/papelProyecto';
 
 export default function ChipPapel({ proyecto, className = '', ocultarLector = false }) {
   const { usuario } = useAuth();
   const papel = calcularPapel(proyecto, usuario);
 
-  // En listados largos, marcar cada tarjeta ajena con "Solo lectura" es
-  // ruido: lo útil es que resalte dónde SÍ participas.
-  if (ocultarLector && papel === PAPEL.LECTOR) return null;
+  // En listados largos, marcar cada tarjeta ajena con "Consulta" es
+  // ruido: lo útil es que resalte dónde sí hay una atribución propia.
+  if (ocultarLector && !papelRelevanteEnListado(papel)) return null;
 
   return (
     <span

@@ -3,6 +3,7 @@
  * PROPÓSITO: Endpoints para gestión de miembros e invitaciones de proyecto.
  */
 const miembrosQueries = require('../db/queries/miembros.queries');
+const { puedeGestionarParticipantes } = require('../utils/autorizacion');
 const { registrarActividad } = require('../utils/actividad-log');
 const { crearNotificacion } = require('../utils/notificaciones');
 const pool = require('../db/pool');
@@ -41,9 +42,10 @@ async function agregarMiembro(req, res, next) {
     if (!id_usuario || !rol) {
       return res.status(400).json({ mensaje: 'id_usuario y rol son requeridos' });
     }
-    // Only responsable or superadmin/Ejecutivo can add members
-    const rolUsuario = await miembrosQueries.obtenerRolUsuario(req.params.id, req.usuario.id);
-    const puedeGestionar = rolUsuario === 'responsable' || req.usuario.rol === 'superadmin' || req.usuario.rol === 'ejecutivo';
+    // Regla única en utils/autorizacion.js: responsable o creador del
+    // proyecto, la Dirección General que lo lidera, o los cargos con
+    // alcance institucional (superadmin, ejecutivo).
+    const puedeGestionar = await puedeGestionarParticipantes({ usuario: req.usuario, idProyecto: req.params.id });
     if (!puedeGestionar) {
       return res.status(403).json({ mensaje: 'No tienes permisos para gestionar miembros' });
     }
@@ -59,9 +61,7 @@ async function agregarMiembro(req, res, next) {
 async function eliminarMiembro(req, res, next) {
   try {
     const { id, userId } = req.params;
-    // Only responsable or superadmin/Ejecutivo can remove members
-    const rolUsuario = await miembrosQueries.obtenerRolUsuario(id, req.usuario.id);
-    const puedeGestionar = rolUsuario === 'responsable' || req.usuario.rol === 'superadmin' || req.usuario.rol === 'ejecutivo';
+    const puedeGestionar = await puedeGestionarParticipantes({ usuario: req.usuario, idProyecto: id });
     if (!puedeGestionar) {
       return res.status(403).json({ mensaje: 'No tienes permisos para eliminar miembros' });
     }
@@ -79,8 +79,7 @@ async function crearInvitacion(req, res, next) {
     if (!id_usuario) {
       return res.status(400).json({ mensaje: 'id_usuario es requerido' });
     }
-    const rolUsuario = await miembrosQueries.obtenerRolUsuario(req.params.id, req.usuario.id);
-    const puedeInvitar = rolUsuario === 'responsable' || req.usuario.rol === 'superadmin' || req.usuario.rol === 'ejecutivo';
+    const puedeInvitar = await puedeGestionarParticipantes({ usuario: req.usuario, idProyecto: req.params.id });
     if (!puedeInvitar) {
       return res.status(403).json({ mensaje: 'No tienes permisos para invitar usuarios' });
     }

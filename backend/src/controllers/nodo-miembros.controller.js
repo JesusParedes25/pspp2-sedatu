@@ -3,7 +3,7 @@
  * PROPÓSITO: CRUD de miembros asignados a etapas y acciones específicas.
  */
 const nodoMiembrosQueries = require('../db/queries/nodo-miembros.queries');
-const { puedeGestionarNodo } = require('../utils/autorizacion');
+const { puedeGestionarParticipantesNodo } = require('../utils/autorizacion');
 const { crearNotificacion } = require('../utils/notificaciones');
 const pool = require('../db/pool');
 
@@ -62,7 +62,7 @@ async function agregar(req, res, next) {
     if (rol && !roles.includes(rol)) {
       return res.status(400).json({ error: true, mensaje: `rol debe ser uno de: ${roles.join(', ')}` });
     }
-    const permitido = await puedeGestionarNodo({ usuario: req.usuario, tipoNodo: tipo, idNodo });
+    const permitido = await puedeGestionarParticipantesNodo({ usuario: req.usuario, tipoNodo: tipo, idNodo });
     if (!permitido) {
       return res.status(403).json({ error: true, mensaje: 'No tienes permisos para agregar miembros a este nodo', codigo: 'FORBIDDEN' });
     }
@@ -86,7 +86,7 @@ async function actualizar(req, res, next) {
     if (!rol || !roles.includes(rol)) {
       return res.status(400).json({ error: true, mensaje: `rol debe ser uno de: ${roles.join(', ')}` });
     }
-    const permitido = await puedeGestionarNodo({ usuario: req.usuario, tipoNodo: tipo, idNodo });
+    const permitido = await puedeGestionarParticipantesNodo({ usuario: req.usuario, tipoNodo: tipo, idNodo });
     if (!permitido) {
       return res.status(403).json({ error: true, mensaje: 'No tienes permisos para modificar miembros de este nodo', codigo: 'FORBIDDEN' });
     }
@@ -108,7 +108,7 @@ async function eliminar(req, res, next) {
     // alguien más se requiere permiso de gestión sobre el proyecto/nodo.
     const esAutoeliminacion = req.usuario?.id === userId;
     if (!esAutoeliminacion) {
-      const permitido = await puedeGestionarNodo({ usuario: req.usuario, tipoNodo: tipo, idNodo });
+      const permitido = await puedeGestionarParticipantesNodo({ usuario: req.usuario, tipoNodo: tipo, idNodo });
       if (!permitido) {
         return res.status(403).json({ error: true, mensaje: 'No tienes permisos para quitar miembros de este nodo', codigo: 'FORBIDDEN' });
       }

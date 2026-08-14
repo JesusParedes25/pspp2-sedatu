@@ -11,10 +11,13 @@
  * replicada (con matices) en usePermisos.js del frontend, mientras
  * que DELETE /etapas/:id, DELETE /acciones/:id y los endpoints de
  * miembros-nodo no la aplicaban en absoluto. Este módulo es la única
- * fuente de verdad en el backend; usa exactamente la misma regla que
- * ya está en producción para invitar a nivel proyecto:
- *   superadmin/ejecutivo, o creador del proyecto, o responsable del
- *   proyecto (proyecto_usuarios.rol = 'responsable').
+ * fuente de verdad en el backend, y distingue tres facultades que antes
+ * se confundían en una sola:
+ *   • gestionar   — eliminar el proyecto o sus nodos (lo irreversible)
+ *   • editar      — modificar la información del proyecto
+ *   • participantes — invitar, cambiar de papel o retirar a alguien
+ * Cada una tiene su propio alcance por rol; la interfaz replica estas
+ * mismas reglas en frontend/src/hooks/usePermisos.js.
  * ─────────────────────────────────────────────────────────────────
  */
 const pool = require('../db/pool');
@@ -77,25 +80,19 @@ async function puedeGestionarProyecto({ usuario, idProyecto }, db) {
 // ¿Puede este usuario EDITAR los datos del proyecto (nombre, fechas,
 // clasificación, indicadores)?
 //
-// Editar es más permisivo que gestionar: además de quien puede gestionar,
-// un 'direccion' puede editar los proyectos liderados por SU Dirección
-// General aunque no sea su creador ni responsable — mandar sobre lo de su
-// área es justamente su función.
+// La edición está acotada al ámbito de responsabilidad de cada quien:
+// quien puede gestionar el proyecto, y además un 'direccion' sobre los
+// proyectos liderados por SU Dirección General aunque no sea su creador
+// ni responsable — mandar sobre lo de su área es justamente su función.
 //
-// Se separa de puedeGestionarProyecto a propósito. Esa función decide
-// operaciones destructivas o de control (borrar, invitar), donde ser del
-// área NO alcanza: para borrar hay que ser dueño del proyecto. Esta regla
-// es exactamente la que ya aplicaba la interfaz en usePermisos.js
-// (`puedeEditar`), así que nadie gana ni pierde capacidades; lo que cambia
-// es que ahora el servidor la verifica en vez de confiar en que el botón
-// esté escondido.
+// El 'ejecutivo' NO edita fuera de su Dirección General. Su función es de
+// seguimiento institucional: consulta toda la Secretaría y coordina a los
+// participantes de cualquier proyecto, pero la información sustantiva la
+// captura y corrige el área responsable. Su vía de edición es la misma
+// que la de un director: la de su propia DG, resuelta en
+// puedeGestionarProyecto.
 async function puedeEditarProyecto({ usuario, idProyecto }, db) {
   if (!usuario || !idProyecto) return false;
-
-  // El 'ejecutivo' sí edita en toda la Secretaría: dar seguimiento y
-  // corregir datos de cualquier proyecto es su función. Lo que no puede
-  // es BORRAR fuera de su DG — eso lo decide puedeGestionarProyecto.
-  if (usuario.rol === 'ejecutivo') return true;
 
   if (await puedeGestionarProyecto({ usuario, idProyecto }, db)) return true;
 
@@ -110,17 +107,44 @@ async function puedeEditarProyecto({ usuario, idProyecto }, db) {
   return false;
 }
 
-// ¿Puede este usuario gestionar (eliminar / invitar) un nodo específico?
-// Resuelve el proyecto dueño del nodo y aplica la misma regla.
+// ¿Puede este usuario gestionar los PARTICIPANTES del proyecto (invitar,
+// cambiar el papel de alguien, retirarlo)?
+//
+// Es la única facultad que el 'ejecutivo' conserva sobre toda la
+// Secretaría. Coordinar quién atiende cada proyecto es propio del cargo y
+// no altera la información sustantiva: no borra trabajo ni reescribe
+// avances, solo determina a quién se le asigna. Por eso se separa tanto
+// de editar como de eliminar.
+//
+// Un 'direccion' gestiona participantes en los proyectos liderados por su
+// Dirección General, en congruencia con su facultad de edición.
+async function puedeGestionarParticipantes({ usuario, idProyecto }, db) {
+  if (!usuario || !idProyecto) return false;
+  if (usuario.rol === 'ejecutivo') return true;
+  return puedeEditarProyecto({ usuario, idProyecto }, db);
+}
+
+// ¿Puede este usuario ELIMINAR un nodo específico (etapa, acción, tarea)?
+// Resuelve el proyecto dueño del nodo y aplica la regla de gestión.
 async function puedeGestionarNodo({ usuario, tipoNodo, idNodo }, db) {
   const idProyecto = await obtenerProyectoIdDeNodo(tipoNodo, idNodo, db);
   if (!idProyecto) return false;
   return puedeGestionarProyecto({ usuario, idProyecto }, db);
 }
 
+// ¿Puede gestionar los participantes asignados a un nodo específico?
+// Misma facultad que a nivel proyecto, resuelta desde el nodo.
+async function puedeGestionarParticipantesNodo({ usuario, tipoNodo, idNodo }, db) {
+  const idProyecto = await obtenerProyectoIdDeNodo(tipoNodo, idNodo, db);
+  if (!idProyecto) return false;
+  return puedeGestionarParticipantes({ usuario, idProyecto }, db);
+}
+
 module.exports = {
   obtenerProyectoIdDeNodo,
   puedeGestionarProyecto,
   puedeEditarProyecto,
+  puedeGestionarParticipantes,
   puedeGestionarNodo,
+  puedeGestionarParticipantesNodo,
 };

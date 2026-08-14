@@ -7,7 +7,8 @@
  * ─────────────────────────────────────────────────────────────────
  * PSPP tiene 5 roles:
  * • superadmin — acceso total al sistema
- * • ejecutivo  — ve TODO, crea/edita/elimina TODO (Subsecretario)
+ * • ejecutivo  — ve TODO y designa participantes en cualquier proyecto;
+ *                edita y elimina solo en su DG (Subsecretario)
  * • direccion  — ve todo, crea/edita en su DG (Director de Área)
  * • enlace     — ve su DG + participaciones, crea/edita lo suyo
  * • externo    — ve su DG, solo edita sus acciones asignadas
@@ -80,23 +81,24 @@ export function usePermisosProyecto(proyecto) {
       };
     }
 
-    // ejecutivo: ve y EDITA toda la Secretaría —dar seguimiento es su
-    // función— pero solo BORRA e invita en proyectos de su propia DG (o
-    // en los que creó / donde es responsable). Un subsecretario no debe
-    // poder eliminar el trabajo de un área ajena. Misma regla que aplica
-    // el backend en autorizacion.js › puedeGestionarProyecto.
+    // ejecutivo: consulta toda la Secretaría y designa participantes en
+    // cualquier proyecto —coordinar quién atiende cada asunto es propio
+    // del cargo—, pero edita y elimina únicamente en los proyectos de su
+    // propia Dirección General (o en los que creó / donde es responsable).
+    // La información sustantiva la captura el área responsable. Misma
+    // regla que aplica el backend en autorizacion.js.
     if (rol === 'ejecutivo') {
       const mandaAqui = esMismaDG || esCreador || esResponsableProyecto;
       return {
-        puedeEditar: true,
+        puedeEditar: mandaAqui,
         puedeEliminar: mandaAqui,
-        puedeCrearEtapa: true,
-        puedeCrearAccion: true,
-        puedeEditarAccion: true,
-        puedeCambiarEstado: true,
-        puedeInvitar: mandaAqui,
+        puedeCrearEtapa: mandaAqui,
+        puedeCrearAccion: mandaAqui,
+        puedeEditarAccion: mandaAqui,
+        puedeCambiarEstado: mandaAqui,
+        puedeInvitar: true,
         esParticipante: true,
-        esSoloLectura: false,
+        esSoloLectura: !mandaAqui,
       };
     }
 

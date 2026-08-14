@@ -175,14 +175,14 @@ async function actualizar(req, res, next) {
   // interfaz esconde el botón "Editar" a quien no debe verlo, pero eso es
   // comodidad, no seguridad — quien arma la petición a mano se la salta.
   // Es el mismo hueco que ya se cerró en DELETE; aquí se había quedado.
-  // La regla aplicada es la que la propia interfaz ya concedía, así que
-  // nadie pierde una capacidad que tuviera.
+  // La regla vive en utils/autorizacion.js y la interfaz la replica en
+  // usePermisos.js: creador, responsable o la DG que lidera el proyecto.
   try {
     const autorizado = await puedeEditarProyecto({ usuario: req.usuario, idProyecto: proyectoId });
     if (!autorizado) {
       return res.status(403).json({
         error: true,
-        mensaje: 'Solo el creador, el responsable del proyecto, la Dirección General que lo lidera o un superadmin/ejecutivo pueden modificarlo.',
+        mensaje: 'La modificación de este proyecto corresponde a su creador, a su responsable o a la Dirección General que lo lidera.',
         codigo: 'NO_AUTORIZADO'
       });
     }
