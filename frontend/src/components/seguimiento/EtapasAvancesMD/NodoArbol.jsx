@@ -7,6 +7,7 @@ import SemaforoDot from '../../common/SemaforoDot';
 import AvanceInlineArbol from './AvanceInlineArbol';
 import CrearInline from './CrearInline';
 import { NIVELES } from '../../../config/niveles';
+import { permisosDeNodo } from '../../../hooks/usePermisos';
 
 export default function NodoArbol({ nodo, tipo, nivel: profundidad, expandidos, seleccionadoId, onToggle, onSelect, permisos, proyectoId, onCreado, mostrarToast }) {
   const esExpandido = expandidos.has(nodo.id);
@@ -22,7 +23,8 @@ export default function NodoArbol({ nodo, tipo, nivel: profundidad, expandidos, 
   const Icono = nivelInfo.icono;
   // Edición rápida de % solo en nodos hoja que no sean etapa (una etapa
   // siempre agrega de sus acciones, nunca tiene avance propio editable).
-  const puedeEditarAvanceRapido = tipo !== 'etapa' && !tieneHijos && !permisos.esSoloLectura;
+  const permisosAqui = permisosDeNodo(permisos, tipo, nodo.id);
+  const puedeEditarAvanceRapido = tipo !== 'etapa' && !tieneHijos && !permisosAqui.esSoloLectura;
 
   return (
     <div>
@@ -96,7 +98,7 @@ export default function NodoArbol({ nodo, tipo, nivel: profundidad, expandidos, 
       ))}
 
       {/* Botón "+ Acción" o "+ Tarea" al final de rama expandida */}
-      {esExpandido && permisos.puedeCrearAccion && (
+      {esExpandido && permisosAqui.puedeCrearAccion && (
         <div style={{ paddingLeft: `${(profundidad + 1) * 16 + 8}px` }}>
           <CrearInline
             tipo={tipo === 'etapa' ? 'accion' : 'tarea'}

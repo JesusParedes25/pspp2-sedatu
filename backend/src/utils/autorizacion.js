@@ -127,38 +127,28 @@ async function puedeGestionarParticipantes({ usuario, idProyecto }, db) {
 // ¿Puede este usuario CAPTURAR dentro del proyecto (crear etapas y
 // acciones, mover avances, editar campos de un nodo)?
 //
-// Es deliberadamente más amplia que puedeEditarProyecto, porque capturar
-// el seguimiento del día a día es trabajo de más gente que la que puede
-// cambiar la ficha del proyecto:
+// Dos vías, y solo dos:
 //
-//   • quien puede editar el proyecto (creador, responsable, su DG líder,
-//     superadmin);
-//   • cualquier participante registrado en proyecto_usuarios, sea
-//     responsable o colaborador;
-//   • cualquier persona de la Dirección General que lidera el proyecto —
-//     el área dueña captura su propio avance sin tener que invitarse a
-//     sí misma uno por uno.
+//   • quien puede editar el proyecto — creador, responsable, superadmin,
+//     y los perfiles con mando de área (direccion / ejecutivo sobre su
+//     propia DG), resuelto en puedeEditarProyecto;
+//   • quien participa en el proyecto: estar en proyecto_usuarios, sea
+//     como responsable o como colaborador.
 //
-// Estas tres vías son exactamente las que la interfaz ya concedía en
-// usePermisos.js (`esSoloLectura === false`). No se amplía a nadie: lo
-// que cambia es que ahora el servidor las verifica.
+// Pertenecer a la Dirección General que lidera el proyecto NO alcanza por
+// sí solo. Antes sí: cualquier enlace o externo del área capturaba en
+// todos los proyectos de su DG sin aparecer en ninguno. Eso hacía
+// imposible responder "¿quién puede tocar esto?" —la respuesta era "todo
+// el área, aunque no se vea"— y dejaba la lista de participantes como
+// adorno. Ahora quien captura está escrito en el proyecto, con nombre y
+// función. Un director o un ejecutivo sí mandan sobre su DG sin estar
+// invitados, porque ese mando viene del cargo, no del área.
 async function puedeEditarContenidoProyecto({ usuario, idProyecto }, db) {
   if (!usuario || !idProyecto) return false;
   if (await puedeEditarProyecto({ usuario, idProyecto }, db)) return true;
 
-  const conn = db || pool;
-
   const rolProyecto = await miembrosQueries.obtenerRolUsuario(idProyecto, usuario.id);
-  if (rolProyecto) return true;
-
-  if (usuario.id_dg) {
-    const { rows } = await conn.query(
-      'SELECT id_dg_lider FROM proyectos WHERE id = $1', [idProyecto]
-    );
-    if (rows[0]?.id_dg_lider === usuario.id_dg) return true;
-  }
-
-  return false;
+  return !!rolProyecto;
 }
 
 const TABLA_NODO = { etapa: 'etapas', accion: 'acciones', tarea: 'tareas' };

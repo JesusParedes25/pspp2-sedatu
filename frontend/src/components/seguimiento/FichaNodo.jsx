@@ -29,9 +29,11 @@ import BloqueEditable from './BloqueEditable';
 import { COLORES_SEMAFORO, CHIP_BG } from '../common/SemaforoDot';
 import { NIVELES } from '../../config/niveles';
 import { prefersReducedMotion } from '../../utils/motion';
+import { permisosDeNodo } from '../../hooks/usePermisos';
 
-export default function FichaNodo({ nodo, proyectoId, permisos, ruta, onNavegarLineage, onActualizado, onEliminado, mostrarToast }) {
+export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto, ruta, onNavegarLineage, onActualizado, onEliminado, mostrarToast }) {
   const { tipo, id, data } = nodo;
+  const permisos = permisosDeNodo(permisosProyecto, tipo, id);
   const nivel = NIVELES[tipo];
   // El botón "Registrar avance" (dentro de NodoCard, más abajo) y el bloque
   // editable del avance viven los dos aquí adentro — el scroll-hacia-el-

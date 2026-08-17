@@ -26,9 +26,13 @@ import { formatFecha, estaVencida } from '../../utils/fecha';
 import RailCard from './EtapasAvancesMD/RailCard';
 import { CampoSelect, CampoSemaforo, CampoTextoInline, SelectorMunicipiosMultiple } from './EtapasAvancesMD/Campos';
 import { ESTADOS, PRIORIDADES } from './EtapasAvancesMD/utils';
+import { permisosDeNodo } from '../../hooks/usePermisos';
 
-export default function PropiedadesElemento({ nodo, permisos, onActualizado, mostrarToast }) {
+export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, onActualizado, mostrarToast }) {
   const { tipo, id, data } = nodo;
+  // Quien fue invitado solo a una etapa captura en ella y en lo que cuelga
+  // de ella, no en el resto del proyecto.
+  const permisos = permisosDeNodo(permisosProyecto, tipo, id);
   const { actualizar } = useJerarquiaProyecto();
 
   const [catalogs, setCatalogs] = useState({

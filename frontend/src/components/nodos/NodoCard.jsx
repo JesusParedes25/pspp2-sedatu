@@ -32,6 +32,7 @@ import PanelRiesgos from '../riesgos/PanelRiesgos';
 import CampoFecha from '../common/CampoFecha';
 import { formatFecha, diasRestantes } from '../../utils/fecha';
 import { useUI } from '../../context/UIContext';
+import { permisosDeNodo } from '../../hooks/usePermisos';
 
 const SEM = { verde: '#22c55e', ambar: '#f59e0b', rojo: '#ef4444', gris: '#9ca3af' };
 const TIPO_LABEL = { etapa: 'Etapa', accion: 'Acción', tarea: 'Tarea' };
@@ -125,7 +126,9 @@ export default function NodoCard({
 
   const { avance, fecha } = normalizar(tipo, nodo);
   const completado = nodo.estado === 'Completada';
-  const soloLectura = permisos?.esSoloLectura || false;
+  // El permiso puede ser parcial: quien fue invitado a una etapa suelta
+  // captura ahí, no en todo el proyecto.
+  const soloLectura = permisosDeNodo(permisos, tipo, nodo?.id)?.esSoloLectura ?? true;
   const puedeActualizar = !soloLectura && !esContenedor;
 
   async function cargarActividad() {

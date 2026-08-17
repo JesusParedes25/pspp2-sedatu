@@ -1,24 +1,42 @@
 /**
  * ARCHIVO: usePermisos.js
- * PROPÓSITO: Hook que calcula los permisos del usuario según su rol,
- *            DG y relación con el proyecto.
+ * PROPÓSITO: Decirle a la interfaz qué puede hacer el usuario en un
+ *            proyecto y en cada nodo suyo.
  *
- * MINI-CLASE: Roles y permisos en PSPP
+ * MINI-CLASE: perfil, función y quién manda de verdad
  * ─────────────────────────────────────────────────────────────────
- * PSPP tiene 5 roles:
- * • superadmin — acceso total al sistema
- * • ejecutivo  — ve TODO y designa participantes en cualquier proyecto;
- *                edita y elimina solo en su DG (Subsecretario)
- * • direccion  — ve todo, crea/edita en su DG (Director de Área)
- * • enlace     — ve su DG + participaciones, crea/edita lo suyo
- * • externo    — ve su DG, solo edita sus acciones asignadas
+ * Dos cosas distintas, con dos nombres distintos:
  *
- * Los permisos se calculan comparando el rol del usuario, su DG,
- * y si participa en el proyecto (como líder o colaborador).
+ *   • PERFIL — lo que la persona es en la Secretaría. No cambia de
+ *     proyecto en proyecto. Vive en usuarios.rol:
+ *       superadmin — administra la plataforma
+ *       ejecutivo  — ve todo y designa participantes en cualquier
+ *                    proyecto; edita los de su DG
+ *       direccion  — edita y da seguimiento a los de su DG
+ *       enlace     — captura en los proyectos donde participa
+ *       externo    — participa solo en lo que se le asigna
+ *
+ *   • FUNCIÓN — lo que hace en ESTE proyecto (o en esta etapa/acción).
+ *     Vive en proyecto_usuarios.rol y nodo_miembros.rol:
+ *       responsable / colaborador / invitado
+ *
+ * Regla corta: el perfil dice DÓNDE alcanza, la función dice QUÉ hace.
+ *
+ * MINI-CLASE: por qué este hook le pregunta al servidor
+ * ─────────────────────────────────────────────────────────────────
+ * Se puede invitar a alguien a una etapa suelta en vez de al proyecto
+ * entero. Desde entonces "¿puede editar?" no tiene una sola respuesta
+ * por proyecto: depende del nodo, y el navegador no conoce
+ * nodo_miembros. Deducirlo aquí garantizaba desincronización con el
+ * servidor —campos editables que la API rechaza, o botones escondidos
+ * a quien sí podía—, así que se consulta /proyectos/:id/mis-permisos y
+ * esa respuesta manda. El cálculo local queda solo como valor
+ * provisional mientras llega, y aplica las mismas reglas.
  * ─────────────────────────────────────────────────────────────────
  */
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { obtenerMisPermisos } from '../api/proyectos';
 
 // Permisos globales (no dependen de un proyecto)
 export function usePermisosGlobales() {
@@ -40,9 +58,52 @@ export function usePermisosGlobales() {
   }, [usuario]);
 }
 
+// ─── Caché de la respuesta del servidor ───────────────────────────
+// Tres componentes distintos piden los permisos del mismo proyecto
+// (detalle, panorama, modal de edición). Sin caché serían tres
+// peticiones idénticas por pantalla.
+const cache = new Map();
+
+function clavePermisos(idProyecto, idUsuario) {
+  return `${idProyecto}::${idUsuario}`;
+}
+
+function pedirPermisos(idProyecto, idUsuario) {
+  const clave = clavePermisos(idProyecto, idUsuario);
+  if (!cache.has(clave)) {
+    cache.set(clave, obtenerMisPermisos(idProyecto).catch(err => {
+      cache.delete(clave);   // que un fallo de red no se quede pegado
+      throw err;
+    }));
+  }
+  return cache.get(clave);
+}
+
+// Invalidar tras invitar, aceptar o retirar a alguien.
+export function olvidarPermisos(idProyecto) {
+  for (const clave of [...cache.keys()]) {
+    if (clave.startsWith(`${idProyecto}::`)) cache.delete(clave);
+  }
+}
+
+const SIN_NODOS = { etapa: [], accion: [], tarea: [] };
+
 // Permisos contextuales para un proyecto específico
 export function usePermisosProyecto(proyecto) {
   const { usuario } = useAuth();
+  const [servidor, setServidor] = useState(null);
+
+  const idProyecto = proyecto?.id;
+  const idUsuario = usuario?.id;
+
+  useEffect(() => {
+    if (!idProyecto || !idUsuario) { setServidor(null); return undefined; }
+    let vigente = true;
+    pedirPermisos(idProyecto, idUsuario)
+      .then(datos => { if (vigente) setServidor(datos); })
+      .catch(() => { if (vigente) setServidor(null); });
+    return () => { vigente = false; };
+  }, [idProyecto, idUsuario]);
 
   return useMemo(() => {
     const sinPermisos = {
@@ -55,100 +116,100 @@ export function usePermisosProyecto(proyecto) {
       puedeInvitar: false,
       esParticipante: false,
       esSoloLectura: true,
+      puedeEditarNodo: () => false,
     };
 
     if (!usuario || !proyecto) return sinPermisos;
 
     const rol = usuario.rol;
-    const esMismaDG = usuario.id_dg === proyecto.id_dg_lider;
+    const esMismaDG = !!usuario.id_dg && usuario.id_dg === proyecto.id_dg_lider;
     const esCreador = usuario.id === proyecto.id_creador;
-    const rolProyecto = proyecto.rol_usuario_actual;
-    const esResponsableProyecto = rolProyecto === 'responsable';
-    const esParticipante = esMismaDG || esCreador || !!rolProyecto;
+    const funcionProyecto = proyecto.rol_usuario_actual;
+    const esResponsableProyecto = funcionProyecto === 'responsable';
+    // Participar es estar escrito en el proyecto. Pertenecer al área que
+    // lo lidera ya NO cuenta como participar: si el área tiene que
+    // capturar, a alguien de esa área se le invita, y así queda quién.
+    const participa = esCreador || !!funcionProyecto;
 
-    // superadmin: sin límites (administra la plataforma).
+    // ── Cálculo local (provisional, mientras responde el servidor) ──
+    let local;
     if (rol === 'superadmin') {
-      return {
-        puedeEditar: true,
-        puedeEliminar: true,
-        puedeCrearEtapa: true,
-        puedeCrearAccion: true,
-        puedeEditarAccion: true,
-        puedeCambiarEstado: true,
-        puedeInvitar: true,
-        esParticipante: true,
-        esSoloLectura: false,
-      };
-    }
-
-    // ejecutivo: consulta toda la Secretaría y designa participantes en
-    // cualquier proyecto —coordinar quién atiende cada asunto es propio
-    // del cargo—, pero edita y elimina únicamente en los proyectos de su
-    // propia Dirección General (o en los que creó / donde es responsable).
-    // La información sustantiva la captura el área responsable. Misma
-    // regla que aplica el backend en autorizacion.js.
-    if (rol === 'ejecutivo') {
+      local = { editaFicha: true, captura: true, elimina: true, invita: true };
+    } else if (rol === 'ejecutivo') {
       const mandaAqui = esMismaDG || esCreador || esResponsableProyecto;
-      return {
-        puedeEditar: mandaAqui,
-        puedeEliminar: mandaAqui,
-        puedeCrearEtapa: mandaAqui,
-        puedeCrearAccion: mandaAqui,
-        puedeEditarAccion: mandaAqui,
-        puedeCambiarEstado: mandaAqui,
-        puedeInvitar: true,
-        esParticipante: true,
-        esSoloLectura: !mandaAqui,
+      // Designa participantes en toda la Secretaría; edita y elimina solo
+      // en su propia Dirección General.
+      local = { editaFicha: mandaAqui, captura: mandaAqui, elimina: mandaAqui, invita: true };
+    } else if (rol === 'direccion') {
+      const mandaAqui = esMismaDG || esCreador || esResponsableProyecto;
+      local = {
+        editaFicha: mandaAqui,
+        captura: mandaAqui,
+        elimina: esCreador || esResponsableProyecto,
+        invita: mandaAqui,
       };
+    } else {
+      // enlace y externo: solo lo que se les haya asignado explícitamente.
+      const editaFicha = esCreador || esResponsableProyecto;
+      local = { editaFicha, captura: participa, elimina: editaFicha, invita: editaFicha };
     }
 
-    // direccion: crea/edita en su DG, ve todo
-    if (rol === 'direccion') {
-      const puedeEditar = esMismaDG || esCreador || esResponsableProyecto;
-      return {
-        puedeEditar,
-        puedeEliminar: esCreador || esResponsableProyecto,
-        puedeCrearEtapa: esMismaDG || esCreador,
-        puedeCrearAccion: esMismaDG,
-        puedeEditarAccion: esMismaDG,
-        puedeCambiarEstado: esMismaDG || esCreador,
-        puedeInvitar: puedeEditar,
-        esParticipante,
-        esSoloLectura: !esMismaDG && !esCreador,
-      };
-    }
+    // ── La respuesta del servidor manda ──
+    const editaFicha = servidor ? servidor.puede_editar_ficha : local.editaFicha;
+    const captura = servidor ? servidor.puede_capturar_proyecto : local.captura;
+    const elimina = servidor ? servidor.puede_eliminar : local.elimina;
+    const invita = servidor ? servidor.puede_gestionar_participantes : local.invita;
+    const nodos = servidor?.nodos_editables || SIN_NODOS;
 
-    // enlace: crea/edita en su DG si participa
-    if (rol === 'enlace') {
-      const puedeEditar = esCreador || esResponsableProyecto;
-      return {
-        puedeEditar,
-        puedeEliminar: esCreador || esResponsableProyecto,
-        puedeCrearEtapa: esParticipante,
-        puedeCrearAccion: esParticipante,
-        puedeEditarAccion: esParticipante,
-        puedeCambiarEstado: esParticipante,
-        puedeInvitar: puedeEditar,
-        esParticipante,
-        esSoloLectura: !esParticipante,
-      };
-    }
+    return {
+      puedeEditar: editaFicha,
+      puedeEliminar: elimina,
+      puedeCrearEtapa: captura,
+      puedeCrearAccion: captura,
+      puedeEditarAccion: captura,
+      puedeCambiarEstado: captura,
+      puedeInvitar: invita,
+      esParticipante: participa || captura,
+      esSoloLectura: !captura,
 
-    // externo: solo edita sus acciones asignadas
-    if (rol === 'externo') {
-      return {
-        puedeEditar: false,
-        puedeEliminar: false,
-        puedeCrearEtapa: false,
-        puedeCrearAccion: esMismaDG,
-        puedeEditarAccion: esMismaDG,
-        puedeCambiarEstado: false,
-        puedeInvitar: false,
-        esParticipante: esMismaDG,
-        esSoloLectura: !esMismaDG,
-      };
-    }
+      // ¿Puede capturar en ESTE nodo? Vale con poder en todo el proyecto
+      // o con tenerlo asignado. La lista del servidor ya viene expandida
+      // hacia abajo: si te asignaron una etapa, sus acciones y tareas
+      // vienen incluidas.
+      puedeEditarNodo: (tipo, id) => {
+        if (captura) return true;
+        if (!tipo || !id) return false;
+        return (nodos[tipo] || []).includes(id);
+      },
+      // true si el usuario solo puede capturar en partes del proyecto:
+      // sirve para explicarle por qué ve unos campos editables y otros no.
+      capturaParcial: !captura && (nodos.etapa.length + nodos.accion.length + nodos.tarea.length) > 0,
+    };
+  }, [usuario, proyecto, servidor]);
+}
 
-    return sinPermisos;
-  }, [usuario, proyecto]);
+// ─── Permisos acotados a un nodo ──────────────────────────────────
+// Devuelve una copia de `permisos` donde esSoloLectura ya considera si
+// este nodo en particular es editable. Los componentes que pintan un
+// nodo la usan al entrar y el resto de su código sigue igual: así la
+// regla vive en un solo lugar y no en treinta lecturas de
+// `permisos.esSoloLectura` repartidas por la pantalla.
+const TIPO_CANONICO = { etapa: 'etapa', accion: 'accion', subaccion: 'accion', tarea: 'tarea' };
+
+export function permisosDeNodo(permisos, tipo, id) {
+  if (!permisos) return permisos;
+  const canonico = TIPO_CANONICO[tipo];
+  // Tipo desconocido (o sin id): se queda con el permiso del proyecto.
+  if (!canonico || !id || typeof permisos.puedeEditarNodo !== 'function') return permisos;
+
+  const puede = permisos.puedeEditarNodo(canonico, id);
+  if (puede === !permisos.esSoloLectura) return permisos;   // sin cambios, evita re-render
+
+  return {
+    ...permisos,
+    esSoloLectura: !puede,
+    puedeCrearAccion: puede,
+    puedeEditarAccion: puede,
+    puedeCambiarEstado: puede,
+  };
 }

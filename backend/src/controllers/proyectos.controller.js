@@ -14,7 +14,11 @@
  */
 const proyectosQueries = require('../db/queries/proyectos.queries');
 const { duplicarProyecto } = require('../db/queries/duplicar.queries');
-const { puedeEditarProyecto, puedeGestionarProyecto } = require('../utils/autorizacion');
+const {
+  puedeEditarProyecto, puedeGestionarProyecto,
+  puedeEditarContenidoProyecto, puedeGestionarParticipantes,
+} = require('../utils/autorizacion');
+const permisosQueries = require('../db/queries/permisos.queries');
 const indicadoresQueries = require('../db/queries/indicadores.queries');
 const miembrosQueries = require('../db/queries/miembros.queries');
 const pool = require('../db/pool');
@@ -419,4 +423,42 @@ async function servirImagen(req, res, next) {
   }
 }
 
-module.exports = { listar, obtenerPorId, crear, duplicar, actualizar, eliminar, listarEliminados, restaurar, eliminarDefinitivamente, obtenerDGs, agregarDG, eliminarDG, obtenerEtiquetas, subirImagen, servirImagen };
+// GET /proyectos/:id/mis-permisos — Qué puede hacer AQUÍ el usuario que pregunta
+//
+// La interfaz necesita una respuesta del servidor, no una deducción propia:
+// desde que se puede invitar a alguien a una etapa suelta, "¿puede editar?"
+// depende del nodo, y eso el navegador no lo sabe. Devolver la lista de
+// nodos editables ya expandida evita que las dos capas se desincronicen.
+async function misPermisos(req, res, next) {
+  try {
+    const idProyecto = req.params.id;
+    const usuario = req.usuario;
+
+    const [puedeCapturar, puedeEditarFicha, puedeGestionar, puedeParticipantes] = await Promise.all([
+      puedeEditarContenidoProyecto({ usuario, idProyecto }),
+      puedeEditarProyecto({ usuario, idProyecto }),
+      puedeGestionarProyecto({ usuario, idProyecto }),
+      puedeGestionarParticipantes({ usuario, idProyecto }),
+    ]);
+
+    // Si ya puede capturar en todo el proyecto, la lista por nodo sobra.
+    const nodosEditables = puedeCapturar
+      ? { etapa: [], accion: [], tarea: [] }
+      : await permisosQueries.nodosEditablesUsuario(idProyecto, usuario?.id);
+
+    res.json({
+      datos: {
+        puede_capturar_proyecto: puedeCapturar,
+        puede_editar_ficha: puedeEditarFicha,
+        puede_eliminar: puedeGestionar,
+        puede_gestionar_participantes: puedeParticipantes,
+        nodos_editables: nodosEditables,
+      },
+      mensaje: 'Permisos del usuario en el proyecto',
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { listar, obtenerPorId, crear, duplicar, actualizar, eliminar, listarEliminados, restaurar, eliminarDefinitivamente, obtenerDGs, agregarDG, eliminarDG, obtenerEtiquetas, subirImagen, servirImagen, misPermisos };

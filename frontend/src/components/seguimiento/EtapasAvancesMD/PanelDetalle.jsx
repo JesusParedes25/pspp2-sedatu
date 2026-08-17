@@ -25,12 +25,14 @@ import FichaNodo from '../FichaNodo';
 import ListaHijos from '../ListaHijos';
 import { CampoTextoInline } from './Campos';
 import { resolverRutaConIds, hijosDe } from './utils';
+import { permisosDeNodo } from '../../../hooks/usePermisos';
 
 export default function PanelDetalle({
-  foco, seleccion, proyectoId, permisos, onActualizado, mostrarToast, arbol,
+  foco, seleccion, proyectoId, permisos: permisosProyecto, onActualizado, mostrarToast, arbol,
   expandidosCentro, onToggleCentro, onSeleccionarEnCentro, onNavegarFoco, onAbrirArbol,
 }) {
   const { tipo, id, data } = foco;
+  const permisos = permisosDeNodo(permisosProyecto, tipo, id);
   const { actualizar } = useJerarquiaProyecto(proyectoId);
   const { usuario } = useAuth();
   // Mismo ancho (misma key) que el drawer de Diagrama — ver

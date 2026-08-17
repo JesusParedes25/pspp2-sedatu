@@ -12,6 +12,7 @@ import { FileText, Link2, Plus, Upload, Trash2, AlertTriangle, Loader2, ChevronR
 import * as evidenciasApi from '../../api/evidencias';
 import * as actividadApi from '../../api/actividad';
 import FilePreviewModal from '../evidencias/FilePreviewModal';
+import { permisosDeNodo } from '../../hooks/usePermisos';
 
 const CATEGORIAS_EVIDENCIA = [
   { value: 'Documento', icon: '📄' },
@@ -24,7 +25,8 @@ const CATEGORIAS_EVIDENCIA = [
   { value: 'Otro', icon: '📎' },
 ];
 
-export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, permisos }) {
+export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, permisos: permisosProyecto }) {
+  const permisos = permisosDeNodo(permisosProyecto, tipo, id);
   // Una tarea no tiene tabla de evidencias propia (nunca la tuvo) — sus
   // adjuntos viven en el stream unificado `actividad` (tipo_evento='archivo'),
   // mismo wizard categoría→archivo/link→notas, solo que el guardado y la

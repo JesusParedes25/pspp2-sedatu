@@ -17,6 +17,14 @@ export async function listarProyectos(filtros = {}) {
   return data;
 }
 
+// Qué puede hacer el usuario actual en este proyecto, según el servidor:
+// editar la ficha, capturar, eliminar, designar participantes, y en qué
+// nodos concretos puede capturar si su acceso es parcial.
+export async function obtenerMisPermisos(id) {
+  const { data } = await client.get(`/proyectos/${id}/mis-permisos`);
+  return data.datos;
+}
+
 export async function obtenerProyecto(id) {
   const { data } = await client.get(`/proyectos/${id}`);
   return data;

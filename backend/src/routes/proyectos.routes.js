@@ -30,6 +30,7 @@ router.patch('/:id/restaurar', requiereRol(['superadmin']), proyectosController.
 router.delete('/:id/purgar', requiereRol(['superadmin']), proyectosController.eliminarDefinitivamente);
 
 router.get('/:id', proyectosController.obtenerPorId);
+router.get('/:id/mis-permisos', proyectosController.misPermisos);
 router.put('/:id', proyectosController.actualizar);
 router.delete('/:id', proyectosController.eliminar);
 
