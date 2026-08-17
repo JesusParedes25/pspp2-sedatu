@@ -386,6 +386,13 @@ function ParticipanteCard({ miembro: m, puedeEliminar, onEliminar }) {
           <span className={`inline-block text-[10px] font-medium px-1.5 py-0 rounded-full border mt-0.5 ${cfg.badgeCls}`}>
             {cfg.label}
           </span>
+          {/* Invitar propone: hasta que la persona no acepta, no tiene
+              permisos. Mostrarla como participante sin más sería mentir. */}
+          {m.estado === 'pendiente' && (
+            <span className="ml-1 inline-block text-[10px] font-medium px-1.5 py-0 rounded-full border bg-amber-50 text-amber-700 border-amber-200 mt-0.5">
+              Invitación pendiente
+            </span>
+          )}
         </div>
       </div>
 
@@ -514,7 +521,10 @@ function ModalInvitar({ proyectoId, etapas, onClose, onInvitado }) {
         nodosSeleccionados.forEach(key => {
           const idx = key.indexOf('-');
           const tipo = key.slice(0, idx);
-          const id = parseInt(key.slice(idx + 1));
+          // El id es un UUID. Estaba pasando por parseInt, que devolvía NaN
+          // (o un número truncado si el UUID empezaba con dígitos): invitar a
+          // una etapa concreta no llegaba nunca al nodo correcto.
+          const id = key.slice(idx + 1);
           promesas.push(agregarMiembroNodo(tipo, id, seleccionado.id, rol));
         });
         await Promise.all(promesas);
@@ -531,7 +541,7 @@ function ModalInvitar({ proyectoId, etapas, onClose, onInvitado }) {
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
         <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h3 className="text-base font-semibold text-gray-900">Agregar usuario al proyecto</h3>
+          <h3 className="text-base font-semibold text-gray-900">Invitar a participar</h3>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded"><X size={18} /></button>
         </div>
 
@@ -594,16 +604,24 @@ function ModalInvitar({ proyectoId, etapas, onClose, onInvitado }) {
               <div className="p-3 bg-guinda-50 rounded-lg flex items-center gap-2">
                 <span className="text-sm text-guinda-700 flex-1 truncate">✓ {seleccionado.nombre_completo}</span>
                 <div>
-                  <label className="text-xs text-gray-600 mr-1">Rol:</label>
+                  <label className="text-xs text-gray-600 mr-1">Función:</label>
                   <select value={rol} onChange={e => setRol(e.target.value)} className="text-xs border border-gray-300 rounded px-2 py-1">
                     <option value="colaborador">Colaborador</option>
                     <option value="responsable">Responsable</option>
+                    {/* Ver sin capturar: solo tiene sentido para gente de otra
+                        dependencia, dentro de SEDATU la visibilidad ya es total. */}
+                    {seleccionado?.rol === 'externo' && <option value="invitado">Invitado</option>}
                   </select>
                 </div>
               </div>
 
+              <p className="text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded-md p-2 leading-snug">
+                La persona recibirá una invitación y podrá aceptarla o rechazarla.
+                Hasta que la acepte no tendrá permisos aquí.
+              </p>
+
               <div>
-                <p className="text-xs font-medium text-gray-600 mb-1.5">Agregar a:</p>
+                <p className="text-xs font-medium text-gray-600 mb-1.5">Invitar a:</p>
                 <div className="flex gap-4">
                   <label className="flex items-center gap-1.5 text-xs cursor-pointer">
                     <input type="radio" name="alcance" value="proyecto" checked={alcance === 'proyecto'}
@@ -652,7 +670,7 @@ function ModalInvitar({ proyectoId, etapas, onClose, onInvitado }) {
             className="px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50 flex items-center gap-2"
             style={{ backgroundColor: GUINDA }}>
             {enviando && <Loader2 size={14} className="animate-spin" />}
-            Agregar al proyecto
+            Enviar invitación
           </button>
         </div>
       </div>

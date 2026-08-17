@@ -24,8 +24,28 @@ async function obtenerNotificaciones(usuarioId, soloNoLeidas = false) {
     condiciones.push('n.leida = false');
   }
 
+  // Se resuelve el proyecto al que pertenece la entidad para que la
+  // interfaz pueda llevar al usuario directo a lo que le están avisando.
+  // Sin esto, una notificación sobre una etapa no era clicable: el
+  // frontend tiene el id de la etapa pero no sabe en qué proyecto vive.
   const resultado = await pool.query(`
-    SELECT n.*
+    SELECT n.*,
+      CASE n.entidad_tipo
+        WHEN 'Proyecto' THEN n.entidad_id
+        WHEN 'Etapa'    THEN (SELECT e.id_proyecto FROM etapas e WHERE e.id = n.entidad_id)
+        WHEN 'Accion'   THEN (
+          SELECT COALESCE(a.id_proyecto, e.id_proyecto)
+          FROM acciones a LEFT JOIN etapas e ON e.id = a.id_etapa
+          WHERE a.id = n.entidad_id
+        )
+        WHEN 'Tarea'    THEN (
+          SELECT COALESCE(a.id_proyecto, e.id_proyecto)
+          FROM tareas t
+          JOIN acciones a ON a.id = t.id_accion
+          LEFT JOIN etapas e ON e.id = a.id_etapa
+          WHERE t.id = n.entidad_id
+        )
+      END AS id_proyecto
     FROM notificaciones n
     WHERE ${condiciones.join(' AND ')}
     ORDER BY n.created_at DESC

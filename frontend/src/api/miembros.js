@@ -39,3 +39,28 @@ export async function obtenerPanorama(proyectoId) {
   const { data } = await client.get(`/proyectos/${proyectoId}/panorama`);
   return data.datos;
 }
+
+// ─── Invitaciones internas ────────────────────────────────────────
+// Invitar propone; la persona acepta o rechaza. Estas funciones son las
+// del lado del invitado.
+
+export async function misInvitaciones() {
+  const { data } = await client.get('/mis-invitaciones');
+  return data.datos;
+}
+
+// Responde una invitación a todo un proyecto.
+export async function responderInvitacionProyecto(proyectoId, respuesta, motivo) {
+  const { data } = await client.post(`/proyectos/${proyectoId}/miembros/responder`, { respuesta, motivo });
+  return data.datos;
+}
+
+// Responde una invitación a una etapa, acción o tarea concreta.
+const RUTA_POR_TIPO = { etapa: 'etapas', accion: 'acciones', tarea: 'tareas' };
+
+export async function responderInvitacionNodo(tipo, idNodo, respuesta, motivo) {
+  const ruta = RUTA_POR_TIPO[tipo];
+  if (!ruta) throw new Error(`Tipo de nodo inválido: ${tipo}`);
+  const { data } = await client.post(`/${ruta}/${idNodo}/miembros-nodo/responder`, { respuesta, motivo });
+  return data.datos;
+}

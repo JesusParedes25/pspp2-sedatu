@@ -162,39 +162,42 @@ async function obtenerTodosParticipantes(proyectoId) {
   const { rows } = await pool.query(`
     WITH fuentes AS (
       SELECT pu.id_usuario, pu.rol, 'proyecto' AS alcance,
-             NULL::text AS nodo_nombre, NULL::text AS nodo_tipo
+             NULL::text AS nodo_nombre, NULL::text AS nodo_tipo, pu.estado
       FROM proyecto_usuarios pu
-      WHERE pu.id_proyecto = $1
+      WHERE pu.id_proyecto = $1 AND pu.estado <> 'rechazada'
       UNION ALL
       SELECT nm.id_usuario, nm.rol, 'etapa' AS alcance,
-             e.nombre AS nodo_nombre, 'etapa' AS nodo_tipo
+             e.nombre AS nodo_nombre, 'etapa' AS nodo_tipo, nm.estado
       FROM nodo_miembros nm
       JOIN etapas e ON nm.tipo_nodo = 'etapa' AND nm.id_nodo = e.id
-      WHERE e.id_proyecto = $1
+      WHERE e.id_proyecto = $1 AND nm.estado <> 'rechazada'
       UNION ALL
       SELECT nm.id_usuario, nm.rol, 'accion' AS alcance,
-             a.nombre AS nodo_nombre, 'accion' AS nodo_tipo
+             a.nombre AS nodo_nombre, 'accion' AS nodo_tipo, nm.estado
       FROM nodo_miembros nm
       JOIN acciones a ON nm.tipo_nodo = 'accion' AND nm.id_nodo = a.id
-      WHERE a.id_proyecto = $1
+      WHERE a.id_proyecto = $1 AND nm.estado <> 'rechazada'
       UNION ALL
       SELECT nm.id_usuario, nm.rol, 'tarea' AS alcance,
-             t.nombre AS nodo_nombre, 'tarea' AS nodo_tipo
+             t.nombre AS nodo_nombre, 'tarea' AS nodo_tipo, nm.estado
       FROM nodo_miembros nm
       JOIN tareas t ON nm.tipo_nodo = 'tarea' AND nm.id_nodo = t.id
       JOIN acciones a2 ON t.id_accion = a2.id
-      WHERE a2.id_proyecto = $1
+      WHERE a2.id_proyecto = $1 AND nm.estado <> 'rechazada'
     )
     SELECT DISTINCT ON (u.id)
       u.id AS id_usuario, u.nombre_completo, u.correo, u.cargo,
       dg.siglas AS dg_siglas,
       da.siglas AS da_siglas,
-      f.rol, f.alcance, f.nodo_nombre, f.nodo_tipo
+      f.rol, f.alcance, f.nodo_nombre, f.nodo_tipo, f.estado
     FROM fuentes f
     JOIN usuarios u ON u.id = f.id_usuario
     LEFT JOIN direcciones_generales dg ON dg.id = u.id_dg
     LEFT JOIN direcciones_area da ON da.id = u.id_direccion_area
     ORDER BY u.id,
+      -- Quien ya aceptó pesa más que una invitación sin responder: si
+      -- alguien tiene las dos, se muestra la participación efectiva.
+      CASE f.estado WHEN 'aceptada' THEN 0 ELSE 1 END,
       CASE f.alcance WHEN 'proyecto' THEN 1 WHEN 'etapa' THEN 2 WHEN 'accion' THEN 3 ELSE 4 END
   `, [proyectoId]);
   return rows;

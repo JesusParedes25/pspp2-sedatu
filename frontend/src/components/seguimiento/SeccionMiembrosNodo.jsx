@@ -1,6 +1,18 @@
 /**
  * ARCHIVO: SeccionMiembrosNodo.jsx
- * PROPÓSITO: Gestión de miembros (responsable/colaborador/invitado) de una etapa o acción.
+ * PROPÓSITO: Quién trabaja en esta etapa, acción o tarea, y con qué función.
+ *
+ * MINI-CLASE: función, estado de la invitación y la función "invitado"
+ * ─────────────────────────────────────────────────────────────────
+ * FUNCIÓN es lo que la persona hace aquí: responsable, colaborador o
+ * —solo para gente ajena a la Secretaría— invitado, que ve sin capturar.
+ * No confundir con el PERFIL (usuarios.rol), que es lo que la persona es
+ * en SEDATU y no cambia de un proyecto a otro.
+ *
+ * Agregar a alguien ya no lo mete de golpe: le llega una invitación que
+ * puede aceptar o rechazar, y hasta entonces no tiene permisos. Por eso
+ * cada miembro muestra el estado de su invitación.
+ * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useMemo } from 'react';
 import { UserPlus, X, Search, Lock } from 'lucide-react';
@@ -15,12 +27,26 @@ import {
 const ROLES = [
   { value: 'responsable', label: 'Responsable', color: 'bg-guinda-100 text-guinda-700' },
   { value: 'colaborador', label: 'Colaborador', color: 'bg-blue-100 text-blue-700' },
-  { value: 'invitado',    label: 'Invitado',    color: 'bg-gray-100 text-gray-600' },
+  // Ver sin capturar. Solo tiene sentido para usuarios de otra dependencia:
+  // dentro de SEDATU la visibilidad ya es total, así que "invitar sin poder
+  // capturar" no le agregaría nada a nadie. El servidor aplica la misma
+  // regla (400 FUNCION_NO_APLICABLE).
+  { value: 'invitado',    label: 'Invitado',    color: 'bg-gray-100 text-gray-600', soloExternos: true },
 ];
+
+// Funciones ofrecibles a esta persona en particular.
+function funcionesPara(usuario) {
+  return ROLES.filter(r => !r.soloExternos || usuario?.rol === 'externo');
+}
 
 function rolConfig(rol) {
   return ROLES.find(r => r.value === rol) || ROLES[2];
 }
+
+const ESTADO_INVITACION = {
+  pendiente: { texto: 'Invitación pendiente', clase: 'text-amber-600' },
+  rechazada: { texto: 'Rechazó la invitación', clase: 'text-red-500' },
+};
 
 function Iniciales({ nombre, className = '' }) {
   const parts = (nombre || '').split(' ').filter(Boolean);
@@ -43,6 +69,7 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos }) {
   const [seleccionado, setSeleccionado] = useState(null);
   const [rolNuevo, setRolNuevo] = useState('colaborador');
   const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     cargar();
@@ -62,6 +89,7 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos }) {
     setBusqueda('');
     setSeleccionado(null);
     setRolNuevo('colaborador');
+    setError('');
     if (todosUsuarios.length === 0) {
       try {
         const res = await obtenerUsuarios();
@@ -83,12 +111,17 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos }) {
   async function confirmarAgregar() {
     if (!seleccionado) return;
     setGuardando(true);
+    setError('');
     try {
       await agregarMiembroNodo(tipo, idNodo, seleccionado.id, rolNuevo);
       setMostrarPicker(false);
       await cargar();
     } catch (err) {
-      console.error('Error al agregar miembro:', err);
+      // El servidor explica los dos casos que importan: la persona ya
+      // participa en todo el proyecto, o la función no aplica para su
+      // perfil. Tragarse el mensaje dejaba al usuario sin saber por qué
+      // no pasó nada.
+      setError(err.response?.data?.mensaje || 'No se pudo agregar a esta persona');
     } finally { setGuardando(false); }
   }
 
@@ -97,7 +130,8 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos }) {
       await actualizarRolNodo(tipo, idNodo, idUsuario, rol);
       setMiembros(prev => prev.map(m => m.id_usuario === idUsuario ? { ...m, rol } : m));
     } catch (err) {
-      console.error('Error al cambiar rol:', err);
+      setError(err.response?.data?.mensaje || 'No se pudo cambiar la función');
+      await cargar();
     }
   }
 
@@ -132,6 +166,12 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-gray-800 truncate">{m.nombre_completo}</p>
                   {m.dg_siglas && <p className="text-[10px] text-gray-400">{m.dg_siglas}</p>}
+                  {ESTADO_INVITACION[m.estado] && (
+                    <p className={`text-[10px] ${ESTADO_INVITACION[m.estado].clase}`}>
+                      {ESTADO_INVITACION[m.estado].texto}
+                      {m.estado === 'rechazada' && m.motivo_rechazo ? `: ${m.motivo_rechazo}` : ''}
+                    </p>
+                  )}
                 </div>
                 {esPrincipal ? (
                   <span className={`flex items-center gap-0.5 text-[10px] font-medium px-2 py-0.5 rounded-full ${rc.color}`}>
@@ -143,7 +183,7 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos }) {
                     onChange={e => cambiarRol(m.id_usuario, e.target.value)}
                     className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full border-0 focus:ring-1 focus:ring-guinda-300 cursor-pointer ${rc.color}`}
                   >
-                    {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                    {funcionesPara(m).map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                   </select>
                 ) : (
                   <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${rc.color}`}>{rc.label}</span>
@@ -161,6 +201,10 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos }) {
             );
           })}
         </div>
+      )}
+
+      {error && !mostrarPicker && (
+        <p className="text-[11px] text-red-600 bg-red-50 border border-red-100 rounded-md p-2 leading-snug">{error}</p>
       )}
 
       {/* Botón / Panel agregar */}
@@ -214,17 +258,21 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos }) {
             )}
           </div>
 
-          {/* Rol */}
+          {/* Función en este nodo */}
           <div className="flex items-center gap-2">
-            <label className="text-[10px] text-gray-500 font-medium whitespace-nowrap">Rol:</label>
+            <label className="text-[10px] text-gray-500 font-medium whitespace-nowrap">Función:</label>
             <select
               value={rolNuevo}
               onChange={e => setRolNuevo(e.target.value)}
               className="flex-1 text-xs border border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:border-guinda-300"
             >
-              {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              {funcionesPara(seleccionado).map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
           </div>
+
+          {error && (
+            <p className="text-[11px] text-red-600 bg-red-50 border border-red-100 rounded-md p-2 leading-snug">{error}</p>
+          )}
 
           {/* Acciones */}
           <div className="flex gap-1.5 justify-end">
@@ -239,7 +287,7 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos }) {
               disabled={!seleccionado || guardando}
               className="px-3 py-1 text-xs bg-guinda-600 text-white rounded-md hover:bg-guinda-700 disabled:opacity-40 disabled:cursor-not-allowed font-medium"
             >
-              {guardando ? 'Agregando...' : 'Agregar'}
+              {guardando ? 'Enviando...' : 'Enviar invitación'}
             </button>
           </div>
         </div>

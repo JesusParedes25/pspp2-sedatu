@@ -13,7 +13,7 @@
  */
 import { Link } from 'react-router-dom';
 import EstadoChip from '../common/EstadoChip';
-import ChipPapel from './ChipPapel';
+import ChipFuncion from './ChipFuncion';
 import BarraProgreso from '../common/BarraProgreso';
 import { Star, AlertTriangle, Building2, Map, FileText, Landmark, Wrench, Briefcase } from 'lucide-react';
 
@@ -72,7 +72,7 @@ export default function TarjetaProyecto({ proyecto }) {
             responde la pregunta con la que uno llega al listado: "¿este
             cuál es, de los que puedo trabajar?" */}
         <div className="flex items-center gap-2 mb-3 flex-wrap">
-          <ChipPapel proyecto={proyecto} ocultarLector />
+          <ChipFuncion proyecto={proyecto} ocultarLector />
           <EstadoChip estado={proyecto.estado} />
           <span className="text-xs text-gray-400">{proyecto.tipo?.replace(/_/g, ' ')}</span>
           {proyecto.programa_clave && (

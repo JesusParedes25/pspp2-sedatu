@@ -27,7 +27,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useUI } from '../../context/UIContext';
 import { usePermisosProyecto, usePermisosGlobales } from '../../hooks/usePermisos';
 import EstadoChip from '../../components/common/EstadoChip';
-import ChipPapel from '../../components/proyectos/ChipPapel';
+import ChipFuncion from '../../components/proyectos/ChipFuncion';
 import SelectorEstado from '../../components/common/SelectorEstado';
 import GanttCronograma from '../../components/seguimiento/GanttCronograma';
 import PanoramaProyecto from '../../components/seguimiento/PanoramaProyecto';
@@ -406,7 +406,7 @@ export default function DetalleProyecto() {
                 <span className="font-medium text-guinda-600 text-sm flex-shrink-0">
                   {proyecto.dg_lider_siglas}{proyecto.direccion_area_lider_siglas && ` / ${proyecto.direccion_area_lider_siglas}`}
                 </span>
-                <ChipPapel proyecto={proyecto} />
+                <ChipFuncion proyecto={proyecto} permisos={permisos} />
                 <SelectorEstado
                   entidadTipo="Proyecto"
                   entidadId={proyecto.id}

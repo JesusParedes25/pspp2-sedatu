@@ -63,7 +63,6 @@ async function responderInvitacion(req, res, next) {
       nombreQuienResponde: req.usuario.nombre_completo,
       acepta,
       funcion: fila.rol,
-      queCosa: 'el proyecto',
       idProyecto: req.params.id,
       motivo,
     });
@@ -73,14 +72,13 @@ async function responderInvitacion(req, res, next) {
 }
 
 // Avisa a quien invitó cómo le fue. Vale para proyecto y para nodo.
-async function notificarRespuesta({ idQuienInvito, nombreQuienResponde, acepta, funcion, queCosa, idProyecto, motivo }) {
+async function notificarRespuesta({ idQuienInvito, nombreQuienResponde, acepta, funcion, idProyecto, motivo }) {
   if (!idQuienInvito) return;
   try {
     const { rows } = await pool.query('SELECT nombre FROM proyectos WHERE id = $1', [idProyecto]);
     const nombreProyecto = rows[0]?.nombre || 'un proyecto';
-    const base = acepta
-      ? `${nombreQuienResponde} aceptó tu invitación para ser ${funcion} en ${queCosa} del proyecto "${nombreProyecto}".`
-      : `${nombreQuienResponde} rechazó tu invitación para ser ${funcion} en ${queCosa} del proyecto "${nombreProyecto}".`;
+    const verbo = acepta ? 'aceptó' : 'rechazó';
+    const base = `${nombreQuienResponde} ${verbo} tu invitación para ser ${funcion} en el proyecto "${nombreProyecto}".`;
     await crearNotificacion({
       tipo: 'RespuestaInvitacion',
       mensaje: acepta ? base : `${base} Motivo: ${motivo}`,
