@@ -15,6 +15,7 @@ import { NavLink } from 'react-router-dom';
 import { useUI } from '../../context/UIContext';
 import { useAuth } from '../../context/AuthContext';
 import { useMisPendientes } from '../../hooks/useMisPendientes';
+import { usePermisosGlobales } from '../../hooks/usePermisos';
 import {
   LayoutDashboard, FolderKanban, Bell,
   PlusCircle, ChevronLeft, ChevronRight, LogOut, FileText, Map, Shield, ListChecks
@@ -36,6 +37,7 @@ const menuItems = [
 export default function Sidebar() {
   const { sidebarAbierto, toggleSidebar } = useUI();
   const { usuario, logout } = useAuth();
+  const { puedeCrearProyecto } = usePermisosGlobales();
   const { vencidas } = useMisPendientes();
 
   return (
@@ -68,7 +70,12 @@ export default function Sidebar() {
       <nav className="flex-1 py-4 space-y-1 px-2">
         {menuItems.filter(item => {
           if (item.requiereRol && usuario?.rol !== item.requiereRol) return false;
-          if (item.requiereCrear && usuario?.rol === 'Operativo') return false;
+          // Antes esto comparaba contra 'Operativo', un rol que dejó de
+          // existir en la migración 034: la condición nunca se cumplía y
+          // el 'externo' veía "Nuevo proyecto" en el menú para que la
+          // página lo rebotara al entrar. Ahora usa la misma regla que
+          // aplica la página (usePermisos › puedeCrearProyecto).
+          if (item.requiereCrear && !puedeCrearProyecto) return false;
           return true;
         }).map(item => (
           <NavLink

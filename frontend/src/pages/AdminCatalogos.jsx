@@ -15,7 +15,7 @@ import TabApiIndicadores from '../components/admin/TabApiIndicadores';
 import * as proyectosApi from '../api/proyectos';
 import emailjs from '@emailjs/browser';
 import ConfirmDialog from '../components/common/ConfirmDialog';
-import { ROLES, DESCRIPCION_ROL, etiquetaRol, colorRol } from '../utils/roles';
+import { ROLES, DESCRIPCION_ROL, colorRol } from '../utils/roles';
 
 // ─── Tab: Catálogos ──────────────────────────────────────────────
 function TabCatalogos() {
@@ -126,8 +126,8 @@ function TabCatalogos() {
 }
 
 // ─── Tab: Usuarios ───────────────────────────────────────────────
-// Los nombres visibles de los roles viven en utils/roles.js: la base
-// guarda 'ejecutivo', la pantalla dice "Institucional".
+// La lista de roles, sus colores y la descripción de cada uno viven en
+// utils/roles.js. El nombre que se muestra es el mismo que se guarda.
 
 // Envía el correo de invitación vía EmailJS (se ejecuta desde el navegador).
 // Devuelve { enviado: true } o { enviado: false, motivo: string }.
@@ -257,7 +257,7 @@ function TabUsuarios({ dgs, das }) {
               <p className="text-xs text-gray-400">{u.dg_siglas}{u.da_siglas ? ` / ${u.da_siglas}` : ''}</p>
             </div>
             <span title={DESCRIPCION_ROL[u.rol] || ''}
-              className={`text-[10px] px-2 py-0.5 rounded font-medium whitespace-nowrap ${colorRol(u.rol)}`}>{etiquetaRol(u.rol)}</span>
+              className={`text-[10px] px-2 py-0.5 rounded font-medium whitespace-nowrap ${colorRol(u.rol)}`}>{u.rol}</span>
             <div className="flex gap-2">
               <button onClick={() => setModal({ modo: 'editar', datos: { ...u, id_dg: u.id_dg || '', id_direccion_area: u.id_direccion_area || '' } })}
                 className="text-gray-400 hover:text-blue-600" title="Editar"><Pencil size={15} /></button>
@@ -290,7 +290,7 @@ function TabUsuarios({ dgs, das }) {
               </Field>
               <Field label="Rol" required>
                 <select value={modal.datos.rol} onChange={e => setModal(m => ({ ...m, datos: { ...m.datos, rol: e.target.value } }))} className="input-base text-sm">
-                  {ROLES.map(r => <option key={r} value={r}>{etiquetaRol(r)}</option>)}
+                  {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
                 {DESCRIPCION_ROL[modal.datos.rol] && (
                   <p className="text-[11px] text-gray-500 mt-1 leading-snug">{DESCRIPCION_ROL[modal.datos.rol]}</p>

@@ -34,7 +34,6 @@ import TarjetaCartera from '../../components/carteras/TarjetaCartera';
 import ModalCartera from '../../components/carteras/ModalCartera';
 import FiltrosProyectos from '../../components/proyectos/FiltrosProyectos';
 import EmptyState from '../../components/common/EmptyState';
-import { etiquetaRol } from '../../utils/roles';
 
 const CLAVE_LOCALSTORAGE = 'pspp_vista_proyectos';
 
@@ -72,7 +71,7 @@ export default function ListadoProyectos() {
         <div className="flex items-center gap-3">
           {usuario && (
             <span className="text-xs px-2 py-1 rounded-full bg-guinda-50 text-guinda-600 font-medium">
-              {etiquetaRol(usuario.rol)}{usuario.dg_siglas ? ` — ${usuario.dg_siglas}` : ''}
+              {usuario.rol}{usuario.dg_siglas ? ` — ${usuario.dg_siglas}` : ''}
             </span>
           )}
           {puedeCrearProyecto && (
