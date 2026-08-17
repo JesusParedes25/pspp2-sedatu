@@ -156,15 +156,17 @@ const TABLA_NODO = { etapa: 'etapas', accion: 'acciones', tarea: 'tareas' };
 // ¿Está esta persona asignada a este nodo en particular? Hay dos formas
 // de estarlo y las dos cuentan: ser el responsable principal (columna
 // id_responsable de la propia etapa/acción/tarea) o estar en
-// nodo_miembros. Es la vía por la que alguien ajeno al proyecto edita lo
-// que se le encargó — por ejemplo desde "Mis actividades".
+// nodo_miembros con la invitación ACEPTADA — una pendiente no da acceso.
+// Es la vía por la que alguien ajeno al proyecto edita lo que se le
+// encargó, por ejemplo desde "Mis actividades".
 async function esMiembroDelNodo({ usuario, tipoNodo, idNodo }, conn) {
   const tabla = TABLA_NODO[tipoNodo];
   if (!tabla) return false;
   const { rows } = await conn.query(`
     SELECT 1 FROM ${tabla} WHERE id = $1 AND id_responsable = $2
     UNION ALL
-    SELECT 1 FROM nodo_miembros WHERE id_nodo = $1 AND id_usuario = $2 AND tipo_nodo = $3
+    SELECT 1 FROM nodo_miembros
+     WHERE id_nodo = $1 AND id_usuario = $2 AND tipo_nodo = $3 AND estado = 'aceptada'
     LIMIT 1
   `, [idNodo, usuario.id, tipoNodo]);
   return rows.length > 0;

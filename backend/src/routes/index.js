@@ -129,6 +129,15 @@ router.put('/acciones/:id/indicadores', exigirEdicionNodo('accion'), accionesCon
 // Importar estructura desde CSV
 router.post('/proyectos/:id/importar-csv', exigirEdicionProyecto(), accionesController.importarCSV);
 
+// Invitaciones internas: las que el usuario tiene sin responder y su
+// respuesta (aceptar / rechazar). Responder es del propio invitado, así
+// que estas rutas no llevan verificación de gestión.
+router.get('/mis-invitaciones', miembrosController.misInvitaciones);
+router.post('/proyectos/:id/miembros/responder', miembrosController.responderInvitacion);
+router.post('/etapas/:etapaId/miembros-nodo/responder', nodoMiembrosController.responder);
+router.post('/acciones/:accionId/miembros-nodo/responder', nodoMiembrosController.responder);
+router.post('/tareas/:tareaId/miembros-nodo/responder', nodoMiembrosController.responder);
+
 // Tareas de una acción
 router.get('/acciones/:id/tareas', tareasController.listar);
 router.post('/acciones/:id/tareas', exigirEdicionNodo('accion'), tareasController.crear);

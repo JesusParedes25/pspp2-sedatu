@@ -27,6 +27,8 @@ async function listarMiembros(tipo, idNodo, db) {
         'responsable'               AS rol,
         true                        AS es_responsable_principal,
         NULL::uuid                  AS id_invitado_por,
+        'aceptada'                  AS estado,
+        NULL::text                  AS motivo_rechazo,
         t.created_at
       FROM ${tabla} t
       WHERE t.id = $2 AND t.id_responsable IS NOT NULL
@@ -39,6 +41,8 @@ async function listarMiembros(tipo, idNodo, db) {
         nm.rol,
         false                       AS es_responsable_principal,
         nm.id_invitado_por,
+        nm.estado,
+        nm.motivo_rechazo,
         nm.created_at
       FROM nodo_miembros nm
       WHERE nm.tipo_nodo = $1 AND nm.id_nodo = $2
@@ -63,9 +67,13 @@ async function agregarMiembro(tipo, idNodo, idUsuario, rol, idInvitadoPor, db) {
   if (!['etapa', 'accion', 'tarea'].includes(tipo)) throw new Error(`Tipo de nodo inválido: ${tipo}`);
   const conn = db || pool;
   const { rows } = await conn.query(`
-    INSERT INTO nodo_miembros (tipo_nodo, id_nodo, id_usuario, rol, id_invitado_por)
-    VALUES ($1, $2, $3, $4, $5)
-    ON CONFLICT (tipo_nodo, id_nodo, id_usuario) DO UPDATE SET rol = EXCLUDED.rol
+    INSERT INTO nodo_miembros (tipo_nodo, id_nodo, id_usuario, rol, id_invitado_por, estado)
+    VALUES ($1, $2, $3, $4, $5, 'pendiente')
+    ON CONFLICT (tipo_nodo, id_nodo, id_usuario) DO UPDATE
+      SET rol = EXCLUDED.rol,
+          -- Reinvitar a quien rechazó vuelve a dejar la invitación pendiente.
+          estado = CASE WHEN nodo_miembros.estado = 'rechazada' THEN 'pendiente' ELSE nodo_miembros.estado END,
+          motivo_rechazo = CASE WHEN nodo_miembros.estado = 'rechazada' THEN NULL ELSE nodo_miembros.motivo_rechazo END
     RETURNING *
   `, [tipo, idNodo, idUsuario, rol || 'colaborador', idInvitadoPor || null]);
   return rows[0];
@@ -91,4 +99,16 @@ async function eliminarMiembro(tipo, idNodo, idUsuario, db) {
   return rows[0] || null;
 }
 
-module.exports = { listarMiembros, agregarMiembro, actualizarRol, eliminarMiembro };
+// Respuesta del invitado a un nodo. null si no había invitación pendiente.
+async function responderInvitacion(tipo, idNodo, idUsuario, aceptar, motivo, db) {
+  const conn = db || pool;
+  const { rows } = await conn.query(`
+    UPDATE nodo_miembros
+    SET estado = $4, motivo_rechazo = $5, respondido_en = NOW()
+    WHERE tipo_nodo = $1 AND id_nodo = $2 AND id_usuario = $3 AND estado = 'pendiente'
+    RETURNING *
+  `, [tipo, idNodo, idUsuario, aceptar ? 'aceptada' : 'rechazada', aceptar ? null : (motivo || null)]);
+  return rows[0] || null;
+}
+
+module.exports = { listarMiembros, agregarMiembro, actualizarRol, eliminarMiembro, responderInvitacion };

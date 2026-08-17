@@ -10,6 +10,7 @@ const crypto = require('crypto');
 async function listarMiembros(proyectoId) {
   const { rows } = await pool.query(`
     SELECT pu.id_proyecto, pu.id_usuario, pu.rol, pu.invitado_en, pu.aceptado_en,
+      pu.estado, pu.motivo_rechazo, pu.respondido_en,
       u.nombre_completo, u.correo, u.cargo, u.rol AS rol_sistema,
       dg.siglas AS dg_siglas, dg.nombre AS dg_nombre
     FROM proyecto_usuarios pu
@@ -21,14 +22,76 @@ async function listarMiembros(proyectoId) {
   return rows;
 }
 
-async function agregarMiembro(proyectoId, usuarioId, rol, invitadoPor) {
+// Registra la participación. Por omisión queda PENDIENTE: invitar propone,
+// no impone — la persona acepta o rechaza. `yaAceptada` es para los casos
+// en que no hay a quién preguntarle: el creador de un proyecto, o la copia
+// de participantes al duplicar uno.
+async function agregarMiembro(proyectoId, usuarioId, rol, invitadoPor, { yaAceptada = false } = {}) {
+  const estado = yaAceptada ? 'aceptada' : 'pendiente';
   const { rows } = await pool.query(`
-    INSERT INTO proyecto_usuarios (id_proyecto, id_usuario, rol, invitado_por, aceptado_en)
-    VALUES ($1, $2, $3, $4, NOW())
-    ON CONFLICT (id_proyecto, id_usuario) DO UPDATE SET rol = $3
+    INSERT INTO proyecto_usuarios (id_proyecto, id_usuario, rol, invitado_por, estado, aceptado_en)
+    VALUES ($1, $2, $3, $4, $5::varchar, CASE WHEN $5::varchar = 'aceptada' THEN NOW() END)
+    ON CONFLICT (id_proyecto, id_usuario) DO UPDATE
+      SET rol = $3,
+          -- Reinvitar a quien había rechazado vuelve a dejarlo pendiente;
+          -- a quien ya aceptó solo se le cambia la función.
+          estado = CASE WHEN proyecto_usuarios.estado = 'rechazada' THEN $5::varchar ELSE proyecto_usuarios.estado END,
+          motivo_rechazo = CASE WHEN proyecto_usuarios.estado = 'rechazada' THEN NULL ELSE proyecto_usuarios.motivo_rechazo END
     RETURNING *
-  `, [proyectoId, usuarioId, rol, invitadoPor]);
+  `, [proyectoId, usuarioId, rol, invitadoPor, estado]);
   return rows[0];
+}
+
+// Respuesta del invitado. Devuelve la fila actualizada o null si no había
+// invitación pendiente (ya respondida, o nunca existió).
+async function responderInvitacion(proyectoId, usuarioId, aceptar, motivo) {
+  const { rows } = await pool.query(`
+    UPDATE proyecto_usuarios
+    SET estado = $3::varchar,
+        motivo_rechazo = $4,
+        respondido_en = NOW(),
+        aceptado_en = CASE WHEN $3::varchar = 'aceptada' THEN NOW() ELSE NULL END
+    WHERE id_proyecto = $1 AND id_usuario = $2 AND estado = 'pendiente'
+    RETURNING *
+  `, [proyectoId, usuarioId, aceptar ? 'aceptada' : 'rechazada', aceptar ? null : (motivo || null)]);
+  return rows[0] || null;
+}
+
+// Invitaciones que este usuario tiene sin responder, de proyecto y de nodo,
+// en una sola lista ordenada de la más reciente a la más vieja.
+async function invitacionesPendientes(usuarioId) {
+  const { rows } = await pool.query(`
+    SELECT 'proyecto' AS tipo, p.id AS id_nodo, p.nombre AS nombre_nodo,
+           p.id AS id_proyecto, p.nombre AS nombre_proyecto,
+           pu.rol AS funcion, pu.invitado_en, u.nombre_completo AS invitado_por_nombre
+    FROM proyecto_usuarios pu
+    JOIN proyectos p ON p.id = pu.id_proyecto AND p.deleted_at IS NULL
+    LEFT JOIN usuarios u ON u.id = pu.invitado_por
+    WHERE pu.id_usuario = $1 AND pu.estado = 'pendiente'
+
+    UNION ALL
+
+    SELECT nm.tipo_nodo AS tipo, nm.id_nodo, n.nombre AS nombre_nodo,
+           n.id_proyecto, p.nombre AS nombre_proyecto,
+           nm.rol AS funcion, nm.created_at AS invitado_en, u.nombre_completo AS invitado_por_nombre
+    FROM nodo_miembros nm
+    JOIN (
+      SELECT e.id, e.nombre, e.id_proyecto, 'etapa' AS t FROM etapas e
+      UNION ALL
+      SELECT a.id, a.nombre, COALESCE(a.id_proyecto, e2.id_proyecto), 'accion' FROM acciones a
+        LEFT JOIN etapas e2 ON e2.id = a.id_etapa
+      UNION ALL
+      SELECT t.id, t.nombre, COALESCE(a2.id_proyecto, e3.id_proyecto), 'tarea' FROM tareas t
+        JOIN acciones a2 ON a2.id = t.id_accion
+        LEFT JOIN etapas e3 ON e3.id = a2.id_etapa
+    ) n ON n.id = nm.id_nodo AND n.t = nm.tipo_nodo
+    JOIN proyectos p ON p.id = n.id_proyecto AND p.deleted_at IS NULL
+    LEFT JOIN usuarios u ON u.id = nm.id_invitado_por
+    WHERE nm.id_usuario = $1 AND nm.estado = 'pendiente'
+
+    ORDER BY invitado_en DESC
+  `, [usuarioId]);
+  return rows;
 }
 
 async function eliminarMiembro(proyectoId, usuarioId) {
@@ -39,9 +102,13 @@ async function eliminarMiembro(proyectoId, usuarioId) {
   return rowCount > 0;
 }
 
+// La función que esta persona ejerce en el proyecto. Solo cuenta si aceptó:
+// una invitación pendiente o rechazada no da permisos. Es el embudo por el
+// que pasan todas las verificaciones de autorización.
 async function obtenerRolUsuario(proyectoId, usuarioId) {
   const { rows } = await pool.query(
-    'SELECT rol FROM proyecto_usuarios WHERE id_proyecto = $1 AND id_usuario = $2',
+    `SELECT rol FROM proyecto_usuarios
+     WHERE id_proyecto = $1 AND id_usuario = $2 AND estado = 'aceptada'`,
     [proyectoId, usuarioId]
   );
   return rows[0]?.rol || null;
@@ -56,7 +123,7 @@ async function tieneAcceso(proyectoId, usuario) {
   if (usuario.rol === 'superadmin' || usuario.rol === 'ejecutivo') return true;
 
   const { rows } = await pool.query(`
-    SELECT 1 FROM proyecto_usuarios WHERE id_proyecto = $1 AND id_usuario = $2
+    SELECT 1 FROM proyecto_usuarios WHERE id_proyecto = $1 AND id_usuario = $2 AND estado = 'aceptada'
     UNION
     SELECT 1 FROM proyectos WHERE id = $1 AND id_creador = $2
   `, [proyectoId, usuario.id]);
@@ -127,8 +194,8 @@ async function aceptarInvitacion(token, usuarioId) {
   const inv = rows[0];
   // Add user to project
   await pool.query(`
-    INSERT INTO proyecto_usuarios (id_proyecto, id_usuario, rol, invitado_por, aceptado_en)
-    VALUES ($1, $2, $3, $4, NOW())
+    INSERT INTO proyecto_usuarios (id_proyecto, id_usuario, rol, invitado_por, estado, aceptado_en)
+    VALUES ($1, $2, $3, $4, 'aceptada', NOW())
     ON CONFLICT (id_proyecto, id_usuario) DO NOTHING
   `, [inv.id_proyecto, usuarioId, inv.rol, inv.invitado_por]);
 
@@ -162,6 +229,8 @@ module.exports = {
   agregarMiembro,
   eliminarMiembro,
   obtenerRolUsuario,
+  responderInvitacion,
+  invitacionesPendientes,
   tieneAcceso,
   crearInvitacion,
   listarInvitaciones,

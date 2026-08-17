@@ -11,19 +11,85 @@ const pool = require('../db/pool');
 // Notifica al usuario que fue agregado a un proyecto. No lanza error: si
 // falla, la membresía ya quedó creada (lo importante) y no queremos que
 // la petición completa se caiga por una notificación.
-async function notificarNuevoMiembro(proyectoId, idUsuarioNuevo, rol) {
+async function notificarNuevoMiembro(proyectoId, idUsuarioNuevo, rol, quienInvita) {
   try {
     const { rows } = await pool.query('SELECT nombre FROM proyectos WHERE id = $1', [proyectoId]);
     const nombreProyecto = rows[0]?.nombre || 'un proyecto';
     await crearNotificacion({
-      tipo: 'PermisoNuevo',
-      mensaje: `Fuiste agregado al proyecto "${nombreProyecto}" como ${rol}.`,
+      tipo: 'Invitacion',
+      mensaje: `${quienInvita || 'Alguien'} te invitó a participar en el proyecto "${nombreProyecto}" como ${rol}. Puedes aceptar o rechazar la invitación.`,
       entidadTipo: 'Proyecto',
       entidadId: proyectoId,
       idUsuario: idUsuarioNuevo,
     });
   } catch (err) {
     console.error('[miembros] Error al notificar nuevo miembro:', err.message);
+  }
+}
+
+// GET /mis-invitaciones — las que este usuario tiene sin responder
+async function misInvitaciones(req, res, next) {
+  try {
+    const pendientes = await miembrosQueries.invitacionesPendientes(req.usuario.id);
+    res.json({ datos: pendientes, mensaje: 'Invitaciones pendientes' });
+  } catch (err) { next(err); }
+}
+
+// POST /proyectos/:id/miembros/responder — { respuesta: 'aceptar'|'rechazar', motivo }
+//
+// Solo el propio invitado responde: no se acepta un id_usuario en el body.
+// Rechazar exige motivo — quien invitó necesita saber por qué para poder
+// reasignar el trabajo, y un rechazo mudo obliga a ir a preguntar.
+async function responderInvitacion(req, res, next) {
+  try {
+    const { respuesta, motivo } = req.body || {};
+    if (!['aceptar', 'rechazar'].includes(respuesta)) {
+      return res.status(400).json({ error: true, mensaje: "respuesta debe ser 'aceptar' o 'rechazar'" });
+    }
+    const acepta = respuesta === 'aceptar';
+    if (!acepta && !(motivo || '').trim()) {
+      return res.status(400).json({ error: true, mensaje: 'Para rechazar la invitación explica brevemente el motivo.' });
+    }
+
+    const fila = await miembrosQueries.responderInvitacion(
+      req.params.id, req.usuario.id, acepta, (motivo || '').trim()
+    );
+    if (!fila) {
+      return res.status(404).json({ error: true, mensaje: 'No tienes una invitación pendiente en este proyecto.' });
+    }
+
+    await notificarRespuesta({
+      idQuienInvito: fila.invitado_por,
+      nombreQuienResponde: req.usuario.nombre_completo,
+      acepta,
+      funcion: fila.rol,
+      queCosa: 'el proyecto',
+      idProyecto: req.params.id,
+      motivo,
+    });
+
+    res.json({ datos: fila, mensaje: acepta ? 'Invitación aceptada' : 'Invitación rechazada' });
+  } catch (err) { next(err); }
+}
+
+// Avisa a quien invitó cómo le fue. Vale para proyecto y para nodo.
+async function notificarRespuesta({ idQuienInvito, nombreQuienResponde, acepta, funcion, queCosa, idProyecto, motivo }) {
+  if (!idQuienInvito) return;
+  try {
+    const { rows } = await pool.query('SELECT nombre FROM proyectos WHERE id = $1', [idProyecto]);
+    const nombreProyecto = rows[0]?.nombre || 'un proyecto';
+    const base = acepta
+      ? `${nombreQuienResponde} aceptó tu invitación para ser ${funcion} en ${queCosa} del proyecto "${nombreProyecto}".`
+      : `${nombreQuienResponde} rechazó tu invitación para ser ${funcion} en ${queCosa} del proyecto "${nombreProyecto}".`;
+    await crearNotificacion({
+      tipo: 'RespuestaInvitacion',
+      mensaje: acepta ? base : `${base} Motivo: ${motivo}`,
+      entidadTipo: 'Proyecto',
+      entidadId: idProyecto,
+      idUsuario: idQuienInvito,
+    });
+  } catch (err) {
+    console.error('[miembros] Error al notificar respuesta de invitación:', err.message);
   }
 }
 
@@ -52,7 +118,7 @@ async function agregarMiembro(req, res, next) {
 
     const miembro = await miembrosQueries.agregarMiembro(req.params.id, id_usuario, rol, req.usuario.id);
     await registrarActividad({ id_proyecto: req.params.id, id_usuario: req.usuario.id, tipo: 'miembro', titulo: 'Nuevo miembro agregado al proyecto', entidad_tipo: 'proyecto', entidad_id: req.params.id, metadata: { id_usuario_nuevo: id_usuario, rol } });
-    await notificarNuevoMiembro(req.params.id, id_usuario, rol);
+    await notificarNuevoMiembro(req.params.id, id_usuario, rol, req.usuario.nombre_completo);
     res.status(201).json({ datos: miembro, mensaje: 'Miembro agregado' });
   } catch (err) { next(err); }
 }
@@ -95,7 +161,7 @@ async function crearInvitacion(req, res, next) {
 
     const miembro = await miembrosQueries.agregarMiembro(req.params.id, id_usuario, rol || 'colaborador', req.usuario.id);
     await registrarActividad({ id_proyecto: req.params.id, id_usuario: req.usuario.id, tipo: 'miembro', titulo: 'Usuario agregado al proyecto', entidad_tipo: 'proyecto', entidad_id: req.params.id, metadata: { id_usuario_nuevo: id_usuario, rol } });
-    await notificarNuevoMiembro(req.params.id, id_usuario, rol || 'colaborador');
+    await notificarNuevoMiembro(req.params.id, id_usuario, rol || 'colaborador', req.usuario.nombre_completo);
     res.status(201).json({ datos: miembro, mensaje: 'Usuario agregado al proyecto' });
   } catch (err) { next(err); }
 }
@@ -133,6 +199,8 @@ async function cancelarInvitacion(req, res, next) {
 
 module.exports = {
   listarMiembros,
+  misInvitaciones,
+  responderInvitacion,
   agregarMiembro,
   eliminarMiembro,
   crearInvitacion,

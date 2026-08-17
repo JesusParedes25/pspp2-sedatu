@@ -206,8 +206,8 @@ async function crearProyecto(datos, creadorId) {
     // si puede agregar a otros colaboradores. Sin esta fila, el creador no
     // podía invitar a nadie a su propio proyecto.
     await client.query(`
-      INSERT INTO proyecto_usuarios (id_proyecto, id_usuario, rol, aceptado_en)
-      VALUES ($1, $2, 'responsable', NOW())
+      INSERT INTO proyecto_usuarios (id_proyecto, id_usuario, rol, estado, aceptado_en)
+      VALUES ($1, $2, 'responsable', 'aceptada', NOW())
       ON CONFLICT (id_proyecto, id_usuario) DO NOTHING
     `, [proyecto.id, creadorId]);
 

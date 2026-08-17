@@ -86,8 +86,8 @@ async function duplicarProyecto(idOrigen, opciones, creadorId) {
     `, [nuevo.id, nuevo.id_dg_lider, nuevo.id_direccion_area_lider, creadorId]);
 
     await client.query(`
-      INSERT INTO proyecto_usuarios (id_proyecto, id_usuario, rol, aceptado_en)
-      VALUES ($1, $2, 'responsable', NOW())
+      INSERT INTO proyecto_usuarios (id_proyecto, id_usuario, rol, estado, aceptado_en)
+      VALUES ($1, $2, 'responsable', 'aceptada', NOW())
       ON CONFLICT (id_proyecto, id_usuario) DO NOTHING
     `, [nuevo.id, creadorId]);
 
@@ -95,8 +95,11 @@ async function duplicarProyecto(idOrigen, opciones, creadorId) {
       // Quien duplica ya quedó arriba como responsable; el ON CONFLICT
       // evita degradarlo si en el original era solo colaborador.
       await client.query(`
-        INSERT INTO proyecto_usuarios (id_proyecto, id_usuario, rol, invitado_por, aceptado_en)
-        SELECT $1, id_usuario, rol, $2, NOW()
+        -- Se conserva el estado que traían en el original: a quien ya
+        -- había aceptado participar no se le vuelve a preguntar, y quien
+        -- tenía la invitación pendiente sigue pendiente en la copia.
+        INSERT INTO proyecto_usuarios (id_proyecto, id_usuario, rol, invitado_por, estado, aceptado_en)
+        SELECT $1, id_usuario, rol, $2, estado, aceptado_en
           FROM proyecto_usuarios WHERE id_proyecto = $3
         ON CONFLICT (id_proyecto, id_usuario) DO NOTHING
       `, [nuevo.id, creadorId, idOrigen]);

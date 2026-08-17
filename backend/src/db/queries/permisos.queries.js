@@ -47,10 +47,10 @@ async function nodosEditablesUsuario(proyectoId, usuarioId, db) {
     [idsAcciones]
   );
 
-  // Asignaciones explícitas: nodo_miembros + la columna id_responsable.
+  // Asignaciones explícitas: nodo_miembros aceptados + la columna id_responsable.
   const { rows: miembros } = await conn.query(`
     SELECT tipo_nodo, id_nodo FROM nodo_miembros
-    WHERE id_usuario = $1
+    WHERE id_usuario = $1 AND estado = 'aceptada'
       AND (
         (tipo_nodo = 'etapa'  AND id_nodo = ANY($2::uuid[])) OR
         (tipo_nodo = 'accion' AND id_nodo = ANY($3::uuid[])) OR
