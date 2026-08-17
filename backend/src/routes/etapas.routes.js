@@ -15,14 +15,17 @@
 const { Router } = require('express');
 const etapasController = require('../controllers/etapas.controller');
 const indicadoresController = require('../controllers/indicadores.controller');
+const { exigirEdicionNodo } = require('../middleware/permisos.middleware');
 
 const router = Router();
 
+// Lectura: abierta a cualquier usuario autenticado (la plataforma es de
+// visibilidad total). Escritura: solo quien puede capturar en el proyecto.
 router.get('/:id/indicadores', indicadoresController.listarPorEtapa);
 router.get('/:id', etapasController.obtenerPorId);
-router.put('/:id', etapasController.actualizar);
-router.patch('/:id', etapasController.patchAvanceSemaforo);
-router.patch('/:id/campo', etapasController.patchCampo);
-router.delete('/:id', etapasController.eliminar);
+router.put('/:id', exigirEdicionNodo('etapa'), etapasController.actualizar);
+router.patch('/:id', exigirEdicionNodo('etapa'), etapasController.patchAvanceSemaforo);
+router.patch('/:id/campo', exigirEdicionNodo('etapa'), etapasController.patchCampo);
+router.delete('/:id', etapasController.eliminar);   // verifica adentro (puedeGestionarNodo)
 
 module.exports = router;

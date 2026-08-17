@@ -15,6 +15,7 @@ import TabApiIndicadores from '../components/admin/TabApiIndicadores';
 import * as proyectosApi from '../api/proyectos';
 import emailjs from '@emailjs/browser';
 import ConfirmDialog from '../components/common/ConfirmDialog';
+import { ROLES, DESCRIPCION_ROL, etiquetaRol, colorRol } from '../utils/roles';
 
 // ─── Tab: Catálogos ──────────────────────────────────────────────
 function TabCatalogos() {
@@ -125,7 +126,8 @@ function TabCatalogos() {
 }
 
 // ─── Tab: Usuarios ───────────────────────────────────────────────
-const ROLES = ['superadmin', 'ejecutivo', 'direccion', 'enlace', 'externo'];
+// Los nombres visibles de los roles viven en utils/roles.js: la base
+// guarda 'ejecutivo', la pantalla dice "Institucional".
 
 // Envía el correo de invitación vía EmailJS (se ejecuta desde el navegador).
 // Devuelve { enviado: true } o { enviado: false, motivo: string }.
@@ -209,7 +211,6 @@ function TabUsuarios({ dgs, das }) {
     finally { setPorEliminarU(null); }
   }
 
-  const rolColor = { superadmin: 'bg-guinda-100 text-guinda-700', ejecutivo: 'bg-purple-100 text-purple-700', direccion: 'bg-blue-100 text-blue-700', enlace: 'bg-green-100 text-green-700', externo: 'bg-gray-100 text-gray-600' };
 
   if (cargando) return <div className="flex justify-center py-10"><Loader2 size={24} className="animate-spin text-guinda-600" /></div>;
 
@@ -255,7 +256,8 @@ function TabUsuarios({ dgs, das }) {
               <p className="text-xs text-gray-500 truncate">{u.correo} · {u.cargo}</p>
               <p className="text-xs text-gray-400">{u.dg_siglas}{u.da_siglas ? ` / ${u.da_siglas}` : ''}</p>
             </div>
-            <span className={`text-[10px] px-2 py-0.5 rounded font-medium ${rolColor[u.rol] || 'bg-gray-100 text-gray-600'}`}>{u.rol}</span>
+            <span title={DESCRIPCION_ROL[u.rol] || ''}
+              className={`text-[10px] px-2 py-0.5 rounded font-medium whitespace-nowrap ${colorRol(u.rol)}`}>{etiquetaRol(u.rol)}</span>
             <div className="flex gap-2">
               <button onClick={() => setModal({ modo: 'editar', datos: { ...u, id_dg: u.id_dg || '', id_direccion_area: u.id_direccion_area || '' } })}
                 className="text-gray-400 hover:text-blue-600" title="Editar"><Pencil size={15} /></button>
@@ -288,8 +290,11 @@ function TabUsuarios({ dgs, das }) {
               </Field>
               <Field label="Rol" required>
                 <select value={modal.datos.rol} onChange={e => setModal(m => ({ ...m, datos: { ...m.datos, rol: e.target.value } }))} className="input-base text-sm">
-                  {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                  {ROLES.map(r => <option key={r} value={r}>{etiquetaRol(r)}</option>)}
                 </select>
+                {DESCRIPCION_ROL[modal.datos.rol] && (
+                  <p className="text-[11px] text-gray-500 mt-1 leading-snug">{DESCRIPCION_ROL[modal.datos.rol]}</p>
+                )}
               </Field>
               <Field label="Dirección General">
                 <select value={modal.datos.id_dg || ''} onChange={e => setModal(m => ({ ...m, datos: { ...m.datos, id_dg: e.target.value, id_direccion_area: '' } }))} className="input-base text-sm">

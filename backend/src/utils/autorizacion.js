@@ -124,6 +124,97 @@ async function puedeGestionarParticipantes({ usuario, idProyecto }, db) {
   return puedeEditarProyecto({ usuario, idProyecto }, db);
 }
 
+// ¿Puede este usuario CAPTURAR dentro del proyecto (crear etapas y
+// acciones, mover avances, editar campos de un nodo)?
+//
+// Es deliberadamente más amplia que puedeEditarProyecto, porque capturar
+// el seguimiento del día a día es trabajo de más gente que la que puede
+// cambiar la ficha del proyecto:
+//
+//   • quien puede editar el proyecto (creador, responsable, su DG líder,
+//     superadmin);
+//   • cualquier participante registrado en proyecto_usuarios, sea
+//     responsable o colaborador;
+//   • cualquier persona de la Dirección General que lidera el proyecto —
+//     el área dueña captura su propio avance sin tener que invitarse a
+//     sí misma uno por uno.
+//
+// Estas tres vías son exactamente las que la interfaz ya concedía en
+// usePermisos.js (`esSoloLectura === false`). No se amplía a nadie: lo
+// que cambia es que ahora el servidor las verifica.
+async function puedeEditarContenidoProyecto({ usuario, idProyecto }, db) {
+  if (!usuario || !idProyecto) return false;
+  if (await puedeEditarProyecto({ usuario, idProyecto }, db)) return true;
+
+  const conn = db || pool;
+
+  const rolProyecto = await miembrosQueries.obtenerRolUsuario(idProyecto, usuario.id);
+  if (rolProyecto) return true;
+
+  if (usuario.id_dg) {
+    const { rows } = await conn.query(
+      'SELECT id_dg_lider FROM proyectos WHERE id = $1', [idProyecto]
+    );
+    if (rows[0]?.id_dg_lider === usuario.id_dg) return true;
+  }
+
+  return false;
+}
+
+const TABLA_NODO = { etapa: 'etapas', accion: 'acciones', tarea: 'tareas' };
+
+// ¿Está esta persona asignada a este nodo en particular? Hay dos formas
+// de estarlo y las dos cuentan: ser el responsable principal (columna
+// id_responsable de la propia etapa/acción/tarea) o estar en
+// nodo_miembros. Es la vía por la que alguien ajeno al proyecto edita lo
+// que se le encargó — por ejemplo desde "Mis actividades".
+async function esMiembroDelNodo({ usuario, tipoNodo, idNodo }, conn) {
+  const tabla = TABLA_NODO[tipoNodo];
+  if (!tabla) return false;
+  const { rows } = await conn.query(`
+    SELECT 1 FROM ${tabla} WHERE id = $1 AND id_responsable = $2
+    UNION ALL
+    SELECT 1 FROM nodo_miembros WHERE id_nodo = $1 AND id_usuario = $2 AND tipo_nodo = $3
+    LIMIT 1
+  `, [idNodo, usuario.id, tipoNodo]);
+  return rows.length > 0;
+}
+
+// La asignación se hereda hacia abajo: quien es responsable de una etapa
+// puede capturar en las acciones y tareas que cuelgan de ella.
+async function esMiembroDelNodoOAscendiente({ usuario, tipoNodo, idNodo }, conn) {
+  if (await esMiembroDelNodo({ usuario, tipoNodo, idNodo }, conn)) return true;
+
+  if (tipoNodo === 'tarea') {
+    const { rows } = await conn.query('SELECT id_accion FROM tareas WHERE id = $1', [idNodo]);
+    if (!rows[0]?.id_accion) return false;
+    return esMiembroDelNodoOAscendiente({ usuario, tipoNodo: 'accion', idNodo: rows[0].id_accion }, conn);
+  }
+
+  if (tipoNodo === 'accion') {
+    const { rows } = await conn.query('SELECT id_etapa, id_accion_padre FROM acciones WHERE id = $1', [idNodo]);
+    if (rows[0]?.id_accion_padre) {
+      return esMiembroDelNodoOAscendiente({ usuario, tipoNodo: 'accion', idNodo: rows[0].id_accion_padre }, conn);
+    }
+    if (rows[0]?.id_etapa) {
+      return esMiembroDelNodo({ usuario, tipoNodo: 'etapa', idNodo: rows[0].id_etapa }, conn);
+    }
+  }
+
+  return false;
+}
+
+// ¿Puede capturar sobre un nodo concreto? Vale con poder capturar en el
+// proyecto, o con estar asignado al nodo (o a uno de sus padres).
+async function puedeEditarNodo({ usuario, tipoNodo, idNodo }, db) {
+  if (!usuario || !idNodo) return false;
+  const conn = db || pool;
+  const idProyecto = await obtenerProyectoIdDeNodo(tipoNodo, idNodo, conn);
+  if (!idProyecto) return false;
+  if (await puedeEditarContenidoProyecto({ usuario, idProyecto }, conn)) return true;
+  return esMiembroDelNodoOAscendiente({ usuario, tipoNodo, idNodo }, conn);
+}
+
 // ¿Puede este usuario ELIMINAR un nodo específico (etapa, acción, tarea)?
 // Resuelve el proyecto dueño del nodo y aplica la regla de gestión.
 async function puedeGestionarNodo({ usuario, tipoNodo, idNodo }, db) {
@@ -145,6 +236,8 @@ module.exports = {
   puedeGestionarProyecto,
   puedeEditarProyecto,
   puedeGestionarParticipantes,
+  puedeEditarContenidoProyecto,
+  puedeEditarNodo,
   puedeGestionarNodo,
   puedeGestionarParticipantesNodo,
 };

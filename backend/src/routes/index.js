@@ -22,6 +22,10 @@ const upload = multer({
   limits: { fileSize: 200 * 1024 * 1024 }
 });
 
+// Permiso de captura para las rutas anidadas que escriben estructura
+// (las rutas independientes lo aplican en su propio archivo de rutas).
+const { exigirEdicionNodo, exigirEdicionProyecto } = require('../middleware/permisos.middleware');
+
 // Importar routers de cada recurso
 const authRoutes = require('./auth.routes');
 const proyectosRoutes = require('./proyectos.routes');
@@ -103,31 +107,31 @@ router.use('/catalogo-indicadores', catalogoIndicadoresRoutes);
 // Etapas de un proyecto
 router.get('/proyectos/:id/etapas', etapasController.listarPorProyecto);
 router.get('/proyectos/:id/arbol', etapasController.obtenerArbol);
-router.post('/proyectos/:id/etapas', etapasController.crear);
+router.post('/proyectos/:id/etapas', exigirEdicionProyecto(), etapasController.crear);
 
 // Acciones de una etapa
 router.get('/etapas/:id/acciones', accionesController.listarPorEtapa);
-router.post('/etapas/:id/acciones', accionesController.crearEnEtapa);
+router.post('/etapas/:id/acciones', exigirEdicionNodo('etapa'), accionesController.crearEnEtapa);
 
 // Acciones directas del proyecto (sin etapa)
 router.get('/proyectos/:id/acciones', accionesController.listarDirectasProyecto);
-router.post('/proyectos/:id/acciones', accionesController.crearEnProyecto);
+router.post('/proyectos/:id/acciones', exigirEdicionProyecto(), accionesController.crearEnProyecto);
 
 // Subacciones de una acción
 router.get('/acciones/:id/subacciones', accionesController.listarSubacciones);
-router.post('/acciones/:id/subacciones', accionesController.crearSubaccion);
+router.post('/acciones/:id/subacciones', exigirEdicionNodo('accion'), accionesController.crearSubaccion);
 // toggle eliminado — usar PUT /acciones/:id con { estado } en body
 
 // Indicadores vinculados a una acción (lectura + edición)
 router.get('/acciones/:id/indicadores', accionesController.obtenerIndicadores);
-router.put('/acciones/:id/indicadores', accionesController.actualizarIndicadores);
+router.put('/acciones/:id/indicadores', exigirEdicionNodo('accion'), accionesController.actualizarIndicadores);
 
 // Importar estructura desde CSV
-router.post('/proyectos/:id/importar-csv', accionesController.importarCSV);
+router.post('/proyectos/:id/importar-csv', exigirEdicionProyecto(), accionesController.importarCSV);
 
 // Tareas de una acción
 router.get('/acciones/:id/tareas', tareasController.listar);
-router.post('/acciones/:id/tareas', tareasController.crear);
+router.post('/acciones/:id/tareas', exigirEdicionNodo('accion'), tareasController.crear);
 
 // Evidencias de etapas, acciones, riesgos y subacciones
 router.get('/etapas/:id/evidencias', evidenciasController.listarPorEtapa);

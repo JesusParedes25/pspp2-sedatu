@@ -22,8 +22,8 @@ export default function ChipPapel({ proyecto, className = '', ocultarLector = fa
   const { usuario } = useAuth();
   const papel = calcularPapel(proyecto, usuario);
 
-  // En listados largos, marcar cada tarjeta ajena con "Consulta" es
-  // ruido: lo útil es que resalte dónde sí hay una atribución propia.
+  // En listados largos, marcar cada tarjeta ajena con "Solo lectura" es
+  // ruido: lo útil es que resalte dónde sí puedes hacer algo.
   if (ocultarLector && !papelRelevanteEnListado(papel)) return null;
 
   return (

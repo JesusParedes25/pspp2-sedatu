@@ -182,7 +182,7 @@ async function actualizar(req, res, next) {
     if (!autorizado) {
       return res.status(403).json({
         error: true,
-        mensaje: 'La modificación de este proyecto corresponde a su creador, a su responsable o a la Dirección General que lo lidera.',
+        mensaje: 'No puedes modificar este proyecto. Solo su creador, su responsable o la Dirección General que lo lidera pueden hacerlo.',
         codigo: 'NO_AUTORIZADO'
       });
     }

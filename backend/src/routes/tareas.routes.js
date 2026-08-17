@@ -4,11 +4,12 @@
  */
 const { Router } = require('express');
 const tareasController = require('../controllers/tareas.controller');
+const { exigirEdicionNodo } = require('../middleware/permisos.middleware');
 
 const router = Router();
 
-router.put('/:id', tareasController.actualizar);
-router.patch('/:id', tareasController.patchAvanceSemaforo);
-router.delete('/:id', tareasController.eliminar);
+router.put('/:id', exigirEdicionNodo('tarea'), tareasController.actualizar);
+router.patch('/:id', exigirEdicionNodo('tarea'), tareasController.patchAvanceSemaforo);
+router.delete('/:id', tareasController.eliminar);   // verifica adentro (puedeGestionarNodo)
 
 module.exports = router;

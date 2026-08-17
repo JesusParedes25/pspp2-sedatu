@@ -22,30 +22,31 @@
 // Papeles, del más al menos capaz. El orden importa: se devuelve el
 // primero que aplique.
 //
-// El texto de estas etiquetas es institucional a propósito: describe la
-// atribución, no tutea al usuario ni comenta su situación.
+// El texto se dirige al usuario y le dice directamente qué puede hacer.
+// Directo no es informal: se evita tanto el lenguaje coloquial como la
+// redacción de oficio que nadie lee.
 export const PAPEL = {
   RESPONSABLE: 'responsable',
   COLABORADOR: 'colaborador',
   ATRIBUCION: 'atribucion',    // edita por su cargo, sin participar en el proyecto
-  SEGUIMIENTO: 'seguimiento',  // consulta y coordina participantes, sin editar
+  SEGUIMIENTO: 'seguimiento',  // consulta y designa participantes, sin editar
   LECTOR: 'lector',
 };
 
 export const ETIQUETA_PAPEL = {
   [PAPEL.RESPONSABLE]: 'Responsable',
   [PAPEL.COLABORADOR]: 'Colaborador',
-  [PAPEL.ATRIBUCION]: 'Atribución institucional',
-  [PAPEL.SEGUIMIENTO]: 'Seguimiento institucional',
-  [PAPEL.LECTOR]: 'Consulta',
+  [PAPEL.ATRIBUCION]: 'Editas de acuerdo a tu cargo',
+  [PAPEL.SEGUIMIENTO]: 'Solo seguimiento',
+  [PAPEL.LECTOR]: 'Solo lectura',
 };
 
 export const DESCRIPCION_PAPEL = {
-  [PAPEL.RESPONSABLE]: 'Responsable del proyecto. Comprende la edición de su información, la designación de participantes y su eliminación.',
-  [PAPEL.COLABORADOR]: 'Colaborador del proyecto. Comprende el registro de avances, comentarios y carga de evidencias.',
-  [PAPEL.ATRIBUCION]: 'Acceso conferido por el cargo, sin participación directa en el proyecto. Comprende la consulta y la edición de su información.',
-  [PAPEL.SEGUIMIENTO]: 'Acceso de seguimiento conferido por el cargo. Comprende la consulta del proyecto y la designación de participantes; la información sustantiva la edita el área responsable.',
-  [PAPEL.LECTOR]: 'Acceso de consulta. Permite revisar la información del proyecto sin modificarla.',
+  [PAPEL.RESPONSABLE]: 'Editas el proyecto, designas participantes y puedes eliminarlo.',
+  [PAPEL.COLABORADOR]: 'Participas en este proyecto: capturas avances, comentas y subes evidencias.',
+  [PAPEL.ATRIBUCION]: 'Tu cargo te permite editar este proyecto, aunque no participes en él.',
+  [PAPEL.SEGUIMIENTO]: 'Consultas el proyecto y designas participantes. La información la edita el área responsable.',
+  [PAPEL.LECTOR]: 'Consultas todo el proyecto, sin modificarlo.',
 };
 
 // Clases de color por papel. Guinda para quien encabeza, azul para quien

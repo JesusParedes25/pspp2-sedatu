@@ -14,13 +14,14 @@
  */
 const { Router } = require('express');
 const accionesController = require('../controllers/acciones.controller');
+const { exigirEdicionNodo } = require('../middleware/permisos.middleware');
 
 const router = Router();
 
 router.get('/:id', accionesController.obtenerPorId);
-router.put('/:id', accionesController.actualizar);
-router.patch('/:id', accionesController.patchAvanceSemaforo);
-router.patch('/:id/campo', accionesController.patchCampo);
-router.delete('/:id', accionesController.eliminar);
+router.put('/:id', exigirEdicionNodo('accion'), accionesController.actualizar);
+router.patch('/:id', exigirEdicionNodo('accion'), accionesController.patchAvanceSemaforo);
+router.patch('/:id/campo', exigirEdicionNodo('accion'), accionesController.patchCampo);
+router.delete('/:id', accionesController.eliminar);   // verifica adentro (puedeGestionarNodo)
 
 module.exports = router;
