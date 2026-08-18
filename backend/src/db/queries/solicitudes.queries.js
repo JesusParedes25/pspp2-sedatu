@@ -136,18 +136,47 @@ async function responder({ idSolicitud, idQuienResuelve, acepta, motivoRespuesta
   }
 }
 
-// A quién avisar: los responsables aceptados del proyecto, más su creador
-// (que puede no estar en proyecto_usuarios si la fila se borró a mano).
+// A quién avisar cuando llega una solicitud.
+//
+// A los RESPONSABLES del proyecto, que son quienes deciden quién entra.
+// Y al DIRECTOR de la Dirección de Área a la que pertenecen esos
+// responsables — porque esa solicitud es trabajo de su área y le
+// corresponde enterarse.
+//
+// A quién NO se le avisa, aunque pueda resolverla: al ejecutivo y al
+// superadmin, que tienen esa facultad sobre toda la Secretaría, y a los
+// directores de áreas ajenas. Notificarlos significaría un aviso por cada
+// solicitud de cada proyecto: se les vuelve ruido y dejan de leer los
+// suyos. Pueden verlas igual en la bandeja de Notificaciones, que sí usa
+// la regla completa (pendientesQuePuedeResolver).
+//
+// El creador entra solo como red de seguridad: si el proyecto se quedó sin
+// ningún responsable, la solicitud no iría a nadie y quedaría muerta.
 async function destinatariosDe(idProyecto, db) {
   const conn = db || pool;
   const { rows } = await conn.query(`
-    SELECT DISTINCT id_usuario FROM (
+    WITH responsables AS (
       SELECT pu.id_usuario
       FROM proyecto_usuarios pu
       WHERE pu.id_proyecto = $1 AND pu.rol = 'responsable' AND pu.estado = 'aceptada'
-      UNION
-      SELECT p.id_creador AS id_usuario FROM proyectos p WHERE p.id = $1 AND p.id_creador IS NOT NULL
-    ) t
+    ),
+    areas AS (
+      SELECT DISTINCT u.id_direccion_area
+      FROM responsables r
+      JOIN usuarios u ON u.id = r.id_usuario
+      WHERE u.id_direccion_area IS NOT NULL
+    )
+    SELECT id_usuario FROM responsables
+    UNION
+    SELECT d.id
+    FROM usuarios d
+    JOIN areas a ON a.id_direccion_area = d.id_direccion_area
+    WHERE d.rol = 'direccion' AND d.activo = true
+    UNION
+    SELECT p.id_creador
+    FROM proyectos p
+    WHERE p.id = $1 AND p.id_creador IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM responsables)
   `, [idProyecto]);
   return rows.map(r => r.id_usuario).filter(Boolean);
 }
