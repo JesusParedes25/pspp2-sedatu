@@ -130,6 +130,15 @@ necesitan rebuild, solo restart si dependen de algo que cambió.
   `actividadQueries.crearActividad({tipoNodo, idNodo, tipoEvento, ...})`
   en vez de crear una tabla nueva — `tipoEvento` debe agregarse al CHECK
   de la columna (`VARCHAR(20)`, cuidado con el límite de caracteres).
+- **Catálogos institucionales (áreas y programas presupuestarios)**: la
+  estructura de SEDATU (`00_estructura.js`) y los Pp del Ramo 15
+  (`00_programas.js`) se siembran **una sola vez**, en cualquier entorno,
+  y quedan anotados en la tabla `siembra_inicial` (migración 055).
+  Mientras la marca exista el arranque no los vuelve a tocar: mandan las
+  pantallas "Áreas" y "Programas" del panel de superadmin. No revivir el
+  patrón de "resembrar en cada arranque" — se probó y hacía reaparecer lo
+  que el administrador borraba. Los seeders `01_dgs`/`03_programas` sí
+  reescriben, pero solo corren fuera de producción.
 - **Permisos**: única fuente de verdad es
   `backend/src/utils/autorizacion.js` — basado en `proyecto_usuarios`
   (rol responsable/colaborador) + `proyectos.id_creador` + rol global del

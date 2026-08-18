@@ -460,6 +460,18 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
                         <optgroup label={relacionados.length > 0 ? 'Otros programas' : 'Programas presupuestarios'}>
                           {otros.map(p => <option key={p.id} value={p.id}>{p.clave} — {p.nombre}</option>)}
                         </optgroup>
+                        {/* El programa del proyecto puede haberse desactivado
+                            desde el panel: ya no viene en la lista, pero el
+                            proyecto lo conserva. Sin esta opción el campo se
+                            vería vacío y parecería que no tiene ninguno. */}
+                        {datos.id_programa && !programas.some(p => String(p.id) === String(datos.id_programa)) && (
+                          <optgroup label="Programa actual (ya no se ofrece)">
+                            <option value={datos.id_programa}>
+                              {proyecto?.programa_clave ? `${proyecto.programa_clave} — ` : ''}
+                              {proyecto?.programa_nombre || 'Programa retirado del catálogo'}
+                            </option>
+                          </optgroup>
+                        )}
                       </>
                     );
                   })()}

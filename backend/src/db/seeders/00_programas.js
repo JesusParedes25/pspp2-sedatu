@@ -31,9 +31,17 @@
  * las claves que faltan; lo que ya está en la base se respeta tal cual.
  * El seeder de desarrollo (03_programas) sí actualiza, porque ahí la
  * base es desechable y conviene que refleje esta lista al día.
+ *
+ * SE SIEMBRA UNA SOLA VEZ: hecha la siembra queda anotada en
+ * `siembra_inicial` (migración 055) y no se repite. A partir de ahí el
+ * catálogo se administra desde el panel —pestaña "Programas"—, y un
+ * programa que ahí se elimine no reaparece al reiniciar el backend.
  * ─────────────────────────────────────────────────────────────────
  */
 const pool = require('../pool');
+const { yaSembrado, marcarSembrado } = require('./siembra');
+
+const CLAVE_SIEMBRA = 'programas_ramo15';
 
 /**
  * Estructura programática del Ramo 15 (Desarrollo Agrario, Territorial
@@ -128,6 +136,14 @@ async function asegurarProgramas({ actualizar = false } = {}) {
 
   const client = await pool.connect();
   try {
+    // El seeder de desarrollo pasa `actualizar: true` y se salta la
+    // marca a propósito: ahí sí se quiere refrescar la lista en cada
+    // arranque. En producción nunca entra por ese camino.
+    if (!actualizar && await yaSembrado(client, CLAVE_SIEMBRA)) {
+      console.log('  · Catálogo de programas: lo administra el panel (siembra inicial ya hecha)');
+      return 0;
+    }
+
     await client.query('BEGIN');
 
     let insertados = 0;
@@ -143,6 +159,11 @@ async function asegurarProgramas({ actualizar = false } = {}) {
       // exactamente lo que queremos contar como "ya estaba".
       if (resultado.rowCount > 0) insertados += 1;
     }
+
+    // Dentro de la transacción, por lo mismo que en 00_estructura: o
+    // quedan los programas y la marca, o no queda ninguno de los dos.
+    await marcarSembrado(client, CLAVE_SIEMBRA,
+      `Siembra inicial: ${insertados} programa(s) agregados.`);
 
     await client.query('COMMIT');
 

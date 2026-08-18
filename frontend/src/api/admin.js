@@ -103,6 +103,36 @@ export async function editarDAAdmin(id, datos) {
   const { data } = await API.put(`/admin/areas/das/${id}`, datos);
   return data;
 }
+export async function eliminarDGAdmin(id) {
+  const { data } = await API.delete(`/admin/areas/dgs/${id}`);
+  return data;
+}
+export async function eliminarDAAdmin(id) {
+  const { data } = await API.delete(`/admin/areas/das/${id}`);
+  return data;
+}
+
+// ─── Programas presupuestarios ─────────────────────────────────
+export async function listarProgramasAdmin() {
+  const { data } = await API.get('/admin/programas');
+  return data;
+}
+export async function crearProgramaAdmin(datos) {
+  const { data } = await API.post('/admin/programas', datos);
+  return data;
+}
+export async function editarProgramaAdmin(id, datos) {
+  const { data } = await API.put(`/admin/programas/${id}`, datos);
+  return data;
+}
+export async function cambiarActivoProgramaAdmin(id, activo) {
+  const { data } = await API.patch(`/admin/programas/${id}/activo`, { activo });
+  return data;
+}
+export async function eliminarProgramaAdmin(id) {
+  const { data } = await API.delete(`/admin/programas/${id}`);
+  return data;
+}
 
 // ─── Configuración ─────────────────────────────────────────────
 export async function obtenerConfig() {

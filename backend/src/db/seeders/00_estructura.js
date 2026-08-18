@@ -36,13 +36,18 @@
  * nombre anterior, así que se reconocen como alias y se reutilizan; no
  * se renombran —eso sería tocar datos existentes— ni se duplican.
  *
- * OJO CON BORRAR: esto corre en cada arranque del backend, así que un
- * área de esta lista que se elimine desde el catálogo volverá a
- * aparecer en el siguiente reinicio. Para retirar una de forma
- * permanente hay que quitarla también de aquí.
+ * SE SIEMBRA UNA SOLA VEZ: en cuanto la siembra ocurre queda anotada en
+ * `siembra_inicial` (migración 055) y no se repite en los arranques
+ * siguientes. Esto es lo que permite que el panel de administración
+ * mande: un área que ahí se elimine o se renombre no reaparece ni se
+ * revierte al reiniciar el backend. La lista de abajo es el punto de
+ * partida de una instalación nueva, no una plantilla que se reimponga.
  * ─────────────────────────────────────────────────────────────────
  */
 const pool = require('../pool');
+const { yaSembrado, marcarSembrado } = require('./siembra');
+
+const CLAVE_SIEMBRA = 'estructura_sedatu';
 
 // ─── La estructura, conforme al Art. 2 del Reglamento Interior ────
 // Es la fuente única: `01_dgs` (el seeder de desarrollo) consume estas
@@ -170,13 +175,19 @@ async function asegurarArea(client, tabla, area, columnasPadre = {}) {
 }
 
 /**
- * Completa la estructura organizacional agregando únicamente lo que
- * falte. Corre en todos los entornos, producción incluida.
+ * Siembra la estructura organizacional la primera vez que se ejecuta,
+ * agregando únicamente lo que falte. Corre en todos los entornos,
+ * producción incluida; si la siembra ya está anotada, no hace nada.
  */
 async function asegurarEstructura() {
   const client = await pool.connect();
 
   try {
+    if (await yaSembrado(client, CLAVE_SIEMBRA)) {
+      console.log('  · Estructura SEDATU: la administra el panel (siembra inicial ya hecha)');
+      return null;
+    }
+
     await client.query('BEGIN');
 
     const cuenta = { subsecretarias: 0, unidades: 0, dgs: 0, areas: 0 };
@@ -213,9 +224,17 @@ async function asegurarEstructura() {
       if (insertada) cuenta.areas += 1;
     }
 
+    const agregadas = cuenta.subsecretarias + cuenta.unidades + cuenta.dgs + cuenta.areas;
+
+    // La marca va dentro de la misma transacción: o quedan las áreas y
+    // la marca, o no queda ninguna de las dos. Si se guardara aparte y
+    // el proceso muriera en medio, el siguiente arranque volvería a
+    // sembrar sobre lo ya sembrado.
+    await marcarSembrado(client, CLAVE_SIEMBRA,
+      `Siembra inicial al arrancar el backend: ${agregadas} área(s) agregadas.`);
+
     await client.query('COMMIT');
 
-    const agregadas = cuenta.subsecretarias + cuenta.unidades + cuenta.dgs + cuenta.areas;
     if (agregadas > 0) {
       console.log(`  ✓ Estructura SEDATU: ${agregadas} área(s) agregadas ` +
         `(${cuenta.subsecretarias} subsecretarías, ${cuenta.unidades} unidades, ` +

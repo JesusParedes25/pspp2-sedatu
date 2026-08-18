@@ -433,6 +433,196 @@ async function editarDA(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// DELETE /admin/areas/dgs/:id
+// Eliminar un área es distinto a editarla: si algo la referencia, la
+// base lo impediría con un error de llave foránea que al usuario no le
+// dice nada. Se revisa antes y se responde con lo que hay que
+// desenganchar primero, en lenguaje de la plataforma.
+async function eliminarDG(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { rows: [uso] } = await pool.query(`
+      SELECT
+        (SELECT count(*) FROM usuarios          WHERE id_dg = $1)        AS usuarios,
+        (SELECT count(*) FROM proyectos         WHERE id_dg_lider = $1)  AS proyectos,
+        (SELECT count(*) FROM direcciones_area  WHERE id_dg = $1)        AS areas
+    `, [id]);
+
+    const impedimentos = [];
+    if (Number(uso.usuarios) > 0) impedimentos.push(`${uso.usuarios} usuario(s) adscritos`);
+    if (Number(uso.proyectos) > 0) impedimentos.push(`${uso.proyectos} proyecto(s) que la tienen como DG líder`);
+    if (Number(uso.areas) > 0) impedimentos.push(`${uso.areas} dirección(es) de área`);
+
+    if (impedimentos.length > 0) {
+      return res.status(409).json({
+        error: true,
+        mensaje: `No se puede eliminar: todavía tiene ${impedimentos.join(', ')}. Reasigna eso primero.`,
+      });
+    }
+
+    const { rowCount } = await pool.query('DELETE FROM direcciones_generales WHERE id = $1', [id]);
+    if (!rowCount) return res.status(404).json({ error: true, mensaje: 'DG no encontrada' });
+    res.json({ mensaje: 'DG eliminada' });
+  } catch (err) { next(err); }
+}
+
+// DELETE /admin/areas/das/:id
+async function eliminarDA(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { rows: [uso] } = await pool.query(`
+      SELECT
+        (SELECT count(*) FROM usuarios  WHERE id_direccion_area = $1)        AS usuarios,
+        (SELECT count(*) FROM proyectos WHERE id_direccion_area_lider = $1)  AS proyectos
+    `, [id]);
+
+    const impedimentos = [];
+    if (Number(uso.usuarios) > 0) impedimentos.push(`${uso.usuarios} usuario(s) adscritos`);
+    if (Number(uso.proyectos) > 0) impedimentos.push(`${uso.proyectos} proyecto(s) que la tienen como área líder`);
+
+    if (impedimentos.length > 0) {
+      return res.status(409).json({
+        error: true,
+        mensaje: `No se puede eliminar: todavía tiene ${impedimentos.join(' y ')}. Reasigna eso primero.`,
+      });
+    }
+
+    const { rowCount } = await pool.query('DELETE FROM direcciones_area WHERE id = $1', [id]);
+    if (!rowCount) return res.status(404).json({ error: true, mensaje: 'Dirección de área no encontrada' });
+    res.json({ mensaje: 'Dirección de área eliminada' });
+  } catch (err) { next(err); }
+}
+
+// ─── PROGRAMAS PRESUPUESTARIOS ─────────────────────────────────
+// Modalidades presupuestarias de SHCP. Deben coincidir con el CHECK de
+// programas.tipo (migración 004): si aquí se colara un valor de más, el
+// INSERT reventaría con un error de restricción en vez de un mensaje.
+const TIPOS_PROGRAMA = [
+  'S_Subsidio',
+  'E_Prestacion_Servicios',
+  'P_Planeacion',
+  'U_Subsidio_Especifico',
+  'K_Inversion',
+  'G_Regulacion',
+  'L_Obligacion',
+  'R_Gasto_Federalizado',
+  'M_Gasto_Administrativo',
+  'Prioritario_Nacional',
+  'Ramo_15',
+  'Otro',
+];
+
+// GET /admin/programas — todos, activos e inactivos, con su uso real
+async function listarProgramas(req, res, next) {
+  try {
+    const { rows } = await pool.query(`
+      SELECT p.id, p.nombre, p.clave, p.tipo, p.ejercicio_fiscal,
+             p.unidad_responsable, p.descripcion, p.activo,
+             (SELECT count(*) FROM proyectos pr WHERE pr.id_programa = p.id)::int AS usos
+      FROM programas p
+      ORDER BY p.clave
+    `);
+    res.json({ datos: rows, tipos: TIPOS_PROGRAMA, mensaje: 'Programas obtenidos' });
+  } catch (err) { next(err); }
+}
+
+function validarPrograma({ nombre, clave, tipo }) {
+  if (!nombre?.trim()) return 'El nombre es obligatorio';
+  if (!clave?.trim()) return 'La clave es obligatoria';
+  if (!TIPOS_PROGRAMA.includes(tipo)) return 'La modalidad no es una de las válidas';
+  return null;
+}
+
+// POST /admin/programas
+async function crearPrograma(req, res, next) {
+  try {
+    const { nombre, clave, tipo, ejercicio_fiscal, unidad_responsable, descripcion } = req.body;
+    const problema = validarPrograma({ nombre, clave, tipo });
+    if (problema) return res.status(400).json({ error: true, mensaje: problema });
+
+    const { rows } = await pool.query(`
+      INSERT INTO programas (nombre, clave, tipo, ejercicio_fiscal, unidad_responsable, descripcion, activo)
+      VALUES ($1, $2, $3, $4, $5, $6, true)
+      RETURNING *
+    `, [nombre.trim(), clave.trim(), tipo, ejercicio_fiscal || null,
+        unidad_responsable?.trim() || null, descripcion?.trim() || null]);
+
+    res.status(201).json({ datos: rows[0], mensaje: 'Programa creado' });
+  } catch (err) {
+    // 23505 = clave duplicada. La clave es UNIQUE porque identifica al Pp
+    // ante SHCP; conviene decirlo así y no soltar el error de Postgres.
+    if (err.code === '23505') {
+      return res.status(409).json({ error: true, mensaje: 'Ya existe un programa con esa clave' });
+    }
+    next(err);
+  }
+}
+
+// PUT /admin/programas/:id
+async function editarPrograma(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { nombre, clave, tipo, ejercicio_fiscal, unidad_responsable, descripcion } = req.body;
+    const problema = validarPrograma({ nombre, clave, tipo });
+    if (problema) return res.status(400).json({ error: true, mensaje: problema });
+
+    const { rows } = await pool.query(`
+      UPDATE programas
+         SET nombre = $1, clave = $2, tipo = $3, ejercicio_fiscal = $4,
+             unidad_responsable = $5, descripcion = $6
+       WHERE id = $7
+       RETURNING *
+    `, [nombre.trim(), clave.trim(), tipo, ejercicio_fiscal || null,
+        unidad_responsable?.trim() || null, descripcion?.trim() || null, id]);
+
+    if (!rows[0]) return res.status(404).json({ error: true, mensaje: 'Programa no encontrado' });
+    res.json({ datos: rows[0], mensaje: 'Programa actualizado' });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: true, mensaje: 'Ya existe un programa con esa clave' });
+    }
+    next(err);
+  }
+}
+
+// PATCH /admin/programas/:id/activo — { activo: bool }
+// Desactivar es la forma no destructiva de sacar un Pp de circulación:
+// deja de ofrecerse al crear proyectos, pero los proyectos que ya lo
+// tienen conservan su vínculo y su historial.
+async function cambiarActivoPrograma(req, res, next) {
+  try {
+    const { id } = req.params;
+    const activo = req.body?.activo !== false;
+    const { rows } = await pool.query(
+      'UPDATE programas SET activo = $1 WHERE id = $2 RETURNING *', [activo, id]);
+    if (!rows[0]) return res.status(404).json({ error: true, mensaje: 'Programa no encontrado' });
+    res.json({ datos: rows[0], mensaje: activo ? 'Programa reactivado' : 'Programa desactivado' });
+  } catch (err) { next(err); }
+}
+
+// DELETE /admin/programas/:id
+// Solo si nadie lo usa. Borrar uno vinculado a proyectos dejaría esos
+// proyectos sin su referencia presupuestaria; para ese caso está
+// desactivar, y el mensaje lo dice.
+async function eliminarPrograma(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { rows: [{ usos }] } = await pool.query(
+      'SELECT count(*)::int AS usos FROM proyectos WHERE id_programa = $1', [id]);
+
+    if (usos > 0) {
+      return res.status(409).json({
+        error: true,
+        mensaje: `${usos} proyecto(s) están vinculados a este programa. Desactívalo para que deje de ofrecerse sin perder ese vínculo.`,
+      });
+    }
+
+    const { rowCount } = await pool.query('DELETE FROM programas WHERE id = $1', [id]);
+    if (!rowCount) return res.status(404).json({ error: true, mensaje: 'Programa no encontrado' });
+    res.json({ mensaje: 'Programa eliminado' });
+  } catch (err) { next(err); }
+}
+
 // ─── CONFIGURACIÓN DEL SISTEMA ─────────────────────────────────
 
 // GET /admin/config
@@ -519,9 +709,17 @@ module.exports = {
   listarDGs,
   crearDG,
   editarDG,
+  eliminarDG,
   listarDAs,
   crearDA,
   editarDA,
+  eliminarDA,
+  // Programas presupuestarios
+  listarProgramas,
+  crearPrograma,
+  editarPrograma,
+  cambiarActivoPrograma,
+  eliminarPrograma,
   // Config
   obtenerConfig,
   actualizarConfig,

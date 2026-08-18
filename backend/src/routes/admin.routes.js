@@ -39,9 +39,18 @@ router.post('/usuarios/:id/reenviar-invitacion', adminController.reenviarInvitac
 router.get('/areas/dgs', adminController.listarDGs);
 router.post('/areas/dgs', adminController.crearDG);
 router.put('/areas/dgs/:id', adminController.editarDG);
+router.delete('/areas/dgs/:id', adminController.eliminarDG);
 router.get('/areas/das', adminController.listarDAs);
 router.post('/areas/das', adminController.crearDA);
 router.put('/areas/das/:id', adminController.editarDA);
+router.delete('/areas/das/:id', adminController.eliminarDA);
+
+// Programas presupuestarios (Ramo 15)
+router.get('/programas', adminController.listarProgramas);
+router.post('/programas', adminController.crearPrograma);
+router.put('/programas/:id', adminController.editarPrograma);
+router.patch('/programas/:id/activo', adminController.cambiarActivoPrograma);
+router.delete('/programas/:id', adminController.eliminarPrograma);
 
 // Configuración del sistema
 router.get('/config', adminController.obtenerConfig);

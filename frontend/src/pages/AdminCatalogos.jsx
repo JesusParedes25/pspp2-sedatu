@@ -7,10 +7,11 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Plus, Pencil, Trash2, RotateCcw, AlertTriangle, Shield, ChevronDown, ChevronRight,
   Loader2, Save, X, Users, Building2, Settings, Mail, ToggleLeft, ToggleRight,
-  RefreshCw, CheckCircle, EyeOff, Eye, BarChart3, KeyRound
+  RefreshCw, CheckCircle, EyeOff, Eye, BarChart3, KeyRound, Landmark
 } from 'lucide-react';
 import * as adminApi from '../api/admin';
 import TabIndicadores from '../components/admin/TabIndicadores';
+import TabProgramas from '../components/admin/TabProgramas';
 import TabApiIndicadores from '../components/admin/TabApiIndicadores';
 import * as proyectosApi from '../api/proyectos';
 import emailjs from '@emailjs/browser';
@@ -339,10 +340,27 @@ function TabUsuarios({ dgs, das }) {
 function TabAreas({ dgs, das, recargar }) {
   const [tab, setTab] = useState('dg');
   const [modal, setModal] = useState(null);
+  const [porEliminar, setPorEliminar] = useState(null);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState(null);
 
   const urs = [...new Set(dgs.filter(d => d.ur_siglas).map(d => d.ur_siglas))];
+
+  // Eliminar un área es definitivo y ya no se repone al reiniciar el
+  // backend, así que el servidor primero revisa que nada la referencie;
+  // si algo la usa responde diciendo qué, y eso es lo que se muestra.
+  async function eliminar(area) {
+    setError(null);
+    try {
+      if (tab === 'dg') await adminApi.eliminarDGAdmin(area.id);
+      else await adminApi.eliminarDAAdmin(area.id);
+      setPorEliminar(null);
+      recargar();
+    } catch (e) {
+      setPorEliminar(null);
+      setError(e.response?.data?.mensaje || 'No se pudo eliminar');
+    }
+  }
 
   async function guardar() {
     setEnviando(true);
@@ -388,6 +406,7 @@ function TabAreas({ dgs, das, recargar }) {
                 <span className="text-sm text-gray-700 flex-1 truncate">{d.nombre}</span>
                 {d.ur_siglas && <span className="text-xs text-gray-400">{d.ur_siglas}</span>}
                 <button onClick={() => setModal({ modo: 'editar', datos: { ...d } })} className="text-gray-400 hover:text-blue-600"><Pencil size={14} /></button>
+                <button onClick={() => setPorEliminar(d)} title="Eliminar" className="text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
               </div>
             ))}
           </div>
@@ -400,6 +419,7 @@ function TabAreas({ dgs, das, recargar }) {
                 <span className="text-sm text-gray-600 flex-1 truncate">{d.nombre}</span>
                 {d.secretaria_externa && <span className="text-xs text-gray-400 italic">{d.secretaria_externa}</span>}
                 <button onClick={() => setModal({ modo: 'editar', datos: { ...d } })} className="text-gray-400 hover:text-blue-600"><Pencil size={14} /></button>
+                <button onClick={() => setPorEliminar(d)} title="Eliminar" className="text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
               </div>
             ))}
           </div>
@@ -421,11 +441,24 @@ function TabAreas({ dgs, das, recargar }) {
                 <span className="text-sm font-medium text-gray-700 w-20 flex-shrink-0">{d.siglas}</span>
                 <span className="text-sm text-gray-600 flex-1 truncate">{d.nombre}</span>
                 <button onClick={() => setModal({ modo: 'editar', datos: { ...d } })} className="text-gray-400 hover:text-blue-600"><Pencil size={14} /></button>
+                <button onClick={() => setPorEliminar(d)} title="Eliminar" className="text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
               </div>
             ))}
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        abierto={!!porEliminar}
+        titulo={tab === 'dg' ? 'Eliminar dirección general' : 'Eliminar dirección de área'}
+        mensaje={porEliminar
+          ? `Se quitará "${porEliminar.siglas} — ${porEliminar.nombre}" del catálogo. Si tiene usuarios, proyectos o áreas colgando, la operación se rechaza y te decimos qué falta reasignar.`
+          : ''}
+        textoConfirmar="Sí, eliminar"
+        variante="danger"
+        onConfirmar={() => eliminar(porEliminar)}
+        onCancelar={() => setPorEliminar(null)}
+      />
 
       {modal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
@@ -582,6 +615,7 @@ function TabBtn({ active, onClick, children }) {
 // ─── Componente principal ─────────────────────────────────────────
 const TABS = [
   { id: 'catalogos', label: 'Catálogos', icon: Shield },
+  { id: 'programas', label: 'Programas', icon: Landmark },
   { id: 'indicadores', label: 'Indicadores', icon: BarChart3 },
   { id: 'api', label: 'API', icon: KeyRound },
   { id: 'usuarios', label: 'Usuarios', icon: Users },
@@ -751,6 +785,7 @@ export default function AdminCatalogos() {
       </div>
 
       {tab === 'catalogos' && <TabCatalogos />}
+      {tab === 'programas' && <TabProgramas />}
       {tab === 'indicadores' && <TabIndicadores />}
       {tab === 'api' && <TabApiIndicadores />}
       {tab === 'usuarios' && <TabUsuarios dgs={dgs} das={das} />}
