@@ -18,7 +18,10 @@ import { MessageSquare, Send, ChevronDown, ChevronUp } from 'lucide-react';
 import * as comentariosApi from '../../api/comentarios';
 import ComentarioItem from './ComentarioItem';
 
-export default function HiloComentarios({ entidadTipo, entidadId, compacto = true, onStatsChange }) {
+// soloLectura: quien no participa en el proyecto lee el hilo pero no
+// escribe en él. El servidor aplica la misma regla en POST /comentarios,
+// así que sin esto el botón existía y la petición fallaba con 403.
+export default function HiloComentarios({ entidadTipo, entidadId, compacto = true, onStatsChange, soloLectura = false }) {
   const [comentarios, setComentarios] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [abierto, setAbierto] = useState(!compacto);
@@ -147,7 +150,7 @@ export default function HiloComentarios({ entidadTipo, entidadId, compacto = tru
               )}
 
               {/* Botón responder */}
-              {respondiendo !== c.id ? (
+              {soloLectura ? null : respondiendo !== c.id ? (
                 <button
                   onClick={() => { setRespondiendo(c.id); setTextoRespuesta(''); }}
                   className="ml-11 text-xs text-gray-400 hover:text-guinda-500 mt-1 transition-colors"
@@ -186,6 +189,11 @@ export default function HiloComentarios({ entidadTipo, entidadId, compacto = tru
       ) : null}
 
       {/* Input para nuevo comentario */}
+      {soloLectura ? (
+        <p className="text-xs text-gray-400 italic">
+          Solo consulta. Para comentar aquí necesitas participar en este proyecto.
+        </p>
+      ) : (
       <form onSubmit={publicar} className="flex gap-2">
         <input
           ref={inputRef}
@@ -203,6 +211,7 @@ export default function HiloComentarios({ entidadTipo, entidadId, compacto = tru
           <Send size={14} />
         </button>
       </form>
+      )}
     </div>
   );
 }

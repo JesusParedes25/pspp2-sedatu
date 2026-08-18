@@ -14,10 +14,12 @@
 const { Router } = require('express');
 const evidenciasController = require('../controllers/evidencias.controller');
 
+const { exigirEdicionEvidencia } = require('../middleware/permisos.middleware');
+
 const router = Router();
 
 router.get('/', evidenciasController.listarTodas);
 router.get('/:id/descargar', evidenciasController.descargar);
-router.delete('/:id', evidenciasController.eliminar);
+router.delete('/:id', exigirEdicionEvidencia(), evidenciasController.eliminar);
 
 module.exports = router;

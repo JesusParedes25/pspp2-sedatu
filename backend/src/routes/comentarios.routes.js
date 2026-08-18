@@ -14,10 +14,13 @@
 const { Router } = require('express');
 const comentariosController = require('../controllers/comentarios.controller');
 
+const { exigirEdicionDeEntidadEnCuerpo, exigirEdicionComentario } = require('../middleware/permisos.middleware');
+
 const router = Router();
 
 router.get('/', comentariosController.listar);
-router.post('/', comentariosController.crear);
-router.post('/:id/responder', comentariosController.responder);
+// Leer comentarios es para todos; escribirlos, solo para quien participa.
+router.post('/', exigirEdicionDeEntidadEnCuerpo(), comentariosController.crear);
+router.post('/:id/responder', exigirEdicionComentario(), comentariosController.responder);
 
 module.exports = router;

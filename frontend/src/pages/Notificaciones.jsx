@@ -22,11 +22,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell, CheckCheck, Clock, AlertTriangle, MessageSquare, FileText,
-  UserPlus, MailCheck, Ban,
+  UserPlus, MailCheck, Ban, MailQuestion,
 } from 'lucide-react';
 import { useNotificaciones } from '../hooks/useNotificaciones';
 import { misInvitaciones } from '../api/miembros';
+import { solicitudesPorResolver } from '../api/solicitudes';
 import InvitacionesPendientes from '../components/notificaciones/InvitacionesPendientes';
+import SolicitudesPorResolver from '../components/notificaciones/SolicitudesPorResolver';
 import EmptyState from '../components/common/EmptyState';
 
 const iconosPorTipo = {
@@ -38,6 +40,8 @@ const iconosPorTipo = {
   PermisoNuevo:        UserPlus,
   Invitacion:          UserPlus,
   RespuestaInvitacion: MailCheck,
+  Solicitud:           MailQuestion,
+  RespuestaSolicitud:  MailCheck,
   AccionBloqueada:     Ban,
   General:             Bell,
 };
@@ -56,12 +60,17 @@ export default function Notificaciones() {
   const navigate = useNavigate();
   const { notificaciones, noLeidas, cargando, marcarLeida, marcarTodasLeidas } = useNotificaciones();
   const [invitaciones, setInvitaciones] = useState([]);
+  const [solicitudes, setSolicitudes] = useState([]);
 
   const cargarInvitaciones = useCallback(async () => {
     try { setInvitaciones(await misInvitaciones()); } catch { /* buzón vacío */ }
   }, []);
 
-  useEffect(() => { cargarInvitaciones(); }, [cargarInvitaciones]);
+  const cargarSolicitudes = useCallback(async () => {
+    try { setSolicitudes(await solicitudesPorResolver()); } catch { /* nada que resolver */ }
+  }, []);
+
+  useEffect(() => { cargarInvitaciones(); cargarSolicitudes(); }, [cargarInvitaciones, cargarSolicitudes]);
 
   function abrir(n) {
     if (!n.leida) marcarLeida(n.id);
@@ -78,7 +87,7 @@ export default function Notificaciones() {
     );
   }
 
-  const sinNada = notificaciones.length === 0 && invitaciones.length === 0;
+  const sinNada = notificaciones.length === 0 && invitaciones.length === 0 && solicitudes.length === 0;
 
   return (
     <div className="space-y-6">
@@ -92,6 +101,14 @@ export default function Notificaciones() {
                 {invitaciones.length === 1
                   ? '1 invitación por responder'
                   : `${invitaciones.length} invitaciones por responder`}
+                {' · '}
+              </span>
+            )}
+            {solicitudes.length > 0 && (
+              <span className="text-blue-700 font-medium">
+                {solicitudes.length === 1
+                  ? '1 solicitud por resolver'
+                  : `${solicitudes.length} solicitudes por resolver`}
                 {' · '}
               </span>
             )}
@@ -111,6 +128,11 @@ export default function Notificaciones() {
         onRespondida={cargarInvitaciones}
       />
 
+      <SolicitudesPorResolver
+        solicitudes={solicitudes}
+        onRespondida={cargarSolicitudes}
+      />
+
       {sinNada ? (
         <EmptyState
           icono={Bell}
@@ -119,7 +141,7 @@ export default function Notificaciones() {
         />
       ) : (
         <div className="space-y-2">
-          {invitaciones.length > 0 && notificaciones.length > 0 && (
+          {(invitaciones.length > 0 || solicitudes.length > 0) && notificaciones.length > 0 && (
             <h2 className="text-sm font-semibold text-gray-700 pt-2">Avisos</h2>
           )}
           {notificaciones.map(notificacion => {

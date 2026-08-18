@@ -483,7 +483,7 @@ export default function NodoCard({
           {seccion === 'comentar' && (
             ENTIDAD_TIPO[tipo] ? (
               <div className="bg-gray-50 rounded-lg p-2.5 max-h-96 overflow-y-auto">
-                <HiloComentarios entidadTipo={ENTIDAD_TIPO[tipo]} entidadId={nodo.id} compacto={false} onStatsChange={cargarActividad} />
+                <HiloComentarios entidadTipo={ENTIDAD_TIPO[tipo]} entidadId={nodo.id} compacto={false} soloLectura={soloLectura} onStatsChange={cargarActividad} />
               </div>
             ) : (
               <div className="bg-gray-50 rounded-lg p-2 space-y-2">
@@ -496,15 +496,24 @@ export default function NodoCard({
                     ))}
                   </div>
                 )}
-                <div className="flex items-center gap-1.5">
-                  <input value={comentarioTexto} onChange={e => setComentarioTexto(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && enviarComentario()}
-                    placeholder="Escribe un comentario..." autoFocus
-                    className="flex-1 text-xs border border-gray-200 rounded px-2 py-1.5 bg-white focus:border-guinda-400 outline-none" />
-                  <button onClick={enviarComentario} disabled={guardando || !comentarioTexto.trim()} className="p-1.5 bg-guinda-600 text-white rounded hover:bg-guinda-700 disabled:opacity-40">
-                    <Send size={13} />
-                  </button>
-                </div>
+                {/* Comentar es participar, no mirar: quien no fue invitado
+                    lee el hilo pero no escribe en él. El servidor aplica la
+                    misma regla en POST /comentarios. */}
+                {soloLectura ? (
+                  <p className="text-[11px] text-gray-400 italic">
+                    Solo consulta. Para comentar aquí necesitas participar en este proyecto.
+                  </p>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <input value={comentarioTexto} onChange={e => setComentarioTexto(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && enviarComentario()}
+                      placeholder="Escribe un comentario..." autoFocus
+                      className="flex-1 text-xs border border-gray-200 rounded px-2 py-1.5 bg-white focus:border-guinda-400 outline-none" />
+                    <button onClick={enviarComentario} disabled={guardando || !comentarioTexto.trim()} className="p-1.5 bg-guinda-600 text-white rounded hover:bg-guinda-700 disabled:opacity-40">
+                      <Send size={13} />
+                    </button>
+                  </div>
+                )}
               </div>
             )
           )}

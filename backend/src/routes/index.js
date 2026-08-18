@@ -24,7 +24,11 @@ const upload = multer({
 
 // Permiso de captura para las rutas anidadas que escriben estructura
 // (las rutas independientes lo aplican en su propio archivo de rutas).
-const { exigirEdicionNodo, exigirEdicionProyecto } = require('../middleware/permisos.middleware');
+const {
+  exigirEdicionNodo, exigirEdicionProyecto, exigirEdicionDeEntidadEnCuerpo,
+  exigirEdicionComentario, exigirEdicionRiesgo, exigirEdicionEvidencia,
+  exigirEdicionIndicador, exigirEdicionAportacion, exigirEdicionAportacionNueva,
+} = require('../middleware/permisos.middleware');
 
 // Importar routers de cada recurso
 const authRoutes = require('./auth.routes');
@@ -61,6 +65,7 @@ const dashboardController = require('../controllers/dashboard.controller');
 const aportacionesController = require('../controllers/aportaciones.controller');
 const miembrosController = require('../controllers/miembros.controller');
 const nodoMiembrosController = require('../controllers/nodo-miembros.controller');
+const solicitudesController = require('../controllers/solicitudes.controller');
 const inicioController = require('../controllers/inicio.controller');
 const panoramaController = require('../controllers/panorama.controller');
 const carterasController = require('../controllers/carteras.controller');
@@ -129,6 +134,15 @@ router.put('/acciones/:id/indicadores', exigirEdicionNodo('accion'), accionesCon
 // Importar estructura desde CSV
 router.post('/proyectos/:id/importar-csv', exigirEdicionProyecto(), accionesController.importarCSV);
 
+// Solicitudes de participación: el camino inverso a la invitación. Pedir
+// entrar lo puede hacer cualquiera que vea el proyecto; resolverlas, quien
+// designa participantes ahí (se verifica dentro del controller).
+router.post('/proyectos/:id/solicitudes', solicitudesController.crear);
+router.get('/proyectos/:id/solicitudes', solicitudesController.listarDeProyecto);
+router.get('/mis-solicitudes', solicitudesController.mias);
+router.get('/solicitudes-por-resolver', solicitudesController.porResolver);
+router.post('/solicitudes/:id/responder', solicitudesController.responder);
+
 // Invitaciones internas: las que el usuario tiene sin responder y su
 // respuesta (aceptar / rechazar). Responder es del propio invitado, así
 // que estas rutas no llevan verificación de gestión.
@@ -144,13 +158,13 @@ router.post('/acciones/:id/tareas', exigirEdicionNodo('accion'), tareasControlle
 
 // Evidencias de etapas, acciones, riesgos y subacciones
 router.get('/etapas/:id/evidencias', evidenciasController.listarPorEtapa);
-router.post('/etapas/:id/evidencias', upload.single('archivo'), evidenciasController.subirParaEtapa);
+router.post('/etapas/:id/evidencias', exigirEdicionNodo('etapa'), upload.single('archivo'), evidenciasController.subirParaEtapa);
 router.get('/acciones/:id/evidencias', evidenciasController.listarPorAccion);
-router.post('/acciones/:id/evidencias', upload.single('archivo'), evidenciasController.subirParaAccion);
+router.post('/acciones/:id/evidencias', exigirEdicionNodo('accion'), upload.single('archivo'), evidenciasController.subirParaAccion);
 router.get('/riesgos/:id/evidencias', evidenciasController.listarPorRiesgo);
-router.post('/riesgos/:id/evidencias', upload.single('archivo'), evidenciasController.subirParaRiesgo);
+router.post('/riesgos/:id/evidencias', exigirEdicionRiesgo(), upload.single('archivo'), evidenciasController.subirParaRiesgo);
 router.get('/subacciones/:id/evidencias', evidenciasController.listarPorSubaccion);
-router.post('/subacciones/:id/evidencias', upload.single('archivo'), evidenciasController.subirParaSubaccion);
+router.post('/subacciones/:id/evidencias', exigirEdicionNodo('accion'), upload.single('archivo'), evidenciasController.subirParaSubaccion);
 router.get('/proyectos/:id/evidencias', evidenciasController.listarPorProyecto);
 
 // Riesgos de un proyecto, etapa, acción y subacción
@@ -162,19 +176,19 @@ router.get('/subacciones/:id/riesgos', riesgosController.listarPorSubaccion);
 // Indicadores de un proyecto (nivel proyecto, nivel etapa, o todos)
 router.get('/proyectos/:id/indicadores', indicadoresController.listarPorProyecto);
 router.get('/proyectos/:id/indicadores/todos', indicadoresController.listarTodosPorProyecto);
-router.post('/proyectos/:id/indicadores', indicadoresController.crear);
+router.post('/proyectos/:id/indicadores', exigirEdicionProyecto(), indicadoresController.crear);
 router.get('/etapas/:id/indicadores', indicadoresController.listarPorEtapa);
 router.get('/indicadores/publicos', indicadoresController.listarPublicables);
-router.put('/indicadores/:id', indicadoresController.actualizar);
-router.delete('/indicadores/:id', indicadoresController.eliminar);
+router.put('/indicadores/:id', exigirEdicionIndicador(), indicadoresController.actualizar);
+router.delete('/indicadores/:id', exigirEdicionIndicador(), indicadoresController.eliminar);
 router.get('/indicadores/:id/resumen-aportaciones', indicadoresController.resumenAportaciones);
-router.patch('/indicadores/:id/publicar', indicadoresController.togglePublicable);
+router.patch('/indicadores/:id/publicar', exigirEdicionIndicador(), indicadoresController.togglePublicable);
 
 // Aportaciones a indicadores
 router.get('/indicadores/:id/aportaciones', aportacionesController.listar);
-router.post('/indicadores/:id/aportaciones', aportacionesController.crear);
-router.patch('/aportaciones/:id', aportacionesController.actualizar);
-router.delete('/aportaciones/:id', aportacionesController.eliminar);
+router.post('/indicadores/:id/aportaciones', exigirEdicionAportacionNueva(), aportacionesController.crear);
+router.patch('/aportaciones/:id', exigirEdicionAportacion(), aportacionesController.actualizar);
+router.delete('/aportaciones/:id', exigirEdicionAportacion(), aportacionesController.eliminar);
 router.get('/etapas/:id/aportaciones', aportacionesController.listarPorNodo);
 router.get('/acciones/:id/aportaciones', aportacionesController.listarPorNodo);
 router.get('/tareas/:id/aportaciones', aportacionesController.listarPorNodo);

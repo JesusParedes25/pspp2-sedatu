@@ -14,11 +14,13 @@
 const { Router } = require('express');
 const riesgosController = require('../controllers/riesgos.controller');
 
+const { exigirEdicionDeEntidadEnCuerpo, exigirEdicionRiesgo } = require('../middleware/permisos.middleware');
+
 const router = Router();
 
-router.post('/', riesgosController.crear);
+router.post('/', exigirEdicionDeEntidadEnCuerpo(), riesgosController.crear);
 router.get('/:id', riesgosController.obtenerPorId);
-router.put('/:id', riesgosController.actualizar);
-router.delete('/:id', riesgosController.eliminar);
+router.put('/:id', exigirEdicionRiesgo(), riesgosController.actualizar);
+router.delete('/:id', exigirEdicionRiesgo(), riesgosController.eliminar);
 
 module.exports = router;
