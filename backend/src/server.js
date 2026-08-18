@@ -22,6 +22,7 @@ const errorHandler = require('./middleware/errorHandler');
 const { ejecutarMigraciones } = require('./db/migrate');
 const ejecutarSeeders = require('./db/seeders/index');
 const asegurarSuperAdmin = require('./db/seeders/00_superadmin');
+const asegurarProgramas = require('./db/seeders/00_programas');
 const { iniciarPurgaAutomatica } = require('./utils/purgarProyectos');
 const { iniciarAlertasAutomaticas } = require('./utils/alertasVencimiento');
 
@@ -78,6 +79,11 @@ async function iniciar() {
   try {
     await ejecutarMigraciones();
     await asegurarSuperAdmin();
+    // El catálogo de programas presupuestarios (Ramo 15) también corre
+    // siempre: no es dato de demostración sino la lista real que el
+    // formulario de proyecto necesita para poder vincular un Pp. Solo
+    // inserta las claves que falten, nunca reescribe las que ya están.
+    await asegurarProgramas();
     // CRÍTICO: los seeders insertan/actualizan usuarios de demo (contraseña
     // conocida "demo2026") y proyectos de ejemplo con ON CONFLICT DO UPDATE.
     // Antes esto corría en CADA arranque sin importar el entorno — en
