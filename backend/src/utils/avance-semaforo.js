@@ -315,7 +315,15 @@ async function obtenerSubarbol(etapaId, db) {
     acc.avance_efectivo = await calcularAvanceEfectivoAccion(acc, conn);
     acc.semaforo_efectivo = semaforoEfectivo(acc);
     acc.es_hoja = await esNodoHoja(acc.id, conn);
-    // Sub-acciones (tareas)
+
+    // Sub-acciones: acciones colgadas de esta acción.
+    //
+    // Iban en `acc.tareas`, y ahí se perdían por partida doble: el frontend
+    // lee `acc.subacciones` y `acc.tareas` por separado (hijosDe en
+    // EtapasAvancesMD/utils.js), y el endpoint del árbol reemplazaba
+    // `acc.tareas` con las tareas de la tabla `tareas` justo después de
+    // llamar aquí. Resultado: las subacciones existían en la base y no
+    // aparecían en ningún lado del árbol.
     const { rows: subs } = await conn.query(`
       SELECT s.*, u.nombre_completo AS responsable_nombre,
              dg.id AS responsable_dg_id, dg.siglas AS responsable_dg_siglas,
@@ -328,17 +336,45 @@ async function obtenerSubarbol(etapaId, db) {
       WHERE s.id_accion_padre = $1
       ORDER BY s.created_at
     `, [acc.id]);
-    acc.tareas = [];
+    acc.subacciones = [];
     for (const sub of subs) {
       sub.avance_efectivo = await calcularAvanceEfectivoAccion(sub, conn);
       sub.semaforo_efectivo = semaforoEfectivo(sub);
       sub.es_hoja = await esNodoHoja(sub.id, conn);
-      acc.tareas.push(sub);
+      sub.tareas = await tareasDe(sub.id, conn);
+      acc.subacciones.push(sub);
     }
+
+    // Tareas: el tercer nivel de la jerarquía, en su propia tabla.
+    acc.tareas = await tareasDe(acc.id, conn);
+
     etapa.acciones.push(acc);
   }
 
   return etapa;
+}
+
+// Tareas de una acción, con su avance y semáforo efectivos ya calculados.
+//
+// Una tarea es siempre nodo hoja, así que su avance efectivo no necesita
+// consultar hijos: es su propio avance, o 100 si está completada.
+async function tareasDe(idAccion, conn) {
+  const { rows } = await conn.query(`
+    SELECT t.*, u.nombre_completo AS responsable_nombre,
+           (SELECT COALESCE(json_agg(json_build_object('cve_mun', tm.cve_mun, 'nombre', gm.nombre) ORDER BY gm.nombre), '[]'::json)
+              FROM tarea_municipios tm JOIN geo_municipios gm ON gm.cvegeo = tm.cve_mun
+              WHERE tm.tarea_id = t.id) AS municipios
+    FROM tareas t
+    LEFT JOIN usuarios u ON u.id = t.id_responsable
+    WHERE t.id_accion = $1
+    ORDER BY t.orden, t.created_at
+  `, [idAccion]);
+
+  for (const t of rows) {
+    t.avance_efectivo = t.avance_actual != null ? t.avance_actual : (t.estado === 'Completada' ? 100 : 0);
+    t.semaforo_efectivo = semaforoEfectivo(t);
+  }
+  return rows;
 }
 
 module.exports = {

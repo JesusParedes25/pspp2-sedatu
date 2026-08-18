@@ -43,7 +43,11 @@ export default function NodoBase({ id, data, selected, tipo }) {
   const estado = data.estado || 'Pendiente';
   const completada = estado === 'Completada';
   const avance = data.avance_efectivo ?? (tipo === 'etapa' ? parseFloat(data.porcentaje_calculado || 0) : parseFloat(data.porcentaje_avance || 0));
-  const tieneHijos = tipo === 'etapa' ? (data.acciones?.length > 0) : tipo === 'accion' ? (data.tareas?.length > 0) : false;
+  const tieneHijos = tipo === 'etapa'
+    ? (data.acciones?.length > 0)
+    : tipo === 'accion'
+      ? ((data.subacciones?.length || 0) + (data.tareas?.length || 0)) > 0
+      : false;
   const colapsado = data.numDescendientesOcultos > 0;
 
   async function confirmarCrear() {

@@ -19,6 +19,34 @@ const { calcularSemaforo } = require('../utils/semaforo');
 
 const ESTADOS_VALIDOS = ['Pendiente', 'En_proceso', 'Bloqueada', 'Completada', 'Cancelada'];
 const SEMAFOROS_VALIDOS = ['verde', 'amarillo', 'naranja', 'rojo', 'gris', 'azul', 'negro'];
+
+// La escala del importador (utils/semaforo.js) tiene siete colores porque
+// nació para leer archivos ajenos, donde la gente escribe "amarillo",
+// "publicado" o "descartado". La base solo acepta cuatro:
+// verde | ambar | rojo | gris.
+//
+// Sin esta traducción, una fila cuyo semáforo cayera en amarillo, naranja,
+// azul o negro reventaba el INSERT con un CHECK y, como todo va en una
+// transacción, tumbaba la importación COMPLETA — etapas y acciones
+// incluidas. Basta con un "En proceso" para llegar a 'amarillo'.
+const SEMAFORO_A_BD = {
+  verde: 'verde',
+  ambar: 'ambar',
+  rojo: 'rojo',
+  gris: 'gris',
+  amarillo: 'ambar',
+  naranja: 'ambar',   // atraso, no vencimiento: no inventamos una alarma roja
+  azul: 'verde',      // publicado / cargado: cerrado en positivo
+  negro: 'gris',      // descartado / cancelado
+};
+
+// Devuelve un semáforo que la base acepta, o null si no hay equivalencia.
+// null es válido en las tres tablas y deja que el cálculo automático haga
+// su trabajo, que es mejor que abortar la importación.
+function semaforoParaBD(valor) {
+  if (!valor) return null;
+  return SEMAFORO_A_BD[String(valor).toLowerCase().trim()] || null;
+}
 // acciones.tipo tiene un CHECK constraint que solo acepta estos dos valores
 // (ver migración 001_tablas.sql). Cualquier otro texto libre del Excel del
 // usuario (p.ej. "Actividad", "Normal", "Acción") debe traducirse aquí o el
@@ -442,6 +470,7 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
       etapas_creadas: 0,
       acciones_creadas: 0,
       subacciones_creadas: 0,
+      tareas_creadas: 0,
       evidencias_creadas: 0,
       comentarios_creados: 0,
       duplicados_saltados: 0,
@@ -526,7 +555,7 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
           ent.campos.fecha_inicio || null,
           ent.campos.fecha_fin || null,
           ent.campos.estado || 'Pendiente',
-          ent.campos._semaforo || null,
+          semaforoParaBD(ent.campos._semaforo),
           porcentaje,
           JSON.stringify(ent.campos._campos_extra || {}),
         ]);
@@ -592,7 +621,7 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
           ent.campos.porcentaje_avance || 0,
           etapaId,
           proyectoId,
-          ent.campos._semaforo || null,
+          semaforoParaBD(ent.campos._semaforo),
           JSON.stringify(ent.campos._campos_extra || {}),
         ]);
         const accionId = rows[0].id;
@@ -668,36 +697,42 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
         const fechaInicio = ent.campos.fecha_inicio;
         const fechaFin = ent.campos.fecha_fin;
 
-        const { rows } = await client.query(`
-          INSERT INTO acciones (
-            nombre, descripcion, tipo, fecha_inicio, fecha_fin,
-            estado, porcentaje_avance, id_accion_padre, id_etapa, id_proyecto, semaforo, campos_extra
-          ) VALUES ($1, $2, 'Accion_programada', $3, $4, $5, $6, $7, $8, $9, $10, $11)
-          RETURNING id
+        // Tercer nivel = TAREA (ver la nota del camino multi-hoja).
+        const estadoTarea = ent.campos.estado || 'Pendiente';
+        // Completada ⇒ 100%, aunque el archivo no traiga columna de avance.
+        const avanceTarea = estadoTarea === 'Completada'
+          ? 100
+          : (ent.campos.porcentaje_avance || 0);
+
+        await client.query(`
+          INSERT INTO tareas (
+            nombre, descripcion, id_accion, estado, avance_actual, avance_override,
+            fecha_inicio, fecha_limite, semaforo
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         `, [
           ent.nombre,
           emptyToNull(ent.campos.descripcion),
+          accionPadreId,
+          estadoTarea,
+          avanceTarea,
+          avanceTarea > 0,
           fechaInicio || new Date().toISOString().split('T')[0],
           fechaFin || fechaInicio || new Date().toISOString().split('T')[0],
-          ent.campos.estado || 'Pendiente',
-          ent.campos.porcentaje_avance || 0,
-          accionPadreId,
-          etapaId,
-          proyectoId,
-          ent.campos._semaforo || null,
-          JSON.stringify(ent.campos._campos_extra || {}),
+          semaforoParaBD(ent.campos._semaforo),
         ]);
-        const subaccionId = rows[0].id;
-        resultado.subacciones_creadas++;
+        resultado.tareas_creadas++;
 
-        // Evidencia relacional
+        // La evidencia y el comentario de una tarea se cuelgan de su ACCIÓN
+        // padre. No es un capricho: la tabla evidencias no tiene columna
+        // id_tarea, y el CHECK de comentarios.entidad_tipo no admite
+        // 'Tarea' —los comentarios de tareas viven en la tabla actividad—.
+        // Antes esto apuntaba al id de una subacción que ya no se crea;
+        // guardar en el padre conserva el dato y lo deja donde sí se ve.
         if (ent.evidenciaLink) {
-          await insertarEvidencia(subaccionId, ent.evidenciaLink);
+          await insertarEvidencia(accionPadreId, ent.evidenciaLink);
         }
-
-        // Comentario relacional
         if (ent.comentario) {
-          await insertarComentario('Accion', subaccionId, ent.comentario);
+          await insertarComentario('Accion', accionPadreId, ent.comentario);
         }
       }
     }
@@ -713,6 +748,10 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
     await recalcularIndicadoresProyecto(proyectoId, client);
 
     await client.query('COMMIT');
+    // La interfaz desplegada lee subacciones_creadas para mostrar "X
+    // tarea(s) creada(s)". Se espeja el conteo para que un frontend viejo
+    // contra un backend nuevo siga informando bien.
+    resultado.subacciones_creadas = resultado.tareas_creadas;
     return resultado;
 
   } catch (err) {
@@ -876,11 +915,11 @@ async function generarPreviewMultiHoja(hojas, configMultiHoja, proyectoId) {
           warnings.push({ hoja: h3.nombre, fila: i + 2, mensaje: `Referencia "${ref}" no encontrada en acciones.` });
           continue;
         }
-        accionesMap[ref].tareas.push({ nombre, nivel: 'subaccion' });
+        accionesMap[ref].tareas.push({ nombre, nivel: 'tarea' });
         // Actualizar árbol
         for (const etapa of arbol) {
           const acc = etapa.acciones.find(a => a.id === ref);
-          if (acc) { acc.tareas.push({ nombre, nivel: 'subaccion' }); break; }
+          if (acc) { acc.tareas.push({ nombre, nivel: 'tarea' }); break; }
         }
       }
     }
@@ -894,7 +933,8 @@ async function generarPreviewMultiHoja(hojas, configMultiHoja, proyectoId) {
       conteo: {
         etapas: Object.keys(etapasMap).length,
         acciones: Object.keys(accionesMap).length,
-        subacciones: totalTareas,
+        tareas: totalTareas,
+        subacciones: totalTareas,   // compatibilidad con la interfaz desplegada
       },
       warnings,
     };
@@ -923,7 +963,7 @@ async function ejecutarImportacionMultiHoja(hojas, configMultiHoja, proyectoId) 
   try {
     await client.query('BEGIN');
 
-    const resultado = { etapas_creadas: 0, acciones_creadas: 0, subacciones_creadas: 0 };
+    const resultado = { etapas_creadas: 0, acciones_creadas: 0, subacciones_creadas: 0, tareas_creadas: 0 };
 
     const { rows: [{ max_orden }] } = await client.query(
       'SELECT COALESCE(MAX(orden), 0) AS max_orden FROM etapas WHERE id_proyecto = $1', [proyectoId]
@@ -1027,16 +1067,28 @@ async function ejecutarImportacionMultiHoja(hojas, configMultiHoja, proyectoId) 
         const fechaInicio = toDate(valorMapeado(fila, m3, 'fecha_inicio')) || new Date().toISOString().split('T')[0];
         const fechaFin = toDate(valorMapeado(fila, m3, 'fecha_limite')) || fechaInicio;
 
-        const { rows: padreRows } = await client.query('SELECT id_etapa FROM acciones WHERE id = $1', [accionBdId]);
-        const etapaId = padreRows[0]?.id_etapa || null;
+        // Una tarea marcada "Completada" en el archivo debe llegar al 100%,
+        // igual que si se marcara desde la plataforma (que escribe
+        // avance_actual = 100 y avance_override). Insertando siempre 0 se
+        // veían tareas completadas con 0% de avance.
+        const avance = estado === 'Completada' ? 100 : 0;
 
+        // El tercer nivel es una TAREA, en la tabla tareas.
+        //
+        // Se insertaba en `acciones` con id_accion_padre, o sea creaba
+        // subacciones. La interfaz del importador siempre llamó "Tareas" a
+        // esta hoja, la jerarquía del dominio es Etapa → Acción → Tarea, y
+        // "Mis actividades" trabaja con tareas: el tercer nivel importado
+        // no era lo que decía ser y no aparecía donde el usuario lo
+        // buscaba.
         await client.query(`
-          INSERT INTO acciones (nombre, descripcion, tipo, fecha_inicio, fecha_fin, estado,
-            porcentaje_avance, id_accion_padre, id_etapa, id_proyecto, prioridad)
-          VALUES ($1, $2, 'Accion_programada', $3, $4, $5, 0, $6, $7, $8, $9)
-        `, [nombre, descripcion, fechaInicio, fechaFin, estado, accionBdId, etapaId, proyectoId, prioridad]);
+          INSERT INTO tareas (nombre, descripcion, id_accion, estado, avance_actual, avance_override,
+            fecha_inicio, fecha_limite, prioridad, orden)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        `, [nombre, descripcion, accionBdId, estado, avance, avance === 100,
+            fechaInicio, fechaFin, prioridad, i + 1]);
 
-        resultado.subacciones_creadas++;
+        resultado.tareas_creadas++;
       }
     }
 
@@ -1050,6 +1102,10 @@ async function ejecutarImportacionMultiHoja(hojas, configMultiHoja, proyectoId) 
     await recalcularIndicadoresProyecto(proyectoId, client);
 
     await client.query('COMMIT');
+    // La interfaz desplegada lee subacciones_creadas para mostrar "X
+    // tarea(s) creada(s)". Se espeja el conteo para que un frontend viejo
+    // contra un backend nuevo siga informando bien.
+    resultado.subacciones_creadas = resultado.tareas_creadas;
     return resultado;
 
   } catch (err) {

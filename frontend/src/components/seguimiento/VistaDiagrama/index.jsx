@@ -43,8 +43,11 @@ function encontrarEtapaDe(arbol, nodoId) {
     if (etapa.id === nodoId) return etapa.id;
     for (const accion of (etapa.acciones || [])) {
       if (accion.id === nodoId) return etapa.id;
-      for (const tarea of (accion.tareas || [])) {
-        if (tarea.id === nodoId) return etapa.id;
+      // Hijos de una acción: subacciones y tareas. Antes bastaba con
+      // `tareas` porque el backend metía ahí las subacciones; ya vienen
+      // separadas.
+      for (const hijo of [...(accion.subacciones || []), ...(accion.tareas || [])]) {
+        if (hijo.id === nodoId) return etapa.id;
       }
     }
   }
@@ -119,7 +122,7 @@ function VistaDiagramaInterna({ proyectoId, permisos }) {
     function recorrer(etapas) {
       etapas.forEach(e => {
         ids.add(e.id);
-        (e.acciones || []).forEach(a => { if ((a.tareas || []).length > 0) ids.add(a.id); });
+        (e.acciones || []).forEach(a => { if (((a.subacciones || []).length + (a.tareas || []).length) > 0) ids.add(a.id); });
       });
     }
     recorrer(arbol);

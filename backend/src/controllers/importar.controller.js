@@ -11,6 +11,26 @@ const crypto = require('crypto');
 const parser = require('../services/importar.parser');
 const service = require('../services/importar.service');
 const matcher = require('../services/importar.matcher');
+const { puedeEditarContenidoProyecto } = require('../utils/autorizacion');
+
+// Importar crea etapas, acciones y tareas dentro de un proyecto: es
+// capturar, y exige el mismo permiso que capturar a mano. El comentario
+// "Verificar permisos sobre el proyecto" ya estaba en el código, pero
+// debajo solo se comprobaba que el proyecto existiera — cualquier usuario
+// con sesión podía volcar una estructura completa en el proyecto de otra
+// área. El id del proyecto viaja en el cuerpo, no en la ruta, así que la
+// verificación va aquí y no en el middleware de rutas.
+async function rechazarSiNoPuedeCapturar(req, res, proyectoId) {
+  const permitido = await puedeEditarContenidoProyecto({ usuario: req.usuario, idProyecto: proyectoId });
+  if (permitido) return false;
+  res.status(403).json({
+    error: true,
+    codigo: 'NO_AUTORIZADO',
+    mensaje: 'No tienes permisos para importar en este proyecto. '
+      + 'Solicítalo a su responsable o a la Dirección General que lo lidera.',
+  });
+  return true;
+}
 
 // ─── Almacén en memoria con TTL ───────────────────────────────
 
@@ -154,7 +174,6 @@ async function confirmar(req, res, next) {
       });
     }
 
-    // Verificar permisos sobre el proyecto
     const pool = require('../db/pool');
     const { rows } = await pool.query('SELECT id FROM proyectos WHERE id = $1', [proyectoId]);
     if (rows.length === 0) {
@@ -164,6 +183,7 @@ async function confirmar(req, res, next) {
         codigo: 'PROYECTO_NO_ENCONTRADO',
       });
     }
+    if (await rechazarSiNoPuedeCapturar(req, res, proyectoId)) return;
 
     const entry = fileStore.get(fileId);
     if (!entry) {
@@ -328,7 +348,6 @@ async function confirmarMultiHoja(req, res, next) {
       });
     }
 
-    // Verificar proyecto
     const pool = require('../db/pool');
     const { rows } = await pool.query('SELECT id FROM proyectos WHERE id = $1', [proyectoId]);
     if (rows.length === 0) {
@@ -338,6 +357,7 @@ async function confirmarMultiHoja(req, res, next) {
         codigo: 'PROYECTO_NO_ENCONTRADO',
       });
     }
+    if (await rechazarSiNoPuedeCapturar(req, res, proyectoId)) return;
 
     const entry = fileStore.get(fileId);
     if (!entry) {

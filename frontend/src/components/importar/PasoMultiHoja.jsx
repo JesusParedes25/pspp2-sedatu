@@ -314,9 +314,9 @@ export default function PasoMultiHoja({ fileId, multiHoja, proyectoId, onImporta
           <span className="px-2 py-1 bg-amber-50 text-amber-700 rounded font-medium">
             {preview.conteo.acciones} acción(es)
           </span>
-          {preview.conteo.subacciones > 0 && (
+          {(preview.conteo.tareas ?? preview.conteo.subacciones) > 0 && (
             <span className="px-2 py-1 bg-purple-50 text-purple-700 rounded font-medium">
-              {preview.conteo.subacciones} tarea(s)
+              {preview.conteo.tareas ?? preview.conteo.subacciones} tarea(s)
             </span>
           )}
         </div>
@@ -387,7 +387,7 @@ export default function PasoMultiHoja({ fileId, multiHoja, proyectoId, onImporta
         <div className="text-sm text-gray-600 text-center space-y-1">
           {resultado.etapas_creadas > 0 && <p>{resultado.etapas_creadas} etapa(s) creada(s)</p>}
           {resultado.acciones_creadas > 0 && <p>{resultado.acciones_creadas} acción(es) creada(s)</p>}
-          {resultado.subacciones_creadas > 0 && <p>{resultado.subacciones_creadas} tarea(s) creada(s)</p>}
+          {(resultado.tareas_creadas ?? resultado.subacciones_creadas) > 0 && <p>{resultado.tareas_creadas ?? resultado.subacciones_creadas} tarea(s) creada(s)</p>}
         </div>
         <button
           onClick={() => { if (onImportado) onImportado(); else onCerrar(); }}
