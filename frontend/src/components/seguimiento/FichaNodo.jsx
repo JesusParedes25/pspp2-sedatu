@@ -155,6 +155,7 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
           <PropiedadesElemento
             nodo={nodo}
             permisos={permisos}
+            proyectoId={proyectoId}
             onActualizado={onActualizado}
             mostrarToast={mostrarToast}
           />

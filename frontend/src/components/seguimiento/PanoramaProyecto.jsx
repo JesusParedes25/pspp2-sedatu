@@ -17,6 +17,7 @@ import { agregarMiembroNodo } from '../../api/nodo-miembros';
 import { calcularColorSemaforo } from '../../utils/semaforoColor';
 import client from '../../api/client';
 import TarjetaIndicador from '../indicadores/TarjetaIndicador';
+import BotonSolicitarParticipar from '../proyectos/BotonSolicitarParticipar';
 import ListaEstatusCualitativo from '../indicadores/ListaEstatusCualitativo';
 
 const GUINDA = '#7B1C3E';
@@ -141,6 +142,11 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
               </span>
             </h3>
           </div>
+          {/* Quien ya puede invitar, invita. Quien no participa, pide entrar:
+              las dos acciones son la misma conversación vista desde cada
+              lado, así que viven en el mismo lugar — junto a la lista de
+              quiénes participan, que es donde surge la pregunta. */}
+          <BotonSolicitarParticipar proyecto={proyecto} permisos={permisos} />
           {permisos.puedeInvitar && (
             <button
               onClick={() => setModalInvitar(true)}

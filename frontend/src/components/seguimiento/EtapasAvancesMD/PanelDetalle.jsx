@@ -168,7 +168,8 @@ export default function PanelDetalle({
             seleccionId={seleccion.id}
             onSeleccionar={onSeleccionarEnCentro}
           />
-          <ActividadStream tipo={seleccion.tipo} id={seleccion.id} titulo={seleccion.data.nombre} />
+          <ActividadStream tipo={seleccion.tipo} id={seleccion.id} titulo={seleccion.data.nombre}
+            soloLectura={permisosDeNodo(permisosProyecto, seleccion.tipo, seleccion.id).esSoloLectura} />
         </div>
       </div>
 

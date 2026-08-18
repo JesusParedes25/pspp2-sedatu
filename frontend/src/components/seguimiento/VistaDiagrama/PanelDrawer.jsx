@@ -27,11 +27,15 @@ import { usePanelWidth, keyAnchoPanelPropiedades } from '../../../hooks/usePanel
 import { resolverRutaConIds } from '../EtapasAvancesMD/utils';
 import { COLORES_SEMAFORO } from '../../common/SemaforoDot';
 import { NIVELES } from '../../../config/niveles';
+import { permisosDeNodo } from '../../../hooks/usePermisos';
 
 const TIPO_HIJO_LABEL = { accion: 'Acción', tarea: 'Tarea' };
 
 export default function PanelDrawer({ nodo, proyectoId, permisos, arbol, onActualizado, mostrarToast, onCerrar, onNavegar }) {
   const { tipo, id, data } = nodo;
+  // El permiso puede ser parcial: quien fue invitado a una etapa suelta
+  // captura ahí y no en el resto del proyecto.
+  const soloLecturaNodo = permisosDeNodo(permisos, tipo, id)?.esSoloLectura ?? true;
   const [tab, setTab] = useState('propiedades');
   const nivel = NIVELES[tipo];
   const { usuario } = useAuth();
@@ -138,7 +142,7 @@ export default function PanelDrawer({ nodo, proyectoId, permisos, arbol, onActua
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto px-3 py-3">
-          <ActividadStream tipo={tipo} id={id} titulo={data.nombre} />
+          <ActividadStream tipo={tipo} id={id} titulo={data.nombre} soloLectura={soloLecturaNodo} />
         </div>
       )}
     </aside>

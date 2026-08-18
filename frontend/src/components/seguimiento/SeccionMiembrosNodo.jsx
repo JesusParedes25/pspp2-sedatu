@@ -23,6 +23,7 @@ import {
   actualizarRolNodo,
   eliminarMiembroNodo,
 } from '../../api/nodo-miembros';
+import BotonSolicitarParticipar from '../proyectos/BotonSolicitarParticipar';
 
 const ROLES = [
   { value: 'responsable', label: 'Responsable', color: 'bg-guinda-100 text-guinda-700' },
@@ -60,7 +61,7 @@ function Iniciales({ nombre, className = '' }) {
   );
 }
 
-export default function SeccionMiembrosNodo({ tipo, idNodo, permisos }) {
+export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto, nombreNodo }) {
   const [miembros, setMiembros] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [mostrarPicker, setMostrarPicker] = useState(false);
@@ -205,6 +206,17 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos }) {
 
       {error && !mostrarPicker && (
         <p className="text-[11px] text-red-600 bg-red-50 border border-red-100 rounded-md p-2 leading-snug">{error}</p>
+      )}
+
+      {/* Quien no puede capturar aquí puede pedir que lo dejen: pide solo
+          esta parte, no el proyecto entero. */}
+      {!mostrarPicker && idProyecto && (
+        <BotonSolicitarParticipar
+          proyecto={{ id: idProyecto }}
+          permisos={permisos}
+          nodo={{ tipo, id: idNodo, nombre: nombreNodo }}
+          className="mt-1"
+        />
       )}
 
       {/* Botón / Panel agregar */}

@@ -28,7 +28,7 @@ import { CampoSelect, CampoSemaforo, CampoTextoInline, SelectorMunicipiosMultipl
 import { ESTADOS, PRIORIDADES } from './EtapasAvancesMD/utils';
 import { permisosDeNodo } from '../../hooks/usePermisos';
 
-export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, onActualizado, mostrarToast }) {
+export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, proyectoId, onActualizado, mostrarToast }) {
   const { tipo, id, data } = nodo;
   // Quien fue invitado solo a una etapa captura en ella y en lo que cuelga
   // de ella, no en el resto del proyecto.
@@ -266,6 +266,8 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
           tipo={tipo}
           idNodo={id}
           permisos={permisos}
+          idProyecto={proyectoId}
+          nombreNodo={data.nombre}
         />
       </RailCard>
 

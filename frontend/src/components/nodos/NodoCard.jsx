@@ -562,7 +562,8 @@ export default function NodoCard({
 
           {seccion === 'invitar' && (
             <div className="bg-gray-50 rounded-lg p-2.5">
-              <SeccionMiembrosNodo tipo={tipo} idNodo={nodo.id} permisos={permisos} />
+              <SeccionMiembrosNodo tipo={tipo} idNodo={nodo.id} permisos={permisos}
+                idProyecto={proyectoId} nombreNodo={nodo.nombre} />
             </div>
           )}
 

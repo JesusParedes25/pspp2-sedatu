@@ -1,9 +1,9 @@
 /**
  * ARCHIVO: BotonSolicitarParticipar.jsx
- * PROPÓSITO: Dejar que quien ve un proyecto y no participa en él pida
- *            entrar, sin tener que averiguar por fuera a quién pedírselo.
+ * PROPÓSITO: Dejar que quien ve algo y no participa en ello pida entrar,
+ *            sin tener que averiguar por fuera a quién pedírselo.
  *
- * MINI-CLASE: por qué hace falta el camino de vuelta
+ * MINI-CLASE: pedir exactamente lo que se necesita
  * ─────────────────────────────────────────────────────────────────
  * Todos ven todos los proyectos, pero solo captura quien está escrito en
  * ellos. Eso deja un caso muy común sin resolver: alguien abre un
@@ -11,18 +11,27 @@
  * tiene forma de decirlo dentro de la plataforma — termina en un
  * WhatsApp, y la constancia de quién pidió qué se pierde.
  *
- * Este botón solo aparece cuando tiene sentido: si ya participas, o ya
- * mandaste una solicitud, no hay nada que pedir. El motivo es opcional
- * a propósito: obligar a justificarse agrega fricción sin agregar
- * información, porque quien decide ya ve el área y el cargo de quien
- * pide.
+ * El mismo botón sirve para dos alcances y por eso vive junto a la lista
+ * de participantes correspondiente: en "Participantes del proyecto" pide
+ * el proyecto entero; en los participantes de una etapa, acción o tarea
+ * pide solo esa parte. Quien aporta a una etapa no debería tener que
+ * pedir el proyecto completo: es pedir de más, y quien decide lo nota.
+ *
+ * Solo aparece cuando tiene sentido: si ya puedes capturar ahí, o ya
+ * mandaste una solicitud, no hay nada que pedir. El motivo es opcional a
+ * propósito — obligar a justificarse agrega fricción sin agregar
+ * información, porque quien decide ya ve el área y el cargo de quien pide.
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect } from 'react';
 import { UserPlus, Loader2, Clock, X } from 'lucide-react';
-import { solicitarParticipacion, misSolicitudes } from '../../api/solicitudes';
+import {
+  solicitarParticipacion, solicitarParticipacionNodo, misSolicitudes,
+} from '../../api/solicitudes';
 
-export default function BotonSolicitarParticipar({ proyecto, permisos }) {
+const ETIQUETA_NODO = { etapa: 'esta etapa', accion: 'esta acción', tarea: 'esta tarea' };
+
+export default function BotonSolicitarParticipar({ proyecto, permisos, nodo = null, className = '' }) {
   const [pendiente, setPendiente] = useState(null);
   const [abierto, setAbierto] = useState(false);
   const [funcion, setFuncion] = useState('colaborador');
@@ -30,30 +39,40 @@ export default function BotonSolicitarParticipar({ proyecto, permisos }) {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
 
-  // Participar aquí incluye tener acceso aunque sea a una parte: a quien
-  // ya lo invitaron a una etapa no le sirve pedir entrar otra vez.
-  const yaParticipa = !permisos?.esSoloLectura || permisos?.capturaParcial || permisos?.puedeInvitar;
   const idProyecto = proyecto?.id;
+  // El nombre solo se usa para redactar el aviso; en el árbol de nodos no
+  // siempre está a mano y no vale la pena pedirlo solo para esto.
+  const nombreProyecto = proyecto?.nombre || 'este proyecto';
+  const esDeNodo = !!(nodo?.tipo && nodo?.id);
+
+  // Ya poder trabajar ahí vuelve la solicitud innecesaria. Para un nodo se
+  // pregunta por ese nodo en concreto (quien fue invitado a la etapa 1 sí
+  // puede pedir la etapa 2); para el proyecto, por el proyecto.
+  const yaPuede = esDeNodo
+    ? (permisos?.puedeEditarNodo?.(nodo.tipo, nodo.id) ?? false) || !!permisos?.puedeInvitar
+    : !permisos?.esSoloLectura || !!permisos?.capturaParcial || !!permisos?.puedeInvitar;
 
   useEffect(() => {
-    if (!idProyecto || yaParticipa) return undefined;
+    if (!idProyecto || yaPuede) return undefined;
     let vigente = true;
     misSolicitudes()
       .then(lista => {
         if (!vigente) return;
-        setPendiente(lista.find(s => s.id_proyecto === idProyecto && s.estado === 'pendiente') || null);
+        setPendiente(lista.find(s => s.estado === 'pendiente' && (
+          esDeNodo ? s.id_nodo === nodo.id : (!s.id_nodo && s.id_proyecto === idProyecto)
+        )) || null);
       })
       .catch(() => {});
     return () => { vigente = false; };
-  }, [idProyecto, yaParticipa]);
+  }, [idProyecto, yaPuede, esDeNodo, nodo?.id]);
 
-  if (!idProyecto || yaParticipa) return null;
+  if (!idProyecto || yaPuede) return null;
 
   if (pendiente) {
     return (
       <span
         title="Quien coordina este proyecto ya la recibió. Te avisaremos aquí cuando responda."
-        className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded border bg-amber-50 text-amber-700 border-amber-200"
+        className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded border bg-amber-50 text-amber-700 border-amber-200 ${className}`}
       >
         <Clock size={10} />
         Solicitud enviada
@@ -64,7 +83,10 @@ export default function BotonSolicitarParticipar({ proyecto, permisos }) {
   async function enviar() {
     setEnviando(true); setError('');
     try {
-      const solicitud = await solicitarParticipacion(idProyecto, { funcion, motivo: motivo.trim() });
+      const datos = { funcion, motivo: motivo.trim() };
+      const solicitud = esDeNodo
+        ? await solicitarParticipacionNodo(nodo.tipo, nodo.id, datos)
+        : await solicitarParticipacion(idProyecto, datos);
       setPendiente(solicitud);
       setAbierto(false);
     } catch (err) {
@@ -74,28 +96,37 @@ export default function BotonSolicitarParticipar({ proyecto, permisos }) {
     }
   }
 
+  const queSePide = esDeNodo ? ETIQUETA_NODO[nodo.tipo] : 'el proyecto';
+
   return (
     <>
       <button
         onClick={() => { setAbierto(true); setError(''); }}
-        className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded border bg-white text-guinda-700 border-guinda-200 hover:bg-guinda-50"
+        className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-lg border bg-white text-guinda-700 border-guinda-200 hover:bg-guinda-50 ${className}`}
       >
-        <UserPlus size={10} />
+        <UserPlus size={12} />
         Solicitar participar
       </button>
 
       {abierto && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4" onClick={() => setAbierto(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3 border-b">
-              <h3 className="text-base font-semibold text-gray-900">Solicitar participar</h3>
+              <h3 className="text-base font-semibold text-gray-900">
+                {esDeNodo ? `Solicitar participar en ${queSePide}` : 'Solicitar participar'}
+              </h3>
               <button onClick={() => setAbierto(false)} className="p-1 hover:bg-gray-100 rounded"><X size={18} /></button>
             </div>
 
             <div className="px-5 py-4 space-y-3">
               <p className="text-xs text-gray-500 leading-snug">
-                Tu solicitud le llegará a quien coordina «{proyecto.nombre}». Podrá aceptarla o declinarla,
-                y te avisaremos aquí en cualquier caso.
+                {esDeNodo ? (
+                  <>Pedirás acceso solo a <strong>«{nodo.nombre}»</strong> y a lo que cuelga de ahí, no a todo el proyecto.
+                  {' '}Tu solicitud le llegará a quien coordina {nombreProyecto === 'este proyecto' ? nombreProyecto : `«${nombreProyecto}»`}.</>
+                ) : (
+                  <>Tu solicitud le llegará a quien coordina {nombreProyecto === 'este proyecto' ? nombreProyecto : `«${nombreProyecto}»`}.</>
+                )}
+                {' '}Podrá aceptarla o declinarla, y te avisaremos aquí en cualquier caso.
               </p>
 
               <div>
@@ -106,7 +137,11 @@ export default function BotonSolicitarParticipar({ proyecto, permisos }) {
                   className="input-base text-sm w-full"
                 >
                   <option value="colaborador">Colaborador — capturar avances y evidencias</option>
-                  <option value="responsable">Responsable — además, coordinar el proyecto</option>
+                  <option value="responsable">
+                    {esDeNodo
+                      ? 'Responsable — además, coordinar esta parte'
+                      : 'Responsable — además, coordinar el proyecto'}
+                  </option>
                 </select>
               </div>
 
@@ -118,12 +153,14 @@ export default function BotonSolicitarParticipar({ proyecto, permisos }) {
                   value={motivo}
                   onChange={e => setMotivo(e.target.value)}
                   rows={3}
-                  placeholder="Ej. Mi área aporta los insumos cartográficos de la etapa 2."
+                  placeholder={esDeNodo
+                    ? 'Ej. Mi área genera los insumos cartográficos de esta etapa.'
+                    : 'Ej. Mi área aporta los insumos cartográficos de la etapa 2.'}
                   className="input-base text-sm w-full"
                 />
               </div>
 
-              {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded p-2">{error}</p>}
+              {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded p-2 leading-snug">{error}</p>}
             </div>
 
             <div className="flex justify-end gap-2 px-5 py-3 border-t">

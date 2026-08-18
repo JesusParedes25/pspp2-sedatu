@@ -21,11 +21,17 @@
  */
 const pool = require('../pool');
 
-// Crea la solicitud. Devuelve { yaParticipa } o { duplicada } en vez de
-// lanzar, para que el controller responda con un mensaje entendible.
-async function crear({ idProyecto, idUsuario, funcion, motivo }, db) {
+// Crea la solicitud, de proyecto (sin tipoNodo) o de un nodo concreto.
+// Devuelve { yaParticipa } / { duplicada } / ... en vez de lanzar, para que
+// el controller responda con un mensaje entendible.
+async function crear({ idProyecto, idUsuario, funcion, motivo, tipoNodo, idNodo }, db) {
   const conn = db || pool;
+  const esDeNodo = !!(tipoNodo && idNodo);
 
+  // Participar en TODO el proyecto vuelve innecesaria cualquier solicitud,
+  // también la de una etapa suelta: quien ya está adentro ya puede
+  // trabajar ahí. Se avisa en vez de crear una solicitud que nadie
+  // necesita resolver.
   const { rows: participa } = await conn.query(
     `SELECT rol, estado FROM proyecto_usuarios
      WHERE id_proyecto = $1 AND id_usuario = $2 AND estado IN ('aceptada', 'pendiente')`,
@@ -37,18 +43,37 @@ async function crear({ idProyecto, idUsuario, funcion, motivo }, db) {
       : { invitacionPendiente: true, funcion: participa[0].rol };
   }
 
-  const { rows: abierta } = await conn.query(
-    `SELECT id FROM solicitudes_participacion
-     WHERE id_proyecto = $1 AND id_usuario = $2 AND estado = 'pendiente'`,
-    [idProyecto, idUsuario]
-  );
+  if (esDeNodo) {
+    const { rows: enNodo } = await conn.query(
+      `SELECT rol, estado FROM nodo_miembros
+       WHERE tipo_nodo = $1 AND id_nodo = $2 AND id_usuario = $3
+         AND estado IN ('aceptada', 'pendiente')`,
+      [tipoNodo, idNodo, idUsuario]
+    );
+    if (enNodo[0]) {
+      return enNodo[0].estado === 'aceptada'
+        ? { yaParticipaEnNodo: true, funcion: enNodo[0].rol }
+        : { invitacionPendiente: true, funcion: enNodo[0].rol };
+    }
+  }
+
+  const { rows: abierta } = await conn.query(`
+    SELECT id FROM solicitudes_participacion
+    WHERE id_usuario = $1 AND estado = 'pendiente'
+      AND ($2::uuid IS NULL AND id_nodo IS NULL AND id_proyecto = $3
+           OR $2::uuid IS NOT NULL AND id_nodo = $2::uuid)
+  `, [idUsuario, esDeNodo ? idNodo : null, idProyecto]);
   if (abierta[0]) return { duplicada: true };
 
   const { rows } = await conn.query(`
-    INSERT INTO solicitudes_participacion (id_proyecto, id_usuario, funcion, motivo)
-    VALUES ($1, $2, $3, $4)
+    INSERT INTO solicitudes_participacion
+      (id_proyecto, id_usuario, funcion, motivo, tipo_nodo, id_nodo)
+    VALUES ($1, $2, $3, $4, $5, $6)
     RETURNING *
-  `, [idProyecto, idUsuario, funcion || 'colaborador', (motivo || '').trim() || null]);
+  `, [
+    idProyecto, idUsuario, funcion || 'colaborador', (motivo || '').trim() || null,
+    esDeNodo ? tipoNodo : null, esDeNodo ? idNodo : null,
+  ]);
   return { solicitud: rows[0] };
 }
 
@@ -59,7 +84,12 @@ async function listarDeProyecto(idProyecto, estado, db) {
   const params = estado ? [idProyecto, estado] : [idProyecto];
   const { rows } = await conn.query(`
     SELECT s.*, u.nombre_completo, u.correo, u.cargo, u.rol AS perfil,
-           dg.siglas AS dg_siglas
+           dg.siglas AS dg_siglas,
+           CASE s.tipo_nodo
+             WHEN 'etapa'  THEN (SELECT e.nombre FROM etapas e   WHERE e.id = s.id_nodo)
+             WHEN 'accion' THEN (SELECT a.nombre FROM acciones a WHERE a.id = s.id_nodo)
+             WHEN 'tarea'  THEN (SELECT t.nombre FROM tareas t   WHERE t.id = s.id_nodo)
+           END AS nombre_nodo
     FROM solicitudes_participacion s
     JOIN usuarios u ON u.id = s.id_usuario
     LEFT JOIN direcciones_generales dg ON dg.id = u.id_dg
@@ -73,7 +103,12 @@ async function listarDeProyecto(idProyecto, estado, db) {
 async function listarDeUsuario(idUsuario, db) {
   const conn = db || pool;
   const { rows } = await conn.query(`
-    SELECT s.*, p.nombre AS nombre_proyecto
+    SELECT s.*, p.nombre AS nombre_proyecto,
+           CASE s.tipo_nodo
+             WHEN 'etapa'  THEN (SELECT e.nombre FROM etapas e   WHERE e.id = s.id_nodo)
+             WHEN 'accion' THEN (SELECT a.nombre FROM acciones a WHERE a.id = s.id_nodo)
+             WHEN 'tarea'  THEN (SELECT t.nombre FROM tareas t   WHERE t.id = s.id_nodo)
+           END AS nombre_nodo
     FROM solicitudes_participacion s
     JOIN proyectos p ON p.id = s.id_proyecto AND p.deleted_at IS NULL
     WHERE s.id_usuario = $1
@@ -117,7 +152,16 @@ async function responder({ idSolicitud, idQuienResuelve, acepta, motivoRespuesta
     const solicitud = rows[0];
     if (!solicitud) { await client.query('ROLLBACK'); return null; }
 
-    if (acepta) {
+    if (acepta && solicitud.id_nodo) {
+      // Solicitud de una etapa, acción o tarea: la participación se crea
+      // en ese nodo, no en el proyecto entero. Es justo lo que se pidió.
+      await client.query(`
+        INSERT INTO nodo_miembros (tipo_nodo, id_nodo, id_usuario, rol, id_invitado_por, estado)
+        VALUES ($1, $2, $3, $4, $5, 'aceptada')
+        ON CONFLICT (tipo_nodo, id_nodo, id_usuario) DO UPDATE
+          SET rol = EXCLUDED.rol, estado = 'aceptada', motivo_rechazo = NULL
+      `, [solicitud.tipo_nodo, solicitud.id_nodo, solicitud.id_usuario, solicitud.funcion, idQuienResuelve]);
+    } else if (acepta) {
       await client.query(`
         INSERT INTO proyecto_usuarios (id_proyecto, id_usuario, rol, invitado_por, estado, aceptado_en)
         VALUES ($1, $2, $3, $4, 'aceptada', NOW())
@@ -194,7 +238,12 @@ async function pendientesQuePuedeResolver(usuario, db) {
   const { rows } = await conn.query(`
     SELECT s.*, u.nombre_completo, u.correo, u.cargo, u.rol AS perfil,
            dg.siglas AS dg_siglas,
-           p.nombre AS nombre_proyecto
+           p.nombre AS nombre_proyecto,
+           CASE s.tipo_nodo
+             WHEN 'etapa'  THEN (SELECT e.nombre FROM etapas e   WHERE e.id = s.id_nodo)
+             WHEN 'accion' THEN (SELECT a.nombre FROM acciones a WHERE a.id = s.id_nodo)
+             WHEN 'tarea'  THEN (SELECT t.nombre FROM tareas t   WHERE t.id = s.id_nodo)
+           END AS nombre_nodo
     FROM solicitudes_participacion s
     JOIN proyectos p ON p.id = s.id_proyecto AND p.deleted_at IS NULL
     JOIN usuarios u ON u.id = s.id_usuario

@@ -51,7 +51,11 @@ function rel(fecha) {
 // enfocada), se pasa el nombre del elemento seleccionado para no dejarlo
 // ambiguo al cambiar de selección. En el drawer de Diagrama no hace falta
 // (la pestaña ya tiene el título del nodo arriba), así que se omite ahí.
-export default function ActividadStream({ tipo, id, titulo }) {
+// soloLectura: comentar y adjuntar son formas de participar, no de mirar.
+// Quien no fue invitado lee el stream pero no escribe en él; el servidor
+// aplica la misma regla en POST /comentarios y en las evidencias, así que
+// sin esto el compositor existía y la petición fallaba con 403.
+export default function ActividadStream({ tipo, id, titulo, soloLectura = false }) {
   const [items, setItems] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [filtro, setFiltro] = useState('todo');
@@ -154,6 +158,11 @@ export default function ActividadStream({ tipo, id, titulo }) {
       )}
 
       {/* Composer */}
+      {soloLectura ? (
+        <p className="text-[11px] text-gray-400 italic mt-3 pt-3 border-t border-gray-100">
+          Solo consulta. Para comentar o adjuntar aquí necesitas participar en este proyecto.
+        </p>
+      ) : (
       <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-gray-100">
         <label className="p-1.5 text-gray-400 hover:text-guinda-600 cursor-pointer flex-shrink-0">
           <Paperclip size={15} />
@@ -167,6 +176,7 @@ export default function ActividadStream({ tipo, id, titulo }) {
           <Send size={13} /> Enviar
         </button>
       </div>
+      )}
 
       {/* Detalle de un archivo/enlace — antes clic abría/descargaba de una
           vez; ahora muestra sus propiedades (categoría, tipo, subido por,

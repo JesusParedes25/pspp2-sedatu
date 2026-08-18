@@ -6,9 +6,21 @@
  */
 import client from './client';
 
-// Pedir participar. El motivo es opcional.
+// Pedir participar en TODO el proyecto. El motivo es opcional.
 export async function solicitarParticipacion(proyectoId, { funcion = 'colaborador', motivo } = {}) {
   const { data } = await client.post(`/proyectos/${proyectoId}/solicitudes`, { funcion, motivo });
+  return data.datos;
+}
+
+// Pedir participar solo en una etapa, acción o tarea. Es lo que necesita
+// quien aporta a una parte concreta: pedir el proyecto entero sería pedir
+// de más, y quien decide lo nota.
+const RUTA_NODO = { etapa: 'etapas', accion: 'acciones', tarea: 'tareas' };
+
+export async function solicitarParticipacionNodo(tipo, idNodo, { funcion = 'colaborador', motivo } = {}) {
+  const ruta = RUTA_NODO[tipo];
+  if (!ruta) throw new Error(`Tipo de nodo inválido: ${tipo}`);
+  const { data } = await client.post(`/${ruta}/${idNodo}/solicitudes`, { funcion, motivo });
   return data.datos;
 }
 

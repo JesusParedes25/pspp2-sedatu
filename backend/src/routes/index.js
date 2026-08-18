@@ -139,6 +139,9 @@ router.post('/proyectos/:id/importar-csv', exigirEdicionProyecto(), accionesCont
 // designa participantes ahí (se verifica dentro del controller).
 router.post('/proyectos/:id/solicitudes', solicitudesController.crear);
 router.get('/proyectos/:id/solicitudes', solicitudesController.listarDeProyecto);
+router.post('/etapas/:etapaId/solicitudes', solicitudesController.crear);
+router.post('/acciones/:accionId/solicitudes', solicitudesController.crear);
+router.post('/tareas/:tareaId/solicitudes', solicitudesController.crear);
 router.get('/mis-solicitudes', solicitudesController.mias);
 router.get('/solicitudes-por-resolver', solicitudesController.porResolver);
 router.post('/solicitudes/:id/responder', solicitudesController.responder);

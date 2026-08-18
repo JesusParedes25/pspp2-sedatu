@@ -18,24 +18,74 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const solicitudesQueries = require('../db/queries/solicitudes.queries');
-const { puedeGestionarParticipantes } = require('../utils/autorizacion');
+const { puedeGestionarParticipantes, obtenerProyectoIdDeNodo } = require('../utils/autorizacion');
 const { crearNotificacion } = require('../utils/notificaciones');
 const pool = require('../db/pool');
 
 const FUNCIONES = ['responsable', 'colaborador'];
+// 'invitado' —ver sin capturar— solo tiene sentido en un nodo y para gente
+// ajena a la Secretaría; a nivel proyecto no existe.
+const FUNCIONES_NODO = ['responsable', 'colaborador', 'invitado'];
+
+const ETIQUETA_NODO = { etapa: 'la etapa', accion: 'la acción', tarea: 'la tarea' };
+
+// De qué nodo habla la ruta. Las rutas de nodo son
+// POST /etapas|acciones|tareas/:id/solicitudes.
+function nodoDeLaRuta(req) {
+  if (req.params.etapaId) return { tipoNodo: 'etapa', idNodo: req.params.etapaId };
+  if (req.params.accionId) return { tipoNodo: 'accion', idNodo: req.params.accionId };
+  if (req.params.tareaId) return { tipoNodo: 'tarea', idNodo: req.params.tareaId };
+  return {};
+}
 
 async function nombreProyecto(idProyecto) {
   const { rows } = await pool.query('SELECT nombre FROM proyectos WHERE id = $1', [idProyecto]);
   return rows[0]?.nombre || 'un proyecto';
 }
 
-// POST /proyectos/:id/solicitudes — { funcion, motivo }
+const TABLA_NODO = { etapa: 'etapas', accion: 'acciones', tarea: 'tareas' };
+
+async function nombreNodo(tipoNodo, idNodo) {
+  const tabla = TABLA_NODO[tipoNodo];
+  if (!tabla || !idNodo) return null;
+  const { rows } = await pool.query(`SELECT nombre FROM ${tabla} WHERE id = $1`, [idNodo]);
+  return rows[0]?.nombre || null;
+}
+
+// "la etapa «Diagnóstico» del proyecto «X»" o "el proyecto «X»", según el
+// alcance. Se arma una vez y se reutiliza en los dos avisos (el que llega
+// a quien decide y el que vuelve a quien pidió).
+function describirDestino({ esDeNodo, tipoNodo, nombreDelNodo, nombreDelProyecto }) {
+  return esDeNodo
+    ? `${ETIQUETA_NODO[tipoNodo]} "${nombreDelNodo || 'sin nombre'}" del proyecto "${nombreDelProyecto}"`
+    : `el proyecto "${nombreDelProyecto}"`;
+}
+
+// POST /proyectos/:id/solicitudes                      — { funcion, motivo }
+// POST /etapas|acciones|tareas/:id/solicitudes          — { funcion, motivo }
+//
+// Mismo endpoint conceptual con dos alcances: todo el proyecto, o solo la
+// parte donde la persona tiene algo que aportar. Pedir el proyecto entero
+// cuando solo se va a trabajar en una etapa es pedir de más, y quien
+// decide lo nota.
 async function crear(req, res, next) {
   try {
-    const idProyecto = req.params.id;
+    const { tipoNodo, idNodo } = nodoDeLaRuta(req);
+    const esDeNodo = !!tipoNodo;
     const { funcion, motivo } = req.body || {};
-    if (funcion && !FUNCIONES.includes(funcion)) {
-      return res.status(400).json({ error: true, mensaje: `funcion debe ser una de: ${FUNCIONES.join(', ')}` });
+
+    const permitidas = esDeNodo ? FUNCIONES_NODO : FUNCIONES;
+    if (funcion && !permitidas.includes(funcion)) {
+      return res.status(400).json({ error: true, mensaje: `funcion debe ser una de: ${permitidas.join(', ')}` });
+    }
+
+    // De un nodo se sube al proyecto: es lo que determina quién decide y a
+    // quién avisar, y de paso confirma que el nodo existe.
+    const idProyecto = esDeNodo
+      ? await obtenerProyectoIdDeNodo(tipoNodo, idNodo)
+      : req.params.id;
+    if (!idProyecto) {
+      return res.status(404).json({ error: true, mensaje: 'No se encontró el proyecto de este elemento', codigo: 'NO_ENCONTRADO' });
     }
 
     const { rows: existe } = await pool.query(
@@ -46,13 +96,22 @@ async function crear(req, res, next) {
     }
 
     const resultado = await solicitudesQueries.crear({
-      idProyecto, idUsuario: req.usuario.id, funcion, motivo,
+      idProyecto, idUsuario: req.usuario.id, funcion, motivo, tipoNodo, idNodo,
     });
+
+    if (resultado.yaParticipaEnNodo) {
+      return res.status(409).json({
+        error: true, codigo: 'YA_PARTICIPA_EN_NODO',
+        mensaje: `Ya participas aquí como ${resultado.funcion}.`,
+      });
+    }
 
     if (resultado.yaParticipa) {
       return res.status(409).json({
         error: true, codigo: 'YA_PARTICIPA',
-        mensaje: `Ya participas en este proyecto como ${resultado.funcion}.`,
+        mensaje: esDeNodo
+          ? `Ya participas en todo el proyecto como ${resultado.funcion}, así que ya puedes trabajar aquí.`
+          : `Ya participas en este proyecto como ${resultado.funcion}.`,
       });
     }
     if (resultado.invitacionPendiente) {
@@ -70,16 +129,20 @@ async function crear(req, res, next) {
 
     // Avisar a quienes pueden resolverla.
     const nombre = await nombreProyecto(idProyecto);
+    const nombreDelNodo = esDeNodo ? await nombreNodo(tipoNodo, idNodo) : null;
+    const destino = describirDestino({ esDeNodo, tipoNodo, nombreDelNodo, nombreDelProyecto: nombre });
     const destinatarios = await solicitudesQueries.destinatariosDe(idProyecto);
     const textoMotivo = resultado.solicitud.motivo ? ` Motivo: ${resultado.solicitud.motivo}` : '';
     for (const idUsuario of destinatarios) {
       if (idUsuario === req.usuario.id) continue;
       await crearNotificacion({
         tipo: 'Solicitud',
-        mensaje: `${req.usuario.nombre_completo} solicita participar en el proyecto "${nombre}" `
+        mensaje: `${req.usuario.nombre_completo} solicita participar en ${destino} `
           + `como ${resultado.solicitud.funcion}.${textoMotivo}`,
-        entidadTipo: 'Proyecto',
-        entidadId: idProyecto,
+        // Se apunta al nodo cuando lo hay: al hacer clic, quien decide cae
+        // exactamente en la etapa de la que le están hablando.
+        entidadTipo: esDeNodo ? ({ etapa: 'Etapa', accion: 'Accion', tarea: 'Tarea' })[tipoNodo] : 'Proyecto',
+        entidadId: esDeNodo ? idNodo : idProyecto,
         idUsuario,
       });
     }
@@ -155,14 +218,21 @@ async function responder(req, res, next) {
     }
 
     const nombre = await nombreProyecto(solicitud.id_proyecto);
+    const esDeNodo = !!solicitud.id_nodo;
+    const destino = describirDestino({
+      esDeNodo,
+      tipoNodo: solicitud.tipo_nodo,
+      nombreDelNodo: await nombreNodo(solicitud.tipo_nodo, solicitud.id_nodo),
+      nombreDelProyecto: nombre,
+    });
     const base = acepta
-      ? `${req.usuario.nombre_completo} aceptó tu solicitud: ya participas en el proyecto "${nombre}" como ${resuelta.funcion}.`
-      : `${req.usuario.nombre_completo} declinó tu solicitud para participar en el proyecto "${nombre}".`;
+      ? `${req.usuario.nombre_completo} aceptó tu solicitud: ya participas en ${destino} como ${resuelta.funcion}.`
+      : `${req.usuario.nombre_completo} declinó tu solicitud para participar en ${destino}.`;
     await crearNotificacion({
       tipo: 'RespuestaSolicitud',
       mensaje: resuelta.motivo_respuesta ? `${base} ${resuelta.motivo_respuesta}` : base,
-      entidadTipo: 'Proyecto',
-      entidadId: solicitud.id_proyecto,
+      entidadTipo: esDeNodo ? ({ etapa: 'Etapa', accion: 'Accion', tarea: 'Tarea' })[solicitud.tipo_nodo] : 'Proyecto',
+      entidadId: esDeNodo ? solicitud.id_nodo : solicitud.id_proyecto,
       idUsuario: solicitud.id_usuario,
     });
 
