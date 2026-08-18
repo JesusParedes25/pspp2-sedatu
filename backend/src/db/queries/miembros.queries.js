@@ -94,6 +94,24 @@ async function invitacionesPendientes(usuarioId) {
   return rows;
 }
 
+// ¿Esta persona es el ÚNICO responsable aceptado del proyecto?
+//
+// Un proyecto sin responsable se queda sin dueño: nadie a quien avisarle
+// las solicitudes de participación, nadie que designe participantes.
+// Se puede llegar ahí por tres caminos —quitarlo, que se quite él mismo,
+// o degradarlo a colaborador— y ninguno estaba cerrado. Esta consulta es
+// el freno común a los tres.
+async function esUnicoResponsable(proyectoId, usuarioId, db) {
+  const conn = db || pool;
+  const { rows } = await conn.query(`
+    SELECT count(*)::int AS total,
+           count(*) FILTER (WHERE id_usuario = $2)::int AS incluye_a_esta
+    FROM proyecto_usuarios
+    WHERE id_proyecto = $1 AND rol = 'responsable' AND estado = 'aceptada'
+  `, [proyectoId, usuarioId]);
+  return rows[0].total === 1 && rows[0].incluye_a_esta === 1;
+}
+
 async function eliminarMiembro(proyectoId, usuarioId) {
   const { rowCount } = await pool.query(
     'DELETE FROM proyecto_usuarios WHERE id_proyecto = $1 AND id_usuario = $2',
@@ -229,6 +247,7 @@ module.exports = {
   agregarMiembro,
   eliminarMiembro,
   obtenerRolUsuario,
+  esUnicoResponsable,
   responderInvitacion,
   invitacionesPendientes,
   tieneAcceso,

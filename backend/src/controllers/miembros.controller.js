@@ -114,6 +114,16 @@ async function agregarMiembro(req, res, next) {
       return res.status(403).json({ mensaje: 'No tienes permisos para gestionar miembros' });
     }
 
+    // Cambiar la función del único responsable a 'colaborador' deja el
+    // proyecto sin dueño igual que quitarlo. Mismo freno.
+    if (rol !== 'responsable' && await miembrosQueries.esUnicoResponsable(req.params.id, id_usuario)) {
+      return res.status(409).json({
+        error: true,
+        codigo: 'ULTIMO_RESPONSABLE',
+        mensaje: 'Este proyecto se quedaría sin responsable. Designa antes a otra persona como responsable y vuelve a intentarlo.',
+      });
+    }
+
     const miembro = await miembrosQueries.agregarMiembro(req.params.id, id_usuario, rol, req.usuario.id);
     await registrarActividad({ id_proyecto: req.params.id, id_usuario: req.usuario.id, tipo: 'miembro', titulo: 'Nuevo miembro agregado al proyecto', entidad_tipo: 'proyecto', entidad_id: req.params.id, metadata: { id_usuario_nuevo: id_usuario, rol } });
     await notificarNuevoMiembro(req.params.id, id_usuario, rol, req.usuario.nombre_completo);
@@ -129,6 +139,17 @@ async function eliminarMiembro(req, res, next) {
     if (!puedeGestionar) {
       return res.status(403).json({ mensaje: 'No tienes permisos para eliminar miembros' });
     }
+    // Ningún proyecto debe quedarse sin responsable: sin él no hay a quién
+    // avisarle las solicitudes ni quién designe participantes. Aplica
+    // también cuando alguien se quita a sí mismo.
+    if (await miembrosQueries.esUnicoResponsable(id, userId)) {
+      return res.status(409).json({
+        error: true,
+        codigo: 'ULTIMO_RESPONSABLE',
+        mensaje: 'Este proyecto se quedaría sin responsable. Designa antes a otra persona como responsable y vuelve a intentarlo.',
+      });
+    }
+
     const eliminado = await miembrosQueries.eliminarMiembro(id, userId);
     if (!eliminado) return res.status(404).json({ mensaje: 'Miembro no encontrado' });
     res.json({ mensaje: 'Miembro eliminado del proyecto' });
