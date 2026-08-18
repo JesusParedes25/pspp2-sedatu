@@ -22,6 +22,7 @@ const errorHandler = require('./middleware/errorHandler');
 const { ejecutarMigraciones } = require('./db/migrate');
 const ejecutarSeeders = require('./db/seeders/index');
 const asegurarSuperAdmin = require('./db/seeders/00_superadmin');
+const asegurarEstructura = require('./db/seeders/00_estructura');
 const asegurarProgramas = require('./db/seeders/00_programas');
 const { iniciarPurgaAutomatica } = require('./utils/purgarProyectos');
 const { iniciarAlertasAutomaticas } = require('./utils/alertasVencimiento');
@@ -79,10 +80,13 @@ async function iniciar() {
   try {
     await ejecutarMigraciones();
     await asegurarSuperAdmin();
-    // El catálogo de programas presupuestarios (Ramo 15) también corre
-    // siempre: no es dato de demostración sino la lista real que el
-    // formulario de proyecto necesita para poder vincular un Pp. Solo
-    // inserta las claves que falten, nunca reescribe las que ya están.
+    // Los dos catálogos institucionales corren siempre, producción
+    // incluida: no son datos de demostración sino las listas reales que
+    // la plataforma necesita —la estructura de SEDATU para dar de alta
+    // usuarios y asignar áreas, y los Pp del Ramo 15 para vincular un
+    // proyecto a su programa. Ambos AGREGAN lo que falte y nunca
+    // reescriben lo que ya está capturado.
+    await asegurarEstructura();
     await asegurarProgramas();
     // CRÍTICO: los seeders insertan/actualizan usuarios de demo (contraseña
     // conocida "demo2026") y proyectos de ejemplo con ON CONFLICT DO UPDATE.
