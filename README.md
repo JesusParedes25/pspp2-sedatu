@@ -107,20 +107,34 @@ Mantener un solo nombre evita sorpresas.
 cd ~/pspp2-sedatu
 git pull
 
-# 1. Migraciones primero, en un contenedor de un solo uso: ajustan el
-#    esquema sin tumbar el backend que está atendiendo. Son aditivas e
-#    idempotentes; correrlas de más no hace nada.
+# 1. Construir la imagen ANTES de migrar. El código va horneado dentro
+#    de la imagen, así que un contenedor levantado sobre la imagen vieja
+#    no tiene los archivos de migración recién bajados y reportaría
+#    "nada nuevo que aplicar" sin haber aplicado nada.
+docker compose -f docker-compose.prod.yml build backend
+
+# 2. Migrar en un contenedor de un solo uso, ya con la imagen nueva:
+#    ajusta el esquema sin tumbar el backend que sigue atendiendo. Las
+#    migraciones son aditivas e idempotentes; correrlas de más no hace
+#    nada.
 docker compose -f docker-compose.prod.yml run --rm backend npm run migrate
 
-# 2. Reconstruir lo que cambió (si el cambio toca ambos, los dos)
-docker compose -f docker-compose.prod.yml build backend
+# 3. Recrear el backend (y el frontend si el cambio lo toca)
 docker compose -f docker-compose.prod.yml up -d backend
 docker compose -f docker-compose.prod.yml build frontend-build
 docker compose -f docker-compose.prod.yml up -d frontend-build
 
-# 3. OBLIGATORIO tras recrear backend (ver la regla de Nginx más abajo)
+# 4. OBLIGATORIO tras recrear backend (ver la regla de Nginx más abajo)
 docker compose -f docker-compose.prod.yml restart nginx
 ```
+
+> **Por qué el orden importa.** El backend corre las migraciones también
+> al arrancar, así que aunque el paso 2 se salte o falle, el esquema
+> termina al día en cuanto el contenedor nuevo levanta. El paso 2 existe
+> para migrar **antes** de cambiar el contenedor en servicio: es lo que
+> permite que una migración pesada o delicada corra con el backend viejo
+> todavía atendiendo peticiones. Ese beneficio se pierde si se corre
+> sobre la imagen vieja — de ahí que el `build` vaya primero.
 
 `frontend-build` es un contenedor de un solo uso: compila con
 `npm run build`, copia `dist/` al volumen `frontend_build` que Nginx

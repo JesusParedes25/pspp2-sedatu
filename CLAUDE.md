@@ -45,10 +45,16 @@ git pull
 
 # Si cambió código de backend (controllers, queries, etc.):
 docker compose -f docker-compose.prod.yml build backend
-docker compose -f docker-compose.prod.yml up -d backend
 
-# Si hay una migración nueva:
-docker compose -f docker-compose.prod.yml exec backend npm run migrate
+# Si hay una migración nueva, correrla DESPUÉS del build y ANTES del
+# `up -d`: el código va horneado en la imagen, así que `run --rm` sobre
+# la imagen vieja no ve los archivos recién bajados y dice "nada nuevo
+# que aplicar" sin aplicar nada. (El backend migra también al arrancar,
+# así que el esquema termina al día igual; este paso es para migrar con
+# el backend viejo todavía atendiendo.)
+docker compose -f docker-compose.prod.yml run --rm backend npm run migrate
+
+docker compose -f docker-compose.prod.yml up -d backend
 
 # Si cambió código de frontend:
 docker compose -f docker-compose.prod.yml build frontend-build
