@@ -121,7 +121,7 @@ export default function BotonSolicitarParticipar({ proyecto, permisos, nodo = nu
             <div className="px-5 py-4 space-y-3">
               <p className="text-xs text-gray-500 leading-snug">
                 {esDeNodo ? (
-                  <>Pedirás acceso solo a <strong>«{nodo.nombre}»</strong> y a lo que cuelga de ahí, no a todo el proyecto.
+                  <>Pedirás acceso solo a <strong>«{nodo.nombre}»</strong> y a los elementos que dependen de ella, no a todo el proyecto.
                   {' '}Tu solicitud le llegará a quien coordina {nombreProyecto === 'este proyecto' ? nombreProyecto : `«${nombreProyecto}»`}.</>
                 ) : (
                   <>Tu solicitud le llegará a quien coordina {nombreProyecto === 'este proyecto' ? nombreProyecto : `«${nombreProyecto}»`}.</>

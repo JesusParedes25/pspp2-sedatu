@@ -37,7 +37,7 @@ function rutaDe(inv) {
   return `/proyectos/${inv.id_proyecto}?tab=seguimiento&nodo=${inv.id_nodo}`;
 }
 
-export default function InvitacionesPendientes({ invitaciones, onRespondida }) {
+export default function InvitacionesPendientes({ invitaciones, onRespondida, ocultarEncabezado = false }) {
   const navigate = useNavigate();
   const [rechazando, setRechazando] = useState(null);   // la invitación en curso
   const [motivo, setMotivo] = useState('');
@@ -69,13 +69,15 @@ export default function InvitacionesPendientes({ invitaciones, onRespondida }) {
 
   return (
     <section className="space-y-2">
-      <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-        <UserPlus size={15} className="text-guinda-600" />
-        Invitaciones por responder
-        <span className="text-[10px] font-medium bg-guinda-100 text-guinda-700 rounded-full px-1.5 py-0.5">
-          {invitaciones.length}
-        </span>
-      </h2>
+      {!ocultarEncabezado && (
+        <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+          <UserPlus size={15} className="text-guinda-600" />
+          Invitaciones por responder
+          <span className="text-[10px] font-medium bg-guinda-100 text-guinda-700 rounded-full px-1.5 py-0.5">
+            {invitaciones.length}
+          </span>
+        </h2>
+      )}
 
       {invitaciones.map(inv => {
         const enRechazo = rechazando === clave(inv);

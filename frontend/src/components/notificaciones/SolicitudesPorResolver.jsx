@@ -39,7 +39,7 @@ function rutaDe(sol) {
     : `/proyectos/${sol.id_proyecto}`;
 }
 
-export default function SolicitudesPorResolver({ solicitudes, onRespondida }) {
+export default function SolicitudesPorResolver({ solicitudes, onRespondida, ocultarEncabezado = false }) {
   const navigate = useNavigate();
   const [declinando, setDeclinando] = useState(null);
   const [motivo, setMotivo] = useState('');
@@ -64,13 +64,15 @@ export default function SolicitudesPorResolver({ solicitudes, onRespondida }) {
 
   return (
     <section className="space-y-2">
-      <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-        <MailQuestion size={15} className="text-blue-600" />
-        Solicitudes de participación
-        <span className="text-[10px] font-medium bg-blue-100 text-blue-700 rounded-full px-1.5 py-0.5">
-          {solicitudes.length}
-        </span>
-      </h2>
+      {!ocultarEncabezado && (
+        <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+          <MailQuestion size={15} className="text-blue-600" />
+          Solicitudes de participación
+          <span className="text-[10px] font-medium bg-blue-100 text-blue-700 rounded-full px-1.5 py-0.5">
+            {solicitudes.length}
+          </span>
+        </h2>
+      )}
 
       {solicitudes.map(sol => {
         const enDeclive = declinando === sol.id;
@@ -94,7 +96,7 @@ export default function SolicitudesPorResolver({ solicitudes, onRespondida }) {
             <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
               {sol.id_nodo ? <CornerDownRight size={12} /> : <Layers size={12} />}
               {sol.id_nodo
-                ? <>Solo esa parte de <span className="font-medium">«{sol.nombre_proyecto}»</span> y lo que cuelga de ella</>
+                ? <>Solo esa parte de <span className="font-medium">«{sol.nombre_proyecto}»</span> y los elementos que dependen de ella</>
                 : <>Todo el proyecto <span className="font-medium">«{sol.nombre_proyecto}»</span></>}
             </p>
 
