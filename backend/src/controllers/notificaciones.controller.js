@@ -14,6 +14,43 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const notificacionesQueries = require('../db/queries/notificaciones.queries');
+const miembrosQueries = require('../db/queries/miembros.queries');
+const solicitudesQueries = require('../db/queries/solicitudes.queries');
+
+// GET /notificaciones/resumen — para la campanita del header.
+//
+// La campanita solo contaba avisos sin leer (tabla `notificaciones`),
+// pero una invitación o una solicitud por resolver no son avisos: son
+// pendientes que requieren una acción, y viven en sus propias tablas.
+// Alguien con una solicitud esperando veía la campanita en cero y
+// pensaba que no había nada — el número tiene que sumar las tres cosas
+// para que sea confiable.
+//
+// Se reutilizan las mismas consultas que ya arman la página de
+// Notificaciones (invitacionesPendientes, pendientesQuePuedeResolver) en
+// vez de escribir un COUNT(*) aparte con el mismo WHERE duplicado: si la
+// regla de quién puede resolver una solicitud cambia, esta cuenta cambia
+// sola con ella en lugar de quedarse atrás.
+async function resumen(req, res, next) {
+  try {
+    const [noLeidas, invitaciones, solicitudes] = await Promise.all([
+      notificacionesQueries.contarNoLeidasParaCampanita(req.usuario.id),
+      miembrosQueries.invitacionesPendientes(req.usuario.id),
+      solicitudesQueries.pendientesQuePuedeResolver(req.usuario),
+    ]);
+
+    const datos = {
+      no_leidas: noLeidas,
+      invitaciones: invitaciones.length,
+      solicitudes: solicitudes.length,
+    };
+    datos.total = datos.no_leidas + datos.invitaciones + datos.solicitudes;
+
+    res.json({ datos, mensaje: 'Resumen de pendientes' });
+  } catch (err) {
+    next(err);
+  }
+}
 
 // GET /notificaciones — Listar notificaciones del usuario autenticado
 async function listar(req, res, next) {
@@ -59,4 +96,4 @@ async function marcarTodasLeidas(req, res, next) {
   }
 }
 
-module.exports = { listar, marcarLeida, marcarTodasLeidas };
+module.exports = { resumen, listar, marcarLeida, marcarTodasLeidas };

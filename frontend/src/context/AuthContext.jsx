@@ -20,6 +20,12 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [usuario, setUsuario] = useState(null);
   const [cargando, setCargando] = useState(true);
+  // Se enciende SOLO cuando login() acaba de completarse en esta pestaña —
+  // nunca al restaurar una sesión guardada al recargar la página. Es la
+  // señal que usa ModalPendientesInicioSesion para aparecer una vez por
+  // inicio de sesión real, no en cada refresh mientras ya se estaba
+  // trabajando.
+  const [sesionRecienIniciada, setSesionRecienIniciada] = useState(false);
 
   // Al montar, verificar si hay una sesión guardada en localStorage
   useEffect(() => {
@@ -46,6 +52,7 @@ export function AuthProvider({ children }) {
     localStorage.setItem('pspp_token', token);
     localStorage.setItem('pspp_usuario', JSON.stringify(datosUsuario));
     setUsuario(datosUsuario);
+    setSesionRecienIniciada(true);
 
     return datosUsuario;
   }
@@ -55,6 +62,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('pspp_token');
     localStorage.removeItem('pspp_usuario');
     setUsuario(null);
+    setSesionRecienIniciada(false);
   }
 
   const valor = {
@@ -62,7 +70,12 @@ export function AuthProvider({ children }) {
     cargando,
     login,
     logout,
-    estaAutenticado: !!usuario
+    estaAutenticado: !!usuario,
+    sesionRecienIniciada,
+    // El modal de pendientes llama esto en cuanto se muestra (o decide que
+    // no tiene nada que mostrar), para que no vuelva a aparecer el resto
+    // de la sesión sin que haya un login nuevo de por medio.
+    marcarSesionVista: () => setSesionRecienIniciada(false),
   };
 
   return (

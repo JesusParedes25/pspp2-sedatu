@@ -146,6 +146,7 @@ router.post('/acciones/:accionId/solicitudes', solicitudesController.crear);
 router.post('/tareas/:tareaId/solicitudes', solicitudesController.crear);
 router.get('/mis-solicitudes', solicitudesController.mias);
 router.get('/solicitudes-por-resolver', solicitudesController.porResolver);
+router.get('/solicitudes-resueltas', solicitudesController.resueltasPorMi);
 router.post('/solicitudes/:id/responder', solicitudesController.responder);
 
 // Invitaciones internas: las que el usuario tiene sin responder y su

@@ -41,3 +41,12 @@ export async function responderSolicitud(idSolicitud, respuesta, motivo) {
   const { data } = await client.post(`/solicitudes/${idSolicitud}/responder`, { respuesta, motivo });
   return data.datos;
 }
+
+// Las que YO ya resolví, aceptadas o declinadas, más recientes primero. Es
+// el historial que le falta a la bandeja: en cuanto se resuelve una
+// solicitud, desaparece de solicitudesPorResolver() y sin esto no queda
+// ningún rastro de qué se decidió.
+export async function solicitudesResueltas() {
+  const { data } = await client.get('/solicitudes-resueltas');
+  return data.datos;
+}

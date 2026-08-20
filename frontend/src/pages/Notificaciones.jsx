@@ -19,16 +19,17 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
   Bell, CheckCheck, Clock, AlertTriangle, MessageSquare, FileText,
   UserPlus, MailCheck, Ban, MailQuestion,
 } from 'lucide-react';
 import { useNotificaciones } from '../hooks/useNotificaciones';
 import { misInvitaciones } from '../api/miembros';
-import { solicitudesPorResolver } from '../api/solicitudes';
+import { solicitudesPorResolver, solicitudesResueltas } from '../api/solicitudes';
 import InvitacionesPendientes from '../components/notificaciones/InvitacionesPendientes';
 import SolicitudesPorResolver from '../components/notificaciones/SolicitudesPorResolver';
+import SolicitudesResueltas from '../components/notificaciones/SolicitudesResueltas';
 import EmptyState from '../components/common/EmptyState';
 
 const iconosPorTipo = {
@@ -58,9 +59,16 @@ function rutaDe(n) {
 
 export default function Notificaciones() {
   const navigate = useNavigate();
+  // Compartido con Header vía Layout: cualquier acción que se resuelva
+  // aquí (leer un aviso, aceptar una invitación o una solicitud) tiene
+  // que reflejarse en la campanita al instante, no en el siguiente
+  // polling de 30s — si no, alguien podría creer que su clic no surtió
+  // efecto.
+  const { recargarResumen } = useOutletContext() || {};
   const { notificaciones, noLeidas, cargando, marcarLeida, marcarTodasLeidas } = useNotificaciones();
   const [invitaciones, setInvitaciones] = useState([]);
   const [solicitudes, setSolicitudes] = useState([]);
+  const [resueltas, setResueltas] = useState([]);
 
   const cargarInvitaciones = useCallback(async () => {
     try { setInvitaciones(await misInvitaciones()); } catch { /* buzón vacío */ }
@@ -70,12 +78,38 @@ export default function Notificaciones() {
     try { setSolicitudes(await solicitudesPorResolver()); } catch { /* nada que resolver */ }
   }, []);
 
-  useEffect(() => { cargarInvitaciones(); cargarSolicitudes(); }, [cargarInvitaciones, cargarSolicitudes]);
+  const cargarResueltas = useCallback(async () => {
+    try { setResueltas(await solicitudesResueltas()); } catch { /* sin historial todavía */ }
+  }, []);
+
+  useEffect(() => {
+    cargarInvitaciones(); cargarSolicitudes(); cargarResueltas();
+  }, [cargarInvitaciones, cargarSolicitudes, cargarResueltas]);
+
+  function alResponderInvitacion() {
+    cargarInvitaciones();
+    recargarResumen?.();
+  }
+
+  // Al resolver una solicitud pendiente, se cae de esa lista y hay que
+  // recargar el historial para que aparezca ahí de inmediato — si no, la
+  // decisión que se acaba de tomar parece esfumarse hasta el próximo
+  // refresh de la página.
+  function alResolverSolicitud() {
+    cargarSolicitudes();
+    cargarResueltas();
+    recargarResumen?.();
+  }
 
   function abrir(n) {
-    if (!n.leida) marcarLeida(n.id);
+    if (!n.leida) { marcarLeida(n.id); recargarResumen?.(); }
     const ruta = rutaDe(n);
     if (ruta) navigate(ruta);
+  }
+
+  function alMarcarTodasLeidas() {
+    marcarTodasLeidas();
+    recargarResumen?.();
   }
 
   if (cargando) {
@@ -116,7 +150,7 @@ export default function Notificaciones() {
           </p>
         </div>
         {noLeidas > 0 && (
-          <button onClick={marcarTodasLeidas} className="btn-secondary text-xs flex items-center gap-2">
+          <button onClick={alMarcarTodasLeidas} className="btn-secondary text-xs flex items-center gap-2">
             <CheckCheck size={14} />
             Marcar todas como leídas
           </button>
@@ -125,13 +159,15 @@ export default function Notificaciones() {
 
       <InvitacionesPendientes
         invitaciones={invitaciones}
-        onRespondida={cargarInvitaciones}
+        onRespondida={alResponderInvitacion}
       />
 
       <SolicitudesPorResolver
         solicitudes={solicitudes}
-        onRespondida={cargarSolicitudes}
+        onRespondida={alResolverSolicitud}
       />
+
+      <SolicitudesResueltas solicitudes={resueltas} />
 
       {sinNada ? (
         <EmptyState

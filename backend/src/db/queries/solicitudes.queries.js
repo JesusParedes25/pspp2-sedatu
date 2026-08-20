@@ -265,7 +265,30 @@ async function pendientesQuePuedeResolver(usuario, db) {
   return rows;
 }
 
+// Las que ESTE usuario ya resolvió (aceptó o declinó), más recientes
+// primero. Sin esto, en cuanto se resuelve una solicitud desaparece de
+// pendientesQuePuedeResolver y no queda ningún rastro de qué se decidió
+// ni cuándo — quien resolvió no tiene forma de confirmarlo después.
+async function resueltasPorUsuario(usuarioId, limite = 20) {
+  const { rows } = await pool.query(`
+    SELECT s.*, u.nombre_completo, u.correo, u.cargo,
+           p.nombre AS nombre_proyecto,
+           CASE s.tipo_nodo
+             WHEN 'etapa'  THEN (SELECT e.nombre FROM etapas e   WHERE e.id = s.id_nodo)
+             WHEN 'accion' THEN (SELECT a.nombre FROM acciones a WHERE a.id = s.id_nodo)
+             WHEN 'tarea'  THEN (SELECT t.nombre FROM tareas t   WHERE t.id = s.id_nodo)
+           END AS nombre_nodo
+    FROM solicitudes_participacion s
+    JOIN proyectos p ON p.id = s.id_proyecto AND p.deleted_at IS NULL
+    JOIN usuarios u ON u.id = s.id_usuario
+    WHERE s.id_resuelta_por = $1 AND s.estado != 'pendiente'
+    ORDER BY s.respondida_en DESC
+    LIMIT $2
+  `, [usuarioId, limite]);
+  return rows;
+}
+
 module.exports = {
   crear, listarDeProyecto, listarDeUsuario, obtener, responder,
-  destinatariosDe, pendientesQuePuedeResolver,
+  destinatariosDe, pendientesQuePuedeResolver, resueltasPorUsuario,
 };

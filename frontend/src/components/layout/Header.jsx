@@ -13,7 +13,6 @@
  */
 import { useLocation, Link } from 'react-router-dom';
 import { Bell, Search } from 'lucide-react';
-import { useNotificaciones } from '../../hooks/useNotificaciones';
 
 // Mapeo de segmentos de URL a nombres legibles
 const nombresRutas = {
@@ -26,9 +25,8 @@ const nombresRutas = {
   'notificaciones': 'Notificaciones',
 };
 
-export default function Header() {
+export default function Header({ pendientes = 0 }) {
   const location = useLocation();
-  const { noLeidas } = useNotificaciones();
 
   // Generar breadcrumb desde la URL actual
   const segmentos = location.pathname.split('/').filter(Boolean);
@@ -78,9 +76,9 @@ export default function Header() {
           className="relative p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-guinda-500 transition-colors"
         >
           <Bell size={20} />
-          {noLeidas > 0 && (
+          {pendientes > 0 && (
             <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
-              {noLeidas > 9 ? '9+' : noLeidas}
+              {pendientes > 9 ? '9+' : pendientes}
             </span>
           )}
         </Link>

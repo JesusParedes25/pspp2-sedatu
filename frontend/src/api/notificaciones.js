@@ -17,6 +17,16 @@ export async function obtenerNotificaciones() {
   return data;
 }
 
+// Cuenta combinada para la campanita: avisos sin leer + invitaciones
+// pendientes + solicitudes por resolver. Un aviso se lee y se olvida,
+// pero una invitación o una solicitud son pendientes de verdad — si la
+// campanita solo contara avisos, alguien con una solicitud esperando la
+// vería en cero y pensaría que no tiene nada por atender.
+export async function obtenerResumen() {
+  const { data } = await client.get('/notificaciones/resumen');
+  return data.datos;
+}
+
 export async function marcarLeida(id) {
   const { data } = await client.put(`/notificaciones/${id}/leer`);
   return data;

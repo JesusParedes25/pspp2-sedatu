@@ -178,6 +178,16 @@ async function porResolver(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// GET /solicitudes-resueltas — lo que ESTE usuario ya aceptó o declinó,
+// para que quede un rastro de la decisión después de que la tarjeta
+// pendiente desaparece de la bandeja.
+async function resueltasPorMi(req, res, next) {
+  try {
+    const resueltas = await solicitudesQueries.resueltasPorUsuario(req.usuario.id);
+    res.json({ datos: resueltas, mensaje: 'Solicitudes resueltas' });
+  } catch (err) { next(err); }
+}
+
 // POST /solicitudes/:id/responder — { respuesta: 'aceptar'|'declinar', motivo }
 //
 // Declinar NO exige motivo, al revés que rechazar una invitación. La
@@ -240,4 +250,4 @@ async function responder(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { crear, listarDeProyecto, mias, porResolver, responder };
+module.exports = { crear, listarDeProyecto, mias, porResolver, resueltasPorMi, responder };

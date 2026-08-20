@@ -55,10 +55,29 @@ async function obtenerNotificaciones(usuarioId, soloNoLeidas = false) {
   return resultado.rows;
 }
 
-// Cuenta notificaciones no leídas (para el badge del header)
+// Cuenta notificaciones no leídas
 async function contarNoLeidas(usuarioId) {
   const resultado = await pool.query(
     'SELECT COUNT(*) AS total FROM notificaciones WHERE id_usuario = $1 AND leida = false',
+    [usuarioId]
+  );
+  return parseInt(resultado.rows[0].total);
+}
+
+// Igual que contarNoLeidas, pero sin los tipos 'Solicitud' e 'Invitacion'.
+// Los usa el resumen de la campanita (ver notificaciones.controller.js →
+// resumen), que ya suma por separado cuántas invitaciones y solicitudes
+// siguen pendientes de resolver — esas dos SÍ tienen su propia fila en
+// `notificaciones` cuando llegan (para que aparezcan en el historial de
+// avisos), así que sin este filtro el mismo evento se contaría dos
+// veces: una como "aviso sin leer" y otra como "pendiente por resolver".
+// El resultado sería un número inflado que no coincide con cuántas
+// cosas hay realmente por atender.
+async function contarNoLeidasParaCampanita(usuarioId) {
+  const resultado = await pool.query(
+    `SELECT COUNT(*) AS total FROM notificaciones
+     WHERE id_usuario = $1 AND leida = false
+       AND tipo NOT IN ('Solicitud', 'Invitacion')`,
     [usuarioId]
   );
   return parseInt(resultado.rows[0].total);
@@ -91,6 +110,7 @@ async function marcarTodasLeidas(usuarioId) {
 module.exports = {
   obtenerNotificaciones,
   contarNoLeidas,
+  contarNoLeidasParaCampanita,
   marcarLeida,
   marcarTodasLeidas
 };
