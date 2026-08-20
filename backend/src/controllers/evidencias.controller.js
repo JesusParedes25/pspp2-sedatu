@@ -54,6 +54,7 @@ async function resolverProyectoId(tipo, id) {
 
 // Cliente MinIO compartido (ver utils/minio.js — actividad.controller.js reusa el mismo)
 const { minioClient, BUCKET } = require('../utils/minio');
+const { setContentDisposition } = require('../utils/contentDisposition');
 
 // Asegurar que el bucket existe al iniciar
 async function inicializarBucket() {
@@ -301,7 +302,7 @@ async function descargar(req, res, next) {
 
     // Configurar headers de descarga
     res.setHeader('Content-Type', evidencia.tipo_archivo || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `inline; filename="${evidencia.nombre_original}"`);
+    setContentDisposition(res, evidencia.nombre_original || 'archivo', 'inline');
 
     // Stream directo desde MinIO al response
     const stream = await minioClient.getObject(BUCKET, evidencia.ruta_minio);

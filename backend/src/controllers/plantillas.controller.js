@@ -12,6 +12,7 @@
  */
 const pool = require('../db/pool');
 const XLSX = require('xlsx');
+const { setContentDisposition } = require('../utils/contentDisposition');
 
 // ─── GET /plantillas-importacion ───────────────────────────────
 
@@ -241,7 +242,7 @@ async function descargar(req, res, next) {
     const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
     const nombreArchivo = `template-${plantilla.nombre.replace(/\s+/g, '-').toLowerCase()}.xlsx`;
-    res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}"`);
+    setContentDisposition(res, nombreArchivo);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.send(buffer);
   } catch (err) {

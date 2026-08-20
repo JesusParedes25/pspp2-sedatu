@@ -12,6 +12,7 @@ const proyectosQueries = require('../db/queries/proyectos.queries');
 const etapasQueries = require('../db/queries/etapas.queries');
 const avanceSemaforo = require('../utils/avance-semaforo');
 const exportarService = require('../services/exportar.service');
+const { setContentDisposition } = require('../utils/contentDisposition');
 
 async function exportarProyecto(req, res, next) {
   try {
@@ -42,13 +43,13 @@ async function exportarProyecto(req, res, next) {
 
     if (formato === 'csv') {
       const csv = exportarService.construirCsv(etapas);
-      res.setHeader('Content-Disposition', `attachment; filename="${nombreBase}-${fecha}.csv"`);
+      setContentDisposition(res, `${nombreBase}-${fecha}.csv`);
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       return res.send(csv);
     }
 
     const buffer = exportarService.construirXlsx(proyecto, etapas);
-    res.setHeader('Content-Disposition', `attachment; filename="${nombreBase}-${fecha}.xlsx"`);
+    setContentDisposition(res, `${nombreBase}-${fecha}.xlsx`);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.send(buffer);
   } catch (err) {

@@ -11,14 +11,55 @@
 const XLSX = require('xlsx');
 
 /**
+ * Windows-1252 y Latin-1 (ISO-8859-1) NO son lo mismo en el rango
+ * 0x80-0x9F: ahí Windows-1252 tiene caracteres imprimibles reales
+ * (comillas tipográficas, viñeta, y sobre todo el guion largo — muy
+ * común en descripciones de proyecto) mientras que Latin-1 solo tiene
+ * caracteres de control invisibles en esas mismas posiciones. Excel en
+ * Windows guarda "CSV (delimitado por comas)" en Windows-1252, así que
+ * tratarlo como Latin-1 puro no revienta con un error visible: el
+ * archivo se importa "bien" pero pierde en silencio cualquier guion
+ * largo o comilla tipográfica que traiga. Tabla oficial (Unicode
+ * Consortium / WHATWG Encoding Standard) para ese rango:
+ */
+const WINDOWS_1252_0x80_0x9F = {
+  0x80: 0x20AC, 0x82: 0x201A, 0x83: 0x0192, 0x84: 0x201E, 0x85: 0x2026,
+  0x86: 0x2020, 0x87: 0x2021, 0x88: 0x02C6, 0x89: 0x2030, 0x8A: 0x0160,
+  0x8B: 0x2039, 0x8C: 0x0152, 0x8E: 0x017D, 0x91: 0x2018, 0x92: 0x2019,
+  0x93: 0x201C, 0x94: 0x201D, 0x95: 0x2022, 0x96: 0x2013, 0x97: 0x2014,
+  0x98: 0x02DC, 0x99: 0x2122, 0x9A: 0x0161, 0x9B: 0x203A, 0x9C: 0x0153,
+  0x9E: 0x017E, 0x9F: 0x0178,
+  // 0x81, 0x8D, 0x8F, 0x90, 0x9D no están asignados en Windows-1252;
+  // se dejan sin tocar (quedan como el carácter de control de Latin-1,
+  // que es lo más parecido a "byte sin sentido conocido" sin inventar).
+};
+
+function decodificarWindows1252(buffer) {
+  let resultado = '';
+  for (const byte of buffer) {
+    resultado += String.fromCharCode(WINDOWS_1252_0x80_0x9F[byte] || byte);
+  }
+  return resultado;
+}
+
+/**
  * Detecta si un buffer CSV/TSV está en UTF-8 válido.
- * Si no, asume ISO-8859-1 (Latin-1) y lo convierte a UTF-8.
- * Esto corrige acentos y ñ en archivos gubernamentales mexicanos.
+ * Si no, asume Windows-1252 (superconjunto de Latin-1, y lo que Excel
+ * en Windows realmente escribe) y lo convierte a UTF-8. Esto corrige
+ * acentos, ñ y signos tipográficos en archivos gubernamentales
+ * mexicanos.
  */
 function corregirEncodingCSV(buffer) {
-  // Si tiene BOM UTF-8, es UTF-8 seguro
+  // Si tiene BOM UTF-8, el contenido ya es UTF-8 — pero el propio BOM
+  // hay que quitarlo, no solo detectarlo. Dejarlo en el buffer confunde
+  // al parser de SheetJS: no solo aparece como texto pegado al primer
+  // encabezado ("Nombre" → "mbre", perdiendo caracteres), sino que
+  // descuadra la detección de columnas de TODO el archivo (probado:
+  // sin quitar el BOM, hasta la segunda fila del CSV salía con celdas
+  // corridas). Encoding.decode() no hace este trabajo — es un asunto de
+  // dónde caen los bytes, no de qué juego de caracteres son.
   if (buffer[0] === 0xEF && buffer[1] === 0xBB && buffer[2] === 0xBF) {
-    return buffer;
+    return buffer.subarray(3);
   }
 
   // Intentar decodificar como UTF-8 estricto
@@ -27,8 +68,8 @@ function corregirEncodingCSV(buffer) {
     decoder.decode(buffer);
     return buffer; // UTF-8 válido
   } catch {
-    // No es UTF-8 válido → asumir ISO-8859-1 (Latin-1 / Windows-1252)
-    const texto = buffer.toString('latin1');
+    // No es UTF-8 válido → asumir Windows-1252
+    const texto = decodificarWindows1252(buffer);
     return Buffer.from(texto, 'utf-8');
   }
 }

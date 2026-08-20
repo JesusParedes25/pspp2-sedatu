@@ -11,6 +11,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import client from './client';
+import { nombreDeContentDisposition } from '../utils/nombreDescarga';
 
 export async function listarProyectos(filtros = {}) {
   const { data } = await client.get('/proyectos', { params: filtros });
@@ -41,9 +42,8 @@ export async function exportarProyecto(id, formato = 'xlsx') {
     responseType: 'blob',
   });
 
-  const disposition = response.headers['content-disposition'] || '';
-  const coincidencia = disposition.match(/filename="([^"]+)"/);
-  const nombreArchivo = coincidencia ? coincidencia[1] : `proyecto.${formato}`;
+  const nombreArchivo = nombreDeContentDisposition(
+    response.headers['content-disposition'], `proyecto.${formato}`);
 
   const url = URL.createObjectURL(response.data);
   const a = document.createElement('a');

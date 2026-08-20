@@ -6,6 +6,7 @@
  */
 const { v4: uuidv4 } = require('uuid');
 const { minioClient, BUCKET } = require('../utils/minio');
+const { setContentDisposition } = require('../utils/contentDisposition');
 const actividadQueries = require('../db/queries/actividad.queries');
 
 const TIPOS_NODO = ['etapa', 'accion', 'tarea'];
@@ -77,7 +78,7 @@ async function descargar(req, res, next) {
     const { rows } = await actividadQ.query('SELECT archivo_url, archivo_nombre FROM actividad WHERE id = $1', [req.params.id]);
     const fila = rows[0];
     if (!fila?.archivo_url) return res.status(404).json({ error: true, mensaje: 'Archivo no encontrado' });
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fila.archivo_nombre || 'archivo')}"`);
+    setContentDisposition(res, fila.archivo_nombre || 'archivo');
     const stream = await minioClient.getObject(BUCKET, fila.archivo_url);
     stream.pipe(res);
   } catch (err) { next(err); }
