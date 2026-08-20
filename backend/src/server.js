@@ -52,7 +52,15 @@ app.use(cors({
     }
     console.warn(`✗ CORS bloqueado para origen: ${origin} (permitido: ${origenPermitido})`);
     return callback(new Error('No permitido por CORS'));
-  }
+  },
+  // Sin esto, un origen cross-origin recibe el archivo pero el navegador
+  // le esconde el header a JS por especificación CORS (solo expone un
+  // set fijo que no incluye Content-Disposition) — la descarga funciona
+  // pero el nombre de archivo que arma el servidor se pierde. En
+  // producción frontend y API comparten origen vía Nginx y esto no se
+  // nota; se declara de todos modos para cualquier despliegue donde no
+  // sea así.
+  exposedHeaders: ['Content-Disposition'],
 }));
 
 // Logging de cada petición HTTP en consola (método, URL, status, tiempo)

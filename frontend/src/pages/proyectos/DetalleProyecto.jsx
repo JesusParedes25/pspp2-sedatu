@@ -37,6 +37,7 @@ import EmptyState from '../../components/common/EmptyState';
 import ModalNuevaEtapa from '../../components/seguimiento/ModalNuevaEtapa';
 import ModalNuevaAccion from '../../components/seguimiento/ModalNuevaAccion';
 import ImportarWizard from '../../components/importar/ImportarWizard';
+import BotonExportar from '../../components/proyectos/BotonExportar';
 import EtapasAvancesMD from '../../components/seguimiento/EtapasAvancesMD';
 // Carga diferida: @xyflow/react + d3-hierarchy son pesados y solo hacen
 // falta cuando el usuario realmente abre la subpestaña Diagrama — así no
@@ -558,6 +559,7 @@ export default function DetalleProyecto() {
                   className="btn-secondary text-sm flex items-center gap-1.5">
                   <FileSpreadsheet size={14} /> Importar
                 </button>
+                <BotonExportar proyectoId={id} />
                 <GenerarReporteBtn
                   proyectoId={id}
                   proyecto={proyecto}

@@ -51,6 +51,7 @@ const catalogoIndicadoresRoutes = require('./catalogo-indicadores.routes');
 
 // Importar controllers para rutas anidadas
 const etapasController = require('../controllers/etapas.controller');
+const exportarController = require('../controllers/exportar.controller');
 const accionesController = require('../controllers/acciones.controller');
 const tareasController = require('../controllers/tareas.controller');
 const evidenciasController = require('../controllers/evidencias.controller');
@@ -112,6 +113,7 @@ router.use('/catalogo-indicadores', catalogoIndicadoresRoutes);
 // Etapas de un proyecto
 router.get('/proyectos/:id/etapas', etapasController.listarPorProyecto);
 router.get('/proyectos/:id/arbol', etapasController.obtenerArbol);
+router.get('/proyectos/:id/exportar', exportarController.exportarProyecto);
 router.post('/proyectos/:id/etapas', exigirEdicionProyecto(), etapasController.crear);
 
 // Acciones de una etapa

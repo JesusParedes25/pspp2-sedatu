@@ -30,6 +30,29 @@ export async function obtenerProyecto(id) {
   return data;
 }
 
+// Descarga la estructura completa del proyecto (Etapa → Acción →
+// Subacción → Tarea) como archivo .xlsx o .csv. El nombre del archivo lo
+// arma el propio servidor y llega en el header Content-Disposition — se
+// extrae de ahí en vez de reconstruirlo aquí, para que quede idéntico al
+// que ya sanitizó el backend (sin repetir esa lógica en el frontend).
+export async function exportarProyecto(id, formato = 'xlsx') {
+  const response = await client.get(`/proyectos/${id}/exportar`, {
+    params: { formato },
+    responseType: 'blob',
+  });
+
+  const disposition = response.headers['content-disposition'] || '';
+  const coincidencia = disposition.match(/filename="([^"]+)"/);
+  const nombreArchivo = coincidencia ? coincidencia[1] : `proyecto.${formato}`;
+
+  const url = URL.createObjectURL(response.data);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nombreArchivo;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export async function crearProyecto(datos) {
   const { data } = await client.post('/proyectos', datos);
   return data;
