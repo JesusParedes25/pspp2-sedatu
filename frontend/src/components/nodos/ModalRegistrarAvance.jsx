@@ -15,8 +15,15 @@
  * Es el MISMO componente para cualquier contexto que registre avance: el
  * panel de Seguimiento > Detalle, el drawer de Diagrama y Mis actividades
  * — no sabe ni le importa desde cuál de los tres se abrió.
+ *
+ * Se renderiza con createPortal en document.body (mismo patrón que el
+ * tooltip de AccionFicha.jsx) porque el rail de Detalle y el drawer de
+ * Diagrama posicionan su panel con translate-x — eso vuelve al `<aside>`
+ * el "containing block" de cualquier hijo con position:fixed, y el modal
+ * terminaba encajonado dentro del rail en vez de cubrir toda la pantalla.
  */
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Loader2, Paperclip, Link2, ChevronDown, ChevronRight, Lock, CheckCircle2 } from 'lucide-react';
 import * as etapasApi from '../../api/etapas';
 import * as accionesApi from '../../api/acciones';
@@ -108,7 +115,7 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
     }
   }
 
-  return (
+  return createPortal((
     <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4" onClick={onCerrar}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-start justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
@@ -239,5 +246,5 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
         </div>
       </div>
     </div>
-  );
+  ), document.body);
 }
