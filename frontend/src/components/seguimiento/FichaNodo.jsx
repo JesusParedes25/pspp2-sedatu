@@ -19,7 +19,6 @@
  * está montada.
  * ─────────────────────────────────────────────────────────────────
  */
-import { useRef } from 'react';
 import NodoCard from '../nodos/NodoCard';
 import PropiedadesElemento from './PropiedadesElemento';
 import CrearInline from './EtapasAvancesMD/CrearInline';
@@ -28,17 +27,12 @@ import BloqueCalculado from './BloqueCalculado';
 import BloqueEditable from './BloqueEditable';
 import { COLORES_SEMAFORO, CHIP_BG } from '../common/SemaforoDot';
 import { NIVELES } from '../../config/niveles';
-import { prefersReducedMotion } from '../../utils/motion';
 import { permisosDeNodo } from '../../hooks/usePermisos';
 
 export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto, ruta, onNavegarLineage, onActualizado, onEliminado, mostrarToast }) {
   const { tipo, id, data } = nodo;
   const permisos = permisosDeNodo(permisosProyecto, tipo, id);
   const nivel = NIVELES[tipo];
-  // El botón "Registrar avance" (dentro de NodoCard, más abajo) y el bloque
-  // editable del avance viven los dos aquí adentro — el scroll-hacia-el-
-  // bloque es enteramente interno a esta ficha, no necesita salir de ella.
-  const avanceRef = useRef(null);
   const sem = data.semaforo_efectivo || 'gris';
   const estado = data.estado || 'Pendiente';
   const avance = data.avance_efectivo ?? (tipo === 'etapa' ? parseFloat(data.porcentaje_calculado || 0) : parseFloat(data.porcentaje_avance || 0));
@@ -50,11 +44,6 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
       ? [...(data.subacciones || []), ...(data.tareas || [])]
       : [];
   const completadosHijos = hijos.filter(h => h.estado === 'Completada').length;
-
-  function irARegistrarAvance() {
-    avanceRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'nearest' });
-    avanceRef.current?.focus();
-  }
 
   return (
     // flex-1 (no h-full): en el drawer de Diagrama esta ficha comparte su
@@ -117,7 +106,6 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
           />
         ) : (
           <BloqueEditable
-            ref={avanceRef}
             tipo={tipo}
             nodo={data}
             avanceEfectivo={avance}
@@ -141,7 +129,6 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
           ocultarMetadataFooter
           ocultarCabecera
           defaultAbierto
-          onRegistrarAvanceClick={esContenedor ? undefined : irARegistrarAvance}
         />
 
         {/* Crear hijo — autonombrado, desaparece en nivel hoja */}
