@@ -19,7 +19,7 @@ import ResizeHandle from '../../common/ResizeHandle';
 import { COLORES_SEMAFORO } from '../../common/SemaforoDot';
 import { NIVELES } from '../../../config/niveles';
 import EmblemaNivel from '../EmblemaNivel';
-import LadderJerarquia from '../LadderJerarquia';
+import StepperNivel from '../StepperNivel';
 import LineageClicable from '../LineageClicable';
 import FichaNodo from '../FichaNodo';
 import ListaHijos from '../ListaHijos';
@@ -83,7 +83,7 @@ export default function PanelDetalle({
         <div className="flex-shrink-0 px-5 pt-4 border-b border-gray-100">
           <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
             <div className="flex items-center gap-3 flex-wrap min-w-0">
-              <LadderJerarquia tipoActual={tipo} compacto />
+              <StepperNivel tipoActual={tipo} compacto />
               <LineageClicable ruta={rutaFoco} onNavegar={onNavegarFoco} />
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">

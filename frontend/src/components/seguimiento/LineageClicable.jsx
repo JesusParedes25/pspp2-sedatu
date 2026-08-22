@@ -3,7 +3,7 @@
  * PROPÓSITO: Ruta de instancia (Proyecto › nombre etapa › nombre acción...)
  *            con los ancestros clicables para subir de nivel — responde
  *            "¿cuál es mi parentela concreta?", complemento de
- *            LadderJerarquia ("¿qué clase de nivel es este?").
+ *            StepperNivel ("¿qué tan profundo estoy?").
  */
 export default function LineageClicable({ ruta, onNavegar, className = '' }) {
   if (!ruta || ruta.length === 0) return null;
