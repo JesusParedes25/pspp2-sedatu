@@ -55,7 +55,7 @@ export const NIVELES = {
   },
 };
 
-// Orden fijo para la "escalera de tipos" (LadderJerarquia) — siempre
+// Orden fijo para la "escalera de tipos" (StepperNivel) — siempre
 // Etapa › Acción › Tarea, sin importar en qué nivel está parado el usuario.
 export const ORDEN_NIVELES = ['etapa', 'accion', 'tarea'];
 

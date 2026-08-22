@@ -16,6 +16,7 @@ import {
   TrendingUp, Trash2,
 } from 'lucide-react';
 import ModalDuplicarNodo from './ModalDuplicarNodo';
+import ModalRegistrarAvance from './ModalRegistrarAvance';
 import ConfirmDialog from '../common/ConfirmDialog';
 import * as etapasApi from '../../api/etapas';
 import * as accionesApi from '../../api/acciones';
@@ -92,32 +93,32 @@ export default function NodoCard({
   tipo, nodo, proyectoId, permisos, esContenedor = false,
   breadcrumb, onProyectoClick, onCambiado, defaultAbierto = false,
   ocultarMetadataFooter = false, ocultarCabecera = false,
-  // Cuando esta tarjeta representa el nodo también mostrado en el rail de
-  // Propiedades (Detalle) o el drawer (Diagrama), el bloque de avance ya
-  // vive ahí, siempre visible (BloqueEditable) — así que "Registrar avance"
-  // no abre su propio slider aquí (sería el mismo dato dos veces), sino que
-  // lleva la vista hasta ese bloque. Sin esta prop (uso normal: tarjeta de
-  // un hijo en una lista), el botón conserva su comportamiento de abrir el
-  // slider inline, que sigue siendo útil para editar un hijo sin navegar.
-  onRegistrarAvanceClick,
   // Opcional: al eliminar este nodo, el contenedor puede necesitar algo más
   // que recargar (p. ej. deseleccionarlo antes, porque la ficha abierta es
   // justo la del nodo que desaparece). Sin esta prop se usa onCambiado.
   onEliminado,
+  // El panel derecho de Seguimiento > Detalle y el drawer de Diagrama
+  // (FichaNodo) usan el layout de 2 grupos del rediseño: "Vinculación"
+  // reducida a Indicador/Territorio/Participante (Comentar y la vista de
+  // Riesgos/Evidencia se navegan desde el feed de Actividad, ya visible
+  // como componente hermano en ambos), y Duplicar/Eliminar bajan al pie,
+  // chicos y separados. Sin esta prop (uso normal: tarjeta de un hijo en
+  // una lista, o Mis actividades — sin un feed de Actividad al lado) se
+  // conserva la cuadrícula plana de siempre, con todo junto.
+  agrupado = false,
 }) {
   const { mostrarToast } = useUI();
   const [abierto, setAbierto] = useState(defaultAbierto);
   const [guardando, setGuardando] = useState(false);
-  const [modo, setModo] = useState(null); // null | 'avance' | 'concluir' | 'riesgo'
-  const [avanceTemp, setAvanceTemp] = useState(null);
-  const [archivoConcluir, setArchivoConcluir] = useState(null);
+  const [modo, setModo] = useState(null); // null | 'riesgo'
+  const [mostrarModalAvance, setMostrarModalAvance] = useState(false);
   const [riesgoTexto, setRiesgoTexto] = useState('');
   const [riesgoNivel, setRiesgoNivel] = useState('Medio');
 
   const [seccion, setSeccion] = useState(null); // null | 'comentar' | 'adjuntar' | 'riesgos' | 'indicador' | 'invitar' | 'territorio'
   const [comentarioTexto, setComentarioTexto] = useState('');
   const [actividad, setActividad] = useState(null); // se carga lazy al expandir
-  const [evidenciasNodo, setEvidenciasNodo] = useState(null); // se carga lazy al abrir "Adjuntar archivo"
+  const [evidenciasNodo, setEvidenciasNodo] = useState(null); // se carga lazy al abrir "Evidencia"
   const [mostrarDuplicar, setMostrarDuplicar] = useState(false);
   const [confirmEliminar, setConfirmEliminar] = useState(false);
   const [eliminando, setEliminando] = useState(false);
@@ -218,39 +219,6 @@ export default function NodoCard({
     }
   }
 
-  async function guardarAvance() {
-    if (avanceTemp === null) return;
-    // El backend solo acepta editar avance_actual cuando el nodo está
-    // En_proceso — si todavía está Pendiente, se envía el cambio de
-    // estado en la MISMA petición para que el avance sí se guarde
-    // (antes se enviaba avance_actual solo y el backend lo ignoraba
-    // silenciosamente, terminando en "No se proporcionaron campos
-    // para actualizar").
-    const datos = { avance_actual: avanceTemp };
-    if (nodo.estado !== 'En_proceso') datos.estado = 'En_proceso';
-    await patch(datos);
-    setModo(null);
-  }
-
-  async function marcarConcluido() {
-    setGuardando(true);
-    try {
-      if (archivoConcluir) {
-        if (tipo === 'etapa') await evidenciasApi.subirEvidenciaEtapa(nodo.id, archivoConcluir, { notas: 'Evidencia de conclusión' });
-        else if (tipo === 'accion') await evidenciasApi.subirEvidenciaAccion(nodo.id, archivoConcluir, { notas: 'Evidencia de conclusión' });
-        else await actividadApi.adjuntarArchivo('tarea', nodo.id, archivoConcluir);
-      }
-      if (tipo === 'etapa') await etapasApi.patchEtapa(nodo.id, { estado: 'Completada' });
-      else if (tipo === 'accion') await accionesApi.patchAccion(nodo.id, { estado: 'Completada' });
-      else await tareasApi.patchTarea(nodo.id, { estado: 'Completada' });
-      setModo(null);
-      setArchivoConcluir(null);
-      onCambiado?.();
-    } catch (err) {
-      alert(err.response?.data?.mensaje || 'Error al concluir');
-    } finally { setGuardando(false); }
-  }
-
   // Escribe en el modelo VIEJO (comentarios/riesgos/evidencias) para etapa y
   // acción — es donde ya vivían estos datos y donde el resto de la app (p.ej.
   // Panorama, listados de riesgos) los sigue leyendo. Para tarea, que nunca
@@ -292,6 +260,9 @@ export default function NodoCard({
   const todosRiesgos = (actividad || []).filter(a => a.tipo_evento === 'riesgo');
   const riesgosCount = todosRiesgos.length;
   const todosComentarios = (actividad || []).filter(a => a.tipo_evento === 'comentario');
+  // El stream ya viene ordenado del más reciente al más viejo (ver
+  // obtenerActividadNodo en el backend) — el primero es el último registro.
+  const ultimoRegistro = (actividad || [])[0] || null;
   // Banner ámbar: solo si hay un riesgo realmente abierto (no resuelto/cerrado).
   // Las entradas del stream nuevo (reportadas desde una tarea) no traen
   // metadata.estado, así que se consideran abiertas por defecto.
@@ -347,60 +318,42 @@ export default function NodoCard({
             </div>
           )}
 
-          {/* Grupo "Avance" — "Registrar avance" como botón primario a todo
-              lo ancho (es la acción más usada), el resto en una cuadrícula
-              de 2 columnas debajo. Todo visible, sin acordeón: como ya no
-              se repite por fila (solo vive aquí, en el panel derecho),
-              mostrarlo completo no satura. */}
+          {/* Grupo "Avance" — "Registrar avance" abre el modal unificado
+              (Estatus + Avance + Detalle + Evidencia en un solo guardado;
+              incluye marcar como concluido). "Reportar riesgo" es un
+              reporte en el tiempo distinto, va debajo y más chico. */}
           <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider block -mb-1.5">Avance</span>
-          {esContenedor ? (
-            <div className="flex items-center gap-1.5 text-[11px] text-gray-400 bg-gray-100 px-3 py-2 rounded-lg">
-              <Lock size={12} /> Se calcula desde sus partes
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-1.5">
-              <button disabled={soloLectura || completado} onClick={() => {
-                  if (onRegistrarAvanceClick) { onRegistrarAvanceClick(); return; }
-                  setModo(modo === 'avance' ? null : 'avance'); setAvanceTemp(avance);
-                }}
-                className={`col-span-2 flex items-center justify-center gap-1.5 text-[12px] font-semibold px-3 py-2.5 rounded-lg disabled:opacity-40 transition-colors ${modo === 'avance' ? 'bg-guinda-700 text-white' : 'bg-guinda-600 text-white hover:bg-guinda-700'}`}>
-                <TrendingUp size={14} /> Registrar avance
-              </button>
-              <button disabled={soloLectura || completado} onClick={() => setModo(modo === 'concluir' ? null : 'concluir')}
-                className={`flex items-center justify-center gap-1.5 text-[11px] font-medium px-2.5 py-2 rounded-lg border disabled:opacity-40 transition-colors ${modo === 'concluir' ? 'border-green-400 bg-green-50 text-green-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                <CheckCircle2 size={13} /> Marcar concluido
-              </button>
+          <div className="space-y-1.5">
+            {esContenedor && (
+              <div className="flex items-center gap-1.5 text-[11px] text-gray-400 bg-gray-100 px-3 py-2 rounded-lg">
+                <Lock size={12} /> Se calcula desde sus partes
+              </div>
+            )}
+            <button disabled={soloLectura || completado} onClick={() => setMostrarModalAvance(true)}
+              className="w-full flex items-center justify-center gap-1.5 text-[12px] font-semibold px-3 py-2.5 rounded-lg disabled:opacity-40 transition-colors bg-guinda-600 text-white hover:bg-guinda-700">
+              <TrendingUp size={14} /> Registrar avance
+            </button>
+            {!esContenedor && (
               <button disabled={soloLectura} onClick={() => setModo(modo === 'riesgo' ? null : 'riesgo')}
-                className={`flex items-center justify-center gap-1.5 text-[11px] font-medium px-2.5 py-2 rounded-lg border disabled:opacity-40 transition-colors ${modo === 'riesgo' ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                className={`w-full flex items-center justify-center gap-1.5 text-[11px] font-medium px-2.5 py-2 rounded-lg border disabled:opacity-40 transition-colors ${modo === 'riesgo' ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
                 <AlertTriangle size={13} /> Reportar riesgo
               </button>
-            </div>
-          )}
+            )}
+            {ultimoRegistro && (
+              <p className="text-[10px] text-gray-400 text-center">
+                Último: {formatFecha(ultimoRegistro.created_at)}{ultimoRegistro.autor_nombre ? ` · ${ultimoRegistro.autor_nombre}` : ''}
+              </p>
+            )}
+          </div>
 
-          {modo === 'avance' && !onRegistrarAvanceClick && (
-            <div className="bg-gray-50 rounded-lg p-2.5 space-y-2">
-              <input type="range" min={0} max={99} value={avanceTemp ?? 0} onChange={e => setAvanceTemp(Number(e.target.value))} className="w-full accent-[#7B1C3E]" />
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-gray-700">{avanceTemp}%</span>
-                <div className="flex gap-1.5">
-                  <button onClick={() => setModo(null)} className="text-[11px] text-gray-500 px-2 py-1">Cancelar</button>
-                  <button onClick={guardarAvance} disabled={guardando} className="text-[11px] bg-guinda-600 text-white px-3 py-1 rounded-md hover:bg-guinda-700">Guardar</button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {modo === 'concluir' && (
-            <div className="bg-gray-50 rounded-lg p-2.5 space-y-2">
-              <p className="text-[11px] text-gray-500">Adjunta evidencia (opcional) y marca como concluido.</p>
-              <input type="file" onChange={e => setArchivoConcluir(e.target.files?.[0] || null)} className="text-xs w-full" />
-              <div className="flex justify-end gap-1.5">
-                <button onClick={() => { setModo(null); setArchivoConcluir(null); }} className="text-[11px] text-gray-500 px-2 py-1">Cancelar</button>
-                <button onClick={marcarConcluido} disabled={guardando} className="text-[11px] bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 flex items-center gap-1">
-                  {guardando && <Loader2 size={11} className="animate-spin" />} Concluir
-                </button>
-              </div>
-            </div>
+          {mostrarModalAvance && (
+            <ModalRegistrarAvance
+              tipo={tipo}
+              nodo={nodo}
+              esContenedor={esContenedor}
+              onGuardado={async () => { await cargarActividad(); onCambiado?.(); }}
+              onCerrar={() => setMostrarModalAvance(false)}
+            />
           )}
 
           {modo === 'riesgo' && (
@@ -419,24 +372,34 @@ export default function NodoCard({
             </div>
           )}
 
-          {/* Grupo "Registro y vínculos" — antes agrupado detrás de "Más
-              acciones"; ya no hay acordeón: todas visibles, siempre. */}
+          {/* Grupo "Vinculación" — en el layout agrupado (panel de Detalle
+              y drawer de Diagrama) son solo los 3 vínculos con otras
+              entidades; Comentar/Evidencia/Riesgos se navegan desde el
+              feed de Actividad, que vive al lado en ambos contextos. En el
+              layout plano (tarjeta de lista, Mis actividades — sin feed de
+              Actividad al lado) se conservan los de siempre. */}
           <div className="pt-2 border-t border-gray-100">
-            <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider block mb-1.5">Registro y vínculos</span>
+            <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider block mb-1.5">
+              {agrupado ? 'Vinculación' : 'Registro y vínculos'}
+            </span>
             <div className="grid grid-cols-2 gap-1.5">
-              <BotonContextual icono={MessageSquare} label="Comentar" activo={seccion === 'comentar'} onClick={() => setSeccion(seccion === 'comentar' ? null : 'comentar')} />
-              <BotonContextual icono={Paperclip} label="Adjuntar archivo" activo={seccion === 'adjuntar'} onClick={() => {
-                const next = seccion === 'adjuntar' ? null : 'adjuntar';
-                setSeccion(next);
-                if (next === 'adjuntar' && evidenciasNodo === null) cargarEvidenciasNodo();
-              }} />
-              <BotonContextual icono={Shield} label={`Riesgos${riesgosCount ? ` (${riesgosCount})` : ''}`} activo={seccion === 'riesgos'} onClick={() => setSeccion(seccion === 'riesgos' ? null : 'riesgos')} />
+              {!agrupado && (
+                <>
+                  <BotonContextual icono={MessageSquare} label="Comentar" activo={seccion === 'comentar'} onClick={() => setSeccion(seccion === 'comentar' ? null : 'comentar')} />
+                  <BotonContextual icono={Paperclip} label="Evidencia" activo={seccion === 'adjuntar'} onClick={() => {
+                    const next = seccion === 'adjuntar' ? null : 'adjuntar';
+                    setSeccion(next);
+                    if (next === 'adjuntar' && evidenciasNodo === null) cargarEvidenciasNodo();
+                  }} />
+                  <BotonContextual icono={Shield} label={`Riesgos${riesgosCount ? ` (${riesgosCount})` : ''}`} activo={seccion === 'riesgos'} onClick={() => setSeccion(seccion === 'riesgos' ? null : 'riesgos')} />
+                </>
+              )}
               <BotonContextual icono={BarChart3} label="Vincular indicador" activo={seccion === 'indicador'} onClick={() => setSeccion(seccion === 'indicador' ? null : 'indicador')} />
+              <BotonContextual icono={MapPin} label="Territorio" activo={seccion === 'territorio'} onClick={() => setSeccion(seccion === 'territorio' ? null : 'territorio')} />
               {permisos?.puedeInvitar && (
                 <BotonContextual icono={UserPlus} label="Invitar participante" activo={seccion === 'invitar'} onClick={() => setSeccion(seccion === 'invitar' ? null : 'invitar')} />
               )}
-              <BotonContextual icono={MapPin} label="Territorio" activo={seccion === 'territorio'} onClick={() => setSeccion(seccion === 'territorio' ? null : 'territorio')} />
-              {!esContenedor && permisos?.puedeCrearAccion && (tipo === 'accion' || tipo === 'tarea') && (
+              {!agrupado && !esContenedor && permisos?.puedeCrearAccion && (tipo === 'accion' || tipo === 'tarea') && (
                 <BotonContextual icono={Copy} label="Duplicar" activo={false} onClick={() => setMostrarDuplicar(true)} />
               )}
             </div>
@@ -445,14 +408,34 @@ export default function NodoCard({
                 resto de la rejilla y en rojo, no mezclado entre acciones
                 cotidianas. permisos.puedeEliminar ya es "creador o
                 responsable del proyecto" (o superadmin/ejecutivo), la misma
-                regla que valida el backend en DELETE /etapas|acciones|tareas. */}
-            {permisos?.puedeEliminar && (
+                regla que valida el backend en DELETE /etapas|acciones|tareas.
+                En el layout agrupado, Eliminar (y Duplicar) bajan al pie del
+                panel — ver más abajo. */}
+            {!agrupado && permisos?.puedeEliminar && (
               <button
                 onClick={() => setConfirmEliminar(true)}
                 className="mt-1.5 w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-red-600 border border-red-200 rounded-md hover:bg-red-50 transition-colors"
               >
                 <Trash2 size={12} /> Eliminar {TIPO_LABEL_MIN[tipo]}
               </button>
+            )}
+
+            {/* Pie del panel agrupado: Duplicar/Eliminar, chicos, discretos,
+                alineados a la derecha y separados por una línea — para
+                evitar clics accidentales en algo destructivo. */}
+            {agrupado && (permisos?.puedeEliminar || (!esContenedor && permisos?.puedeCrearAccion && (tipo === 'accion' || tipo === 'tarea'))) && (
+              <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-end gap-3">
+                {!esContenedor && permisos?.puedeCrearAccion && (tipo === 'accion' || tipo === 'tarea') && (
+                  <button onClick={() => setMostrarDuplicar(true)} className="text-[11px] text-gray-400 hover:text-gray-600">
+                    Duplicar {TIPO_LABEL_MIN[tipo]}
+                  </button>
+                )}
+                {permisos?.puedeEliminar && (
+                  <button onClick={() => setConfirmEliminar(true)} className="text-[11px] text-red-400 hover:text-red-600">
+                    Eliminar {TIPO_LABEL_MIN[tipo]}
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
