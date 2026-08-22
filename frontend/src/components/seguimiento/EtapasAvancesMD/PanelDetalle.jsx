@@ -167,6 +167,10 @@ export default function PanelDetalle({
             onToggle={onToggleCentro}
             seleccionId={seleccion.id}
             onSeleccionar={onSeleccionarEnCentro}
+            proyectoId={proyectoId}
+            padreId={id}
+            permisos={permisos}
+            onCreado={onActualizado}
           />
           <ActividadStream tipo={seleccion.tipo} id={seleccion.id} titulo={seleccion.data.nombre}
             soloLectura={permisosDeNodo(permisosProyecto, seleccion.tipo, seleccion.id).esSoloLectura} />

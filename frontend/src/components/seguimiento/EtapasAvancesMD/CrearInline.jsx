@@ -7,7 +7,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Plus, Loader2 } from 'lucide-react';
 import { useJerarquiaProyecto } from '../../../hooks/useJerarquiaProyecto';
 
-export default function CrearInline({ tipo, padreId, proyectoId, onCreado }) {
+export default function CrearInline({ tipo, padreId, proyectoId, onCreado, etiqueta: etiquetaProp }) {
   const { crear } = useJerarquiaProyecto(proyectoId);
   const [activo, setActivo] = useState(false);
   const [nombre, setNombre] = useState('');
@@ -18,7 +18,7 @@ export default function CrearInline({ tipo, padreId, proyectoId, onCreado }) {
     if (activo && refInput.current) refInput.current.focus();
   }, [activo]);
 
-  const etiqueta = tipo === 'etapa' ? '+ Etapa' : tipo === 'accion' ? '+ Acción' : '+ Tarea';
+  const etiqueta = etiquetaProp || (tipo === 'etapa' ? '+ Etapa' : tipo === 'accion' ? '+ Acción' : '+ Tarea');
 
   async function guardar() {
     if (!nombre.trim() || guardando) return;

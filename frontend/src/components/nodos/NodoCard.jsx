@@ -97,6 +97,15 @@ export default function NodoCard({
   // que recargar (p. ej. deseleccionarlo antes, porque la ficha abierta es
   // justo la del nodo que desaparece). Sin esta prop se usa onCambiado.
   onEliminado,
+  // El panel derecho de Seguimiento > Detalle y el drawer de Diagrama
+  // (FichaNodo) usan el layout de 2 grupos del rediseño: "Vinculación"
+  // reducida a Indicador/Territorio/Participante (Comentar y la vista de
+  // Riesgos/Evidencia se navegan desde el feed de Actividad, ya visible
+  // como componente hermano en ambos), y Duplicar/Eliminar bajan al pie,
+  // chicos y separados. Sin esta prop (uso normal: tarjeta de un hijo en
+  // una lista, o Mis actividades — sin un feed de Actividad al lado) se
+  // conserva la cuadrícula plana de siempre, con todo junto.
+  agrupado = false,
 }) {
   const { mostrarToast } = useUI();
   const [abierto, setAbierto] = useState(defaultAbierto);
@@ -251,6 +260,9 @@ export default function NodoCard({
   const todosRiesgos = (actividad || []).filter(a => a.tipo_evento === 'riesgo');
   const riesgosCount = todosRiesgos.length;
   const todosComentarios = (actividad || []).filter(a => a.tipo_evento === 'comentario');
+  // El stream ya viene ordenado del más reciente al más viejo (ver
+  // obtenerActividadNodo en el backend) — el primero es el último registro.
+  const ultimoRegistro = (actividad || [])[0] || null;
   // Banner ámbar: solo si hay un riesgo realmente abierto (no resuelto/cerrado).
   // Las entradas del stream nuevo (reportadas desde una tarea) no traen
   // metadata.estado, así que se consideran abiertas por defecto.
@@ -327,6 +339,11 @@ export default function NodoCard({
                 <AlertTriangle size={13} /> Reportar riesgo
               </button>
             )}
+            {ultimoRegistro && (
+              <p className="text-[10px] text-gray-400 text-center">
+                Último: {formatFecha(ultimoRegistro.created_at)}{ultimoRegistro.autor_nombre ? ` · ${ultimoRegistro.autor_nombre}` : ''}
+              </p>
+            )}
           </div>
 
           {mostrarModalAvance && (
@@ -355,24 +372,34 @@ export default function NodoCard({
             </div>
           )}
 
-          {/* Grupo "Registro y vínculos" — antes agrupado detrás de "Más
-              acciones"; ya no hay acordeón: todas visibles, siempre. */}
+          {/* Grupo "Vinculación" — en el layout agrupado (panel de Detalle
+              y drawer de Diagrama) son solo los 3 vínculos con otras
+              entidades; Comentar/Evidencia/Riesgos se navegan desde el
+              feed de Actividad, que vive al lado en ambos contextos. En el
+              layout plano (tarjeta de lista, Mis actividades — sin feed de
+              Actividad al lado) se conservan los de siempre. */}
           <div className="pt-2 border-t border-gray-100">
-            <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider block mb-1.5">Registro y vínculos</span>
+            <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider block mb-1.5">
+              {agrupado ? 'Vinculación' : 'Registro y vínculos'}
+            </span>
             <div className="grid grid-cols-2 gap-1.5">
-              <BotonContextual icono={MessageSquare} label="Comentar" activo={seccion === 'comentar'} onClick={() => setSeccion(seccion === 'comentar' ? null : 'comentar')} />
-              <BotonContextual icono={Paperclip} label="Evidencia" activo={seccion === 'adjuntar'} onClick={() => {
-                const next = seccion === 'adjuntar' ? null : 'adjuntar';
-                setSeccion(next);
-                if (next === 'adjuntar' && evidenciasNodo === null) cargarEvidenciasNodo();
-              }} />
-              <BotonContextual icono={Shield} label={`Riesgos${riesgosCount ? ` (${riesgosCount})` : ''}`} activo={seccion === 'riesgos'} onClick={() => setSeccion(seccion === 'riesgos' ? null : 'riesgos')} />
+              {!agrupado && (
+                <>
+                  <BotonContextual icono={MessageSquare} label="Comentar" activo={seccion === 'comentar'} onClick={() => setSeccion(seccion === 'comentar' ? null : 'comentar')} />
+                  <BotonContextual icono={Paperclip} label="Evidencia" activo={seccion === 'adjuntar'} onClick={() => {
+                    const next = seccion === 'adjuntar' ? null : 'adjuntar';
+                    setSeccion(next);
+                    if (next === 'adjuntar' && evidenciasNodo === null) cargarEvidenciasNodo();
+                  }} />
+                  <BotonContextual icono={Shield} label={`Riesgos${riesgosCount ? ` (${riesgosCount})` : ''}`} activo={seccion === 'riesgos'} onClick={() => setSeccion(seccion === 'riesgos' ? null : 'riesgos')} />
+                </>
+              )}
               <BotonContextual icono={BarChart3} label="Vincular indicador" activo={seccion === 'indicador'} onClick={() => setSeccion(seccion === 'indicador' ? null : 'indicador')} />
+              <BotonContextual icono={MapPin} label="Territorio" activo={seccion === 'territorio'} onClick={() => setSeccion(seccion === 'territorio' ? null : 'territorio')} />
               {permisos?.puedeInvitar && (
                 <BotonContextual icono={UserPlus} label="Invitar participante" activo={seccion === 'invitar'} onClick={() => setSeccion(seccion === 'invitar' ? null : 'invitar')} />
               )}
-              <BotonContextual icono={MapPin} label="Territorio" activo={seccion === 'territorio'} onClick={() => setSeccion(seccion === 'territorio' ? null : 'territorio')} />
-              {!esContenedor && permisos?.puedeCrearAccion && (tipo === 'accion' || tipo === 'tarea') && (
+              {!agrupado && !esContenedor && permisos?.puedeCrearAccion && (tipo === 'accion' || tipo === 'tarea') && (
                 <BotonContextual icono={Copy} label="Duplicar" activo={false} onClick={() => setMostrarDuplicar(true)} />
               )}
             </div>
@@ -381,14 +408,34 @@ export default function NodoCard({
                 resto de la rejilla y en rojo, no mezclado entre acciones
                 cotidianas. permisos.puedeEliminar ya es "creador o
                 responsable del proyecto" (o superadmin/ejecutivo), la misma
-                regla que valida el backend en DELETE /etapas|acciones|tareas. */}
-            {permisos?.puedeEliminar && (
+                regla que valida el backend en DELETE /etapas|acciones|tareas.
+                En el layout agrupado, Eliminar (y Duplicar) bajan al pie del
+                panel — ver más abajo. */}
+            {!agrupado && permisos?.puedeEliminar && (
               <button
                 onClick={() => setConfirmEliminar(true)}
                 className="mt-1.5 w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-red-600 border border-red-200 rounded-md hover:bg-red-50 transition-colors"
               >
                 <Trash2 size={12} /> Eliminar {TIPO_LABEL_MIN[tipo]}
               </button>
+            )}
+
+            {/* Pie del panel agrupado: Duplicar/Eliminar, chicos, discretos,
+                alineados a la derecha y separados por una línea — para
+                evitar clics accidentales en algo destructivo. */}
+            {agrupado && (permisos?.puedeEliminar || (!esContenedor && permisos?.puedeCrearAccion && (tipo === 'accion' || tipo === 'tarea'))) && (
+              <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-end gap-3">
+                {!esContenedor && permisos?.puedeCrearAccion && (tipo === 'accion' || tipo === 'tarea') && (
+                  <button onClick={() => setMostrarDuplicar(true)} className="text-[11px] text-gray-400 hover:text-gray-600">
+                    Duplicar {TIPO_LABEL_MIN[tipo]}
+                  </button>
+                )}
+                {permisos?.puedeEliminar && (
+                  <button onClick={() => setConfirmEliminar(true)} className="text-[11px] text-red-400 hover:text-red-600">
+                    Eliminar {TIPO_LABEL_MIN[tipo]}
+                  </button>
+                )}
+              </div>
             )}
           </div>
 

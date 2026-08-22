@@ -1,13 +1,20 @@
 /**
  * ARCHIVO: FichaNodo.jsx
- * PROPÓSITO: Ficha única del elemento seleccionado — encabezado sticky
- *            (lineage + chip de nivel + badges + título), avance grande,
- *            bloque de origen del avance (calculado o editable), acciones
- *            completas en dos grupos (sin acordeón) y las propiedades del
- *            nivel. Es el MISMO componente que monta tanto el rail de
- *            "Detalle" como el drawer de "Diagrama" — cada uno lo coloca
- *            en su propio contenedor con su propio scroll; esta ficha no
- *            sabe ni le importa cuál de los dos es.
+ * PROPÓSITO: Panel derecho del elemento seleccionado, en 4 grupos:
+ *            a) Encabezado corto ("Etapa · Manzanillo") — el nombre
+ *               completo, las insignias y el avance ya se ven en la
+ *               columna central (Detalle) o en la tarjeta del canvas
+ *               (Diagrama); repetirlos aquí era la duplicación que se
+ *               quitó en este rediseño.
+ *            b) Actividad — Registrar avance / Reportar riesgo (dentro
+ *               de NodoCard, prop `agrupado`).
+ *            c) Ficha — fechas, prioridad, instrumento, escala y modo de
+ *               cálculo del avance, en lectura, con un enlace "Editar".
+ *            d) Vinculación — Indicador / Territorio / Participante,
+ *               también dentro de NodoCard (`agrupado`), que además baja
+ *               Duplicar/Eliminar al pie del panel.
+ *            Es el MISMO componente que monta tanto el rail de "Detalle"
+ *            como el drawer de "Diagrama".
  *
  * MINI-CLASE: por qué NO incluye Actividad
  * ─────────────────────────────────────────────────────────────────
@@ -16,16 +23,17 @@
  * pestaña del drawer. En ambos casos es un componente hermano
  * (ActividadStream), no un hijo de esta ficha — así cada layout decide
  * dónde ponerlo sin que esta ficha tenga que saber en cuál de los dos
- * está montada.
+ * está montada. Por la misma razón "Comentar"/"Evidencia"/"Riesgos" ya
+ * no tienen botón de VER aquí (NodoCard con `agrupado`): esa lectura ya
+ * está a un lado, en ese mismo feed.
  * ─────────────────────────────────────────────────────────────────
  */
+import { useState } from 'react';
+import { Pencil, X } from 'lucide-react';
 import NodoCard from '../nodos/NodoCard';
 import PropiedadesElemento from './PropiedadesElemento';
-import CrearInline from './EtapasAvancesMD/CrearInline';
 import LineageClicable from './LineageClicable';
-import BloqueCalculado from './BloqueCalculado';
-import BloqueEditable from './BloqueEditable';
-import { COLORES_SEMAFORO, CHIP_BG } from '../common/SemaforoDot';
+import { formatFecha } from '../../utils/fecha';
 import { NIVELES } from '../../config/niveles';
 import { permisosDeNodo } from '../../hooks/usePermisos';
 
@@ -33,88 +41,24 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
   const { tipo, id, data } = nodo;
   const permisos = permisosDeNodo(permisosProyecto, tipo, id);
   const nivel = NIVELES[tipo];
-  const sem = data.semaforo_efectivo || 'gris';
-  const estado = data.estado || 'Pendiente';
-  const avance = data.avance_efectivo ?? (tipo === 'etapa' ? parseFloat(data.porcentaje_calculado || 0) : parseFloat(data.porcentaje_avance || 0));
   const esContenedor = tipo === 'etapa' || data.es_hoja === false;
-
-  const hijos = tipo === 'etapa'
-    ? (data.acciones || [])
-    : tipo === 'accion'
-      ? [...(data.subacciones || []), ...(data.tareas || [])]
-      : [];
-  const completadosHijos = hijos.filter(h => h.estado === 'Completada').length;
+  const [editandoFicha, setEditandoFicha] = useState(false);
 
   return (
     // flex-1 (no h-full): en el drawer de Diagrama esta ficha comparte su
     // contenedor flex-col con la lista de "ir a hijo" que va debajo — con
     // h-full se llevaría el 100% del alto y esa lista no tendría espacio.
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-      {/* Cabecera pegajosa — lineage corto + chip de nivel (ícono y color
-          propios, nunca el color de estatus) + badge de estatus + badge
-          "calculado" + título. */}
-      <div className="flex-shrink-0 px-4 pt-3.5 pb-3 border-b border-gray-100">
-        {ruta && <LineageClicable ruta={ruta} onNavegar={onNavegarLineage} className="mb-1.5" />}
-        <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
-          <span
-            className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider text-white"
-            style={{ backgroundColor: nivel.color }}
-          >
-            <nivel.icono size={10} aria-hidden="true" />
-            {nivel.label}
-          </span>
-          <span
-            className="text-[10px] font-semibold px-2 py-0.5 rounded"
-            style={{ backgroundColor: CHIP_BG[sem], color: COLORES_SEMAFORO[sem] }}
-          >
-            {estado.replace(/_/g, ' ')}
-          </span>
-          {esContenedor && (
-            <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-500">calculado</span>
-          )}
-          {data.prioridad && (
-            <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-500">{data.prioridad}</span>
-          )}
-        </div>
-        <p className="text-base font-bold text-gray-900 leading-snug truncate" title={data.nombre}>{data.nombre}</p>
+      {/* a) Encabezado corto */}
+      <div className="flex-shrink-0 px-4 pt-3.5 pb-2.5 border-b border-gray-100">
+        {ruta && <LineageClicable ruta={ruta} onNavegar={onNavegarLineage} className="mb-1" />}
+        <p className="text-xs text-gray-500">
+          <span className="font-medium text-gray-700">{nivel.label}</span> · {data.nombre}
+        </p>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 pt-3">
-        {/* Avance destacado */}
-        <div className="px-1 pb-1">
-          <div className="flex items-baseline justify-between mb-1.5">
-            <span className="text-2xl font-bold tabular-nums" style={{ color: COLORES_SEMAFORO[sem] }}>
-              {Math.round(avance)}%
-            </span>
-            <span className="text-[11px] text-gray-400">
-              {esContenedor
-                ? (hijos.length > 0 ? `${completadosHijos} de ${hijos.length} completadas` : 'Se recalcula solo')
-                : 'Trabajo directo'}
-            </span>
-          </div>
-        </div>
-
-        {/* Origen del avance: calculado o editable */}
-        {esContenedor ? (
-          <BloqueCalculado
-            tipo={tipo}
-            estado={estado}
-            avance={avance}
-            fechaInicio={data.fecha_inicio}
-            mostrarFechaInicio={tipo === 'etapa'}
-            sem={sem}
-          />
-        ) : (
-          <BloqueEditable
-            tipo={tipo}
-            nodo={data}
-            avanceEfectivo={avance}
-            soloLectura={permisos.esSoloLectura}
-            onCambiado={onActualizado}
-          />
-        )}
-
-        {/* Acciones completas, en dos grupos — sin acordeón */}
+      <div className="flex-1 overflow-y-auto px-3 pt-3 space-y-3">
+        {/* b) Actividad — Registrar avance / Reportar riesgo / último registro */}
         <NodoCard
           tipo={tipo}
           nodo={data}
@@ -129,23 +73,65 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
           ocultarMetadataFooter
           ocultarCabecera
           defaultAbierto
+          agrupado
         />
 
-        {/* Crear hijo — autonombrado, desaparece en nivel hoja */}
-        {!permisos.esSoloLectura && permisos.puedeCrearAccion && nivel.hijoTipo && (
-          <div className="mt-1.5 border border-dashed border-gray-200 rounded-lg px-2.5 py-1">
-            <CrearInline tipo={nivel.hijoTipo} padreId={id} proyectoId={proyectoId} onCreado={onActualizado} />
+        {/* c) Ficha — resumen en lectura, "Editar" revela los mismos
+            campos editables (PropiedadesElemento). */}
+        <div className="border border-gray-200 rounded-lg px-3.5 py-3">
+          <div className="flex items-center justify-between mb-2.5">
+            <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">Ficha</span>
+            {!permisos.esSoloLectura && (
+              <button
+                onClick={() => setEditandoFicha(v => !v)}
+                className="flex items-center gap-1 text-[11px] font-medium text-guinda-700 hover:text-guinda-800"
+              >
+                {editandoFicha ? <><X size={11} /> Cerrar</> : <><Pencil size={11} /> Editar</>}
+              </button>
+            )}
           </div>
-        )}
 
-        <div className="pt-3 pb-3">
-          <PropiedadesElemento
-            nodo={nodo}
-            permisos={permisos}
-            proyectoId={proyectoId}
-            onActualizado={onActualizado}
-            mostrarToast={mostrarToast}
-          />
+          {editandoFicha ? (
+            <PropiedadesElemento
+              nodo={nodo}
+              permisos={permisosProyecto}
+              onActualizado={onActualizado}
+              mostrarToast={mostrarToast}
+            />
+          ) : (
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+              {!esContenedor && (
+                <div>
+                  <span className="text-[10px] text-gray-400 block">Fecha inicio</span>
+                  <span className="text-gray-700">{formatFecha(data.fecha_inicio) || 'Sin definir'}</span>
+                </div>
+              )}
+              <div>
+                <span className="text-[10px] text-gray-400 block">Fecha límite</span>
+                <span className="text-gray-700">{formatFecha(data.fecha_limite) || 'Sin definir'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-gray-400 block">Prioridad</span>
+                <span className="text-gray-700">{data.prioridad || 'Sin definir'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-gray-400 block">Avance</span>
+                <span className="text-gray-700">{esContenedor ? 'Automático' : 'Manual'}</span>
+              </div>
+              {tipo !== 'tarea' && (
+                <>
+                  <div>
+                    <span className="text-[10px] text-gray-400 block">Instrumento principal</span>
+                    <span className="text-gray-700">{data.instrumento || 'Sin definir'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-gray-400 block">Escala territorial</span>
+                    <span className="text-gray-700">{data.escala_territorial || 'Sin definir'}</span>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
