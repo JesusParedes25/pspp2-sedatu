@@ -38,9 +38,13 @@ import { NIVELES } from '../../config/niveles';
 // NodoCard y SeccionArchivosNodo).
 const ENTIDAD_TIPO = { etapa: 'Etapa', accion: 'Accion' };
 
-// Mismos tres estados "congelados" que ya reconocía BloqueEditable: el
-// avance no se captura a mano en ninguno de ellos.
-const ESTADOS_CONGELADOS = { Completada: 'Completada: 100%', Bloqueada: 'Bloqueada: avance congelado', Cancelada: 'Cancelada' };
+// Bloqueada/Cancelada son los únicos estados donde el avance de verdad no
+// se puede tocar (Bloqueada lo rechaza el propio backend). Completada NO
+// entra aquí a propósito: "concluido" no es definitivo — quien lo marcó
+// puede necesitar corregirlo después (bajarlo a 90%, por ejemplo), así que
+// se deja editable, con la casilla "Marcar como concluida" pre-marcada
+// para que reabrirlo sea una decisión explícita, no un accidente.
+const ESTADOS_CONGELADOS = { Bloqueada: 'Bloqueada: avance congelado', Cancelada: 'Cancelada' };
 
 async function patchNodo(tipo, id, datos) {
   if (tipo === 'etapa') return etapasApi.patchEtapa(id, datos);
@@ -73,7 +77,7 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
 
   const [estatus, setEstatus] = useState(nodo.estatus_cualitativo || '');
   const [avance, setAvance] = useState(Math.min(avanceActual, 99));
-  const [concluir, setConcluir] = useState(false);
+  const [concluir, setConcluir] = useState(estadoActual === 'Completada');
   const [detalleAbierto, setDetalleAbierto] = useState(false);
   const [detalle, setDetalle] = useState('');
   const [modoEvidencia, setModoEvidencia] = useState(null); // null | 'archivo' | 'liga'
@@ -93,7 +97,10 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
       const datos = { estatus_cualitativo: estatus.trim() };
       if (puedeCapturarAvance) {
         if (concluir) {
-          datos.estado = 'Completada';
+          // Ya estaba Completada y se dejó la casilla tal cual: no hay
+          // transición real, no hace falta reenviar el estado (evita un
+          // "Estatus cambiado a Completada" fantasma en la actividad).
+          if (estadoActual !== 'Completada') datos.estado = 'Completada';
         } else if (avance !== avanceActual || estadoActual === 'Pendiente') {
           datos.avance_actual = avance;
           if (estadoActual !== 'En_proceso') datos.estado = 'En_proceso';
@@ -159,10 +166,13 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
               </div>
             ) : (
               <>
-                <label className="flex items-center gap-2 text-xs text-gray-600 mb-2">
+                <label className="flex items-center gap-2 text-xs text-gray-600 mb-1">
                   <input type="checkbox" checked={concluir} onChange={e => setConcluir(e.target.checked)} className="accent-guinda-600" />
                   Marcar como concluida
                 </label>
+                {estadoActual === 'Completada' && concluir && (
+                  <p className="text-[10px] text-gray-400 mb-2 ml-5">Ya estaba marcada como concluida. Desmarca la casilla si necesitas corregir el avance.</p>
+                )}
                 {!concluir ? (
                   <div className="flex items-center gap-2">
                     <input type="range" min={0} max={99} value={avance} onChange={e => setAvance(Number(e.target.value))} className="flex-1 accent-guinda-600" />

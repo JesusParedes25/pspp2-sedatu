@@ -329,7 +329,7 @@ export default function NodoCard({
                 <Lock size={12} /> Se calcula desde sus partes
               </div>
             )}
-            <button disabled={soloLectura || completado} onClick={() => setMostrarModalAvance(true)}
+            <button disabled={soloLectura} onClick={() => setMostrarModalAvance(true)}
               className="w-full flex items-center justify-center gap-1.5 text-[12px] font-semibold px-3 py-2.5 rounded-lg disabled:opacity-40 transition-colors bg-guinda-600 text-white hover:bg-guinda-700">
               <TrendingUp size={14} /> Registrar avance
             </button>
