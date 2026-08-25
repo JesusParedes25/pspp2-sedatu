@@ -14,6 +14,7 @@
  */
 const pool = require('../pool');
 const { recalcularEtapa, recalcularProyecto } = require('../../utils/recalculos');
+const { derivarEstadoContenedor } = require('../../utils/avance-semaforo');
 const municipiosNodoQueries = require('./municipios-nodo.queries');
 const { sincronizarCobertura } = require('./cobertura-sync.queries');
 
@@ -777,34 +778,37 @@ async function toggleSubaccion(subaccionId) {
 // Acepta client de transacción para uso atómico.
 async function recalcularAccionDesdeSubs(accionPadreId, client) {
   const db = client || pool;
+  // Todas las subacciones, incluidas Cancelada — para derivar el estado con
+  // el mismo criterio (derivarEstadoContenedor) que etapas/acciones-contenedor
+  // en vez del umbral de porcentaje que usaba antes esta función.
   const subs = await db.query(
-    `SELECT porcentaje_avance, peso_porcentaje FROM acciones
-     WHERE id_accion_padre = $1 AND estado != 'Cancelada'`,
+    `SELECT porcentaje_avance, peso_porcentaje, estado FROM acciones
+     WHERE id_accion_padre = $1`,
     [accionPadreId]
   );
   if (subs.rows.length === 0) return;
 
-  const pesoTotal = subs.rows.reduce((t, s) => t + parseFloat(s.peso_porcentaje || 0), 0);
+  const activas = subs.rows.filter(s => s.estado !== 'Cancelada');
+  const pesoTotal = activas.reduce((t, s) => t + parseFloat(s.peso_porcentaje || 0), 0);
   let promedio;
-  if (pesoTotal > 0) {
-    promedio = subs.rows.reduce((t, s) => {
+  if (activas.length === 0) {
+    promedio = 0;
+  } else if (pesoTotal > 0) {
+    promedio = activas.reduce((t, s) => {
       const pct = parseFloat(s.porcentaje_avance || 0);
       const peso = parseFloat(s.peso_porcentaje || 0);
       return t + (pct * peso / pesoTotal);
     }, 0);
   } else {
-    const suma = subs.rows.reduce((t, s) => t + parseFloat(s.porcentaje_avance || 0), 0);
-    promedio = suma / subs.rows.length;
+    const suma = activas.reduce((t, s) => t + parseFloat(s.porcentaje_avance || 0), 0);
+    promedio = suma / activas.length;
   }
 
-  // Determinar estado del padre según % calculado
-  let estadoPadre = null;
-  if (promedio >= 100) estadoPadre = 'Completada';
-  else if (promedio > 0) estadoPadre = 'En_proceso';
+  const estadoPadre = derivarEstadoContenedor(subs.rows.map(s => s.estado));
 
   await db.query(
     `UPDATE acciones SET porcentaje_avance = $1,
-     estado = COALESCE($2, estado), updated_at = NOW()
+     estado = $2, updated_at = NOW()
      WHERE id = $3`,
     [promedio.toFixed(2), estadoPadre, accionPadreId]
   );

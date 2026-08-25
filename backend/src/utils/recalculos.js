@@ -21,14 +21,18 @@ const { derivarEstadoContenedor, calcularSemaforo } = require('./avance-semaforo
 async function recalcularEtapa(etapaId, client) {
   const db = client || pool;
 
-  // Solo acciones directas (no sub-acciones) no canceladas
+  // Todas las acciones directas (no sub-acciones), incluidas las Cancelada
+  // — se necesitan completas para derivar el estado (distinguir "sin
+  // acciones" de "todas sus acciones se cancelaron"); el promedio de avance
+  // sigue excluyendo Cancelada, igual que siempre.
   const resultado = await db.query(`
     SELECT porcentaje_avance, estado, fecha_inicio, fecha_fin
     FROM acciones
-    WHERE id_etapa = $1 AND id_accion_padre IS NULL AND estado != 'Cancelada'
+    WHERE id_etapa = $1 AND id_accion_padre IS NULL
   `, [etapaId]);
 
   const acciones = resultado.rows;
+  const accionesActivas = acciones.filter(a => a.estado !== 'Cancelada');
 
   // Metadatos de la etapa para semaforo
   const { rows: [etapaMeta] } = await db.query(
@@ -52,8 +56,9 @@ async function recalcularEtapa(etapaId, client) {
       );
     }
   } else {
-    const suma = acciones.reduce((total, a) => total + parseFloat(a.porcentaje_avance || 0), 0);
-    const promedio = Math.round(suma / acciones.length);
+    const promedio = accionesActivas.length > 0
+      ? Math.round(accionesActivas.reduce((total, a) => total + parseFloat(a.porcentaje_avance || 0), 0) / accionesActivas.length)
+      : 0;
     const estadoEtapa = derivarEstadoContenedor(acciones.map(a => a.estado));
 
     // Fechas: se agregan desde TODA la profundidad (acciones, subacciones y
@@ -133,42 +138,52 @@ async function recalcularSubproyecto(subproyectoId, client) {
   `, [promedio.toFixed(2), fechaInicio, fechaFin, subproyectoId]);
 }
 
-// Recalcula el % de avance de un proyecto desde sus etapas y acciones directas
+// Recalcula el % de avance y el estado de un proyecto desde sus etapas,
+// acciones directas y subproyectos — mismo criterio de "todos los hijos,
+// incluidos Cancelada" que recalcularEtapa/recalcularAccionContenedor, para
+// poder derivar el estado con derivarEstadoContenedor.
 async function recalcularProyecto(proyectoId, client) {
   const db = client || pool;
 
   const etapas = await db.query(`
-    SELECT porcentaje_calculado FROM etapas
-    WHERE id_proyecto = $1 AND id_subproyecto IS NULL AND estado != 'Cancelada'
+    SELECT porcentaje_calculado, estado FROM etapas
+    WHERE id_proyecto = $1 AND id_subproyecto IS NULL
   `, [proyectoId]);
 
   // Acciones que cuelgan directamente del proyecto (sin etapa)
   const accionesDirect = await db.query(`
-    SELECT porcentaje_avance FROM acciones
-    WHERE id_proyecto = $1 AND id_etapa IS NULL AND estado != 'Cancelada'
+    SELECT porcentaje_avance, estado FROM acciones
+    WHERE id_proyecto = $1 AND id_etapa IS NULL
   `, [proyectoId]);
 
-  // Subproyectos también contribuyen al avance del proyecto
+  // Subproyectos también contribuyen al avance y estado del proyecto
   const subproyectos = await db.query(`
-    SELECT porcentaje_calculado FROM subproyectos
-    WHERE id_proyecto = $1 AND estado != 'Cancelado'
+    SELECT porcentaje_calculado, estado FROM subproyectos
+    WHERE id_proyecto = $1
   `, [proyectoId]);
 
-  const todos = [
-    ...etapas.rows.map(e => parseFloat(e.porcentaje_calculado)),
-    ...accionesDirect.rows.map(a => parseFloat(a.porcentaje_avance)),
-    ...subproyectos.rows.map(s => parseFloat(s.porcentaje_calculado))
+  const hijosEstado = [
+    ...etapas.rows.map(e => e.estado),
+    ...accionesDirect.rows.map(a => a.estado),
+    ...subproyectos.rows.map(s => s.estado)
   ];
 
-  if (todos.length === 0) return;
+  if (hijosEstado.length === 0) return;
 
-  const promedio = todos.reduce((s, v) => s + v, 0) / todos.length;
+  const activos = [
+    ...etapas.rows.filter(e => e.estado !== 'Cancelada').map(e => parseFloat(e.porcentaje_calculado)),
+    ...accionesDirect.rows.filter(a => a.estado !== 'Cancelada').map(a => parseFloat(a.porcentaje_avance)),
+    ...subproyectos.rows.filter(s => s.estado !== 'Cancelada').map(s => parseFloat(s.porcentaje_calculado))
+  ];
+
+  const promedio = activos.length > 0 ? activos.reduce((s, v) => s + v, 0) / activos.length : 0;
+  const estadoProyecto = derivarEstadoContenedor(hijosEstado);
 
   await db.query(`
     UPDATE proyectos
-    SET porcentaje_calculado = $1, updated_at = NOW()
-    WHERE id = $2
-  `, [promedio.toFixed(2), proyectoId]);
+    SET porcentaje_calculado = $1, estado = $2, updated_at = NOW()
+    WHERE id = $3
+  `, [promedio.toFixed(2), estadoProyecto, proyectoId]);
 }
 
 module.exports = { recalcularEtapa, recalcularSubproyecto, recalcularProyecto };
