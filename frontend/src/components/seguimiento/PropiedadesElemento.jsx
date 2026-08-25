@@ -1,7 +1,7 @@
 /**
  * ARCHIVO: PropiedadesElemento.jsx
  * PROPÓSITO: Los campos de "Ficha" de un nodo (etapa/acción/tarea) —
- *            estatus/semáforo, prioridad, fechas, instrumento y escala
+ *            semáforo, prioridad, fechas, instrumento y escala
  *            territorial. Vive dentro del grupo "Ficha" del panel derecho
  *            (ver FichaNodo.jsx), que lo muestra en modo lectura y lo
  *            revela aquí, editable, tras el enlace "Editar".
@@ -10,7 +10,11 @@
  * del grupo "Vinculación" (botones de NodoCard: Invitar participante,
  * Territorio), que ya cubren exactamente lo mismo (SeccionMiembrosNodo /
  * TerritorioSelector) sin duplicar la UI. Estatus cualitativo tampoco
- * vive aquí — se captura en el modal "Registrar avance".
+ * vive aquí — se captura en el modal "Registrar avance". Y el Estatus
+ * (Pendiente/En_proceso/Bloqueada/Completada/Cancelada) tampoco: vive en
+ * FichaNodo, fuera del toggle "Editar" — es un SelectorEstado que guarda
+ * solo y pasa por cambiarEstado() (motivo de bloqueo, cascada, auditoría),
+ * gobernanza que un CampoSelect de este formulario no tenía.
  *
  * MINI-CLASE: por qué es autosuficiente
  * ─────────────────────────────────────────────────────────────────
@@ -26,7 +30,7 @@ import client from '../../api/client';
 import CampoFecha from '../common/CampoFecha';
 import { formatFecha } from '../../utils/fecha';
 import { CampoSelect, CampoSemaforo } from './EtapasAvancesMD/Campos';
-import { ESTADOS, PRIORIDADES } from './EtapasAvancesMD/utils';
+import { PRIORIDADES } from './EtapasAvancesMD/utils';
 import { permisosDeNodo } from '../../hooks/usePermisos';
 
 export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, onActualizado, mostrarToast }) {
@@ -102,18 +106,10 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
 
   return (
     <div>
-      {/* Fila de resumen: Estatus (solo hoja) · Semáforo · Prioridad —
-          los tres campos que se leen de un vistazo, como píldoras en
-          línea en vez de una lista vertical de campos idénticos. */}
+      {/* Fila de resumen: Semáforo · Prioridad — se leen de un vistazo, como
+          píldoras en línea. Estatus vive aparte, siempre visible arriba de
+          este formulario (FichaNodo) — no se repite aquí. */}
       <div className="flex items-center gap-1.5 flex-wrap mb-3">
-        {!esContenedor && (
-          <CampoSelect
-            label="Estatus" variante="chip"
-            valor={data.estado || 'Pendiente'} opciones={ESTADOS}
-            onChange={v => guardarCampo('estado', v)}
-            soloLectura={permisos.esSoloLectura} formatLabel={v => v.replace(/_/g, ' ')}
-          />
-        )}
         <CampoSemaforo
           variante="chip"
           valor={data.semaforo} override={data.semaforo_override} efectivo={sem}

@@ -162,10 +162,15 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
         </div>
 
         <div className="px-5 py-4 space-y-4 overflow-y-auto">
-          {/* Estatus */}
+          {/* Estatus cualitativo — mismo nombre que usa el resto de la app
+              (Tablero, Panorama del proyecto, Carteras: ver
+              TituloEstatusCualitativo) para esta nota corta. A secas
+              "Estatus" se prestaba a confundirse con el estatus real
+              (Pendiente/En_proceso/Bloqueada/Completada/Cancelada), que
+              vive en su propio control en Ficha, no aquí. */}
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
-              Estatus <span className="text-red-500">*</span>
+              Estatus cualitativo <span className="text-red-500">*</span>
             </label>
             <input
               type="text"

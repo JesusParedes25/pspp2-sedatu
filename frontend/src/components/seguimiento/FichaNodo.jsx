@@ -115,6 +115,32 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
             )}
           </div>
 
+          {/* Estatus (Pendiente/En_proceso/Bloqueada/Completada/Cancelada) —
+              fuera del toggle "Editar": es un control que guarda solo en
+              cuanto se elige una opción, no una casilla más del formulario
+              de PropiedadesElemento, así que no tiene sentido esconderlo
+              detrás de "Editar" ni duplicarlo ahí (antes existían los dos:
+              este y un CampoSelect de "Estatus" dentro de PropiedadesElemento
+              que además no pasaba por la gobernanza de cambiarEstado —
+              bloquear sin motivo, sin cascada, sin auditoría). En una hoja
+              (incluida Tarea) lo decide el usuario libremente; en un
+              contenedor se calcula de sus partes, pero también se puede
+              fijar a mano (estado_override) para los mismos casos de
+              siempre: cancelarlo, bloquearlo, o regresarlo a En_proceso.
+              Mismo control en los tres niveles, un solo lugar predecible
+              donde ir a cambiarlo. */}
+          <div className="mb-2.5">
+            <span className="text-[10px] text-gray-400 block">Estatus</span>
+            <SelectorEstado
+              entidadTipo={entidadTipoDeNodo(tipo, data)}
+              entidadId={id}
+              estadoActual={data.estado || 'Pendiente'}
+              estadoOverride={data.estado_override}
+              onCambio={onActualizado}
+              soloLectura={permisos.esSoloLectura}
+            />
+          </div>
+
           {editandoFicha ? (
             <PropiedadesElemento
               nodo={nodo}
@@ -133,24 +159,6 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
               <div>
                 <span className="text-[10px] text-gray-400 block">Fecha límite</span>
                 <span className="text-gray-700">{formatFecha(data.fecha_limite) || 'Sin definir'}</span>
-              </div>
-              {/* Estatus (Pendiente/En_proceso/Bloqueada/Completada/
-                  Cancelada) — en una hoja (incluida Tarea) lo decide el
-                  usuario libremente; en un contenedor se calcula de sus
-                  partes, pero también se puede fijar a mano (estado_override)
-                  para los mismos casos de siempre: cancelarlo, bloquearlo, o
-                  regresarlo a En_proceso. Mismo control en los tres niveles,
-                  para que sea el mismo lugar predecible donde ir a cambiarlo. */}
-              <div>
-                <span className="text-[10px] text-gray-400 block">Estatus</span>
-                <SelectorEstado
-                  entidadTipo={entidadTipoDeNodo(tipo, data)}
-                  entidadId={id}
-                  estadoActual={data.estado || 'Pendiente'}
-                  estadoOverride={data.estado_override}
-                  onCambio={onActualizado}
-                  soloLectura={permisos.esSoloLectura}
-                />
               </div>
               <div>
                 <span className="text-[10px] text-gray-400 block">Prioridad</span>
