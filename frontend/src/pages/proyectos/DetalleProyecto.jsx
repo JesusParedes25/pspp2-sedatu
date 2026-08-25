@@ -412,6 +412,7 @@ export default function DetalleProyecto() {
                   entidadTipo="Proyecto"
                   entidadId={proyecto.id}
                   estadoActual={proyecto.estado}
+                  estadoOverride={proyecto.estado_override}
                   onCambio={() => { recargarProyecto(); incrementarStats(); }}
                   soloLectura={!permisos.puedeEditar}
                 />

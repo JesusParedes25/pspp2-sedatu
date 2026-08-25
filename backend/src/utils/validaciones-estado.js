@@ -140,21 +140,6 @@ async function cambiarEstado(entidadTipo, entidadId, estadoNuevo, opciones, clie
   const entidad = await obtenerEntidad(entidadTipo, entidadId, db);
   const estadoAnterior = entidad.estado;
 
-  // ── Contenedor check: rechazar cambio de estado en contenedores ──
-  const avanceSemaforo = require('./avance-semaforo');
-  if (entidadTipo === 'Etapa') {
-    const esHoja = await avanceSemaforo.esEtapaHoja(entidadId, db);
-    if (!esHoja) {
-      throw _error('El estatus de un contenedor se calcula automáticamente a partir de sus partes. Para avanzar, actualiza las tareas/acciones que contiene.', 400);
-    }
-  }
-  if (entidadTipo === 'Accion' || entidadTipo === 'Subaccion') {
-    const esHoja = await avanceSemaforo.esNodoHoja(entidadId, db);
-    if (!esHoja) {
-      throw _error('El estatus de un contenedor se calcula automáticamente a partir de sus partes. Para avanzar, actualiza las tareas/acciones que contiene.', 400);
-    }
-  }
-
   if (estadoAnterior === estadoNuevo) {
     throw _error(`La entidad ya está en estado ${estadoNuevo}`, 400);
   }
@@ -193,10 +178,42 @@ async function cambiarEstado(entidadTipo, entidadId, estadoNuevo, opciones, clie
     }
   }
 
+  // ── En un nodo hoja, ir a Completada/Pendiente también fija el avance —
+  // mismo efecto que ya aplican los PATCH .../:id de etapas/acciones
+  // (patchAvanceSemaforo) para nodos hoja, para que el estatus nunca quede
+  // diciendo "Completada" con un avance_actual viejo (p.ej. 40%) detrás.
+  // En un contenedor no aplica: su avance sigue viniendo de sus partes
+  // (calcularAvanceEfectivo), el override es solo sobre el estatus.
+  let avanceExtra = '';
+  if ((entidadTipo === 'Etapa' || entidadTipo === 'Accion' || entidadTipo === 'Subaccion' || entidadTipo === 'Tarea')
+      && (estadoNuevo === 'Completada' || estadoNuevo === 'Pendiente')) {
+    const avanceSemaforo = require('./avance-semaforo');
+    // Tarea siempre es hoja (MAPA_ENTIDAD.Tarea.hijos = []), no tiene
+    // función esXHoja propia porque nunca hace falta preguntarlo.
+    const esHoja = entidadTipo === 'Etapa' ? await avanceSemaforo.esEtapaHoja(entidadId, db)
+      : entidadTipo === 'Tarea' ? true
+      : await avanceSemaforo.esNodoHoja(entidadId, db);
+    if (esHoja) {
+      const valor = estadoNuevo === 'Completada' ? 100 : 0;
+      // Tarea no tiene columna de porcentaje cacheado propia (a diferencia
+      // de etapas/acciones) — solo avance_actual.
+      avanceExtra = entidadTipo === 'Tarea'
+        ? `, avance_actual = ${valor}, avance_override = TRUE`
+        : `, avance_actual = ${valor}, avance_override = TRUE, ${entidadTipo === 'Etapa' ? 'porcentaje_calculado' : 'porcentaje_avance'} = ${valor}`;
+    }
+  }
+
   // ── Actualizar estado en BD ──
+  // estado_override = TRUE siempre que el cambio venga de aquí (cambio
+  // manual explícito): en un nodo hoja no tiene efecto (nunca se recalcula
+  // solo), y en un contenedor es justo lo que evita que el próximo
+  // recálculo automático (avance-semaforo.js / recalculos.js) lo
+  // sobreescriba — mismo criterio que avance_override/semaforo_override.
+  // Tarea no tiene esa columna: siempre es hoja, nada la recalcula sola.
   const mapa = MAPA_ENTIDAD[entidadTipo];
+  const overrideExtra = entidadTipo === 'Tarea' ? '' : ', estado_override = TRUE';
   await db.query(
-    `UPDATE ${mapa.tabla} SET estado = $1, updated_at = NOW() WHERE id = $2`,
+    `UPDATE ${mapa.tabla} SET estado = $1, updated_at = NOW()${overrideExtra}${avanceExtra} WHERE id = $2`,
     [estadoNuevo, entidadId]
   );
 
@@ -445,8 +462,13 @@ async function verificarAutoCompletarPadre(entidadTipo, entidadId, idUsuario, cl
 
   const padre = await obtenerEntidad(padreInfo.padreTipo, padreInfo.padreId, db);
 
-  // No auto-completar si el padre ya está Completada, Cancelada o Bloqueada
+  // No auto-completar si el padre ya está Completada, Cancelada o Bloqueada,
+  // ni si su estatus lo fijó el usuario a mano (estado_override) — el
+  // recálculo automático (recalcularEtapa/recalcularAccionContenedor, que
+  // corre justo después de esto) ya respeta ese override; forzar aquí
+  // "Completada" lo pisaría sin que nada lo corrija después.
   if (['Completada', 'Cancelada', 'Bloqueada'].includes(padre.estado)) return;
+  if (padre.estado_override) return;
 
   // Verificar si todos los hijos del padre están en estado terminal
   const check = await validarCompletitud(padreInfo.padreTipo, padreInfo.padreId, db);
@@ -477,6 +499,62 @@ async function verificarAutoCompletarPadre(entidadTipo, entidadId, idUsuario, cl
   await verificarAutoCompletarPadre(padreInfo.padreTipo, padreInfo.padreId, idUsuario, db);
 }
 
+/**
+ * Apaga estado_override de una entidad (Etapa, Accion, Subaccion o
+ * Proyecto) y dispara de inmediato el recálculo automático correspondiente,
+ * para que el estatus vuelto a mostrar sea el derivado de sus partes en
+ * ese mismo instante, no el valor manual que se acaba de abandonar.
+ * Solo tiene sentido en un contenedor (con hijos): un nodo hoja no tiene
+ * "automático" al cual volver, porque nunca se recalcula solo.
+ */
+async function restaurarEstadoAutomatico(entidadTipo, entidadId, idUsuario, client) {
+  const db = client || pool;
+  const avanceSemaforo = require('./avance-semaforo');
+  const { recalcularEtapa, recalcularProyecto } = require('./recalculos');
+
+  const entidad = await obtenerEntidad(entidadTipo, entidadId, db);
+  if (!entidad.estado_override) {
+    throw _error('Este estatus ya se calcula automáticamente.', 400);
+  }
+
+  let esHoja = true;
+  if (entidadTipo === 'Etapa') {
+    esHoja = await avanceSemaforo.esEtapaHoja(entidadId, db);
+  } else if (entidadTipo === 'Accion' || entidadTipo === 'Subaccion') {
+    esHoja = await avanceSemaforo.esNodoHoja(entidadId, db);
+  } else if (entidadTipo === 'Proyecto') {
+    const { rows: [c] } = await db.query(
+      `SELECT (SELECT COUNT(*)::int FROM etapas WHERE id_proyecto = $1) +
+              (SELECT COUNT(*)::int FROM acciones WHERE id_proyecto = $1 AND id_etapa IS NULL AND id_accion_padre IS NULL) AS c`,
+      [entidadId]
+    );
+    esHoja = c.c === 0;
+  }
+  if (esHoja) {
+    throw _error('Este elemento no tiene partes: no hay un cálculo automático al cual volver.', 400);
+  }
+
+  const mapa = MAPA_ENTIDAD[entidadTipo];
+  const estadoAnterior = entidad.estado;
+  await db.query(`UPDATE ${mapa.tabla} SET estado_override = FALSE WHERE id = $1`, [entidadId]);
+
+  if (entidadTipo === 'Etapa') {
+    await recalcularEtapa(entidadId, db);
+  } else if (entidadTipo === 'Accion' || entidadTipo === 'Subaccion') {
+    await avanceSemaforo.recalcularPadres('accion', entidadId, db);
+  } else if (entidadTipo === 'Proyecto') {
+    await recalcularProyecto(entidadId, db);
+  }
+
+  const { rows: [actualizada] } = await db.query(`SELECT estado FROM ${mapa.tabla} WHERE id = $1`, [entidadId]);
+
+  await registrarAuditoria(
+    mapa.tabla, entidadId, estadoAnterior, actualizada.estado, idUsuario, null, db
+  );
+
+  return { estadoAnterior, estadoNuevo: actualizada.estado };
+}
+
 module.exports = {
   ESTADOS_VALIDOS,
   MAPA_ENTIDAD,
@@ -490,5 +568,6 @@ module.exports = {
   contarDescendientes,
   obtenerEntidad,
   tipoRealAccion,
-  verificarAutoCompletarPadre
+  verificarAutoCompletarPadre,
+  restaurarEstadoAutomatico
 };

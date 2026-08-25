@@ -28,14 +28,28 @@
  * está a un lado, en ese mismo feed.
  * ─────────────────────────────────────────────────────────────────
  */
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Pencil, X } from 'lucide-react';
 import NodoCard from '../nodos/NodoCard';
 import PropiedadesElemento from './PropiedadesElemento';
 import LineageClicable from './LineageClicable';
+import SelectorEstado from '../common/SelectorEstado';
 import { formatFecha } from '../../utils/fecha';
 import { NIVELES } from '../../config/niveles';
 import { permisosDeNodo } from '../../hooks/usePermisos';
+
+// tipo de nodo del árbol ('etapa'|'accion'|'tarea') → entidadTipo que
+// entiende el modelo de estatus (cambiarEstado/estado.controller.js). Una
+// 'accion' es 'Subaccion' cuando cuelga de otra acción (id_accion_padre) en
+// vez de directo de una etapa/proyecto. Tarea siempre es hoja: nunca tiene
+// estado_override (no hay nada que recalcule su estatus solo), pero por lo
+// demás pasa por la misma gobernanza (motivo de bloqueo, auditoría, etc.).
+function entidadTipoDeNodo(tipo, data) {
+  if (tipo === 'etapa') return 'Etapa';
+  if (tipo === 'accion') return data.id_accion_padre ? 'Subaccion' : 'Accion';
+  if (tipo === 'tarea') return 'Tarea';
+  return null;
+}
 
 export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto, ruta, onNavegarLineage, onActualizado, onEliminado, mostrarToast }) {
   const { tipo, id, data } = nodo;
@@ -43,6 +57,15 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
   const nivel = NIVELES[tipo];
   const esContenedor = tipo === 'etapa' || data.es_hoja === false;
   const [editandoFicha, setEditandoFicha] = useState(false);
+  const fichaRef = useRef(null);
+
+  // "Cambiar estatus" en la leyenda de Bloqueada/Cancelada (dentro de
+  // NodoCard) trae a la vista el control de Estatus de Ficha — vive más
+  // abajo en el panel, y sin el scroll el usuario no siempre nota que hay
+  // algo con qué actuar ahí.
+  function irAFicha() {
+    fichaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 
   return (
     // flex-1 (no h-full): en el drawer de Diagrama esta ficha comparte su
@@ -74,11 +97,12 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
           ocultarCabecera
           defaultAbierto
           agrupado
+          onIrAFicha={irAFicha}
         />
 
         {/* c) Ficha — resumen en lectura, "Editar" revela los mismos
             campos editables (PropiedadesElemento). */}
-        <div className="border border-gray-200 rounded-lg px-3.5 py-3">
+        <div ref={fichaRef} className="border border-gray-200 rounded-lg px-3.5 py-3">
           <div className="flex items-center justify-between mb-2.5">
             <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">Ficha</span>
             {!permisos.esSoloLectura && (
@@ -89,6 +113,32 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
                 {editandoFicha ? <><X size={11} /> Cerrar</> : <><Pencil size={11} /> Editar</>}
               </button>
             )}
+          </div>
+
+          {/* Estatus (Pendiente/En_proceso/Bloqueada/Completada/Cancelada) —
+              fuera del toggle "Editar": es un control que guarda solo en
+              cuanto se elige una opción, no una casilla más del formulario
+              de PropiedadesElemento, así que no tiene sentido esconderlo
+              detrás de "Editar" ni duplicarlo ahí (antes existían los dos:
+              este y un CampoSelect de "Estatus" dentro de PropiedadesElemento
+              que además no pasaba por la gobernanza de cambiarEstado —
+              bloquear sin motivo, sin cascada, sin auditoría). En una hoja
+              (incluida Tarea) lo decide el usuario libremente; en un
+              contenedor se calcula de sus partes, pero también se puede
+              fijar a mano (estado_override) para los mismos casos de
+              siempre: cancelarlo, bloquearlo, o regresarlo a En_proceso.
+              Mismo control en los tres niveles, un solo lugar predecible
+              donde ir a cambiarlo. */}
+          <div className="mb-2.5">
+            <span className="text-[10px] text-gray-400 block">Estatus</span>
+            <SelectorEstado
+              entidadTipo={entidadTipoDeNodo(tipo, data)}
+              entidadId={id}
+              estadoActual={data.estado || 'Pendiente'}
+              estadoOverride={data.estado_override}
+              onCambio={onActualizado}
+              soloLectura={permisos.esSoloLectura}
+            />
           </div>
 
           {editandoFicha ? (

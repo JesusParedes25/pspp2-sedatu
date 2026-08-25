@@ -134,17 +134,21 @@ function semaforoEfectivo(nodo) {
 }
 
 /**
- * Deriva el estado de un contenedor a partir de los estados de sus hijos activos.
+ * Deriva el estado de un contenedor a partir de los estados de TODOS sus
+ * hijos directos (incluidos los Cancelada — es la única forma de distinguir
+ * "sin hijos en absoluto" de "todos los hijos se cancelaron").
  * Reglas:
- *   todos Completada → Completada
- *   algún Bloqueada  → Bloqueada
- *   algún En_proceso o mezcla → En_proceso
- *   sin hijos activos o todos Pendiente → Pendiente
+ *   sin hijos en absoluto     → Pendiente
+ *   todos los hijos Cancelada → Cancelada
+ *   todos los activos Completada → Completada
+ *   algún activo Bloqueada    → Bloqueada
+ *   algún activo En_proceso o Completada (mezcla) → En_proceso
+ *   resto (todos Pendiente)   → Pendiente
  */
 function derivarEstadoContenedor(hijosEstados) {
-  // hijosEstados: array de strings (estado de cada hijo NO cancelado)
+  if (hijosEstados.length === 0) return 'Pendiente';
   const activos = hijosEstados.filter(e => e !== 'Cancelada');
-  if (activos.length === 0) return 'Pendiente';
+  if (activos.length === 0) return 'Cancelada';
   if (activos.every(e => e === 'Completada')) return 'Completada';
   if (activos.some(e => e === 'Bloqueada')) return 'Bloqueada';
   if (activos.some(e => e === 'En_proceso') || activos.some(e => e === 'Completada')) return 'En_proceso';
@@ -181,14 +185,15 @@ async function recalcularPadres(tipo, id, db) {
       // Leer datos frescos de hijos (ya actualizados arriba)
       const avance = await calcularAvanceEfectivo('etapa', r.id_etapa, conn);
       const { rows: hijosEtapa } = await conn.query(
-        "SELECT estado FROM acciones WHERE id_etapa = $1 AND id_accion_padre IS NULL AND estado != 'Cancelada'",
+        "SELECT estado FROM acciones WHERE id_etapa = $1 AND id_accion_padre IS NULL",
         [r.id_etapa]
       );
-      const estadoEtapa = derivarEstadoContenedor(hijosEtapa.map(h => h.estado));
+      const estadoDerivado = derivarEstadoContenedor(hijosEtapa.map(h => h.estado));
       const { rows: [etapaNodo] } = await conn.query(
-        'SELECT fecha_limite, fecha_fin, prioridad, semaforo_override FROM etapas WHERE id = $1', [r.id_etapa]
+        'SELECT fecha_limite, fecha_fin, prioridad, semaforo_override, estado, estado_override FROM etapas WHERE id = $1', [r.id_etapa]
       );
       if (!etapaNodo) return;
+      const estadoEtapa = etapaNodo.estado_override ? etapaNodo.estado : estadoDerivado;
       if (!etapaNodo.semaforo_override) {
         const sem = calcularSemaforo(estadoEtapa, etapaNodo.fecha_limite, etapaNodo.prioridad, etapaNodo.fecha_fin);
         await conn.query(
@@ -213,13 +218,15 @@ async function recalcularPadres(tipo, id, db) {
 async function recalcularAccionContenedor(accionId, db) {
   const conn = db || pool;
 
-  // Recoger hijos activos
+  // Recoger TODOS los hijos, incluidos los Cancelada — necesario para
+  // distinguir "sin hijos" (hoja real) de "todos los hijos se cancelaron"
+  // (contenedor vacío por cancelación, que debe leerse como Cancelada).
   const { rows: subAcc } = await conn.query(
-    "SELECT estado FROM acciones WHERE id_accion_padre = $1 AND estado != 'Cancelada'",
+    "SELECT estado FROM acciones WHERE id_accion_padre = $1",
     [accionId]
   );
   const { rows: tareasHijas } = await conn.query(
-    "SELECT estado FROM tareas WHERE id_accion = $1 AND estado != 'Cancelada'",
+    "SELECT estado FROM tareas WHERE id_accion = $1",
     [accionId]
   );
   const todosEstados = [...subAcc.map(h => h.estado), ...tareasHijas.map(h => h.estado)];
@@ -238,20 +245,21 @@ async function recalcularAccionContenedor(accionId, db) {
   // Nodo contenedor: deriva estado y recalcula semáforo
   const estadoDerivado = derivarEstadoContenedor(todosEstados);
   const { rows: [nodo] } = await conn.query(
-    'SELECT fecha_limite, fecha_fin, prioridad, semaforo_override FROM acciones WHERE id = $1', [accionId]
+    'SELECT fecha_limite, fecha_fin, prioridad, semaforo_override, estado, estado_override FROM acciones WHERE id = $1', [accionId]
   );
   if (!nodo) return;
+  const estadoFinal = nodo.estado_override ? nodo.estado : estadoDerivado;
 
   if (!nodo.semaforo_override) {
-    const sem = calcularSemaforo(estadoDerivado, nodo.fecha_limite, nodo.prioridad, nodo.fecha_fin);
+    const sem = calcularSemaforo(estadoFinal, nodo.fecha_limite, nodo.prioridad, nodo.fecha_fin);
     await conn.query(
       'UPDATE acciones SET porcentaje_avance = $1, estado = $2, semaforo = $3, updated_at = NOW() WHERE id = $4',
-      [avance, estadoDerivado, sem, accionId]
+      [avance, estadoFinal, sem, accionId]
     );
   } else {
     await conn.query(
       'UPDATE acciones SET porcentaje_avance = $1, estado = $2, updated_at = NOW() WHERE id = $3',
-      [avance, estadoDerivado, accionId]
+      [avance, estadoFinal, accionId]
     );
   }
 }

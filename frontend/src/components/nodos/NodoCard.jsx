@@ -106,6 +106,12 @@ export default function NodoCard({
   // una lista, o Mis actividades — sin un feed de Actividad al lado) se
   // conserva la cuadrícula plana de siempre, con todo junto.
   agrupado = false,
+  // Opcional: atajo para saltar a la edición del Estatus en el grupo
+  // "Ficha" (FichaNodo) — se usa en la leyenda de Bloqueada/Cancelada de
+  // abajo, para que "cambiar el estatus" no sea una instrucción sin
+  // acción asociada. Sin esta prop (uso normal fuera del panel agrupado)
+  // la leyenda se queda sin el enlace.
+  onIrAFicha,
 }) {
   const { mostrarToast } = useUI();
   const [abierto, setAbierto] = useState(defaultAbierto);
@@ -127,6 +133,13 @@ export default function NodoCard({
 
   const { avance, fecha } = normalizar(tipo, nodo);
   const completado = nodo.estado === 'Completada';
+  // Bloqueada/Cancelada son los dos estados donde el propio backend
+  // rechaza (Bloqueada) o ignora (Cancelada) el avance sin importar qué
+  // se mande — el modal ya lo muestra en solo lectura, pero sin una
+  // leyenda aquí no queda claro POR QUÉ, ni que hay una forma de
+  // revertirlo (el Estatus, en Ficha).
+  const estadoCongelado = nodo.estado === 'Bloqueada' ? 'Bloqueada'
+    : nodo.estado === 'Cancelada' ? 'Cancelada' : null;
   // El permiso puede ser parcial: quien fue invitado a una etapa suelta
   // captura ahí, no en todo el proyecto.
   const soloLectura = permisosDeNodo(permisos, tipo, nodo?.id)?.esSoloLectura ?? true;
@@ -329,7 +342,20 @@ export default function NodoCard({
                 <Lock size={12} /> Se calcula desde sus partes
               </div>
             )}
-            <button disabled={soloLectura || completado} onClick={() => setMostrarModalAvance(true)}
+            {estadoCongelado && (
+              <div className="flex items-center gap-1.5 text-[11px] text-gray-400 bg-gray-100 px-3 py-2 rounded-lg">
+                <Lock size={12} className="flex-shrink-0" />
+                <span className="flex-1">
+                  {estadoCongelado === 'Bloqueada' ? 'Bloqueada — el avance queda congelado hasta desbloquearla.' : 'Cancelada — no se registra avance en un elemento cancelado.'}
+                </span>
+                {onIrAFicha && (
+                  <button onClick={onIrAFicha} className="text-guinda-600 hover:text-guinda-700 font-medium flex-shrink-0">
+                    Cambiar estatus
+                  </button>
+                )}
+              </div>
+            )}
+            <button disabled={soloLectura} onClick={() => setMostrarModalAvance(true)}
               className="w-full flex items-center justify-center gap-1.5 text-[12px] font-semibold px-3 py-2.5 rounded-lg disabled:opacity-40 transition-colors bg-guinda-600 text-white hover:bg-guinda-700">
               <TrendingUp size={14} /> Registrar avance
             </button>
