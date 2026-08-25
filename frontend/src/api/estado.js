@@ -31,3 +31,13 @@ export async function contarDescendientes(entidadTipo, entidadId) {
   });
   return data;
 }
+
+// Apaga estado_override de un contenedor y recalcula su estatus de inmediato
+// a partir de sus partes (deshace lo que hizo cambiarEstado en un contenedor).
+export async function restaurarEstadoAutomatico(entidadTipo, entidadId) {
+  const { data } = await client.put('/estado/automatico', {
+    entidad_tipo: entidadTipo,
+    entidad_id: entidadId
+  });
+  return data;
+}

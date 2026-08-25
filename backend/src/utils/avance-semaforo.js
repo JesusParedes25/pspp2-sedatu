@@ -188,11 +188,12 @@ async function recalcularPadres(tipo, id, db) {
         "SELECT estado FROM acciones WHERE id_etapa = $1 AND id_accion_padre IS NULL",
         [r.id_etapa]
       );
-      const estadoEtapa = derivarEstadoContenedor(hijosEtapa.map(h => h.estado));
+      const estadoDerivado = derivarEstadoContenedor(hijosEtapa.map(h => h.estado));
       const { rows: [etapaNodo] } = await conn.query(
-        'SELECT fecha_limite, fecha_fin, prioridad, semaforo_override FROM etapas WHERE id = $1', [r.id_etapa]
+        'SELECT fecha_limite, fecha_fin, prioridad, semaforo_override, estado, estado_override FROM etapas WHERE id = $1', [r.id_etapa]
       );
       if (!etapaNodo) return;
+      const estadoEtapa = etapaNodo.estado_override ? etapaNodo.estado : estadoDerivado;
       if (!etapaNodo.semaforo_override) {
         const sem = calcularSemaforo(estadoEtapa, etapaNodo.fecha_limite, etapaNodo.prioridad, etapaNodo.fecha_fin);
         await conn.query(
@@ -244,20 +245,21 @@ async function recalcularAccionContenedor(accionId, db) {
   // Nodo contenedor: deriva estado y recalcula semáforo
   const estadoDerivado = derivarEstadoContenedor(todosEstados);
   const { rows: [nodo] } = await conn.query(
-    'SELECT fecha_limite, fecha_fin, prioridad, semaforo_override FROM acciones WHERE id = $1', [accionId]
+    'SELECT fecha_limite, fecha_fin, prioridad, semaforo_override, estado, estado_override FROM acciones WHERE id = $1', [accionId]
   );
   if (!nodo) return;
+  const estadoFinal = nodo.estado_override ? nodo.estado : estadoDerivado;
 
   if (!nodo.semaforo_override) {
-    const sem = calcularSemaforo(estadoDerivado, nodo.fecha_limite, nodo.prioridad, nodo.fecha_fin);
+    const sem = calcularSemaforo(estadoFinal, nodo.fecha_limite, nodo.prioridad, nodo.fecha_fin);
     await conn.query(
       'UPDATE acciones SET porcentaje_avance = $1, estado = $2, semaforo = $3, updated_at = NOW() WHERE id = $4',
-      [avance, estadoDerivado, sem, accionId]
+      [avance, estadoFinal, sem, accionId]
     );
   } else {
     await conn.query(
       'UPDATE acciones SET porcentaje_avance = $1, estado = $2, updated_at = NOW() WHERE id = $3',
-      [avance, estadoDerivado, accionId]
+      [avance, estadoFinal, accionId]
     );
   }
 }

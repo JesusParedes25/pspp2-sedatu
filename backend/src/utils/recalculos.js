@@ -34,32 +34,38 @@ async function recalcularEtapa(etapaId, client) {
   const acciones = resultado.rows;
   const accionesActivas = acciones.filter(a => a.estado !== 'Cancelada');
 
-  // Metadatos de la etapa para semaforo
+  // Metadatos de la etapa para semaforo + estado (para respetar estado_override)
   const { rows: [etapaMeta] } = await db.query(
-    'SELECT id_proyecto, id_subproyecto, fecha_limite, prioridad, semaforo_override FROM etapas WHERE id = $1',
+    'SELECT id_proyecto, id_subproyecto, fecha_limite, prioridad, semaforo_override, estado, estado_override FROM etapas WHERE id = $1',
     [etapaId]
   );
 
   if (acciones.length === 0) {
+    // Sin estado_override, el criterio de siempre; con override, se
+    // conserva el estatus que fijó el usuario (una etapa "hoja" con
+    // estado_override es un caso raro, pero coherente: nada más se
+    // recalcula solo aquí, y este es el único lugar que podría pisarlo).
+    const estadoFinal = etapaMeta?.estado_override ? etapaMeta.estado : 'Pendiente';
     if (!etapaMeta?.semaforo_override) {
-      const sem = calcularSemaforo('Pendiente', etapaMeta?.fecha_limite, etapaMeta?.prioridad);
+      const sem = calcularSemaforo(estadoFinal, etapaMeta?.fecha_limite, etapaMeta?.prioridad);
       await db.query(
-        `UPDATE etapas SET porcentaje_calculado = 0, estado = 'Pendiente', semaforo = $1,
-         fecha_inicio = NULL, fecha_fin = NULL WHERE id = $2`,
-        [sem, etapaId]
+        `UPDATE etapas SET porcentaje_calculado = 0, estado = $1, semaforo = $2,
+         fecha_inicio = NULL, fecha_fin = NULL WHERE id = $3`,
+        [estadoFinal, sem, etapaId]
       );
     } else {
       await db.query(
-        `UPDATE etapas SET porcentaje_calculado = 0, estado = 'Pendiente',
-         fecha_inicio = NULL, fecha_fin = NULL WHERE id = $1`,
-        [etapaId]
+        `UPDATE etapas SET porcentaje_calculado = 0, estado = $1,
+         fecha_inicio = NULL, fecha_fin = NULL WHERE id = $2`,
+        [estadoFinal, etapaId]
       );
     }
   } else {
     const promedio = accionesActivas.length > 0
       ? Math.round(accionesActivas.reduce((total, a) => total + parseFloat(a.porcentaje_avance || 0), 0) / accionesActivas.length)
       : 0;
-    const estadoEtapa = derivarEstadoContenedor(acciones.map(a => a.estado));
+    const estadoDerivado = derivarEstadoContenedor(acciones.map(a => a.estado));
+    const estadoEtapa = etapaMeta?.estado_override ? etapaMeta.estado : estadoDerivado;
 
     // Fechas: se agregan desde TODA la profundidad (acciones, subacciones y
     // tareas), no solo las acciones de primer nivel — muchos equipos
@@ -177,7 +183,10 @@ async function recalcularProyecto(proyectoId, client) {
   ];
 
   const promedio = activos.length > 0 ? activos.reduce((s, v) => s + v, 0) / activos.length : 0;
-  const estadoProyecto = derivarEstadoContenedor(hijosEstado);
+  const estadoDerivado = derivarEstadoContenedor(hijosEstado);
+
+  const { rows: [proyMeta] } = await db.query('SELECT estado, estado_override FROM proyectos WHERE id = $1', [proyectoId]);
+  const estadoProyecto = proyMeta?.estado_override ? proyMeta.estado : estadoDerivado;
 
   await db.query(`
     UPDATE proyectos

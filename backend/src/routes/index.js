@@ -210,6 +210,8 @@ router.get('/conteo-descendientes', estadoController.conteoDescendientes);
 
 // Cambio de estado genérico (alternativa a PUT en cada recurso)
 router.put('/estado', estadoController.cambiarEstado);
+// Apaga estado_override y recalcula el estatus automático de inmediato
+router.put('/estado/automatico', estadoController.restaurarEstadoAutomatico);
 
 // Agenda del usuario autenticado
 router.get('/agenda', accionesController.agenda);

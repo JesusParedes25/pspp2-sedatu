@@ -15,7 +15,8 @@ const pool = require('../db/pool');
 const {
   cambiarEstado: cambiarEstadoUtil,
   contarDescendientes,
-  verificarAutoCompletarPadre
+  verificarAutoCompletarPadre,
+  restaurarEstadoAutomatico: restaurarEstadoAutomaticoUtil
 } = require('../utils/validaciones-estado');
 const { recalcularEtapa, recalcularProyecto } = require('../utils/recalculos');
 const { recalcularIndicadoresProyecto } = require('../db/queries/indicadores.queries');
@@ -88,6 +89,76 @@ async function cambiarEstado(req, res) {
     res.json({
       datos: resultado,
       mensaje: `Estado cambiado de ${resultado.estadoAnterior} a ${resultado.estadoNuevo}`
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    const status = err.statusCode || 500;
+    res.status(status).json({ mensaje: err.message });
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * PUT /api/v1/estado/automatico
+ * Body: { entidad_tipo, entidad_id }
+ * Apaga estado_override de un contenedor (Etapa, Accion, Subaccion o
+ * Proyecto) y recalcula de inmediato su estatus a partir de sus partes.
+ */
+async function restaurarEstadoAutomatico(req, res) {
+  const { entidad_tipo, entidad_id } = req.body;
+  const idUsuario = req.usuario?.id;
+
+  if (!entidad_tipo || !entidad_id) {
+    return res.status(400).json({
+      mensaje: 'Campos requeridos: entidad_tipo, entidad_id'
+    });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const resultado = await restaurarEstadoAutomaticoUtil(entidad_tipo, entidad_id, idUsuario, client);
+
+    // Recalcular indicadores/aportaciones del proyecto afectado, igual que
+    // tras cualquier otro cambio de estado.
+    let proyectoId = null;
+    if (entidad_tipo === 'Proyecto') {
+      proyectoId = entidad_id;
+    } else if (entidad_tipo === 'Etapa') {
+      const e = await client.query('SELECT id_proyecto FROM etapas WHERE id = $1', [entidad_id]);
+      proyectoId = e.rows[0]?.id_proyecto;
+    } else {
+      proyectoId = await obtenerProyectoId('accion', entidad_id, client);
+    }
+    if (proyectoId) {
+      await recalcularIndicadoresProyecto(proyectoId, client);
+      await recalcularAportacionesProyecto(proyectoId, client);
+
+      const { rows: [ent] } = await client.query(
+        `SELECT nombre FROM ${
+          entidad_tipo === 'Proyecto' ? 'proyectos' : entidad_tipo === 'Etapa' ? 'etapas' : 'acciones'
+        } WHERE id = $1`, [entidad_id]
+      );
+      await registrarActividad({
+        id_proyecto: proyectoId,
+        id_usuario: idUsuario,
+        tipo: 'estado',
+        titulo: `${entidad_tipo} "${ent?.nombre || ''}" volvió a estatus automático (${resultado.estadoNuevo})`,
+        descripcion: `Estado anterior (manual): ${resultado.estadoAnterior}`,
+        entidad_tipo,
+        entidad_id,
+        metadata: { estado_anterior: resultado.estadoAnterior, estado_nuevo: resultado.estadoNuevo },
+        client
+      });
+    }
+
+    await client.query('COMMIT');
+
+    res.json({
+      datos: resultado,
+      mensaje: `Estatus vuelto a automático: ${resultado.estadoNuevo}`
     });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -178,4 +249,4 @@ async function recalcularTrasEstado(entidadTipo, entidadId, client) {
   }
 }
 
-module.exports = { cambiarEstado, conteoDescendientes };
+module.exports = { cambiarEstado, restaurarEstadoAutomatico, conteoDescendientes };

@@ -804,7 +804,9 @@ async function recalcularAccionDesdeSubs(accionPadreId, client) {
     promedio = suma / activas.length;
   }
 
-  const estadoPadre = derivarEstadoContenedor(subs.rows.map(s => s.estado));
+  const estadoDerivado = derivarEstadoContenedor(subs.rows.map(s => s.estado));
+  const { rows: [padreActual] } = await db.query('SELECT estado, estado_override FROM acciones WHERE id = $1', [accionPadreId]);
+  const estadoPadre = padreActual?.estado_override ? padreActual.estado : estadoDerivado;
 
   await db.query(
     `UPDATE acciones SET porcentaje_avance = $1,

@@ -28,9 +28,13 @@ const ICONOS_ESTADO = {
 };
 
 /**
- * @param {string}   entidadTipo   - 'Proyecto'|'Etapa'|'Accion'|'Subaccion'
- * @param {string}   entidadId     - UUID de la entidad
- * @param {string}   estadoActual  - Estado actual de la entidad
+ * @param {string}   entidadTipo    - 'Proyecto'|'Etapa'|'Accion'|'Subaccion'
+ * @param {string}   entidadId      - UUID de la entidad
+ * @param {string}   estadoActual   - Estado actual de la entidad
+ * @param {boolean}  estadoOverride - Si es un contenedor con estatus fijado
+ *                                    a mano (en vez del calculado de sus
+ *                                    partes) — muestra la opción "Volver a
+ *                                    automático".
  * @param {function} onCambio      - Callback tras cambio exitoso
  * @param {boolean}  soloLectura   - Deshabilita interacción
  * @param {string}   className     - Clases CSS adicionales
@@ -39,6 +43,7 @@ export default function SelectorEstado({
   entidadTipo,
   entidadId,
   estadoActual,
+  estadoOverride = false,
   onCambio,
   soloLectura = false,
   className = ''
@@ -116,6 +121,19 @@ export default function SelectorEstado({
     await ejecutarCambio('Cancelada');
   }, [ejecutarCambio]);
 
+  const restaurarAutomatico = useCallback(async () => {
+    setAbierto(false);
+    setCargando(true);
+    try {
+      await estadoApi.restaurarEstadoAutomatico(entidadTipo, entidadId);
+      onCambio && onCambio();
+    } catch (err) {
+      alert(err.response?.data?.mensaje || err.message || 'Error al volver al estatus automático');
+    } finally {
+      setCargando(false);
+    }
+  }, [entidadTipo, entidadId, onCambio]);
+
   return (
     <div className={`relative inline-block ${className}`} ref={refPopover}>
       {/* Botón: EstadoChip clicable */}
@@ -127,12 +145,15 @@ export default function SelectorEstado({
         title={soloLectura ? 'Solo lectura' : 'Cambiar estado'}
       >
         <EstadoChip estado={estadoActual} />
+        {estadoOverride && (
+          <span title="Estatus fijado a mano — normalmente se calcula de sus partes" className="ml-1 text-gray-400 text-xs align-top">✎</span>
+        )}
         {cargando && <span className="ml-1 text-xs text-gray-400 animate-pulse">…</span>}
       </button>
 
       {/* Popover de opciones */}
       {abierto && (
-        <div className="absolute z-50 mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg py-1 left-0">
+        <div className="absolute z-50 mt-1 w-52 bg-white border border-gray-200 rounded-lg shadow-lg py-1 left-0">
           {ESTADOS.map((est) => (
             <button
               key={est}
@@ -148,6 +169,18 @@ export default function SelectorEstado({
               {est.replace(/_/g, ' ')}
             </button>
           ))}
+          {estadoOverride && (
+            <>
+              <div className="border-t border-gray-100 my-1" />
+              <button
+                type="button"
+                onClick={restaurarAutomatico}
+                className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 text-gray-500 hover:bg-gray-50"
+              >
+                <span className="text-base">↺</span> Volver a automático
+              </button>
+            </>
+          )}
         </div>
       )}
 
