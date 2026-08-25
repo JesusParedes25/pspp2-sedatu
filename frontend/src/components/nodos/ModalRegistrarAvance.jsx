@@ -24,7 +24,7 @@
  */
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Loader2, Paperclip, Link2, ChevronDown, ChevronRight, Lock, CheckCircle2 } from 'lucide-react';
+import { X, Loader2, Paperclip, Link2, ChevronDown, ChevronRight, Lock, CheckCircle2, Plus } from 'lucide-react';
 import * as etapasApi from '../../api/etapas';
 import * as accionesApi from '../../api/acciones';
 import * as tareasApi from '../../api/tareas';
@@ -32,6 +32,7 @@ import * as evidenciasApi from '../../api/evidencias';
 import * as actividadApi from '../../api/actividad';
 import { crearComentario } from '../../api/comentarios';
 import { NIVELES } from '../../config/niveles';
+import CATEGORIAS_EVIDENCIA from '../seguimiento/categoriasEvidencia';
 
 // comentarios/evidencias del modelo viejo NUNCA soportaron 'Tarea' — para
 // tarea todo cae al stream unificado `actividad` (mismo criterio que ya usa
@@ -57,8 +58,8 @@ async function comentarEn(tipo, id, contenido) {
   return actividadApi.comentar(tipo, id, contenido);
 }
 
-async function adjuntarEvidencia(tipo, id, { archivo, url }) {
-  const metadatos = { categoria: 'Otro' };
+async function adjuntarEvidencia(tipo, id, { archivo, url, categoria, notas }) {
+  const metadatos = { categoria: categoria || 'Otro', notas: notas?.trim() || null };
   if (url) {
     if (tipo === 'tarea') return actividadApi.registrarLinkActividad(tipo, id, url, metadatos);
     if (tipo === 'etapa') return evidenciasApi.registrarLinkEtapa(id, url, metadatos);
@@ -68,6 +69,9 @@ async function adjuntarEvidencia(tipo, id, { archivo, url }) {
   if (tipo === 'etapa') return evidenciasApi.subirEvidenciaEtapa(id, archivo, metadatos);
   return evidenciasApi.subirEvidenciaAccion(id, archivo, metadatos);
 }
+
+let contadorEvidencia = 0;
+const idEvidencia = () => `ev${++contadorEvidencia}`;
 
 export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false, onGuardado, onCerrar }) {
   const nivel = NIVELES[tipo];
@@ -80,15 +84,34 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
   const [concluir, setConcluir] = useState(estadoActual === 'Completada');
   const [detalleAbierto, setDetalleAbierto] = useState(false);
   const [detalle, setDetalle] = useState('');
-  const [modoEvidencia, setModoEvidencia] = useState(null); // null | 'archivo' | 'liga'
-  const [archivo, setArchivo] = useState(null);
-  const [urlLiga, setUrlLiga] = useState('');
+  // Cada evidencia: { id, modo: 'archivo'|'liga', archivo, url, categoria, notas }.
+  // Un archivo elegido con el picker en modo múltiple, o una liga agregada a
+  // mano, cada una con su propia categoría y nota opcionales — así el
+  // usuario no tiene que abrir el modal de nuevo para dejar una segunda
+  // evidencia del mismo reporte.
+  const [evidencias, setEvidencias] = useState([]);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
 
   const puedeCapturarAvance = !esContenedor && !congelado;
   const puedeGuardar = estatus.trim().length > 0 && !guardando
-    && (modoEvidencia !== 'liga' || urlLiga.trim().length > 0);
+    && evidencias.every(ev => ev.modo === 'archivo' || ev.url.trim().length > 0);
+
+  function agregarArchivos(fileList) {
+    const nuevos = Array.from(fileList).map(archivo => ({
+      id: idEvidencia(), modo: 'archivo', archivo, url: '', categoria: 'Otro', notas: '',
+    }));
+    setEvidencias(prev => [...prev, ...nuevos]);
+  }
+  function agregarLiga() {
+    setEvidencias(prev => [...prev, { id: idEvidencia(), modo: 'liga', archivo: null, url: '', categoria: 'Otro', notas: '' }]);
+  }
+  function actualizarEvidencia(id, campo, valor) {
+    setEvidencias(prev => prev.map(ev => (ev.id === id ? { ...ev, [campo]: valor } : ev)));
+  }
+  function quitarEvidencia(id) {
+    setEvidencias(prev => prev.filter(ev => ev.id !== id));
+  }
 
   async function guardar() {
     if (!puedeGuardar) return;
@@ -110,8 +133,13 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
 
       if (detalle.trim()) await comentarEn(tipo, nodo.id, detalle.trim());
 
-      if (modoEvidencia === 'archivo' && archivo) await adjuntarEvidencia(tipo, nodo.id, { archivo });
-      else if (modoEvidencia === 'liga' && urlLiga.trim()) await adjuntarEvidencia(tipo, nodo.id, { url: urlLiga.trim() });
+      // Secuencial, no Promise.all: son peticiones multipart contra el
+      // mismo nodo — más simple de seguir en el log del servidor y evita
+      // sorpresas de orden si una evidencia depende de otra en el futuro.
+      for (const ev of evidencias) {
+        if (ev.modo === 'archivo') await adjuntarEvidencia(tipo, nodo.id, { archivo: ev.archivo, categoria: ev.categoria, notas: ev.notas });
+        else if (ev.url.trim()) await adjuntarEvidencia(tipo, nodo.id, { url: ev.url.trim(), categoria: ev.categoria, notas: ev.notas });
+      }
 
       await onGuardado?.();
       onCerrar?.();
@@ -210,34 +238,61 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
             )}
           </div>
 
-          {/* Evidencia (opcional) */}
+          {/* Evidencia (opcional) — una o varias, cada una con su propia
+              categoría y nota opcionales. Filas compactas tipo tabla en
+              vez de un formulario por evidencia, para que agregar 3 o 4
+              (el caso típico al cerrar un lote de trabajo) no signifique
+              abrir el modal varias veces. */}
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
               Evidencia <span className="text-gray-400 font-normal">(opcional)</span>
             </label>
-            {modoEvidencia === null ? (
-              <div className="flex items-center gap-1.5">
-                <button onClick={() => setModoEvidencia('archivo')}
-                  className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
-                  <Paperclip size={13} /> Archivo
-                </button>
-                <button onClick={() => setModoEvidencia('liga')}
-                  className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
-                  <Link2 size={13} /> Pegar liga
-                </button>
-              </div>
-            ) : modoEvidencia === 'archivo' ? (
-              <div className="flex items-center gap-2">
-                <input type="file" onChange={e => setArchivo(e.target.files?.[0] || null)} className="text-xs flex-1" />
-                <button onClick={() => { setModoEvidencia(null); setArchivo(null); }} className="text-gray-400 hover:text-gray-600 flex-shrink-0"><X size={14} /></button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <input type="url" value={urlLiga} onChange={e => setUrlLiga(e.target.value)} placeholder="https://..."
-                  className="input-base text-sm flex-1" />
-                <button onClick={() => { setModoEvidencia(null); setUrlLiga(''); }} className="text-gray-400 hover:text-gray-600 flex-shrink-0"><X size={14} /></button>
+
+            {evidencias.length > 0 && (
+              <div className="space-y-1.5 mb-2">
+                {evidencias.map(ev => (
+                  <div key={ev.id} className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-2 py-1.5">
+                    {ev.modo === 'liga' ? <Link2 size={13} className="text-blue-500 flex-shrink-0" /> : <Paperclip size={13} className="text-gray-400 flex-shrink-0" />}
+                    <div className="flex-1 min-w-0">
+                      {ev.modo === 'archivo' ? (
+                        <p className="text-xs text-gray-700 truncate" title={ev.archivo.name}>{ev.archivo.name}</p>
+                      ) : (
+                        <input
+                          type="url" value={ev.url} onChange={e => actualizarEvidencia(ev.id, 'url', e.target.value)}
+                          placeholder="https://..." autoFocus
+                          className="text-xs w-full border-0 p-0 outline-none focus:ring-0 bg-transparent"
+                        />
+                      )}
+                      <input
+                        type="text" value={ev.notas} onChange={e => actualizarEvidencia(ev.id, 'notas', e.target.value)}
+                        placeholder="Nota (opcional)"
+                        className="text-[11px] text-gray-400 w-full border-0 p-0 outline-none focus:ring-0 bg-transparent mt-0.5"
+                      />
+                    </div>
+                    <select
+                      value={ev.categoria} onChange={e => actualizarEvidencia(ev.id, 'categoria', e.target.value)}
+                      className="text-[10px] border border-gray-200 rounded px-1 py-1 flex-shrink-0 bg-white max-w-[6.5rem]"
+                    >
+                      {CATEGORIAS_EVIDENCIA.map(c => <option key={c.value} value={c.value}>{c.icon} {c.value}</option>)}
+                    </select>
+                    <button onClick={() => quitarEvidencia(ev.id)} className="text-gray-300 hover:text-red-500 flex-shrink-0">
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
+
+            <div className="flex items-center gap-1.5">
+              <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+                <Plus size={13} /> Archivo
+                <input type="file" multiple className="hidden" onChange={e => { agregarArchivos(e.target.files); e.target.value = ''; }} />
+              </label>
+              <button onClick={agregarLiga}
+                className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
+                <Plus size={13} /> Liga
+              </button>
+            </div>
           </div>
 
           {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded p-2 leading-snug">{error}</p>}

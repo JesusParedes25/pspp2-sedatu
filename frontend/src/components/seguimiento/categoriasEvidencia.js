@@ -1,19 +1,20 @@
 /**
  * ARCHIVO: categoriasEvidencia.js
- * PROPÓSITO: Constante compartida de categorías válidas de evidencia.
- *            Debe coincidir con el CHECK constraint de la tabla evidencias.
+ * PROPÓSITO: Constante compartida de categorías válidas de evidencia —
+ *            debe coincidir con evidencias_categoria_check (migración
+ *            028_evidencias_links_categories.sql). Un icono por
+ *            categoría, para que se lea de un vistazo en cualquier lista
+ *            de evidencias (SeccionArchivosNodo, ModalRegistrarAvance).
  */
 const CATEGORIAS_EVIDENCIA = [
-  { valor: 'Otro',        etiqueta: 'Otro' },
-  { valor: 'Planos',      etiqueta: 'Planos' },
-  { valor: 'Oficios',     etiqueta: 'Oficios' },
-  { valor: 'Minutas',     etiqueta: 'Minutas' },
-  { valor: 'Estudios',    etiqueta: 'Estudios' },
-  { valor: 'Fotografias', etiqueta: 'Fotografías' },
-  { valor: 'Contratos',   etiqueta: 'Contratos' },
-  { valor: 'Geoespacial', etiqueta: 'Geoespacial' },
-  { valor: 'Scripts',     etiqueta: 'Scripts' },
-  { valor: 'Reportes',    etiqueta: 'Reportes' },
+  { value: 'Documento', icon: '📄' },
+  { value: 'Fotografía', icon: '📷' },
+  { value: 'Capa geográfica', icon: '🗺️' },
+  { value: 'Paquete de capas geográficas', icon: '📦' },
+  { value: 'Video', icon: '🎬' },
+  { value: 'Repositorio', icon: '💻' },
+  { value: 'Audio', icon: '🎵' },
+  { value: 'Otro', icon: '📎' },
 ];
 
 export default CATEGORIAS_EVIDENCIA;

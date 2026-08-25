@@ -28,7 +28,7 @@
  * está a un lado, en ese mismo feed.
  * ─────────────────────────────────────────────────────────────────
  */
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Pencil, X } from 'lucide-react';
 import NodoCard from '../nodos/NodoCard';
 import PropiedadesElemento from './PropiedadesElemento';
@@ -43,6 +43,16 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
   const nivel = NIVELES[tipo];
   const esContenedor = tipo === 'etapa' || data.es_hoja === false;
   const [editandoFicha, setEditandoFicha] = useState(false);
+  const fichaRef = useRef(null);
+
+  // "Cambiar estatus" en la leyenda de Bloqueada/Cancelada (dentro de
+  // NodoCard) abre Ficha en modo edición Y la trae a la vista — vive más
+  // abajo en el panel, y sin el scroll el usuario no siempre nota que
+  // algo cambió.
+  function irAFicha() {
+    setEditandoFicha(true);
+    fichaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 
   return (
     // flex-1 (no h-full): en el drawer de Diagrama esta ficha comparte su
@@ -74,11 +84,12 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
           ocultarCabecera
           defaultAbierto
           agrupado
+          onIrAFicha={irAFicha}
         />
 
         {/* c) Ficha — resumen en lectura, "Editar" revela los mismos
             campos editables (PropiedadesElemento). */}
-        <div className="border border-gray-200 rounded-lg px-3.5 py-3">
+        <div ref={fichaRef} className="border border-gray-200 rounded-lg px-3.5 py-3">
           <div className="flex items-center justify-between mb-2.5">
             <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">Ficha</span>
             {!permisos.esSoloLectura && (
@@ -110,6 +121,20 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
                 <span className="text-[10px] text-gray-400 block">Fecha límite</span>
                 <span className="text-gray-700">{formatFecha(data.fecha_limite) || 'Sin definir'}</span>
               </div>
+              {/* Estatus (Pendiente/En_proceso/Bloqueada/Completada/
+                  Cancelada) — solo aplica a hojas, un contenedor lo
+                  calcula de sus partes y el backend rechaza tocarlo
+                  directo. Se muestra siempre aquí (no solo cuando está
+                  Bloqueada/Cancelada) para que sea el mismo lugar
+                  predecible donde ir a cambiarlo. */}
+              {!esContenedor && (
+                <div>
+                  <span className="text-[10px] text-gray-400 block">Estatus</span>
+                  <span className={`text-gray-700 ${['Bloqueada', 'Cancelada'].includes(data.estado) ? 'font-medium text-red-600' : ''}`}>
+                    {(data.estado || 'Pendiente').replace(/_/g, ' ')}
+                  </span>
+                </div>
+              )}
               <div>
                 <span className="text-[10px] text-gray-400 block">Prioridad</span>
                 <span className="text-gray-700">{data.prioridad || 'Sin definir'}</span>

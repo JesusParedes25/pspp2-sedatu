@@ -13,17 +13,7 @@ import * as evidenciasApi from '../../api/evidencias';
 import * as actividadApi from '../../api/actividad';
 import FilePreviewModal from '../evidencias/FilePreviewModal';
 import { permisosDeNodo } from '../../hooks/usePermisos';
-
-const CATEGORIAS_EVIDENCIA = [
-  { value: 'Documento', icon: '📄' },
-  { value: 'Fotografía', icon: '📷' },
-  { value: 'Capa geográfica', icon: '🗺️' },
-  { value: 'Paquete de capas geográficas', icon: '📦' },
-  { value: 'Video', icon: '🎬' },
-  { value: 'Repositorio', icon: '💻' },
-  { value: 'Audio', icon: '🎵' },
-  { value: 'Otro', icon: '📎' },
-];
+import CATEGORIAS_EVIDENCIA from '../seguimiento/categoriasEvidencia';
 
 export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, permisos: permisosProyecto }) {
   const permisos = permisosDeNodo(permisosProyecto, tipo, id);
