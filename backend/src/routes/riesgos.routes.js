@@ -22,5 +22,10 @@ router.post('/', exigirEdicionDeEntidadEnCuerpo(), riesgosController.crear);
 router.get('/:id', riesgosController.obtenerPorId);
 router.put('/:id', exigirEdicionRiesgo(), riesgosController.actualizar);
 router.delete('/:id', exigirEdicionRiesgo(), riesgosController.eliminar);
+// Responder la propia asignación de responsable — no requiere permiso de
+// edición sobre el riesgo (exigirEdicionRiesgo), es una facultad personal
+// de a quien se lo propusieron, la valida el controller comparando contra
+// req.usuario.id.
+router.post('/:id/responder-asignacion', riesgosController.responderAsignacion);
 
 module.exports = router;

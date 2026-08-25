@@ -178,6 +178,9 @@ router.get('/proyectos/:id/riesgos', riesgosController.listarPorProyecto);
 router.get('/etapas/:id/riesgos', riesgosController.listarPorEtapa);
 router.get('/acciones/:id/riesgos', riesgosController.listarPorAccion);
 router.get('/subacciones/:id/riesgos', riesgosController.listarPorSubaccion);
+// Riesgos donde a este usuario le propusieron ser responsable y no ha
+// respondido — misma bandeja que solicitudes-por-resolver, para Riesgo.
+router.get('/riesgos-asignados-pendientes', riesgosController.listarAsignacionesPendientes);
 
 // Indicadores de un proyecto (nivel proyecto, nivel etapa, o todos)
 router.get('/proyectos/:id/indicadores', indicadoresController.listarPorProyecto);

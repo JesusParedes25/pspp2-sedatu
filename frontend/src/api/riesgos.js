@@ -51,3 +51,16 @@ export async function eliminarRiesgo(id) {
   const { data } = await client.delete(`/riesgos/${id}`);
   return data;
 }
+
+// Riesgos donde te propusieron como responsable y no has respondido.
+export async function asignacionesRiesgoPendientes() {
+  const { data } = await client.get('/riesgos-asignados-pendientes');
+  return data.datos;
+}
+
+// respuesta: 'aceptar' | 'declinar'. El motivo es opcional en ambas (igual
+// que responderSolicitud) — declinar no exige justificarse.
+export async function responderAsignacionRiesgo(idRiesgo, respuesta, motivo) {
+  const { data } = await client.post(`/riesgos/${idRiesgo}/responder-asignacion`, { respuesta, motivo });
+  return data.datos;
+}

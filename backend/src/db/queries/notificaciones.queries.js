@@ -15,9 +15,18 @@
  */
 const pool = require('../pool');
 
+// Tipos que YA tienen su propia tarjeta accionable arriba en la página de
+// Notificaciones (InvitacionesPendientes / SolicitudesPorResolver /
+// AsignacionesRiesgoPendientes) mientras siguen pendientes. Sin excluirlos
+// aquí, el mismo pendiente aparecía dos veces: como tarjeta con Aceptar/
+// Declinar y otra vez como fila de solo lectura en "Avisos" — mismo
+// criterio que ya usa contarNoLeidasParaCampanita más abajo, aplicado
+// también al listado completo y no solo al conteo.
+const TIPOS_CON_TARJETA_PROPIA = ['Solicitud', 'Invitacion', 'AsignacionRiesgo'];
+
 // Obtiene notificaciones del usuario, agrupables por período
 async function obtenerNotificaciones(usuarioId, soloNoLeidas = false) {
-  const condiciones = ['n.id_usuario = $1'];
+  const condiciones = ['n.id_usuario = $1', `n.tipo NOT IN ('${TIPOS_CON_TARJETA_PROPIA.join("','")}')`];
   const parametros = [usuarioId];
 
   if (soloNoLeidas) {
@@ -55,19 +64,29 @@ async function obtenerNotificaciones(usuarioId, soloNoLeidas = false) {
   return resultado.rows;
 }
 
-// Cuenta notificaciones no leídas
+// Cuenta notificaciones no leídas — mismo criterio que obtenerNotificaciones
+// (excluye los tipos con tarjeta propia): el "X sin leer" de esta página
+// tiene que contar lo mismo que efectivamente se ve en Avisos. Antes del
+// filtro de obtenerNotificaciones esto ya coincidía por accidente; sin
+// este mismo filtro aquí, una Solicitud/Invitación/AsignacionRiesgo
+// resuelta desde su tarjeta se quedaba contando como "sin leer" para
+// siempre, porque su fila en Avisos —la única forma de marcarla leída—
+// ya no se mostraba.
 async function contarNoLeidas(usuarioId) {
   const resultado = await pool.query(
-    'SELECT COUNT(*) AS total FROM notificaciones WHERE id_usuario = $1 AND leida = false',
+    `SELECT COUNT(*) AS total FROM notificaciones
+     WHERE id_usuario = $1 AND leida = false
+       AND tipo NOT IN ('${TIPOS_CON_TARJETA_PROPIA.join("','")}')`,
     [usuarioId]
   );
   return parseInt(resultado.rows[0].total);
 }
 
-// Igual que contarNoLeidas, pero sin los tipos 'Solicitud' e 'Invitacion'.
-// Los usa el resumen de la campanita (ver notificaciones.controller.js →
-// resumen), que ya suma por separado cuántas invitaciones y solicitudes
-// siguen pendientes de resolver — esas dos SÍ tienen su propia fila en
+// Igual que contarNoLeidas, pero sin los tipos con tarjeta propia (ver
+// TIPOS_CON_TARJETA_PROPIA). Los usa el resumen de la campanita (ver
+// notificaciones.controller.js → resumen), que ya suma por separado
+// cuántas invitaciones, solicitudes y asignaciones de riesgo siguen
+// pendientes de resolver — esos SÍ tienen su propia fila en
 // `notificaciones` cuando llegan (para que aparezcan en el historial de
 // avisos), así que sin este filtro el mismo evento se contaría dos
 // veces: una como "aviso sin leer" y otra como "pendiente por resolver".
@@ -77,7 +96,7 @@ async function contarNoLeidasParaCampanita(usuarioId) {
   const resultado = await pool.query(
     `SELECT COUNT(*) AS total FROM notificaciones
      WHERE id_usuario = $1 AND leida = false
-       AND tipo NOT IN ('Solicitud', 'Invitacion')`,
+       AND tipo NOT IN ('${TIPOS_CON_TARJETA_PROPIA.join("','")}')`,
     [usuarioId]
   );
   return parseInt(resultado.rows[0].total);

@@ -30,6 +30,7 @@ import TerritorioSelector from './TerritorioSelector';
 import SeccionArchivosNodo from './SeccionArchivosNodo';
 import HiloComentarios from '../comentarios/HiloComentarios';
 import PanelRiesgos from '../riesgos/PanelRiesgos';
+import ModalRiesgo from '../riesgos/ModalRiesgo';
 import CampoFecha from '../common/CampoFecha';
 import { formatFecha, diasRestantes } from '../../utils/fecha';
 import { useUI } from '../../context/UIContext';
@@ -116,8 +117,9 @@ export default function NodoCard({
   const { mostrarToast } = useUI();
   const [abierto, setAbierto] = useState(defaultAbierto);
   const [guardando, setGuardando] = useState(false);
-  const [modo, setModo] = useState(null); // null | 'riesgo'
+  const [modo, setModo] = useState(null); // null | 'riesgo' (solo tarea, ver enviarRiesgoRapido)
   const [mostrarModalAvance, setMostrarModalAvance] = useState(false);
+  const [mostrarModalRiesgo, setMostrarModalRiesgo] = useState(false);
   const [riesgoTexto, setRiesgoTexto] = useState('');
   const [riesgoNivel, setRiesgoNivel] = useState('Medio');
 
@@ -232,29 +234,36 @@ export default function NodoCard({
     }
   }
 
-  // Escribe en el modelo VIEJO (comentarios/riesgos/evidencias) para etapa y
-  // acción — es donde ya vivían estos datos y donde el resto de la app (p.ej.
-  // Panorama, listados de riesgos) los sigue leyendo. Para tarea, que nunca
-  // tuvo estas tablas disponibles, cae al stream nuevo (sin regresión: antes
-  // tampoco existía la opción).
+  // Reporte rápido de riesgo, SOLO para 'tarea': el modelo de riesgos
+  // (tabla `riesgos`, con nivel/responsable/aceptar-declinar) nunca incluyó
+  // Tarea en su entidad_tipo, así que cae al stream nuevo (`actividad`) en
+  // vez de al modal completo — sin regresión: antes tampoco tenía nada más
+  // rico que esto. Etapa/Acción usan ModalRiesgo (ver abrirReportarRiesgo).
   async function enviarRiesgoRapido() {
     if (!riesgoTexto.trim()) return;
     setGuardando(true);
     try {
-      if (ENTIDAD_TIPO[tipo]) {
-        await crearRiesgo({
-          entidad_tipo: ENTIDAD_TIPO[tipo], entidad_id: nodo.id,
-          titulo: riesgoTexto.trim().slice(0, 300), descripcion: riesgoTexto.trim(),
-          nivel: riesgoNivel, tipo: 'Riesgo', estado: 'Abierto',
-        });
-      } else {
-        await actividadApi.reportarRiesgo(tipo, nodo.id, riesgoTexto.trim(), riesgoNivel);
-      }
+      await actividadApi.reportarRiesgo(tipo, nodo.id, riesgoTexto.trim(), riesgoNivel);
       setModo(null); setRiesgoTexto('');
       cargarActividad();
     } catch (err) {
       alert(err.response?.data?.mensaje || 'Error al reportar riesgo');
     } finally { setGuardando(false); }
+  }
+
+  // "Reportar riesgo" para etapa/acción: abre el modal completo (título,
+  // causa, impacto, responsable...) en vez del cuadro de texto rápido que
+  // usa tarea — es donde vive el resto de la app (Panorama, PanelRiesgos)
+  // y donde se puede proponer un responsable.
+  function abrirReportarRiesgo() {
+    if (ENTIDAD_TIPO[tipo]) setMostrarModalRiesgo(true);
+    else setModo(modo === 'riesgo' ? null : 'riesgo');
+  }
+
+  async function crearRiesgoDesdeTarjeta(datos) {
+    await crearRiesgo(datos);
+    setMostrarModalRiesgo(false);
+    cargarActividad();
   }
 
   // Solo para 'tarea': etapa/accion usan HiloComentarios (tabla vieja) directamente.
@@ -360,8 +369,8 @@ export default function NodoCard({
               <TrendingUp size={14} /> Registrar avance
             </button>
             {!esContenedor && (
-              <button disabled={soloLectura} onClick={() => setModo(modo === 'riesgo' ? null : 'riesgo')}
-                className={`w-full flex items-center justify-center gap-1.5 text-[11px] font-medium px-2.5 py-2 rounded-lg border disabled:opacity-40 transition-colors ${modo === 'riesgo' ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+              <button disabled={soloLectura} onClick={abrirReportarRiesgo}
+                className={`w-full flex items-center justify-center gap-1.5 text-[11px] font-medium px-2.5 py-2 rounded-lg border disabled:opacity-40 transition-colors ${modo === 'riesgo' || mostrarModalRiesgo ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
                 <AlertTriangle size={13} /> Reportar riesgo
               </button>
             )}
@@ -379,6 +388,15 @@ export default function NodoCard({
               esContenedor={esContenedor}
               onGuardado={async () => { await cargarActividad(); onCambiado?.(); }}
               onCerrar={() => setMostrarModalAvance(false)}
+            />
+          )}
+
+          {mostrarModalRiesgo && (
+            <ModalRiesgo
+              entidadTipo={ENTIDAD_TIPO[tipo]}
+              entidadId={nodo.id}
+              onGuardar={crearRiesgoDesdeTarjeta}
+              onCerrar={() => setMostrarModalRiesgo(false)}
             />
           )}
 

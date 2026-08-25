@@ -11,7 +11,9 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import client from '../../api/client';
 
 const TIPOS = ['Riesgo', 'Problema'];
 const NIVELES = ['Bajo', 'Medio', 'Alto', 'Critico'];
@@ -44,9 +46,11 @@ export default function ModalRiesgo({ riesgo, entidadTipo, entidadId, onGuardar,
     estado: 'Abierto',
     medida_mitigacion: '',
     fecha_limite_resolucion: '',
+    id_responsable: '',
   });
   const [errores, setErrores] = useState({});
   const [guardando, setGuardando] = useState(false);
+  const [usuarios, setUsuarios] = useState([]);
 
   useEffect(() => {
     if (riesgo) {
@@ -62,9 +66,21 @@ export default function ModalRiesgo({ riesgo, entidadTipo, entidadId, onGuardar,
         fecha_limite_resolucion: riesgo.fecha_limite_resolucion
           ? riesgo.fecha_limite_resolucion.substring(0, 10)
           : '',
+        id_responsable: riesgo.id_responsable || '',
       });
     }
   }, [riesgo]);
+
+  // Catálogo de usuarios para el selector de responsable — mismo endpoint
+  // que ya usa PropiedadesElemento para etapas/acciones.
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await client.get('/catalogos/usuarios');
+        setUsuarios(data.datos || []);
+      } catch { /* selector se queda vacío, no bloquea el resto del form */ }
+    })();
+  }, []);
 
   function cambiarCampo(campo, valor) {
     setForm(prev => ({ ...prev, [campo]: valor }));
@@ -90,6 +106,7 @@ export default function ModalRiesgo({ riesgo, entidadTipo, entidadId, onGuardar,
         entidad_tipo: entidadTipo,
         entidad_id: entidadId,
         fecha_limite_resolucion: form.fecha_limite_resolucion || null,
+        id_responsable: form.id_responsable || null,
       };
       await onGuardar(datos);
     } catch (err) {
@@ -99,7 +116,13 @@ export default function ModalRiesgo({ riesgo, entidadTipo, entidadId, onGuardar,
     }
   }
 
-  return (
+  // createPortal a document.body: cuando este modal se abre desde NodoCard
+  // dentro del rail de Detalle o el drawer de Diagrama, el ancestro con
+  // translate-x se vuelve el "containing block" de cualquier hijo
+  // position:fixed — sin el portal, el modal quedaba encajonado dentro del
+  // panel en vez de cubrir toda la pantalla (mismo bug ya resuelto en
+  // ModalRegistrarAvance.jsx).
+  return createPortal((
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] flex flex-col">
         {/* Header */}
@@ -167,6 +190,38 @@ export default function ModalRiesgo({ riesgo, entidadTipo, entidadId, onGuardar,
                 ))}
               </div>
             </div>
+          </div>
+
+          {/* Responsable — proponer a alguien lo deja pendiente de que
+              acepte (Notificaciones); si te lo asignas a ti mismo queda
+              aceptado de una vez, porque no tiene sentido pedirte que
+              aceptes tu propia asignación. */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Responsable</label>
+            <select
+              value={form.id_responsable}
+              onChange={e => cambiarCampo('id_responsable', e.target.value)}
+              className="w-full h-9 px-3 text-sm border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+            >
+              <option value="">Sin asignar</option>
+              {usuarios.map(u => (
+                <option key={u.id} value={u.id}>
+                  {u.nombre_completo}{u.dg_siglas ? ` — ${u.dg_siglas}` : ''}
+                </option>
+              ))}
+            </select>
+            {editando && riesgo.id_responsable && riesgo.id_responsable === form.id_responsable && riesgo.estado_responsable && (
+              <p className={`text-xs mt-1 ${
+                riesgo.estado_responsable === 'aceptada' ? 'text-green-600'
+                  : riesgo.estado_responsable === 'rechazada' ? 'text-red-600' : 'text-amber-600'
+              }`}>
+                {riesgo.estado_responsable === 'aceptada' && 'Aceptó ser responsable.'}
+                {riesgo.estado_responsable === 'pendiente' && 'Pendiente de que acepte.'}
+                {riesgo.estado_responsable === 'rechazada' && (
+                  riesgo.motivo_rechazo ? `Declinó: ${riesgo.motivo_rechazo}` : 'Declinó ser responsable.'
+                )}
+              </p>
+            )}
           </div>
 
           {/* Estado (solo en edición) */}
@@ -263,5 +318,5 @@ export default function ModalRiesgo({ riesgo, entidadTipo, entidadId, onGuardar,
         </div>
       </div>
     </div>
-  );
+  ), document.body);
 }
