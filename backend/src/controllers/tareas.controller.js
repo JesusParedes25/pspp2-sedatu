@@ -10,6 +10,7 @@ const { recalcularEtapa, recalcularProyecto } = require('../utils/recalculos');
 const actividadQueries = require('../db/queries/actividad.queries');
 const municipiosNodoQueries = require('../db/queries/municipios-nodo.queries');
 const { puedeGestionarNodo } = require('../utils/autorizacion');
+const { cambiarEstado: cambiarEstadoUtil } = require('../utils/validaciones-estado');
 
 async function listar(req, res, next) {
   try {
@@ -104,18 +105,23 @@ async function patchAvanceSemaforo(req, res, next) {
       return res.status(404).json({ error: true, mensaje: 'Tarea no encontrada' });
     }
 
-    const { avance_actual, semaforo, estado, prioridad, fecha_inicio, fecha_limite, nombre, descripcion, estatus_cualitativo, cve_ent, municipios } = req.body;
+    const { avance_actual, semaforo, estado, motivo_bloqueo, nota_resolucion, prioridad, fecha_inicio, fecha_limite, nombre, descripcion, estatus_cualitativo, cve_ent, municipios } = req.body;
     const sets = []; const params = []; let idx = 1;
 
-    // ── Estado (tareas siempre son hojas) ──
-    if (estado !== undefined) {
-      sets.push(`estado = $${idx}`); params.push(estado); idx++;
-      if (estado === 'Completada') {
-        sets.push('avance_actual = 100, avance_override = TRUE');
-      }
-      if (estado === 'Pendiente') {
-        sets.push('avance_actual = 0, avance_override = TRUE');
-      }
+    // ── Estado (tareas siempre son hojas) — delega a validaciones-estado.js
+    // (cambiarEstadoUtil) igual que ya hacen etapas/acciones: exige motivo
+    // al bloquear, cierra el bloqueo activo al salir de Bloqueada, valida
+    // reactivación desde Cancelada contra el padre, registra auditoría, y
+    // fija avance_actual=100/0 en Completada/Pendiente (mismo efecto que
+    // antes se escribía aquí a mano). ──
+    let estadoCambiado = false;
+    if (estado !== undefined && estado !== tarea.estado) {
+      await cambiarEstadoUtil(
+        'Tarea', req.params.id, estado,
+        { motivoBloqueo: motivo_bloqueo, notaResolucion: nota_resolucion, idUsuario: req.usuario?.id },
+        client
+      );
+      estadoCambiado = true;
     }
 
     // ── Avance actual (solo en En_proceso, rango 0-99) ──
@@ -176,15 +182,22 @@ async function patchAvanceSemaforo(req, res, next) {
       await municipiosNodoQueries.reemplazarMunicipiosTarea(client, req.params.id, []);
     }
 
-    if (sets.length === 0 && municipios === undefined) {
+    if (sets.length === 0 && municipios === undefined && !estadoCambiado) {
       await client.query('ROLLBACK'); client.release();
       return res.status(400).json({ error: true, mensaje: 'No se proporcionaron campos para actualizar' });
     }
 
-    sets.push('updated_at = NOW()');
-    params.push(req.params.id); idx++;
-    const sql = `UPDATE tareas SET ${sets.join(', ')} WHERE id = $${idx - 1} RETURNING *`;
-    const { rows: [updated] } = await client.query(sql, params);
+    let updated;
+    if (sets.length > 0) {
+      sets.push('updated_at = NOW()');
+      params.push(req.params.id); idx++;
+      const sql = `UPDATE tareas SET ${sets.join(', ')} WHERE id = $${idx - 1} RETURNING *`;
+      ({ rows: [updated] } = await client.query(sql, params));
+    } else {
+      // Solo cambió el estado (ya aplicado arriba) y/o municipios: no hay
+      // más columnas que tocar, pero sí hay que devolver la fila actual.
+      ({ rows: [updated] } = await client.query('SELECT * FROM tareas WHERE id = $1', [req.params.id]));
+    }
 
     // Recalcular padre (acción): avance + estado derivado
     await avanceSemaforo.recalcularPadres('accion', tarea.id_accion, client);

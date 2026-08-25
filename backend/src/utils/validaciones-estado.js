@@ -185,16 +185,21 @@ async function cambiarEstado(entidadTipo, entidadId, estadoNuevo, opciones, clie
   // En un contenedor no aplica: su avance sigue viniendo de sus partes
   // (calcularAvanceEfectivo), el override es solo sobre el estatus.
   let avanceExtra = '';
-  if ((entidadTipo === 'Etapa' || entidadTipo === 'Accion' || entidadTipo === 'Subaccion')
+  if ((entidadTipo === 'Etapa' || entidadTipo === 'Accion' || entidadTipo === 'Subaccion' || entidadTipo === 'Tarea')
       && (estadoNuevo === 'Completada' || estadoNuevo === 'Pendiente')) {
     const avanceSemaforo = require('./avance-semaforo');
-    const esHoja = entidadTipo === 'Etapa'
-      ? await avanceSemaforo.esEtapaHoja(entidadId, db)
+    // Tarea siempre es hoja (MAPA_ENTIDAD.Tarea.hijos = []), no tiene
+    // función esXHoja propia porque nunca hace falta preguntarlo.
+    const esHoja = entidadTipo === 'Etapa' ? await avanceSemaforo.esEtapaHoja(entidadId, db)
+      : entidadTipo === 'Tarea' ? true
       : await avanceSemaforo.esNodoHoja(entidadId, db);
     if (esHoja) {
       const valor = estadoNuevo === 'Completada' ? 100 : 0;
-      const campoPct = entidadTipo === 'Etapa' ? 'porcentaje_calculado' : 'porcentaje_avance';
-      avanceExtra = `, avance_actual = ${valor}, avance_override = TRUE, ${campoPct} = ${valor}`;
+      // Tarea no tiene columna de porcentaje cacheado propia (a diferencia
+      // de etapas/acciones) — solo avance_actual.
+      avanceExtra = entidadTipo === 'Tarea'
+        ? `, avance_actual = ${valor}, avance_override = TRUE`
+        : `, avance_actual = ${valor}, avance_override = TRUE, ${entidadTipo === 'Etapa' ? 'porcentaje_calculado' : 'porcentaje_avance'} = ${valor}`;
     }
   }
 
@@ -204,9 +209,11 @@ async function cambiarEstado(entidadTipo, entidadId, estadoNuevo, opciones, clie
   // solo), y en un contenedor es justo lo que evita que el próximo
   // recálculo automático (avance-semaforo.js / recalculos.js) lo
   // sobreescriba — mismo criterio que avance_override/semaforo_override.
+  // Tarea no tiene esa columna: siempre es hoja, nada la recalcula sola.
   const mapa = MAPA_ENTIDAD[entidadTipo];
+  const overrideExtra = entidadTipo === 'Tarea' ? '' : ', estado_override = TRUE';
   await db.query(
-    `UPDATE ${mapa.tabla} SET estado = $1, estado_override = TRUE, updated_at = NOW()${avanceExtra} WHERE id = $2`,
+    `UPDATE ${mapa.tabla} SET estado = $1, updated_at = NOW()${overrideExtra}${avanceExtra} WHERE id = $2`,
     [estadoNuevo, entidadId]
   );
 

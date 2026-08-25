@@ -41,11 +41,13 @@ import { permisosDeNodo } from '../../hooks/usePermisos';
 // tipo de nodo del árbol ('etapa'|'accion'|'tarea') → entidadTipo que
 // entiende el modelo de estatus (cambiarEstado/estado.controller.js). Una
 // 'accion' es 'Subaccion' cuando cuelga de otra acción (id_accion_padre) en
-// vez de directo de una etapa/proyecto. Tarea no entra aquí todavía — su
-// estatus sigue gobernado aparte (homologarlo es un cambio futuro).
+// vez de directo de una etapa/proyecto. Tarea siempre es hoja: nunca tiene
+// estado_override (no hay nada que recalcule su estatus solo), pero por lo
+// demás pasa por la misma gobernanza (motivo de bloqueo, auditoría, etc.).
 function entidadTipoDeNodo(tipo, data) {
   if (tipo === 'etapa') return 'Etapa';
   if (tipo === 'accion') return data.id_accion_padre ? 'Subaccion' : 'Accion';
+  if (tipo === 'tarea') return 'Tarea';
   return null;
 }
 
@@ -133,29 +135,22 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
                 <span className="text-gray-700">{formatFecha(data.fecha_limite) || 'Sin definir'}</span>
               </div>
               {/* Estatus (Pendiente/En_proceso/Bloqueada/Completada/
-                  Cancelada) — en una hoja lo decide el usuario libremente;
-                  en un contenedor se calcula de sus partes, pero también se
-                  puede fijar a mano (estado_override) para los mismos casos
-                  de siempre: cancelarlo, bloquearlo, o regresarlo a
-                  En_proceso. Mismo control en los dos casos, para que sea
-                  el mismo lugar predecible donde ir a cambiarlo. Tarea
-                  todavía no entra aquí (entidadTipoDeNodo la deja null). */}
+                  Cancelada) — en una hoja (incluida Tarea) lo decide el
+                  usuario libremente; en un contenedor se calcula de sus
+                  partes, pero también se puede fijar a mano (estado_override)
+                  para los mismos casos de siempre: cancelarlo, bloquearlo, o
+                  regresarlo a En_proceso. Mismo control en los tres niveles,
+                  para que sea el mismo lugar predecible donde ir a cambiarlo. */}
               <div>
                 <span className="text-[10px] text-gray-400 block">Estatus</span>
-                {entidadTipoDeNodo(tipo, data) ? (
-                  <SelectorEstado
-                    entidadTipo={entidadTipoDeNodo(tipo, data)}
-                    entidadId={id}
-                    estadoActual={data.estado || 'Pendiente'}
-                    estadoOverride={data.estado_override}
-                    onCambio={onActualizado}
-                    soloLectura={permisos.esSoloLectura}
-                  />
-                ) : (
-                  <span className={`text-gray-700 ${['Bloqueada', 'Cancelada'].includes(data.estado) ? 'font-medium text-red-600' : ''}`}>
-                    {(data.estado || 'Pendiente').replace(/_/g, ' ')}
-                  </span>
-                )}
+                <SelectorEstado
+                  entidadTipo={entidadTipoDeNodo(tipo, data)}
+                  entidadId={id}
+                  estadoActual={data.estado || 'Pendiente'}
+                  estadoOverride={data.estado_override}
+                  onCambio={onActualizado}
+                  soloLectura={permisos.esSoloLectura}
+                />
               </div>
               <div>
                 <span className="text-[10px] text-gray-400 block">Prioridad</span>
