@@ -17,7 +17,7 @@ const riesgosQueries = require('../db/queries/riesgos.queries');
 const { notificarEquipoProyecto, crearNotificacion } = require('../utils/notificaciones');
 const pool = require('../db/pool');
 
-const ETIQUETA_ENTIDAD = { Proyecto: 'el proyecto', Etapa: 'la etapa', Accion: 'la acción', Subaccion: 'la acción' };
+const ETIQUETA_ENTIDAD = { Proyecto: 'el proyecto', Etapa: 'la etapa', Accion: 'la acción', Subaccion: 'la acción', Tarea: 'la tarea' };
 
 // "la etapa «Diagnóstico»" o "el proyecto «X»" — mismo criterio que
 // describirDestino en solicitudes.controller.js, para los avisos de
@@ -46,6 +46,10 @@ async function resolverProyectoIdRiesgo(entidad_tipo, entidad_id) {
       const { rows: e } = await pool.query('SELECT id_proyecto FROM etapas WHERE id = $1', [rows[0].id_etapa]);
       return e[0]?.id_proyecto;
     }
+  }
+  if (t === 'tarea') {
+    const { rows } = await pool.query('SELECT id_accion FROM tareas WHERE id = $1', [entidad_id]);
+    if (rows[0]?.id_accion) return resolverProyectoIdRiesgo('Accion', rows[0].id_accion);
   }
   return null;
 }
@@ -94,7 +98,10 @@ async function obtenerPorId(req, res, next) {
 // proyecto; esto resuelve el nombre de la entidad puntual).
 async function nombreEntidadRiesgo(entidadTipo, entidadId) {
   const t = (entidadTipo || '').toLowerCase();
-  const tabla = t === 'etapa' ? 'etapas' : (t === 'accion' || t === 'subaccion') ? 'acciones' : t === 'proyecto' ? 'proyectos' : null;
+  const tabla = t === 'etapa' ? 'etapas'
+    : (t === 'accion' || t === 'subaccion') ? 'acciones'
+    : t === 'tarea' ? 'tareas'
+    : t === 'proyecto' ? 'proyectos' : null;
   if (!tabla) return null;
   const { rows } = await pool.query(`SELECT nombre FROM ${tabla} WHERE id = $1`, [entidadId]);
   return rows[0]?.nombre || null;
@@ -249,6 +256,16 @@ async function listarPorSubaccion(req, res, next) {
   }
 }
 
+// GET /tareas/:id/riesgos — Listar riesgos de una tarea
+async function listarPorTarea(req, res, next) {
+  try {
+    const riesgos = await riesgosQueries.obtenerRiesgosPorTarea(req.params.id);
+    res.json({ datos: riesgos, mensaje: 'Riesgos de tarea obtenidos' });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // DELETE /riesgos/:id — Eliminar un riesgo
 async function eliminar(req, res, next) {
   try {
@@ -269,7 +286,7 @@ async function eliminar(req, res, next) {
 }
 
 module.exports = {
-  listarPorProyecto, listarPorEtapa, listarPorAccion, listarPorSubaccion,
+  listarPorProyecto, listarPorEtapa, listarPorAccion, listarPorSubaccion, listarPorTarea,
   obtenerPorId, crear, actualizar, eliminar,
   responderAsignacion, listarAsignacionesPendientes,
 };

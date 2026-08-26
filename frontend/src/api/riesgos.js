@@ -47,6 +47,11 @@ export async function obtenerRiesgosSubaccion(subaccionId) {
   return data;
 }
 
+export async function obtenerRiesgosTarea(tareaId) {
+  const { data } = await client.get(`/tareas/${tareaId}/riesgos`);
+  return data;
+}
+
 export async function eliminarRiesgo(id) {
   const { data } = await client.delete(`/riesgos/${id}`);
   return data;

@@ -154,9 +154,16 @@ async function agregarMiembro(req, res, next) {
 async function eliminarMiembro(req, res, next) {
   try {
     const { id, userId } = req.params;
-    const puedeGestionar = await puedeGestionarParticipantes({ usuario: req.usuario, idProyecto: id });
-    if (!puedeGestionar) {
-      return res.status(403).json({ mensaje: 'No tienes permisos para eliminar miembros' });
+    // Un usuario siempre puede salirse por su cuenta de un proyecto —
+    // mismo criterio que ya aplicaba nodo-miembros.controller.js para
+    // etapas/acciones/tareas. Para quitar a alguien más sí hace falta la
+    // facultad de gestionar participantes.
+    const esAutoeliminacion = req.usuario?.id === userId;
+    if (!esAutoeliminacion) {
+      const puedeGestionar = await puedeGestionarParticipantes({ usuario: req.usuario, idProyecto: id });
+      if (!puedeGestionar) {
+        return res.status(403).json({ mensaje: 'No tienes permisos para eliminar miembros' });
+      }
     }
     // Ningún proyecto debe quedarse sin responsable: sin él no hay a quién
     // avisarle las solicitudes ni quién designe participantes. Aplica

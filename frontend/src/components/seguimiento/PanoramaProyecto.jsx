@@ -213,6 +213,7 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
                         key={`${m.id_usuario}-proyecto`}
                         miembro={m}
                         puedeGestionar={permisos.puedeInvitar && m.id_usuario !== usuario?.id}
+                        puedeSalir={m.id_usuario === usuario?.id}
                         onEliminar={() => handleEliminarMiembro(m)}
                         onCambiarRol={nuevoRol => handleCambiarRol(m, nuevoRol)}
                       />
@@ -248,6 +249,7 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
                                 key={`${m.id_usuario}-${grupo.nodo_id}`}
                                 miembro={m}
                                 puedeGestionar={permisos.puedeInvitar && m.id_usuario !== usuario?.id}
+                                puedeSalir={m.id_usuario === usuario?.id}
                                 onEliminar={() => handleEliminarMiembro(m)}
                                 onCambiarRol={nuevoRol => handleCambiarRol(m, nuevoRol)}
                                 onAmpliarATodoElProyecto={() => handleAmpliarATodoElProyecto(m)}
@@ -428,7 +430,15 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
   // acceso a una sola parte.
   async function handleEliminarMiembro(m) {
     const deQue = m.alcance === 'proyecto' ? 'del proyecto' : `de esa ${ETIQUETA_ALCANCE[m.nodo_tipo] || 'parte'}`;
-    if (!confirm(`¿Quitar a ${m.nombre_completo} ${deQue}?`)) return;
+    // Uno mismo también puede quitarse — "salir" en vez de "quitar a
+    // alguien": el backend ya lo permitía (autoeliminación), solo hacía
+    // falta la acción en la interfaz. Mismo endpoint en los dos casos, el
+    // servidor decide con quién compara el id.
+    const esUnoMismo = m.id_usuario === usuario?.id;
+    const pregunta = esUnoMismo
+      ? `¿Salir ${deQue === 'del proyecto' ? 'del proyecto' : deQue}?`
+      : `¿Quitar a ${m.nombre_completo} ${deQue}?`;
+    if (!confirm(pregunta)) return;
     try {
       if (m.alcance === 'proyecto') {
         await eliminarMiembro(proyectoId, m.id_usuario);
@@ -438,7 +448,7 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
       const nuevosDatos = await obtenerPanorama(proyectoId);
       setDatos(nuevosDatos);
     } catch (e) {
-      alert(e.response?.data?.mensaje || 'Error al quitar al usuario');
+      alert(e.response?.data?.mensaje || (esUnoMismo ? 'Error al salir del proyecto' : 'Error al quitar al usuario'));
     }
   }
 
@@ -501,7 +511,7 @@ function alcanceLabel(alcance, nodo_tipo, nodo_nombre) {
   return `Asignado a: ${tipoEs}${nodo_nombre ? ` — ${nodo_nombre}` : ''}`;
 }
 
-function ParticipanteCard({ miembro: m, puedeGestionar, onEliminar, onCambiarRol, onAmpliarATodoElProyecto, mostrarAlcance = true }) {
+function ParticipanteCard({ miembro: m, puedeGestionar, puedeSalir, onEliminar, onCambiarRol, onAmpliarATodoElProyecto, mostrarAlcance = true }) {
   const cfg = ROL_CFG[m.rol] || ROL_CFG.invitado;
   // Dentro de un grupo por nodo el encabezado del grupo ya dice de qué
   // etapa/acción/tarea se trata — repetirlo en cada tarjeta sería ruido.
@@ -577,6 +587,21 @@ function ParticipanteCard({ miembro: m, puedeGestionar, onEliminar, onCambiarRol
         >
           {m.correo}
         </a>
+      )}
+
+      {/* Salir — la propia tarjeta de quien mira esto. No es lo mismo que
+          "quitar" (que solo puede gestión): esto es autoservicio, no
+          requiere permisos, y por eso vive siempre visible en vez de
+          escondido detrás de un hover como el ícono de basura de arriba —
+          alguien mirando su propia tarjeta no está "explorando" para
+          encontrarlo. */}
+      {puedeSalir && (
+        <button
+          onClick={onEliminar}
+          className="text-[10px] font-medium text-red-500 hover:text-red-700 self-start"
+        >
+          Salir {m.alcance === 'proyecto' ? 'del proyecto' : `de esta ${ETIQUETA_ALCANCE[m.nodo_tipo] || 'parte'}`}
+        </button>
       )}
 
       {/* Scope (si aplica) + ampliar a todo el proyecto — la acción que

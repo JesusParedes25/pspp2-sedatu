@@ -173,11 +173,12 @@ router.get('/subacciones/:id/evidencias', evidenciasController.listarPorSubaccio
 router.post('/subacciones/:id/evidencias', exigirEdicionNodo('accion'), upload.single('archivo'), evidenciasController.subirParaSubaccion);
 router.get('/proyectos/:id/evidencias', evidenciasController.listarPorProyecto);
 
-// Riesgos de un proyecto, etapa, acción y subacción
+// Riesgos de un proyecto, etapa, acción, subacción y tarea
 router.get('/proyectos/:id/riesgos', riesgosController.listarPorProyecto);
 router.get('/etapas/:id/riesgos', riesgosController.listarPorEtapa);
 router.get('/acciones/:id/riesgos', riesgosController.listarPorAccion);
 router.get('/subacciones/:id/riesgos', riesgosController.listarPorSubaccion);
+router.get('/tareas/:id/riesgos', riesgosController.listarPorTarea);
 // Riesgos donde a este usuario le propusieron ser responsable y no ha
 // respondido — misma bandeja que solicitudes-por-resolver, para Riesgo.
 router.get('/riesgos-asignados-pendientes', riesgosController.listarAsignacionesPendientes);
