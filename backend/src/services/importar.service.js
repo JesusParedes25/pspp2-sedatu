@@ -704,11 +704,19 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
           ? 100
           : (ent.campos.porcentaje_avance || 0);
 
+        // orden = fila de origen en el archivo. Sin esto todas las tareas
+        // importadas quedaban con orden=0 (el default de la columna) y
+        // created_at idéntico (NOW() no cambia dentro de una misma
+        // transacción) — ORDER BY t.orden, t.created_at no tenía ninguna
+        // columna que las distinguiera y el orden mostrado quedaba a
+        // merced del plan de consulta, no del archivo. Etapas y acciones
+        // no tenían este problema porque sí traían un valor ascendente
+        // explícito (ordenEtapa++).
         await client.query(`
           INSERT INTO tareas (
             nombre, descripcion, id_accion, estado, avance_actual, avance_override,
-            fecha_inicio, fecha_limite, semaforo
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            fecha_inicio, fecha_limite, semaforo, orden
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         `, [
           ent.nombre,
           emptyToNull(ent.campos.descripcion),
@@ -719,6 +727,7 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
           fechaInicio || new Date().toISOString().split('T')[0],
           fechaFin || fechaInicio || new Date().toISOString().split('T')[0],
           semaforoParaBD(ent.campos._semaforo),
+          ent.filaOrigen,
         ]);
         resultado.tareas_creadas++;
 
