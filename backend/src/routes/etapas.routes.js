@@ -26,6 +26,7 @@ router.get('/:id', etapasController.obtenerPorId);
 router.put('/:id', exigirEdicionNodo('etapa'), etapasController.actualizar);
 router.patch('/:id', exigirEdicionNodo('etapa'), etapasController.patchAvanceSemaforo);
 router.patch('/:id/campo', exigirEdicionNodo('etapa'), etapasController.patchCampo);
+router.post('/:id/duplicar', exigirEdicionNodo('etapa'), etapasController.duplicar);
 router.delete('/:id', etapasController.eliminar);   // verifica adentro (puedeGestionarNodo)
 
 module.exports = router;

@@ -230,14 +230,59 @@ async function cancelarInvitacion(invitacionId) {
 }
 
 /**
- * Returns projects where the user is a member (for personalized queries).
+ * Proyectos donde el usuario participa — para Tablero, Mapa Territorial y
+ * "Mis evidencias". Hasta ahora solo miraba proyecto_usuarios (miembro de
+ * TODO el proyecto) e ignoraba a quien solo participa en una etapa/acción/
+ * tarea puntual: se le podía invitar y aceptar sin problema, pero el
+ * proyecto nunca aparecía en su Tablero ni contaba en sus estadísticas —
+ * la invitación quedaba aceptada pero invisible. Mismo criterio de
+ * "asignación explícita" que ya usa permisos.queries.js › nodosEditablesUsuario
+ * para decidir qué puede editar: nodo_miembros con estado='aceptada', o ser
+ * directamente el id_responsable del nodo (se puede asignar responsable sin
+ * pasar por la invitación de nodo_miembros).
  */
 async function obtenerProyectosUsuario(usuarioId) {
   const { rows } = await pool.query(`
-    SELECT pu.id_proyecto
-    FROM proyecto_usuarios pu
-    JOIN proyectos p ON p.id = pu.id_proyecto
-    WHERE pu.id_usuario = $1 AND p.deleted_at IS NULL
+    SELECT DISTINCT p.id AS id_proyecto
+    FROM proyectos p
+    WHERE p.deleted_at IS NULL
+      AND (
+        EXISTS (SELECT 1 FROM proyecto_usuarios pu WHERE pu.id_proyecto = p.id AND pu.id_usuario = $1)
+        OR EXISTS (
+          SELECT 1 FROM etapas e WHERE e.id_proyecto = p.id AND (
+            e.id_responsable = $1
+            OR EXISTS (
+              SELECT 1 FROM nodo_miembros nm
+              WHERE nm.tipo_nodo = 'etapa' AND nm.id_nodo = e.id AND nm.id_usuario = $1 AND nm.estado = 'aceptada'
+            )
+          )
+        )
+        -- id_proyecto en acciones/tareas se resuelve con COALESCE contra la
+        -- etapa: una acción bajo una etapa no siempre trae su propio
+        -- id_proyecto poblado (ver duplicar.queries.js), solo id_etapa.
+        OR EXISTS (
+          SELECT 1 FROM acciones a LEFT JOIN etapas ea ON ea.id = a.id_etapa
+          WHERE COALESCE(a.id_proyecto, ea.id_proyecto) = p.id AND (
+            a.id_responsable = $1
+            OR EXISTS (
+              SELECT 1 FROM nodo_miembros nm
+              WHERE nm.tipo_nodo = 'accion' AND nm.id_nodo = a.id AND nm.id_usuario = $1 AND nm.estado = 'aceptada'
+            )
+          )
+        )
+        OR EXISTS (
+          SELECT 1 FROM tareas t
+          JOIN acciones a2 ON a2.id = t.id_accion
+          LEFT JOIN etapas ea2 ON ea2.id = a2.id_etapa
+          WHERE COALESCE(a2.id_proyecto, ea2.id_proyecto) = p.id AND (
+            t.id_responsable = $1
+            OR EXISTS (
+              SELECT 1 FROM nodo_miembros nm
+              WHERE nm.tipo_nodo = 'tarea' AND nm.id_nodo = t.id AND nm.id_usuario = $1 AND nm.estado = 'aceptada'
+            )
+          )
+        )
+      )
   `, [usuarioId]);
   return rows.map(r => r.id_proyecto);
 }

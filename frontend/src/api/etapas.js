@@ -39,6 +39,11 @@ export async function eliminarEtapa(id) {
   return data;
 }
 
+export async function duplicarEtapa(id) {
+  const { data } = await client.post(`/etapas/${id}/duplicar`);
+  return data;
+}
+
 export async function obtenerIndicadoresEtapa(etapaId) {
   const { data } = await client.get(`/etapas/${etapaId}/indicadores`);
   return data;

@@ -131,6 +131,8 @@ export default function NodoCard({
   const [actividad, setActividad] = useState(null); // se carga lazy al expandir
   const [evidenciasNodo, setEvidenciasNodo] = useState(null); // se carga lazy al abrir "Evidencia"
   const [mostrarDuplicar, setMostrarDuplicar] = useState(false);
+  const [confirmDuplicarEtapa, setConfirmDuplicarEtapa] = useState(false);
+  const [duplicandoEtapa, setDuplicandoEtapa] = useState(false);
   const [confirmEliminar, setConfirmEliminar] = useState(false);
   const [eliminando, setEliminando] = useState(false);
   const [editandoFecha, setEditandoFecha] = useState(false);
@@ -216,6 +218,26 @@ export default function NodoCard({
   async function toggleChecklist() {
     if (esContenedor || soloLectura) return;
     await patch({ estado: completado ? 'Pendiente' : 'Completada' });
+  }
+
+  // Duplicar una etapa no tiene destino que elegir (su único contenedor es
+  // el proyecto, que ya está fijo) — a diferencia de acción/tarea, que sí
+  // usan ModalDuplicarNodo para escoger entre varias etapas/acciones
+  // posibles. Por eso aquí basta un confirm: se agrega como etapa hermana
+  // al final, con sus acciones y tareas copiadas.
+  async function confirmarDuplicarEtapa() {
+    setDuplicandoEtapa(true);
+    try {
+      await etapasApi.duplicarEtapa(nodo.id);
+      setConfirmDuplicarEtapa(false);
+      mostrarToast('Etapa duplicada', 'exito');
+      onCambiado?.();
+    } catch (err) {
+      mostrarToast(err.response?.data?.mensaje || 'Error al duplicar', 'error');
+      setConfirmDuplicarEtapa(false);
+    } finally {
+      setDuplicandoEtapa(false);
+    }
   }
 
   async function confirmarEliminar() {
@@ -434,6 +456,9 @@ export default function NodoCard({
               {!agrupado && !esContenedor && permisos?.puedeCrearAccion && (tipo === 'accion' || tipo === 'tarea') && (
                 <BotonContextual icono={Copy} label="Duplicar" activo={false} onClick={() => setMostrarDuplicar(true)} />
               )}
+              {!agrupado && tipo === 'etapa' && permisos?.puedeCrearEtapa && (
+                <BotonContextual icono={Copy} label="Duplicar" activo={false} onClick={() => setConfirmDuplicarEtapa(true)} />
+              )}
             </div>
 
             {/* Eliminar — destructivo y en cascada, así que va separado del
@@ -455,10 +480,15 @@ export default function NodoCard({
             {/* Pie del panel agrupado: Duplicar/Eliminar, chicos, discretos,
                 alineados a la derecha y separados por una línea — para
                 evitar clics accidentales en algo destructivo. */}
-            {agrupado && (permisos?.puedeEliminar || (!esContenedor && permisos?.puedeCrearAccion && (tipo === 'accion' || tipo === 'tarea'))) && (
+            {agrupado && (permisos?.puedeEliminar || (!esContenedor && permisos?.puedeCrearAccion && (tipo === 'accion' || tipo === 'tarea')) || (tipo === 'etapa' && permisos?.puedeCrearEtapa)) && (
               <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-end gap-3">
                 {!esContenedor && permisos?.puedeCrearAccion && (tipo === 'accion' || tipo === 'tarea') && (
                   <button onClick={() => setMostrarDuplicar(true)} className="text-[11px] text-gray-400 hover:text-gray-600">
+                    Duplicar {TIPO_LABEL_MIN[tipo]}
+                  </button>
+                )}
+                {tipo === 'etapa' && permisos?.puedeCrearEtapa && (
+                  <button onClick={() => setConfirmDuplicarEtapa(true)} className="text-[11px] text-gray-400 hover:text-gray-600">
                     Duplicar {TIPO_LABEL_MIN[tipo]}
                   </button>
                 )}
@@ -482,6 +512,18 @@ export default function NodoCard({
             textoConfirmar={eliminando ? 'Eliminando...' : 'Eliminar'}
             onConfirmar={confirmarEliminar}
             onCancelar={() => setConfirmEliminar(false)}
+          />
+
+          <ConfirmDialog
+            abierto={confirmDuplicarEtapa}
+            titulo="Duplicar etapa"
+            mensaje={`Se creará una copia independiente de "${nodo.nombre}"${
+              numHijosAEliminar > 0 ? ` con sus ${numHijosAEliminar} elemento${numHijosAEliminar > 1 ? 's' : ''} (acciones y tareas)` : ''
+            } al final de este proyecto. La copia empieza en Pendiente, 0%, sin fechas ni territorio propios.`}
+            textoConfirmar={duplicandoEtapa ? 'Duplicando...' : 'Duplicar'}
+            variante="normal"
+            onConfirmar={confirmarDuplicarEtapa}
+            onCancelar={() => setConfirmDuplicarEtapa(false)}
           />
 
           {mostrarDuplicar && (

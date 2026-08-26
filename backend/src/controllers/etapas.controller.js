@@ -13,6 +13,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const etapasQueries = require('../db/queries/etapas.queries');
+const { duplicarEtapa } = require('../db/queries/duplicar.queries');
 const pool = require('../db/pool');
 const { recalcularProyecto } = require('../utils/recalculos');
 const { cambiarEstado: cambiarEstadoUtil } = require('../utils/validaciones-estado');
@@ -166,6 +167,23 @@ async function eliminar(req, res, next) {
     }
 
     res.json({ datos: resultado, mensaje: 'Etapa eliminada' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /etapas/:id/duplicar — Copia esta etapa, con sus acciones/subacciones
+// y tareas, como una nueva etapa hermana al final del mismo proyecto. Mismo
+// criterio "copia en blanco" que Duplicar de acción/tarea (ModalDuplicarNodo):
+// Pendiente, 0%, sin fechas/territorio/participantes propios.
+async function duplicar(req, res, next) {
+  try {
+    const resultado = await duplicarEtapa(req.params.id);
+    res.status(201).json({
+      datos: resultado.etapa,
+      resumen: resultado.copiado,
+      mensaje: 'Etapa duplicada'
+    });
   } catch (err) {
     next(err);
   }
@@ -444,4 +462,4 @@ async function obtenerArbol(req, res, next) {
   }
 }
 
-module.exports = { listarPorProyecto, obtenerPorId, crear, actualizar, eliminar, patchCampo, obtenerCamposExtraSchema, patchAvanceSemaforo, obtenerArbol };
+module.exports = { listarPorProyecto, obtenerPorId, crear, actualizar, eliminar, duplicar, patchCampo, obtenerCamposExtraSchema, patchAvanceSemaforo, obtenerArbol };
