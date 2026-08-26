@@ -8,6 +8,7 @@
  */
 import { useEffect, useRef, useCallback } from 'react';
 import { MapContainer, TileLayer, GeoJSON, useMap } from 'react-leaflet';
+import { CARTO_TILE_URL, CARTO_ATTRIBUTION } from '../../utils/cartoBasemap';
 import 'leaflet/dist/leaflet.css';
 
 export const GUINDA = '#7B1C3E';
@@ -113,10 +114,7 @@ export default function MapaDrillDown({
 
   return (
     <MapContainer center={MEXICO_CENTER} zoom={MEXICO_ZOOM} className="h-full w-full" scrollWheelZoom={true}>
-      <TileLayer
-        attribution='&copy; <a href="https://carto.com">CARTO</a>'
-        url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-      />
+      <TileLayer attribution={CARTO_ATTRIBUTION} url={CARTO_TILE_URL} />
       {estadosGeoJSON && (
         <GeoJSON key={estadosKey} data={estadosGeoJSON} style={getEstadoStyle} onEachFeature={onEachEstado} />
       )}

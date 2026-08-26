@@ -111,6 +111,7 @@ services:
     command: sh -c "npm run build && cp -r /app/dist/* /output/"
     environment:
       VITE_API_URL: /api/v1
+      VITE_CARTO_API_KEY: ${VITE_CARTO_API_KEY}
     volumes:
       - frontend_build:/output
     networks:
