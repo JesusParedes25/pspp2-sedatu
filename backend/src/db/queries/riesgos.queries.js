@@ -201,25 +201,30 @@ async function responderAsignacion({ idRiesgo, acepta, motivoRechazo }) {
 // de qué se trata sin que quien decide tenga que ir a buscarlo.
 async function asignacionesPendientesDe(usuarioId) {
   const resultado = await pool.query(`
-    SELECT
-      r.*,
-      u_asigna.nombre_completo AS asignado_por_nombre,
-      CASE r.entidad_tipo
-        WHEN 'Etapa'    THEN (SELECT e.nombre FROM etapas e WHERE e.id = r.entidad_id)
-        WHEN 'Accion'   THEN (SELECT a.nombre FROM acciones a WHERE a.id = r.entidad_id)
-        WHEN 'Subaccion' THEN (SELECT a.nombre FROM acciones a WHERE a.id = r.entidad_id)
-        WHEN 'Proyecto' THEN (SELECT p.nombre FROM proyectos p WHERE p.id = r.entidad_id)
-      END AS nombre_entidad,
-      CASE r.entidad_tipo
-        WHEN 'Etapa'     THEN (SELECT e.id_proyecto FROM etapas e WHERE e.id = r.entidad_id)
-        WHEN 'Accion'    THEN (SELECT COALESCE(a.id_proyecto, e2.id_proyecto) FROM acciones a LEFT JOIN etapas e2 ON e2.id = a.id_etapa WHERE a.id = r.entidad_id)
-        WHEN 'Subaccion' THEN (SELECT COALESCE(a.id_proyecto, e2.id_proyecto) FROM acciones a LEFT JOIN etapas e2 ON e2.id = a.id_etapa WHERE a.id = r.entidad_id)
-        WHEN 'Proyecto'  THEN r.entidad_id
-      END AS id_proyecto
-    FROM riesgos r
-    LEFT JOIN usuarios u_asigna ON u_asigna.id = r.id_asignado_por
-    WHERE r.id_responsable = $1 AND r.estado_responsable = 'pendiente'
-    ORDER BY r.created_at DESC
+    WITH resuelto AS (
+      SELECT
+        r.*,
+        u_asigna.nombre_completo AS asignado_por_nombre,
+        CASE r.entidad_tipo
+          WHEN 'Etapa'    THEN (SELECT e.nombre FROM etapas e WHERE e.id = r.entidad_id)
+          WHEN 'Accion'   THEN (SELECT a.nombre FROM acciones a WHERE a.id = r.entidad_id)
+          WHEN 'Subaccion' THEN (SELECT a.nombre FROM acciones a WHERE a.id = r.entidad_id)
+          WHEN 'Proyecto' THEN (SELECT p.nombre FROM proyectos p WHERE p.id = r.entidad_id)
+        END AS nombre_entidad,
+        CASE r.entidad_tipo
+          WHEN 'Etapa'     THEN (SELECT e.id_proyecto FROM etapas e WHERE e.id = r.entidad_id)
+          WHEN 'Accion'    THEN (SELECT COALESCE(a.id_proyecto, e2.id_proyecto) FROM acciones a LEFT JOIN etapas e2 ON e2.id = a.id_etapa WHERE a.id = r.entidad_id)
+          WHEN 'Subaccion' THEN (SELECT COALESCE(a.id_proyecto, e2.id_proyecto) FROM acciones a LEFT JOIN etapas e2 ON e2.id = a.id_etapa WHERE a.id = r.entidad_id)
+          WHEN 'Proyecto'  THEN r.entidad_id
+        END AS id_proyecto
+      FROM riesgos r
+      LEFT JOIN usuarios u_asigna ON u_asigna.id = r.id_asignado_por
+      WHERE r.id_responsable = $1 AND r.estado_responsable = 'pendiente'
+    )
+    SELECT resuelto.*, p.nombre AS nombre_proyecto
+    FROM resuelto
+    LEFT JOIN proyectos p ON p.id = resuelto.id_proyecto
+    ORDER BY resuelto.created_at DESC
   `, [usuarioId]);
   return resultado.rows;
 }

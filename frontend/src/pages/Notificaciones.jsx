@@ -1,21 +1,33 @@
 /**
  * ARCHIVO: Notificaciones.jsx
- * PROPÓSITO: Buzón del usuario: invitaciones por responder arriba, y
- *            debajo el historial de avisos del sistema.
+ * PROPÓSITO: Buzón del usuario: pendientes por responder en una pestaña,
+ *            historial de avisos ya vistos/resueltos en otra.
  *
  * MINI-CLASE: avisos que se leen vs. avisos que hay que contestar
  * ─────────────────────────────────────────────────────────────────
  * Las notificaciones son un buzón de solo lectura: se generan por
  * eventos (vencimientos, riesgos, menciones), se leen y se olvidan.
- * Las invitaciones no: hasta que la persona no acepta o rechaza, no
- * tiene permisos y quien invitó no sabe si puede contar con ella. Por
- * eso viven en su propia sección, arriba y destacadas, y no se pueden
- * "marcar como leídas" para hacerlas desaparecer.
+ * Las invitaciones, solicitudes y asignaciones de riesgo no: hasta que
+ * la persona no acepta o rechaza, alguien queda esperando una decisión.
+ * Por eso viven en su propia pestaña ("Pendientes"), separada de todo
+ * lo que ya es solo historial ("Historial").
+ *
+ * MINI-CLASE: por qué un filtro de proyecto y categoría en vez de
+ * secciones apiladas
+ * ─────────────────────────────────────────────────────────────────
+ * La primera versión apilaba una sección por categoría (Riesgos,
+ * Solicitudes, Actividad...) una debajo de otra: con pocas
+ * notificaciones se veía bien, pero en cuanto alguien acumulaba
+ * actividad en varios proyectos, tenía que scrollear cada sección
+ * completa para llegar a la siguiente. Aquí "Historial" es una sola
+ * lista cronológica (como el "Todo" de Gmail), y la categorización se
+ * hace con filtros —chips de categoría y un selector de proyecto—, no
+ * con más secciones que crecen sin límite. Un "Cargar más" evita mandar
+ * cientos de tarjetas al DOM de una vez.
  *
  * Al hacer clic, cada notificación lleva a lo que la originó. Eso exige
  * saber en qué proyecto vive la entidad avisada; el backend lo resuelve
- * y lo devuelve como id_proyecto, porque el navegador solo tiene el id
- * de la etapa o la acción.
+ * y lo devuelve como id_proyecto (y nombre_proyecto, para el filtro).
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useCallback } from 'react';
@@ -30,7 +42,7 @@ import { solicitudesPorResolver, solicitudesResueltas } from '../api/solicitudes
 import { asignacionesRiesgoPendientes } from '../api/riesgos';
 import InvitacionesPendientes from '../components/notificaciones/InvitacionesPendientes';
 import SolicitudesPorResolver from '../components/notificaciones/SolicitudesPorResolver';
-import SolicitudesResueltas from '../components/notificaciones/SolicitudesResueltas';
+import SolicitudResueltaCard from '../components/notificaciones/SolicitudesResueltas';
 import AsignacionesRiesgoPendientes from '../components/notificaciones/AsignacionesRiesgoPendientes';
 import EmptyState from '../components/common/EmptyState';
 
@@ -53,10 +65,8 @@ const iconosPorTipo = {
   General:                  Bell,
 };
 
-// Catálogo de "Avisos" por categoría — para que una bandeja con varios
-// tipos de notificación distintos se lea de un vistazo en vez de como una
-// sola lista plana. El orden de las categorías es el orden en que
-// aparecen; un tipo no listado aquí cae en "Sistema" (catch-all).
+// Catálogo de "Historial" por categoría — usado por los chips de filtro,
+// no para apilar secciones. Un tipo no listado aquí cae en "Sistema".
 const CATEGORIAS_AVISO = [
   { titulo: 'Riesgos', tipos: ['Riesgo', 'RespuestaAsignacionRiesgo'] },
   { titulo: 'Solicitudes e invitaciones', tipos: ['RespuestaSolicitud', 'RespuestaInvitacion'] },
@@ -76,6 +86,8 @@ function rutaDe(n) {
   return `/proyectos/${n.id_proyecto}`;
 }
 
+const PAGINA = 15;
+
 export default function Notificaciones() {
   const navigate = useNavigate();
   // Compartido con Header vía Layout: cualquier acción que se resuelva
@@ -90,6 +102,9 @@ export default function Notificaciones() {
   const [resueltas, setResueltas] = useState([]);
   const [asignacionesRiesgo, setAsignacionesRiesgo] = useState([]);
   const [tab, setTab] = useState('pendientes');
+  const [categoriaFiltro, setCategoriaFiltro] = useState('Todas');
+  const [proyectoFiltro, setProyectoFiltro] = useState('');
+  const [visibles, setVisibles] = useState(PAGINA);
 
   const cargarInvitaciones = useCallback(async () => {
     try { setInvitaciones(await misInvitaciones()); } catch { /* buzón vacío */ }
@@ -125,6 +140,14 @@ export default function Notificaciones() {
       setTabElegida(true);
     }
   }, [cargando, tabElegida, pendientesTotal]);
+
+  // Cambiar de filtro (proyecto, categoría o pestaña) reinicia cuántas
+  // tarjetas se muestran — si no, alguien podría filtrar y seguir viendo
+  // "Cargar más" en un punto que ya no corresponde a los primeros 15
+  // resultados del nuevo filtro.
+  useEffect(() => {
+    setVisibles(PAGINA);
+  }, [categoriaFiltro, proyectoFiltro, tab]);
 
   function alResponderInvitacion() {
     cargarInvitaciones();
@@ -170,17 +193,64 @@ export default function Notificaciones() {
     );
   }
 
-  // Avisos agrupados por categoría, en el orden de CATEGORIAS_AVISO — así
-  // "varios tipos de notificación" se leen como secciones, no como una
-  // sola lista larga donde un comentario y un vencimiento se mezclan sin
-  // distinción. Los encabezados de categoría se muestran siempre, incluso
-  // con una sola categoría presente: son los que le dan sentido a
-  // "catalogado", no un extra que solo aparece cuando hay variedad.
-  const gruposAviso = [...CATEGORIAS_AVISO.map(c => c.titulo), 'Sistema']
-    .map(titulo => ({ titulo, items: notificaciones.filter(n => categoriaDe(n.tipo) === titulo) }))
-    .filter(g => g.items.length > 0);
+  // Historial: notificaciones y solicitudes resueltas fusionadas en una
+  // sola lista cronológica — no una sección por tipo. La categoría viaja
+  // con cada ítem para que los chips de filtro puedan usarla sin volver
+  // a apilar nada.
+  const itemsHistorial = [
+    ...notificaciones.map(n => ({
+      id: `n-${n.id}`,
+      fecha: n.created_at,
+      categoria: categoriaDe(n.tipo),
+      id_proyecto: n.id_proyecto,
+      nombre_proyecto: n.nombre_proyecto,
+      render: () => <NotificacionCard key={n.id} notificacion={n} onAbrir={abrir} />,
+    })),
+    ...resueltas.map(sol => ({
+      id: `s-${sol.id}`,
+      fecha: sol.respondida_en,
+      categoria: 'Solicitudes e invitaciones',
+      id_proyecto: sol.id_proyecto,
+      nombre_proyecto: sol.nombre_proyecto,
+      render: () => <SolicitudResueltaCard key={sol.id} solicitud={sol} />,
+    })),
+  ].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
-  const historialVacio = resueltas.length === 0 && notificaciones.length === 0;
+  // Proyectos presentes en cualquier parte del buzón (pendientes o
+  // historial) — el selector de proyecto filtra ambas pestañas con el
+  // mismo criterio, así que se arma una sola vez a partir de todo.
+  const mapaProyectos = new Map();
+  [...invitaciones, ...solicitudes, ...asignacionesRiesgo, ...itemsHistorial].forEach(item => {
+    if (item.id_proyecto && item.nombre_proyecto && !mapaProyectos.has(item.id_proyecto)) {
+      mapaProyectos.set(item.id_proyecto, item.nombre_proyecto);
+    }
+  });
+  const proyectosDisponibles = [...mapaProyectos.entries()]
+    .map(([id, nombre]) => ({ id, nombre }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+
+  const categoriasConItems = ['Todas', ...CATEGORIAS_AVISO.map(c => c.titulo), 'Sistema']
+    .filter(cat => cat === 'Todas' || itemsHistorial.some(item => item.categoria === cat));
+
+  const invitacionesFiltradas = proyectoFiltro ? invitaciones.filter(i => i.id_proyecto === proyectoFiltro) : invitaciones;
+  const solicitudesFiltradas = proyectoFiltro ? solicitudes.filter(s => s.id_proyecto === proyectoFiltro) : solicitudes;
+  const asignacionesFiltradas = proyectoFiltro ? asignacionesRiesgo.filter(r => r.id_proyecto === proyectoFiltro) : asignacionesRiesgo;
+  const pendientesFiltradosTotal = invitacionesFiltradas.length + solicitudesFiltradas.length + asignacionesFiltradas.length;
+
+  const itemsFiltrados = itemsHistorial.filter(item =>
+    (categoriaFiltro === 'Todas' || item.categoria === categoriaFiltro) &&
+    (!proyectoFiltro || item.id_proyecto === proyectoFiltro)
+  );
+  const itemsVisibles = itemsFiltrados.slice(0, visibles);
+  const hayMas = itemsFiltrados.length > itemsVisibles.length;
+
+  const historialVacio = itemsHistorial.length === 0;
+  const historialSinResultados = !historialVacio && itemsFiltrados.length === 0;
+
+  function limpiarFiltros() {
+    setCategoriaFiltro('Todas');
+    setProyectoFiltro('');
+  }
 
   const TABS = [
     { id: 'pendientes', etiqueta: 'Pendientes', icono: Inbox, cuenta: pendientesTotal },
@@ -237,27 +307,69 @@ export default function Notificaciones() {
         })}
       </div>
 
+      {/* Filtros: proyecto (ambas pestañas) y categoría (solo Historial).
+          Solo se muestran si hay algo que filtrar — con un solo proyecto
+          en juego, un selector con una opción no aporta nada. */}
+      {(proyectosDisponibles.length > 1 || (tab === 'historial' && categoriasConItems.length > 2)) && (
+        <div className="flex flex-wrap items-center gap-3">
+          {proyectosDisponibles.length > 1 && (
+            <select
+              value={proyectoFiltro}
+              onChange={e => setProyectoFiltro(e.target.value)}
+              className="h-8 px-2.5 text-xs border border-gray-300 rounded-lg bg-white text-gray-700 outline-none focus:ring-2 focus:ring-guinda-200"
+            >
+              <option value="">Todos los proyectos</option>
+              {proyectosDisponibles.map(p => (
+                <option key={p.id} value={p.id}>{p.nombre}</option>
+              ))}
+            </select>
+          )}
+
+          {tab === 'historial' && categoriasConItems.length > 2 && (
+            <div className="flex flex-wrap gap-1.5">
+              {categoriasConItems.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setCategoriaFiltro(cat)}
+                  className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                    categoriaFiltro === cat
+                      ? 'bg-guinda-600 border-guinda-600 text-white'
+                      : 'bg-white border-gray-300 text-gray-600 hover:border-gray-400'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {tab === 'pendientes' ? (
-        pendientesTotal === 0 ? (
+        pendientesFiltradosTotal === 0 ? (
           <EmptyState
             icono={Inbox}
             titulo="Sin pendientes"
-            subtitulo="No tienes invitaciones, solicitudes ni riesgos asignados esperando tu respuesta."
+            subtitulo={
+              proyectoFiltro && pendientesTotal > 0
+                ? 'No tienes pendientes en ese proyecto. Quita el filtro para ver los demás.'
+                : 'No tienes invitaciones, solicitudes ni riesgos asignados esperando tu respuesta.'
+            }
           />
         ) : (
           <div className="space-y-6">
             <InvitacionesPendientes
-              invitaciones={invitaciones}
+              invitaciones={invitacionesFiltradas}
               onRespondida={alResponderInvitacion}
             />
 
             <SolicitudesPorResolver
-              solicitudes={solicitudes}
+              solicitudes={solicitudesFiltradas}
               onRespondida={alResolverSolicitud}
             />
 
             <AsignacionesRiesgoPendientes
-              asignaciones={asignacionesRiesgo}
+              asignaciones={asignacionesFiltradas}
               onRespondida={alResponderAsignacionRiesgo}
             />
           </div>
@@ -268,59 +380,70 @@ export default function Notificaciones() {
           titulo="Sin notificaciones"
           subtitulo="No tienes notificaciones aún. Aparecerán aquí cuando haya eventos relevantes."
         />
+      ) : historialSinResultados ? (
+        <div className="text-center py-12">
+          <p className="text-sm text-gray-500">Nada coincide con este filtro.</p>
+          <button onClick={limpiarFiltros} className="text-xs text-guinda-600 font-medium mt-2 hover:underline">
+            Quitar filtros
+          </button>
+        </div>
       ) : (
-        <div className="space-y-6">
-          <SolicitudesResueltas solicitudes={resueltas} />
+        <div className="space-y-2">
+          {itemsVisibles.map(item => item.render())}
 
-          {gruposAviso.map(grupo => (
-            <div key={grupo.titulo} className="space-y-2">
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{grupo.titulo}</h3>
-              {grupo.items.map(notificacion => {
-                const Icono = iconosPorTipo[notificacion.tipo] || Bell;
-                const clicable = !!rutaDe(notificacion);
-
-                return (
-                  <button
-                    key={notificacion.id}
-                    onClick={() => abrir(notificacion)}
-                    className={`w-full text-left card p-4 flex items-start gap-4 transition-colors ${
-                      notificacion.leida ? 'bg-white' : 'bg-blue-50 border-blue-200'
-                    } ${clicable ? 'hover:shadow-sm cursor-pointer' : 'cursor-default'}`}
-                  >
-                    {/* Ícono */}
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      notificacion.leida ? 'bg-gray-100 text-gray-400' : 'bg-guinda-100 text-guinda-500'
-                    }`}>
-                      <Icono size={18} />
-                    </div>
-
-                    {/* Contenido */}
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm ${notificacion.leida ? 'text-gray-600' : 'text-gray-900 font-medium'}`}>
-                        {notificacion.mensaje}
-                      </p>
-                      {clicable && (
-                        <p className="text-xs text-guinda-600 mt-0.5">Ver</p>
-                      )}
-                    </div>
-
-                    {/* Fecha */}
-                    <span className="text-xs text-gray-400 flex-shrink-0">
-                      {formatearFechaRelativa(notificacion.created_at)}
-                    </span>
-
-                    {/* Indicador de no leída */}
-                    {!notificacion.leida && (
-                      <div className="w-2.5 h-2.5 bg-guinda-500 rounded-full flex-shrink-0 mt-1" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
+          {hayMas && (
+            <button
+              onClick={() => setVisibles(v => v + PAGINA)}
+              className="w-full text-center text-xs font-medium text-guinda-600 hover:text-guinda-700 py-3"
+            >
+              Cargar más ({itemsFiltrados.length - itemsVisibles.length} restantes)
+            </button>
+          )}
         </div>
       )}
     </div>
+  );
+}
+
+// Tarjeta de una notificación de solo lectura (avisos del sistema).
+function NotificacionCard({ notificacion, onAbrir }) {
+  const Icono = iconosPorTipo[notificacion.tipo] || Bell;
+  const clicable = !!rutaDe(notificacion);
+
+  return (
+    <button
+      onClick={() => onAbrir(notificacion)}
+      className={`w-full text-left card p-4 flex items-start gap-4 transition-colors ${
+        notificacion.leida ? 'bg-white' : 'bg-blue-50 border-blue-200'
+      } ${clicable ? 'hover:shadow-sm cursor-pointer' : 'cursor-default'}`}
+    >
+      {/* Ícono */}
+      <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+        notificacion.leida ? 'bg-gray-100 text-gray-400' : 'bg-guinda-100 text-guinda-500'
+      }`}>
+        <Icono size={18} />
+      </div>
+
+      {/* Contenido */}
+      <div className="flex-1 min-w-0">
+        <p className={`text-sm ${notificacion.leida ? 'text-gray-600' : 'text-gray-900 font-medium'}`}>
+          {notificacion.mensaje}
+        </p>
+        {clicable && (
+          <p className="text-xs text-guinda-600 mt-0.5">Ver</p>
+        )}
+      </div>
+
+      {/* Fecha */}
+      <span className="text-xs text-gray-400 flex-shrink-0">
+        {formatearFechaRelativa(notificacion.created_at)}
+      </span>
+
+      {/* Indicador de no leída */}
+      {!notificacion.leida && (
+        <div className="w-2.5 h-2.5 bg-guinda-500 rounded-full flex-shrink-0 mt-1" />
+      )}
+    </button>
   );
 }
 
