@@ -11,6 +11,7 @@ import { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, WMSTileLayer, GeoJSON, useMap } from 'react-leaflet';
 import { MapPin } from 'lucide-react';
 import client from '../../api/client';
+import { CARTO_TILE_URL, CARTO_ATTRIBUTION } from '../../utils/cartoBasemap';
 import 'leaflet/dist/leaflet.css';
 
 const GEOSERVER_URL = import.meta.env.VITE_GEOSERVER_URL || 'http://localhost:8080/geoserver';
@@ -80,10 +81,7 @@ export default function MapaCobertura({ proyectoId }) {
           scrollWheelZoom={true}
         >
           {/* Base tiles */}
-          <TileLayer
-            attribution='&copy; <a href="https://carto.com">CARTO</a>'
-            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-          />
+          <TileLayer attribution={CARTO_ATTRIBUTION} url={CARTO_TILE_URL} />
 
           {/* WMS layer de estados */}
           <WMSTileLayer
