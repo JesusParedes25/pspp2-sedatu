@@ -374,49 +374,69 @@ async function obtenerZMGeoJSON() {
 // ─── Project mapa-territorial ─────────────────────────────────
 
 async function obtenerMapaTerritorialProyecto(proyectoId) {
+  // Territorio.js documenta el modelo: un nodo se territorializa en Modo A
+  // (Estado + Municipios, cve_ent) O Modo B (Zona Metropolitana, id_zm) —
+  // son mutuamente excluyentes (TerritorioSelector.jsx borra uno al elegir
+  // el otro), nunca los dos a la vez. El WHERE de aquí solo pedía cve_ent
+  // IS NOT NULL, así que un nodo territorializado por ZM (cve_ent siempre
+  // NULL en ese modo) quedaba fuera del mapa del proyecto por completo —no
+  // es que faltara una capa, el nodo ni siquiera entraba a la consulta.
   const { rows } = await pool.query(`
     WITH nodos AS (
       SELECT 'etapa'::text AS tipo, e.id::text, e.nombre, NULL::text AS nombre_padre,
              e.estado, e.semaforo, COALESCE(e.avance_actual, e.porcentaje_calculado::int, 0) AS avance,
-             e.cve_ent,
+             e.cve_ent, e.id_zm,
              COALESCE((SELECT array_agg(em.cve_mun) FROM etapa_municipios em WHERE em.etapa_id = e.id), '{}') AS cvegeos
       FROM etapas e
-      WHERE e.id_proyecto = $1 AND e.cve_ent IS NOT NULL
+      WHERE e.id_proyecto = $1 AND (e.cve_ent IS NOT NULL OR e.id_zm IS NOT NULL)
       UNION ALL
       SELECT CASE WHEN a.id_accion_padre IS NOT NULL THEN 'tarea' ELSE 'accion' END,
              a.id::text, a.nombre, COALESCE(padre.nombre, et.nombre),
              a.estado, a.semaforo, COALESCE(a.avance_actual, 0) AS avance,
-             a.cve_ent,
+             a.cve_ent, a.id_zm,
              COALESCE((SELECT array_agg(am.cve_mun) FROM accion_municipios am WHERE am.accion_id = a.id), '{}') AS cvegeos
       FROM acciones a
       LEFT JOIN acciones padre ON padre.id = a.id_accion_padre
       LEFT JOIN etapas et ON et.id = a.id_etapa
-      WHERE a.id_proyecto = $1 AND a.cve_ent IS NOT NULL
+      WHERE a.id_proyecto = $1 AND (a.cve_ent IS NOT NULL OR a.id_zm IS NOT NULL)
     )
-    SELECT n.tipo, n.id, n.nombre, n.nombre_padre, n.estado, n.semaforo, n.avance, n.cve_ent, n.cvegeos,
-           gs.nombre AS nombre_estado
+    SELECT n.tipo, n.id, n.nombre, n.nombre_padre, n.estado, n.semaforo, n.avance, n.cve_ent, n.id_zm, n.cvegeos,
+           gs.nombre AS nombre_estado, gz.nombre AS nombre_zm, gz.cve_met
     FROM nodos n
-    JOIN geo_estados gs ON gs.cve_ent = n.cve_ent
-    ORDER BY gs.nombre, n.tipo, n.nombre
+    LEFT JOIN geo_estados gs ON gs.cve_ent = n.cve_ent
+    LEFT JOIN geo_zm gz ON gz.gid = n.id_zm
+    ORDER BY COALESCE(gs.nombre, gz.nombre), n.tipo, n.nombre
   `, [proyectoId]);
 
   const porEstado = {};
+  const porZM = {};
   const todosCvegeos = new Set();
   for (const r of rows) {
-    if (!porEstado[r.cve_ent]) {
-      porEstado[r.cve_ent] = { cve_ent: r.cve_ent, nombre_estado: r.nombre_estado, nodos: [] };
-    }
     const cvegeos = r.cvegeos || [];
-    porEstado[r.cve_ent].nodos.push({
+    const nodo = {
       tipo: r.tipo, id: r.id, nombre: r.nombre, nombre_padre: r.nombre_padre,
       estado: r.estado, semaforo: r.semaforo,
       avance: parseFloat(r.avance) || 0, cvegeos,
-    });
-    for (const cg of cvegeos) todosCvegeos.add(cg);
+    };
+    if (r.cve_ent) {
+      if (!porEstado[r.cve_ent]) {
+        porEstado[r.cve_ent] = { cve_ent: r.cve_ent, nombre_estado: r.nombre_estado, nodos: [] };
+      }
+      porEstado[r.cve_ent].nodos.push(nodo);
+      for (const cg of cvegeos) todosCvegeos.add(cg);
+    } else if (r.id_zm) {
+      if (!porZM[r.id_zm]) {
+        porZM[r.id_zm] = { gid: r.id_zm, cve_met: r.cve_met, nombre_zm: r.nombre_zm, nodos: [] };
+      }
+      porZM[r.id_zm].nodos.push(nodo);
+    }
   }
 
-  const estadosConActividad = Object.values(porEstado);
-  return { por_estado: estadosConActividad, cvegeos: [...todosCvegeos] };
+  return {
+    por_estado: Object.values(porEstado),
+    por_zm: Object.values(porZM),
+    cvegeos: [...todosCvegeos],
+  };
 }
 
 // ─── Inicio mapa ───────────────────────────────────────────────
