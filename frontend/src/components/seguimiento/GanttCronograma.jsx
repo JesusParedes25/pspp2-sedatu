@@ -30,6 +30,28 @@ const COLORES = {
 
 const ANCHO_NOMBRES = 'w-72';
 
+// Las etapas llegan ya en su 'orden' (curado a mano, correcto tal cual). Sus
+// hijos (acciones/subacciones) no traen ese cuidado — llegan en el orden en
+// que se capturaron, que no dice nada del calendario. En un Gantt lo que
+// importa es CUÁNDO vence cada quien, así que aquí sí se reordenan por
+// fecha límite ascendente (mismo campo que ya posiciona la barra:
+// fecha_fin_efectiva, que resuelve fecha_limite → fecha_fin → heredada de
+// hijos). Sin fecha capturada se va al final, no se inventa un orden.
+function ordenarPorFechaLimite(lista) {
+  const conFecha = [];
+  const sinFecha = [];
+  for (const item of lista) {
+    const fecha = item.fecha_fin_efectiva || item.fecha_fin;
+    (parseFechaLocal(fecha) ? conFecha : sinFecha).push(item);
+  }
+  conFecha.sort((a, b) => {
+    const fa = parseFechaLocal(a.fecha_fin_efectiva || a.fecha_fin);
+    const fb = parseFechaLocal(b.fecha_fin_efectiva || b.fecha_fin);
+    return fa - fb;
+  });
+  return [...conFecha, ...sinFecha];
+}
+
 export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fechaFinProyecto }) {
   const [expandidas, setExpandidas] = useState({}); // { etapaId: true }
   const [accionesExpandidas, setAccionesExpandidas] = useState({}); // { accionId: true }
@@ -249,7 +271,7 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
       <div className="divide-y divide-gray-100/50 overflow-x-auto">
         {etapas.map(etapa => {
           const estaExpandida = expandidas[etapa.id];
-          const acciones = accionesPorEtapa[etapa.id] || [];
+          const acciones = ordenarPorFechaLimite(accionesPorEtapa[etapa.id] || []);
           const tieneAcciones = parseInt(etapa.total_acciones) > 0;
 
           return (
@@ -271,7 +293,7 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
               {estaExpandida && acciones.map(accion => {
                 const tieneSubs = parseInt(accion.total_subacciones) > 0;
                 const subsExpandidas = accionesExpandidas[accion.id];
-                const subs = subaccionesPorAccion[accion.id] || [];
+                const subs = ordenarPorFechaLimite(subaccionesPorAccion[accion.id] || []);
 
                 return (
                   <div key={accion.id}>
