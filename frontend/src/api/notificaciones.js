@@ -2,15 +2,70 @@
  * ARCHIVO: notificaciones.js
  * PROPÓSITO: Funciones de API para notificaciones del usuario.
  *
- * MINI-CLASE: Polling de notificaciones
+ * MINI-CLASE: tiempo real (SSE) con polling como respaldo
  * ─────────────────────────────────────────────────────────────────
- * El frontend llama a obtenerNotificaciones() cada 30 segundos
- * para actualizar el badge y la lista. marcarLeida() se llama al
- * hacer click en una notificación. marcarTodasLeidas() limpia
- * todas de un golpe desde el botón del header.
+ * suscribirEnVivo() abre la conexión SSE de /notificaciones/stream y
+ * llama a `onAviso` cada vez que el backend indica que algo cambió —
+ * así los hooks de arriba (useNotificaciones, useCentroNotificaciones)
+ * refrescan al instante en vez de esperar al siguiente ciclo de
+ * polling. El polling se conserva como respaldo (intervalo largo) por
+ * si la conexión SSE nunca llega a abrirse o se cae de forma
+ * persistente — un proxy intermedio, una red corporativa que corta
+ * conexiones de larga duración, etc. No se usa EventSource nativo
+ * porque no permite mandar el header Authorization; se lee el stream
+ * a mano con fetch + ReadableStream para reusar el mismo Bearer token
+ * que ya usa el resto de la API.
  * ─────────────────────────────────────────────────────────────────
  */
 import client from './client';
+
+const BASE_URL = (import.meta.env.VITE_API_URL || '/api/v1').replace(/\/$/, '');
+
+export function suscribirEnVivo(onAviso) {
+  const token = localStorage.getItem('pspp_token');
+  if (!token) return () => {};
+
+  let activo = true;
+  const controlador = new AbortController();
+
+  (async function conectar(intento = 0) {
+    while (activo) {
+      try {
+        const resp = await fetch(`${BASE_URL}/notificaciones/stream`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controlador.signal,
+        });
+        if (!resp.ok || !resp.body) throw new Error(`SSE respondió ${resp.status}`);
+
+        const lector = resp.body.getReader();
+        const decodificador = new TextDecoder();
+        let buffer = '';
+        intento = 0; // conexión exitosa: la próxima caída reinicia el backoff desde cero
+
+        while (activo) {
+          const { done, value } = await lector.read();
+          if (done) break;
+          buffer += decodificador.decode(value, { stream: true });
+          const bloques = buffer.split('\n\n');
+          buffer = bloques.pop(); // bloque incompleto — se completa con el próximo chunk
+          for (const bloque of bloques) {
+            if (bloque.startsWith('data:')) onAviso();
+          }
+        }
+      } catch (err) {
+        if (!activo || err.name === 'AbortError') return;
+      }
+      if (!activo) return;
+      // Reconexión con backoff (hasta 30s) — evita bombardear al backend
+      // si la caída es persistente (deploy en curso, red intermitente).
+      const espera = Math.min(30000, 1000 * 2 ** intento);
+      intento += 1;
+      await new Promise(resolve => setTimeout(resolve, espera));
+    }
+  })();
+
+  return () => { activo = false; controlador.abort(); };
+}
 
 export async function obtenerNotificaciones() {
   const { data } = await client.get('/notificaciones');

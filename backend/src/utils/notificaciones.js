@@ -4,21 +4,30 @@
  *
  * MINI-CLASE: Notificaciones internas
  * ─────────────────────────────────────────────────────────────────
- * Las notificaciones son registros en la tabla `notificaciones` que
- * el frontend consulta periódicamente. NO son push notifications ni
- * WebSockets (eso sería segunda fase). Son un sistema simple de
- * "buzón": cuando algo relevante ocurre (vencimiento, mención,
- * nuevo riesgo), se inserta una fila. El usuario las ve al entrar
- * a la página de Notificaciones o en el badge del header.
+ * Las notificaciones son registros en la tabla `notificaciones`. Son
+ * un sistema de "buzón": cuando algo relevante ocurre (vencimiento,
+ * mención, nuevo riesgo, invitación, solicitud), se inserta una fila
+ * — y esa inserción también avisa por SSE (ver utils/sse.js) a quien
+ * la recibió, así que el frontend se entera al instante en vez de
+ * esperar al siguiente polling. El usuario las ve al entrar a la
+ * página de Notificaciones o en el badge del header y de la barra
+ * lateral.
  * ─────────────────────────────────────────────────────────────────
  */
 const pool = require('../db/pool');
+const sse = require('./sse');
 
 // Crea una notificación para un usuario específico. No lanza error para no
 // interrumpir la operación principal que la disparó (mismo criterio que
 // registrarActividad en actividad-log.js) — a lo sumo, un usuario se queda
 // sin ver una notificación puntual, pero su acción original (invitar,
 // comentar, reportar un riesgo) no debe fallar por esto.
+//
+// Al terminar, avisa por SSE (ver utils/sse.js) a quien la recibió: es el
+// único punto de entrada de toda notificación del sistema (incluidas
+// invitaciones y solicitudes, que también pasan por aquí con su propio
+// `tipo`), así que engancharlo aquí una vez cubre todos los casos sin
+// tener que acordarse de avisar en cada controlador que crea una.
 async function crearNotificacion({ tipo, mensaje, entidadTipo, entidadId, idUsuario }, client) {
   if (!idUsuario) return;
   const db = client || pool;
@@ -27,6 +36,7 @@ async function crearNotificacion({ tipo, mensaje, entidadTipo, entidadId, idUsua
       INSERT INTO notificaciones (tipo, mensaje, entidad_tipo, entidad_id, id_usuario)
       VALUES ($1, $2, $3, $4, $5)
     `, [tipo, mensaje, entidadTipo, entidadId, idUsuario]);
+    sse.avisarUsuario(idUsuario);
   } catch (err) {
     console.error('[notificaciones] Error al crear notificación:', err.message);
   }

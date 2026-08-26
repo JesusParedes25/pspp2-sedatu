@@ -17,9 +17,10 @@ const notificacionesController = require('../controllers/notificaciones.controll
 
 const router = Router();
 
-// IMPORTANTE: "resumen" antes de "/:id/leer" por la misma razón que
-// "leer-todas" — si no, Express intentaría leer "resumen" como un :id.
+// IMPORTANTE: "resumen" y "stream" antes de "/:id/leer" por la misma razón
+// que "leer-todas" — si no, Express intentaría leerlos como un :id.
 router.get('/resumen', notificacionesController.resumen);
+router.get('/stream', notificacionesController.stream);
 router.get('/', notificacionesController.listar);
 // IMPORTANTE: "leer-todas" antes de "/:id/leer" para evitar conflicto de rutas
 router.put('/leer-todas', notificacionesController.marcarTodasLeidas);
