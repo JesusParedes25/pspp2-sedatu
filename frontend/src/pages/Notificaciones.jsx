@@ -34,7 +34,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
   Bell, CheckCheck, Clock, AlertTriangle, MessageSquare, FileText,
-  UserPlus, MailCheck, Ban, MailQuestion, Shield, TrendingUp, Inbox, History,
+  UserPlus, MailCheck, Ban, MailQuestion, Shield, TrendingUp, Inbox, History, UserMinus,
 } from 'lucide-react';
 import { useNotificaciones } from '../hooks/useNotificaciones';
 import { misInvitaciones } from '../api/miembros';
@@ -62,6 +62,7 @@ const iconosPorTipo = {
   RespuestaAsignacionRiesgo: Shield,
   AccionBloqueada:          Ban,
   AvanceDG:                 TrendingUp,
+  RetiroParticipante:       UserMinus,
   General:                  Bell,
 };
 
@@ -69,15 +70,19 @@ const iconosPorTipo = {
 // no para apilar secciones. Un tipo no listado aquí cae en "Sistema".
 const CATEGORIAS_AVISO = [
   { titulo: 'Riesgos', tipos: ['Riesgo', 'RespuestaAsignacionRiesgo'] },
-  { titulo: 'Solicitudes e invitaciones', tipos: ['RespuestaSolicitud', 'RespuestaInvitacion'] },
+  { titulo: 'Solicitudes e invitaciones', tipos: ['RespuestaSolicitud', 'RespuestaInvitacion', 'RetiroParticipante'] },
   { titulo: 'Actividad del proyecto', tipos: ['Comentario', 'MencionUsuario', 'AccionBloqueada', 'AvanceDG', 'PermisoNuevo', 'Evidencia'] },
 ];
 function categoriaDe(tipo) {
   return CATEGORIAS_AVISO.find(c => c.tipos.includes(tipo))?.titulo || 'Sistema';
 }
 
-// Dónde vive lo que originó el aviso. Sin id_proyecto no hay a dónde ir.
+// Dónde vive lo que originó el aviso. Sin id_proyecto no hay a dónde ir. Y
+// a quien lo quitaron de algo tampoco tiene caso mandarlo ahí: si fue de
+// todo el proyecto, ya no tiene acceso y el enlace solo llevaría a un
+// error; si fue de una parte, puede que tampoco.
 function rutaDe(n) {
+  if (n.tipo === 'RetiroParticipante') return null;
   if (!n.id_proyecto) return null;
   if (n.entidad_tipo === 'Proyecto') return `/proyectos/${n.id_proyecto}`;
   if (['Etapa', 'Accion', 'Tarea'].includes(n.entidad_tipo)) {
