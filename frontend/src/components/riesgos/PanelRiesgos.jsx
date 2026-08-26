@@ -22,10 +22,11 @@ const CARGADORES = {
   Etapa:     (id) => riesgosApi.obtenerRiesgosEtapa(id),
   Accion:    (id) => riesgosApi.obtenerRiesgosAccion(id),
   Subaccion: (id) => riesgosApi.obtenerRiesgosSubaccion(id),
+  Tarea:     (id) => riesgosApi.obtenerRiesgosTarea(id),
 };
 
 /**
- * @param {string}  entidadTipo  - 'Proyecto'|'Etapa'|'Accion'|'Subaccion'
+ * @param {string}  entidadTipo  - 'Proyecto'|'Etapa'|'Accion'|'Subaccion'|'Tarea'
  * @param {string}  entidadId    - UUID de la entidad
  * @param {boolean} soloLectura  - Deshabilita crear/editar/eliminar
  * @param {boolean} compacto     - Usa RiesgoCard en modo compacto

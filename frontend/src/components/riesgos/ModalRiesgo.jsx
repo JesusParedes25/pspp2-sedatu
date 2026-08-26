@@ -28,7 +28,7 @@ const NIVEL_COLORES = {
 
 /**
  * @param {object}   riesgo       - Riesgo existente (modo edición) o null (modo creación)
- * @param {string}   entidadTipo  - 'Proyecto'|'Etapa'|'Accion'|'Subaccion'
+ * @param {string}   entidadTipo  - 'Proyecto'|'Etapa'|'Accion'|'Subaccion'|'Tarea'
  * @param {string}   entidadId    - UUID de la entidad padre
  * @param {function} onGuardar    - Recibe los datos del formulario
  * @param {function} onCerrar     - Cierra el modal

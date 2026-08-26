@@ -337,18 +337,23 @@ async function obtenerRiesgosDetalle(proyectoId) {
         WHEN r.entidad_tipo = 'Etapa'     THEN et.nombre
         WHEN r.entidad_tipo = 'Accion'    THEN ac.nombre
         WHEN r.entidad_tipo = 'Subaccion' THEN sa.nombre
+        WHEN r.entidad_tipo = 'Tarea'     THEN ta.nombre
       END AS etiqueta
     FROM riesgos r
     LEFT JOIN proyectos p  ON r.entidad_tipo = 'Proyecto'  AND p.id  = r.entidad_id
     LEFT JOIN etapas    et ON r.entidad_tipo = 'Etapa'     AND et.id = r.entidad_id
     LEFT JOIN acciones  ac ON r.entidad_tipo = 'Accion'    AND ac.id = r.entidad_id
     LEFT JOIN acciones  sa ON r.entidad_tipo = 'Subaccion' AND sa.id = r.entidad_id
+    LEFT JOIN tareas    ta ON r.entidad_tipo = 'Tarea'     AND ta.id = r.entidad_id
     WHERE r.estado IN ('Abierto','En_mitigacion')
       AND (
         (r.entidad_tipo = 'Proyecto'  AND r.entidad_id = $1)
         OR (r.entidad_tipo = 'Etapa'     AND r.entidad_id IN (SELECT id FROM etapas WHERE id_proyecto = $1))
         OR (r.entidad_tipo = 'Accion'    AND r.entidad_id IN (SELECT id FROM acciones WHERE id_proyecto = $1 AND id_accion_padre IS NULL))
         OR (r.entidad_tipo = 'Subaccion' AND r.entidad_id IN (SELECT id FROM acciones WHERE id_proyecto = $1 AND id_accion_padre IS NOT NULL))
+        OR (r.entidad_tipo = 'Tarea'     AND r.entidad_id IN (
+              SELECT t.id FROM tareas t JOIN acciones a ON a.id = t.id_accion WHERE a.id_proyecto = $1
+            ))
       )
     ORDER BY
       CASE r.nivel

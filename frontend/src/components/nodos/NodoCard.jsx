@@ -40,9 +40,13 @@ import CrearInline from '../seguimiento/EtapasAvancesMD/CrearInline';
 
 const SEM = { verde: '#22c55e', ambar: '#f59e0b', rojo: '#ef4444', gris: '#9ca3af' };
 const TIPO_LABEL = { etapa: 'Etapa', accion: 'Acción', tarea: 'Tarea' };
-// comentarios/riesgos son del modelo viejo (entidad_tipo genérico) y NUNCA
-// soportaron 'Tarea' — por eso solo etapa/accion mapean aquí.
+// comentarios son del modelo viejo (entidad_tipo genérico) y siguen sin
+// soportar 'Tarea' — sus comentarios se leen del stream `actividad`, no
+// de la tabla `comentarios`. Riesgos SÍ soporta los tres niveles desde
+// que se agregó 'Tarea' a riesgos_entidad_tipo_check — por eso tiene su
+// propio mapa (ENTIDAD_TIPO_RIESGO), no comparte este.
 const ENTIDAD_TIPO = { etapa: 'Etapa', accion: 'Accion' };
+const ENTIDAD_TIPO_RIESGO = { etapa: 'Etapa', accion: 'Accion', tarea: 'Tarea' };
 const TIPO_LABEL_MIN = { etapa: 'etapa', accion: 'acción', tarea: 'tarea' };
 
 // Cuántos elementos se van junto con este nodo. El borrado en la API es en
@@ -119,11 +123,8 @@ export default function NodoCard({
   const { mostrarToast } = useUI();
   const [abierto, setAbierto] = useState(defaultAbierto);
   const [guardando, setGuardando] = useState(false);
-  const [modo, setModo] = useState(null); // null | 'riesgo' (solo tarea, ver enviarRiesgoRapido)
   const [mostrarModalAvance, setMostrarModalAvance] = useState(false);
   const [mostrarModalRiesgo, setMostrarModalRiesgo] = useState(false);
-  const [riesgoTexto, setRiesgoTexto] = useState('');
-  const [riesgoNivel, setRiesgoNivel] = useState('Medio');
 
   const [seccion, setSeccion] = useState(null); // null | 'comentar' | 'adjuntar' | 'riesgos' | 'indicador' | 'invitar' | 'territorio'
   const [comentarioTexto, setComentarioTexto] = useState('');
@@ -236,30 +237,15 @@ export default function NodoCard({
     }
   }
 
-  // Reporte rápido de riesgo, SOLO para 'tarea': el modelo de riesgos
-  // (tabla `riesgos`, con nivel/responsable/aceptar-declinar) nunca incluyó
-  // Tarea en su entidad_tipo, así que cae al stream nuevo (`actividad`) en
-  // vez de al modal completo — sin regresión: antes tampoco tenía nada más
-  // rico que esto. Etapa/Acción usan ModalRiesgo (ver abrirReportarRiesgo).
-  async function enviarRiesgoRapido() {
-    if (!riesgoTexto.trim()) return;
-    setGuardando(true);
-    try {
-      await actividadApi.reportarRiesgo(tipo, nodo.id, riesgoTexto.trim(), riesgoNivel);
-      setModo(null); setRiesgoTexto('');
-      cargarActividad();
-    } catch (err) {
-      alert(err.response?.data?.mensaje || 'Error al reportar riesgo');
-    } finally { setGuardando(false); }
-  }
-
-  // "Reportar riesgo" para etapa/acción: abre el modal completo (título,
-  // causa, impacto, responsable...) en vez del cuadro de texto rápido que
-  // usa tarea — es donde vive el resto de la app (Panorama, PanelRiesgos)
-  // y donde se puede proponer un responsable.
+  // "Reportar riesgo" abre el modal completo (título, causa, impacto,
+  // responsable...) para los tres niveles — es donde vive el resto de la
+  // app (Panorama, PanelRiesgos) y donde se puede proponer un responsable.
+  // Tarea usó hasta hace poco un cuadro de texto rápido que caía al
+  // stream `actividad` en vez de a la tabla `riesgos`, porque esa tabla
+  // no incluía 'Tarea' en su entidad_tipo; ya se agregó (ver ENTIDAD_TIPO_RIESGO),
+  // así que ahora los tres niveles se comportan igual.
   function abrirReportarRiesgo() {
-    if (ENTIDAD_TIPO[tipo]) setMostrarModalRiesgo(true);
-    else setModo(modo === 'riesgo' ? null : 'riesgo');
+    setMostrarModalRiesgo(true);
   }
 
   async function crearRiesgoDesdeTarjeta(datos) {
@@ -372,7 +358,7 @@ export default function NodoCard({
             </button>
             {!esContenedor && (
               <button disabled={soloLectura} onClick={abrirReportarRiesgo}
-                className={`w-full flex items-center justify-center gap-1.5 text-[11px] font-medium px-2.5 py-2 rounded-lg border disabled:opacity-40 transition-colors ${modo === 'riesgo' || mostrarModalRiesgo ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                className={`w-full flex items-center justify-center gap-1.5 text-[11px] font-medium px-2.5 py-2 rounded-lg border disabled:opacity-40 transition-colors ${mostrarModalRiesgo ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
                 <AlertTriangle size={13} /> Reportar riesgo
               </button>
             )}
@@ -411,27 +397,11 @@ export default function NodoCard({
 
           {mostrarModalRiesgo && (
             <ModalRiesgo
-              entidadTipo={ENTIDAD_TIPO[tipo]}
+              entidadTipo={ENTIDAD_TIPO_RIESGO[tipo]}
               entidadId={nodo.id}
               onGuardar={crearRiesgoDesdeTarjeta}
               onCerrar={() => setMostrarModalRiesgo(false)}
             />
-          )}
-
-          {modo === 'riesgo' && (
-            <div className="bg-gray-50 rounded-lg p-2.5 space-y-2">
-              <textarea value={riesgoTexto} onChange={e => setRiesgoTexto(e.target.value)} rows={2} placeholder="Describe el riesgo o bloqueo..."
-                className="text-xs border border-gray-200 rounded px-2 py-1.5 w-full resize-none focus:border-amber-400 outline-none" />
-              <div className="flex items-center justify-between">
-                <select value={riesgoNivel} onChange={e => setRiesgoNivel(e.target.value)} className="text-[11px] border border-gray-200 rounded px-1.5 py-1">
-                  {['Bajo', 'Medio', 'Alto', 'Critico'].map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-                <div className="flex gap-1.5">
-                  <button onClick={() => setModo(null)} className="text-[11px] text-gray-500 px-2 py-1">Cancelar</button>
-                  <button onClick={enviarRiesgoRapido} disabled={guardando || !riesgoTexto.trim()} className="text-[11px] bg-amber-600 text-white px-3 py-1 rounded-md hover:bg-amber-700 disabled:opacity-40">Reportar</button>
-                </div>
-              </div>
-            </div>
           )}
 
           {/* Grupo "Vinculación" — en el layout agrupado (panel de Detalle
@@ -576,27 +546,9 @@ export default function NodoCard({
           )}
 
           {seccion === 'riesgos' && (
-            ENTIDAD_TIPO[tipo] ? (
-              <div className="bg-gray-50 rounded-lg p-2.5 max-h-96 overflow-y-auto">
-                <PanelRiesgos entidadTipo={ENTIDAD_TIPO[tipo]} entidadId={nodo.id} soloLectura={soloLectura} onStatsChange={cargarActividad} />
-              </div>
-            ) : (
-              <div className="bg-gray-50 rounded-lg p-2.5">
-                {riesgosCount === 0 ? (
-                  <p className="text-[11px] text-gray-400 italic">Sin riesgos reportados.</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {todosRiesgos.map(r => (
-                      <div key={r.id} className="text-[11px] text-gray-700 border-l-2 border-amber-300 pl-2">
-                        <span className="font-medium">{r.metadata?.nivel || 'Medio'}</span>
-                        {r.metadata?.estado && <span className="text-gray-400"> ({r.metadata.estado})</span>} — {r.contenido}
-                        <span className="text-gray-400"> · {r.autor_nombre}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
+            <div className="bg-gray-50 rounded-lg p-2.5 max-h-96 overflow-y-auto">
+              <PanelRiesgos entidadTipo={ENTIDAD_TIPO_RIESGO[tipo]} entidadId={nodo.id} soloLectura={soloLectura} onStatsChange={cargarActividad} />
+            </div>
           )}
 
           {seccion === 'indicador' && (

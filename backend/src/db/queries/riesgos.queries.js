@@ -209,12 +209,20 @@ async function asignacionesPendientesDe(usuarioId) {
           WHEN 'Etapa'    THEN (SELECT e.nombre FROM etapas e WHERE e.id = r.entidad_id)
           WHEN 'Accion'   THEN (SELECT a.nombre FROM acciones a WHERE a.id = r.entidad_id)
           WHEN 'Subaccion' THEN (SELECT a.nombre FROM acciones a WHERE a.id = r.entidad_id)
+          WHEN 'Tarea'    THEN (SELECT t.nombre FROM tareas t WHERE t.id = r.entidad_id)
           WHEN 'Proyecto' THEN (SELECT p.nombre FROM proyectos p WHERE p.id = r.entidad_id)
         END AS nombre_entidad,
         CASE r.entidad_tipo
           WHEN 'Etapa'     THEN (SELECT e.id_proyecto FROM etapas e WHERE e.id = r.entidad_id)
           WHEN 'Accion'    THEN (SELECT COALESCE(a.id_proyecto, e2.id_proyecto) FROM acciones a LEFT JOIN etapas e2 ON e2.id = a.id_etapa WHERE a.id = r.entidad_id)
           WHEN 'Subaccion' THEN (SELECT COALESCE(a.id_proyecto, e2.id_proyecto) FROM acciones a LEFT JOIN etapas e2 ON e2.id = a.id_etapa WHERE a.id = r.entidad_id)
+          WHEN 'Tarea'     THEN (
+            SELECT COALESCE(a.id_proyecto, e2.id_proyecto)
+            FROM tareas t
+            JOIN acciones a ON a.id = t.id_accion
+            LEFT JOIN etapas e2 ON e2.id = a.id_etapa
+            WHERE t.id = r.entidad_id
+          )
           WHEN 'Proyecto'  THEN r.entidad_id
         END AS id_proyecto
       FROM riesgos r
@@ -238,7 +246,8 @@ async function eliminarRiesgo(riesgoId) {
   return resultado.rows[0] || null;
 }
 
-// Obtiene riesgos de una acción (tipo Accion + sus subacciones)
+// Obtiene riesgos de una acción (tipo Accion + sus subacciones + las
+// tareas que cuelgan de ella)
 async function obtenerRiesgosPorAccion(accionId) {
   const resultado = await pool.query(`
     SELECT
@@ -252,10 +261,33 @@ async function obtenerRiesgosPorAccion(accionId) {
        OR (r.entidad_tipo = 'Subaccion' AND r.entidad_id IN (
             SELECT id FROM acciones WHERE id_accion_padre = $1
           ))
+       OR (r.entidad_tipo = 'Tarea' AND r.entidad_id IN (
+            SELECT id FROM tareas WHERE id_accion = $1
+          ))
     ORDER BY
       CASE r.nivel WHEN 'Critico' THEN 1 WHEN 'Alto' THEN 2 WHEN 'Medio' THEN 3 ELSE 4 END,
       r.created_at DESC
   `, [accionId]);
+
+  return resultado.rows;
+}
+
+// Obtiene riesgos de una tarea específica — nivel hoja, sin hijos que
+// enrollar (a diferencia de etapa/acción).
+async function obtenerRiesgosPorTarea(tareaId) {
+  const resultado = await pool.query(`
+    SELECT
+      r.*,
+      u_resp.nombre_completo AS responsable_nombre,
+      u_rep.nombre_completo AS reportador_nombre
+    FROM riesgos r
+    LEFT JOIN usuarios u_resp ON u_resp.id = r.id_responsable
+    LEFT JOIN usuarios u_rep ON u_rep.id = r.id_reportador
+    WHERE r.entidad_tipo = 'Tarea' AND r.entidad_id = $1
+    ORDER BY
+      CASE r.nivel WHEN 'Critico' THEN 1 WHEN 'Alto' THEN 2 WHEN 'Medio' THEN 3 ELSE 4 END,
+      r.created_at DESC
+  `, [tareaId]);
 
   return resultado.rows;
 }
@@ -284,6 +316,7 @@ module.exports = {
   obtenerRiesgosPorEtapa,
   obtenerRiesgosPorAccion,
   obtenerRiesgosPorSubaccion,
+  obtenerRiesgosPorTarea,
   obtenerRiesgoPorId,
   crearRiesgo,
   actualizarRiesgo,
