@@ -168,8 +168,13 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
           nombre: `  └ ${accion.nombre}`,
           estado: accion.estado,
           semaforo: accion.semaforo_efectivo,
-          fecha_inicio: accion.fecha_inicio,
-          fecha_fin: accion.fecha_fin,
+          // _efectiva: misma idea que avance_efectivo — cuando la acción no
+          // trae fecha propia, obtenerAccionesPorEtapa ya la resuelve desde
+          // sus tareas (COALESCE) en el backend; leer la columna cruda aquí
+          // hacía que una acción con fechas solo a nivel tarea se viera sin
+          // fecha en esta vista, aunque Detalle sí las mostrara heredadas.
+          fecha_inicio: accion.fecha_inicio_efectiva ?? accion.fecha_inicio,
+          fecha_fin: accion.fecha_fin_efectiva ?? accion.fecha_fin,
           porcentaje_avance: accion.avance_efectivo ?? accion.porcentaje_avance,
           campos_extra: accion.campos_extra || {},
           ubicacion: coberturaMap[accion.id] || [],

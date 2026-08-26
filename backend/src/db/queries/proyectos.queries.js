@@ -54,16 +54,59 @@ async function listarProyectos({ estado, tipo, idDg, busqueda, carteraId, sinCar
   }
   // Filtro "¿dónde participo?". La visibilidad NO cambia — todos siguen
   // pudiendo ver todos los proyectos; esto solo acota el listado para que
-  // cada quien encuentre lo suyo entre decenas. Participar es ser creador
-  // o estar en proyecto_usuarios: el permiso que da el cargo (ejecutivo,
+  // cada quien encuentre lo suyo entre decenas. Participar es ser creador,
+  // estar en proyecto_usuarios, o tener una asignación explícita en una
+  // etapa/acción/tarea puntual (nodo_miembros aceptado, o ser directamente
+  // su id_responsable) — mismo criterio que obtenerProyectosUsuario en
+  // miembros.queries.js (que alimenta Tablero/Mapa/Evidencias): sin esto,
+  // a quien solo se invitaba a una parte del proyecto tampoco le aparecía
+  // aquí bajo "Donde participo". El permiso que da el cargo (ejecutivo,
   // director de la DG) no cuenta como participación.
   if (usuarioId && (participacion === 'participo' || participacion === 'responsable')) {
-    const soloResponsable = participacion === 'responsable'
-      ? `AND pu_f.rol = 'responsable'` : '';
-    condiciones.push(`(p.id_creador = $${indice} OR EXISTS (
-      SELECT 1 FROM proyecto_usuarios pu_f
-       WHERE pu_f.id_proyecto = p.id AND pu_f.id_usuario = $${indice} ${soloResponsable}
-    ))`);
+    const soloResponsable = participacion === 'responsable';
+    const rolProyecto = soloResponsable ? `AND pu_f.rol = 'responsable'` : '';
+    const rolNodo = soloResponsable ? `AND nm_f.rol = 'responsable'` : '';
+    condiciones.push(`(
+      p.id_creador = $${indice}
+      OR EXISTS (
+        SELECT 1 FROM proyecto_usuarios pu_f
+         WHERE pu_f.id_proyecto = p.id AND pu_f.id_usuario = $${indice} ${rolProyecto}
+      )
+      OR EXISTS (
+        SELECT 1 FROM etapas e_f WHERE e_f.id_proyecto = p.id AND (
+          e_f.id_responsable = $${indice}
+          OR EXISTS (
+            SELECT 1 FROM nodo_miembros nm_f
+             WHERE nm_f.tipo_nodo = 'etapa' AND nm_f.id_nodo = e_f.id AND nm_f.id_usuario = $${indice}
+               AND nm_f.estado = 'aceptada' ${rolNodo}
+          )
+        )
+      )
+      OR EXISTS (
+        SELECT 1 FROM acciones a_f LEFT JOIN etapas ea_f ON ea_f.id = a_f.id_etapa
+         WHERE COALESCE(a_f.id_proyecto, ea_f.id_proyecto) = p.id AND (
+          a_f.id_responsable = $${indice}
+          OR EXISTS (
+            SELECT 1 FROM nodo_miembros nm_f2
+             WHERE nm_f2.tipo_nodo = 'accion' AND nm_f2.id_nodo = a_f.id AND nm_f2.id_usuario = $${indice}
+               AND nm_f2.estado = 'aceptada' ${rolNodo}
+          )
+        )
+      )
+      OR EXISTS (
+        SELECT 1 FROM tareas t_f
+        JOIN acciones a2_f ON a2_f.id = t_f.id_accion
+        LEFT JOIN etapas ea2_f ON ea2_f.id = a2_f.id_etapa
+         WHERE COALESCE(a2_f.id_proyecto, ea2_f.id_proyecto) = p.id AND (
+          t_f.id_responsable = $${indice}
+          OR EXISTS (
+            SELECT 1 FROM nodo_miembros nm_f3
+             WHERE nm_f3.tipo_nodo = 'tarea' AND nm_f3.id_nodo = t_f.id AND nm_f3.id_usuario = $${indice}
+               AND nm_f3.estado = 'aceptada' ${rolNodo}
+          )
+        )
+      )
+    )`);
     parametros.push(usuarioId);
     indice++;
   }

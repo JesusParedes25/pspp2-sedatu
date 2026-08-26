@@ -23,6 +23,8 @@
  */
 const pool = require('../pool');
 const { minioClient, BUCKET } = require('../../utils/minio');
+const { recalcularPesosEtapa } = require('./acciones.queries');
+const { recalcularEtapa, recalcularProyecto } = require('../../utils/recalculos');
 
 // Campos del proyecto que describen QUÉ es (viajan siempre). Se dejan
 // fuera a propósito: estado y porcentaje_calculado (progreso), fechas
@@ -374,4 +376,118 @@ async function duplicarProyecto(idOrigen, opciones, creadorId) {
   }
 }
 
-module.exports = { duplicarProyecto };
+/**
+ * Duplica una etapa DENTRO DEL MISMO PROYECTO, con toda su rama de
+ * acciones/subacciones y tareas — el mismo criterio "copia independiente
+ * y en blanco" que ya usa ModalDuplicarNodo para acción/tarea (mismo
+ * nombre/descripción/tipo/prioridad, Pendiente, 0%, sin fechas ni
+ * territorio ni participantes propios). A diferencia de acción/tarea, una
+ * etapa no tiene varios padres posibles entre los que elegir —su único
+ * contenedor es el proyecto, que ya está fijo— así que no hace falta un
+ * selector de destino: se agrega como una etapa hermana más al final.
+ *
+ * @param {string} idEtapaOrigen  etapa a copiar
+ */
+async function duplicarEtapa(idEtapaOrigen) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rows: [origen] } = await client.query('SELECT * FROM etapas WHERE id = $1', [idEtapaOrigen]);
+    if (!origen) {
+      const err = new Error('La etapa que intentas duplicar no existe');
+      err.statusCode = 404;
+      err.codigo = 'NO_ENCONTRADO';
+      throw err;
+    }
+
+    const { rows: [{ max_orden }] } = await client.query(
+      'SELECT COALESCE(MAX(orden), 0) AS max_orden FROM etapas WHERE id_proyecto = $1', [origen.id_proyecto]
+    );
+
+    const { rows: [nuevaEtapa] } = await client.query(`
+      INSERT INTO etapas (
+        id_proyecto, nombre, descripcion, orden, tipo, prioridad,
+        tipo_meta, meta_descripcion, meta_valor, meta_unidad,
+        instancia_responsable, enlace_responsable, observaciones,
+        escala_territorial, instrumento, campos_extra, id_dg, id_direccion_area,
+        estado, avance_actual, avance_override, semaforo_override, porcentaje_calculado
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
+        'Pendiente', 0, false, false, 0)
+      RETURNING *
+    `, [
+      origen.id_proyecto, origen.nombre, origen.descripcion, max_orden + 1, origen.tipo, origen.prioridad,
+      origen.tipo_meta, origen.meta_descripcion, origen.meta_valor, origen.meta_unidad,
+      origen.instancia_responsable, origen.enlace_responsable, origen.observaciones,
+      origen.escala_territorial, origen.instrumento, origen.campos_extra, origen.id_dg, origen.id_direccion_area,
+    ]);
+
+    // Acciones (raíz primero, para que el padre ya exista en el mapa
+    // cuando se inserten las subacciones).
+    const mapaAcciones = new Map();
+    const { rows: acciones } = await client.query(`
+      SELECT * FROM acciones WHERE id_etapa = $1
+      ORDER BY (id_accion_padre IS NOT NULL), created_at
+    `, [idEtapaOrigen]);
+
+    for (const a of acciones) {
+      const { rows: [nuevaAccion] } = await client.query(`
+        INSERT INTO acciones (
+          id_etapa, id_accion_padre, nombre, descripcion, tipo, prioridad, peso_porcentaje,
+          instancia_responsable, enlace_responsable, observaciones,
+          escala_territorial, instrumento, campos_extra, id_dg, id_direccion_area,
+          estado, porcentaje_avance, avance_actual, avance_override, semaforo_override
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
+          'Pendiente', 0, 0, false, false)
+        RETURNING id
+      `, [
+        nuevaEtapa.id,
+        a.id_accion_padre ? mapaAcciones.get(a.id_accion_padre) || null : null,
+        a.nombre, a.descripcion, a.tipo, a.prioridad, a.peso_porcentaje,
+        a.instancia_responsable, a.enlace_responsable, a.observaciones,
+        a.escala_territorial, a.instrumento, a.campos_extra, a.id_dg, a.id_direccion_area,
+      ]);
+      mapaAcciones.set(a.id, nuevaAccion.id);
+    }
+
+    // Tareas
+    let totalTareas = 0;
+    if (mapaAcciones.size > 0) {
+      const { rows: tareas } = await client.query(
+        'SELECT * FROM tareas WHERE id_accion = ANY($1::uuid[]) ORDER BY orden NULLS LAST, created_at',
+        [[...mapaAcciones.keys()]]
+      );
+      for (const t of tareas) {
+        await client.query(`
+          INSERT INTO tareas (
+            id_accion, nombre, descripcion, prioridad, orden, observaciones,
+            estado, avance_actual, avance_override, semaforo_override
+          ) VALUES ($1,$2,$3,$4,$5,$6,'Pendiente',0,false,false)
+        `, [mapaAcciones.get(t.id_accion), t.nombre, t.descripcion, t.prioridad, t.orden, t.observaciones]);
+        totalTareas++;
+      }
+    }
+
+    // Pesos parejos entre las acciones raíz recién creadas, igual que al
+    // capturar una acción a mano — sin esto quedarían con el peso_porcentaje
+    // que traía el original, que ya no suma 100% aquí porque puede haber
+    // menos (o más) acciones que en la etapa de origen si alguna quedó fuera.
+    await recalcularPesosEtapa(nuevaEtapa.id, client);
+    await recalcularEtapa(nuevaEtapa.id, client);
+    await recalcularProyecto(origen.id_proyecto, client);
+
+    await client.query('COMMIT');
+
+    return {
+      etapa: nuevaEtapa,
+      copiado: { acciones: mapaAcciones.size, tareas: totalTareas },
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = { duplicarProyecto, duplicarEtapa };
