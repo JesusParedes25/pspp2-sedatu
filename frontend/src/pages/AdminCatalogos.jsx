@@ -3,11 +3,11 @@
  * PROPÓSITO: Panel de administración (solo superadmin).
  * Tabs: Catálogos | Usuarios | Áreas | Configuración
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Plus, Pencil, Trash2, RotateCcw, AlertTriangle, Shield, ChevronDown, ChevronRight,
   Loader2, Save, X, Users, Building2, Settings, Mail, ToggleLeft, ToggleRight,
-  RefreshCw, CheckCircle, EyeOff, Eye, BarChart3, KeyRound, Landmark
+  RefreshCw, CheckCircle, EyeOff, Eye, BarChart3, KeyRound, Landmark, Search
 } from 'lucide-react';
 import * as adminApi from '../api/admin';
 import TabIndicadores from '../components/admin/TabIndicadores';
@@ -151,6 +151,11 @@ async function enviarCorreoInvitacion(nombreUsuario, correoUsuario, inviteLink) 
   }
 }
 
+// Compara ignorando mayúsculas y acentos, para que "garcia" encuentre "García".
+function normalizarBusqueda(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+}
+
 function TabUsuarios({ dgs, das }) {
   const [usuarios, setUsuarios] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -159,6 +164,10 @@ function TabUsuarios({ dgs, das }) {
   const [enviando, setEnviando] = useState(false);
   const [inviteLink, setInviteLink] = useState(null); // { usuario, invite_link, correoEnviado, motivoFallo }
   const [porEliminarU, setPorEliminarU] = useState(null);
+  const [busqueda, setBusqueda] = useState('');
+  const [filtroRol, setFiltroRol] = useState('');
+  const [filtroDG, setFiltroDG] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState('todos'); // todos | activos | inactivos
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -212,6 +221,19 @@ function TabUsuarios({ dgs, das }) {
     finally { setPorEliminarU(null); }
   }
 
+  const usuariosFiltrados = useMemo(() => {
+    const q = normalizarBusqueda(busqueda);
+    return usuarios.filter(u => {
+      if (filtroRol && u.rol !== filtroRol) return false;
+      if (filtroDG && u.id_dg !== filtroDG) return false;
+      if (filtroEstado === 'activos' && !u.activo) return false;
+      if (filtroEstado === 'inactivos' && u.activo) return false;
+      if (q && !normalizarBusqueda(`${u.nombre_completo} ${u.correo} ${u.cargo || ''}`).includes(q)) return false;
+      return true;
+    });
+  }, [usuarios, busqueda, filtroRol, filtroDG, filtroEstado]);
+
+  const hayFiltrosActivos = busqueda || filtroRol || filtroDG || filtroEstado !== 'todos';
 
   if (cargando) return <div className="flex justify-center py-10"><Loader2 size={24} className="animate-spin text-guinda-600" /></div>;
 
@@ -242,34 +264,116 @@ function TabUsuarios({ dgs, das }) {
         </div>
       )}
 
-      <div className="flex justify-end mb-4">
+      {/* Búsqueda y filtros */}
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+        <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
+          <div className="relative w-64 max-w-full">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar por nombre, correo o cargo..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="input-base pl-9 text-sm"
+            />
+          </div>
+          <select value={filtroRol} onChange={e => setFiltroRol(e.target.value)} className="input-base w-auto text-xs">
+            <option value="">Todos los roles</option>
+            {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+          <select value={filtroDG} onChange={e => setFiltroDG(e.target.value)} className="input-base w-auto text-xs">
+            <option value="">Todas las DG</option>
+            {dgs.map(d => <option key={d.id} value={d.id}>{d.siglas}</option>)}
+          </select>
+          <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
+            {[
+              { valor: 'todos', etiqueta: 'Todos' },
+              { valor: 'activos', etiqueta: 'Activos' },
+              { valor: 'inactivos', etiqueta: 'Inactivos' },
+            ].map(op => (
+              <button key={op.valor} onClick={() => setFiltroEstado(op.valor)}
+                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                  filtroEstado === op.valor ? 'bg-guinda-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}>
+                {op.etiqueta}
+              </button>
+            ))}
+          </div>
+          {hayFiltrosActivos && (
+            <button
+              onClick={() => { setBusqueda(''); setFiltroRol(''); setFiltroDG(''); setFiltroEstado('todos'); }}
+              className="text-xs text-gray-400 hover:text-gray-600 underline"
+            >
+              Limpiar filtros
+            </button>
+          )}
+        </div>
         <button onClick={() => setModal({ modo: 'crear', datos: { nombre_completo: '', correo: '', cargo: '', rol: 'enlace', id_dg: '', id_direccion_area: '' } })}
-          className="flex items-center gap-2 px-4 py-2 bg-guinda-700 text-white rounded-lg text-sm hover:bg-guinda-600">
+          className="flex items-center gap-2 px-4 py-2 bg-guinda-700 text-white rounded-lg text-sm hover:bg-guinda-600 flex-shrink-0">
           <Plus size={16} /> Nuevo usuario
         </button>
       </div>
 
-      <div className="space-y-2">
-        {usuarios.map(u => (
-          <div key={u.id} className={`border rounded-lg p-4 flex items-center gap-4 ${u.activo ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-200 opacity-60'}`}>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-800 truncate">{u.nombre_completo}</p>
-              <p className="text-xs text-gray-500 truncate">{u.correo} · {u.cargo}</p>
-              <p className="text-xs text-gray-400">{u.dg_siglas}{u.da_siglas ? ` / ${u.da_siglas}` : ''}</p>
-            </div>
-            <span title={DESCRIPCION_ROL[u.rol] || ''}
-              className={`text-[10px] px-2 py-0.5 rounded font-medium whitespace-nowrap ${colorRol(u.rol)}`}>{u.rol}</span>
-            <div className="flex gap-2">
-              <button onClick={() => setModal({ modo: 'editar', datos: { ...u, id_dg: u.id_dg || '', id_direccion_area: u.id_direccion_area || '' } })}
-                className="text-gray-400 hover:text-blue-600" title="Editar"><Pencil size={15} /></button>
-              <button onClick={() => reenviar(u)} className="text-gray-400 hover:text-guinda-600" title="Generar nuevo enlace de activación"><RefreshCw size={15} /></button>
-              <button onClick={() => toggleActivo(u.id)} className={u.activo ? 'text-green-500 hover:text-red-500' : 'text-gray-400 hover:text-green-500'} title={u.activo ? 'Desactivar' : 'Activar'}>
-                {u.activo ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
-              </button>
-              <button onClick={() => setPorEliminarU(u)} className="text-gray-400 hover:text-red-600" title="Eliminar usuario permanentemente"><Trash2 size={15} /></button>
-            </div>
-          </div>
-        ))}
+      <p className="text-xs text-gray-400 mb-2">
+        {hayFiltrosActivos ? `${usuariosFiltrados.length} de ${usuarios.length} usuario(s)` : `${usuarios.length} usuario(s)`}
+      </p>
+
+      <div className="border border-gray-200 rounded-xl bg-white overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left font-medium text-gray-500 text-xs px-4 py-2.5">Usuario</th>
+                <th className="text-left font-medium text-gray-500 text-xs px-4 py-2.5">Cargo</th>
+                <th className="text-left font-medium text-gray-500 text-xs px-4 py-2.5">DG / DA</th>
+                <th className="text-left font-medium text-gray-500 text-xs px-4 py-2.5">Rol</th>
+                <th className="text-left font-medium text-gray-500 text-xs px-4 py-2.5">Estado</th>
+                <th className="text-right font-medium text-gray-500 text-xs px-4 py-2.5">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {usuariosFiltrados.map(u => (
+                <tr key={u.id} className={`hover:bg-gray-50/60 ${!u.activo ? 'opacity-50' : ''}`}>
+                  <td className="px-4 py-2.5">
+                    <p className="font-medium text-gray-800 truncate max-w-[240px]">{u.nombre_completo}</p>
+                    <p className="text-xs text-gray-500 truncate max-w-[240px]">{u.correo}</p>
+                  </td>
+                  <td className="px-4 py-2.5 text-gray-600 text-xs max-w-[200px] truncate">{u.cargo || '—'}</td>
+                  <td className="px-4 py-2.5 text-gray-500 text-xs whitespace-nowrap">
+                    {u.dg_siglas || '—'}{u.da_siglas ? ` / ${u.da_siglas}` : ''}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <span title={DESCRIPCION_ROL[u.rol] || ''}
+                      className={`text-[10px] px-2 py-0.5 rounded font-medium whitespace-nowrap ${colorRol(u.rol)}`}>{u.rol}</span>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${u.activo ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                      {u.activo ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => setModal({ modo: 'editar', datos: { ...u, id_dg: u.id_dg || '', id_direccion_area: u.id_direccion_area || '' } })}
+                        className="text-gray-400 hover:text-blue-600" title="Editar"><Pencil size={15} /></button>
+                      <button onClick={() => reenviar(u)} className="text-gray-400 hover:text-guinda-600" title="Generar nuevo enlace de activación"><RefreshCw size={15} /></button>
+                      <button onClick={() => toggleActivo(u.id)} className={u.activo ? 'text-green-500 hover:text-red-500' : 'text-gray-400 hover:text-green-500'} title={u.activo ? 'Desactivar' : 'Activar'}>
+                        {u.activo ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
+                      </button>
+                      <button onClick={() => setPorEliminarU(u)} className="text-gray-400 hover:text-red-600" title="Eliminar usuario permanentemente"><Trash2 size={15} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {usuariosFiltrados.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="text-center text-sm text-gray-400 py-10">
+                    {usuarios.length === 0 ? 'Aún no hay usuarios.' : 'Sin usuarios que coincidan con los filtros.'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {modal && (
@@ -624,6 +728,15 @@ const TABS = [
   { id: 'config', label: 'Configuración', icon: Settings },
 ];
 
+// Agrupación temática de las secciones para la navegación lateral del
+// panel. Es solo presentación — no cambia qué tabs existen (TABS sigue
+// siendo la fuente de verdad de id/etiqueta/ícono), solo cómo se agrupan.
+const GRUPOS_NAV = [
+  { titulo: 'Personas', ids: ['usuarios', 'areas'] },
+  { titulo: 'Datos y catálogos', ids: ['catalogos', 'programas', 'indicadores', 'api'] },
+  { titulo: 'Sistema', ids: ['papelera', 'config'] },
+];
+
 // ─── Tab: Papelera de proyectos ───────────────────────────────────
 function TabPapelera() {
   const [proyectos, setProyectos] = useState([]);
@@ -759,8 +872,8 @@ export default function AdminCatalogos() {
   useEffect(() => { cargarAreas(); }, [cargarAreas]);
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <div className="flex items-center gap-3 mb-6">
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
         <div className="w-9 h-9 bg-guinda-100 rounded-lg flex items-center justify-center">
           <Shield size={20} className="text-guinda-700" />
         </div>
@@ -770,28 +883,52 @@ export default function AdminCatalogos() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-gray-200 mb-6">
-        {TABS.map(t => {
-          const Icon = t.icon;
-          return (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${tab === t.id ? 'border-guinda-700 text-guinda-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-              <Icon size={16} />
-              {t.label}
-            </button>
-          );
-        })}
-      </div>
+      {/* Navegación agrupada + contenido. No es un segundo sidebar de la
+          app (ese es fijo, oscuro, ancho completo de pantalla): este panel
+          es claro, vive dentro del contenido de la página, hace scroll con
+          ella (solo se pega arriba con sticky) y agrupa las secciones por
+          tema — se lee como "índice de esta página", no como navegación
+          global. Mismo patrón que las páginas de configuración de GitHub o
+          Stripe. */}
+      <div className="flex items-start gap-6">
+        <nav className="w-56 flex-shrink-0 bg-white border border-gray-200 rounded-xl p-3 space-y-4 sticky top-6">
+          {GRUPOS_NAV.map(grupo => (
+            <div key={grupo.titulo}>
+              <p className="px-2.5 mb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{grupo.titulo}</p>
+              <div className="space-y-0.5">
+                {grupo.ids.map(id => {
+                  const t = TABS.find(x => x.id === id);
+                  if (!t) return null;
+                  const Icon = t.icon;
+                  const activo = tab === id;
+                  return (
+                    <button key={id} onClick={() => setTab(id)}
+                      className={`w-full flex items-center gap-2.5 pl-2.5 pr-2 py-2 rounded-lg text-sm font-medium text-left border-l-2 transition-colors ${
+                        activo
+                          ? 'bg-guinda-50 text-guinda-700 border-guinda-600'
+                          : 'text-gray-600 border-transparent hover:bg-gray-50 hover:text-gray-800'
+                      }`}>
+                      <Icon size={16} className={activo ? 'text-guinda-600' : 'text-gray-400'} />
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
 
-      {tab === 'catalogos' && <TabCatalogos />}
-      {tab === 'programas' && <TabProgramas />}
-      {tab === 'indicadores' && <TabIndicadores />}
-      {tab === 'api' && <TabApiIndicadores />}
-      {tab === 'usuarios' && <TabUsuarios dgs={dgs} das={das} />}
-      {tab === 'areas' && <TabAreas dgs={dgs} das={das} recargar={cargarAreas} />}
-      {tab === 'papelera' && <TabPapelera />}
-      {tab === 'config' && <TabConfiguracion />}
+        <div className="flex-1 min-w-0">
+          {tab === 'catalogos' && <TabCatalogos />}
+          {tab === 'programas' && <TabProgramas />}
+          {tab === 'indicadores' && <TabIndicadores />}
+          {tab === 'api' && <TabApiIndicadores />}
+          {tab === 'usuarios' && <TabUsuarios dgs={dgs} das={das} />}
+          {tab === 'areas' && <TabAreas dgs={dgs} das={das} recargar={cargarAreas} />}
+          {tab === 'papelera' && <TabPapelera />}
+          {tab === 'config' && <TabConfiguracion />}
+        </div>
+      </div>
     </div>
   );
 }
