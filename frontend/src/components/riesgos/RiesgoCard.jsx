@@ -70,11 +70,19 @@ export default function RiesgoCard({ riesgo, compacto = false }) {
         </div>
       )}
 
-      {/* Footer: responsable y fecha */}
+      {/* Footer: responsable y fecha — si la asignación sigue pendiente o
+          se declinó, se nota aquí mismo, sin tener que abrir el riesgo
+          para descubrir que en realidad nadie confirmó hacerse cargo. */}
       <div className="flex items-center justify-between text-xs text-gray-400 pt-2 border-t border-gray-100">
         <div className="flex items-center gap-1">
           <User size={12} />
           {riesgo.responsable_nombre || 'Sin asignar'}
+          {riesgo.estado_responsable === 'pendiente' && (
+            <span className="text-amber-600 font-medium">(pendiente de aceptar)</span>
+          )}
+          {riesgo.estado_responsable === 'rechazada' && (
+            <span className="text-red-500 font-medium">(declinó)</span>
+          )}
         </div>
         {riesgo.fecha_limite_resolucion && (
           <div className="flex items-center gap-1">

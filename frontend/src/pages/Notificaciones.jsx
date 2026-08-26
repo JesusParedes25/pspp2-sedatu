@@ -22,30 +22,49 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
   Bell, CheckCheck, Clock, AlertTriangle, MessageSquare, FileText,
-  UserPlus, MailCheck, Ban, MailQuestion,
+  UserPlus, MailCheck, Ban, MailQuestion, Shield, TrendingUp,
 } from 'lucide-react';
 import { useNotificaciones } from '../hooks/useNotificaciones';
 import { misInvitaciones } from '../api/miembros';
 import { solicitudesPorResolver, solicitudesResueltas } from '../api/solicitudes';
+import { asignacionesRiesgoPendientes } from '../api/riesgos';
 import InvitacionesPendientes from '../components/notificaciones/InvitacionesPendientes';
 import SolicitudesPorResolver from '../components/notificaciones/SolicitudesPorResolver';
 import SolicitudesResueltas from '../components/notificaciones/SolicitudesResueltas';
+import AsignacionesRiesgoPendientes from '../components/notificaciones/AsignacionesRiesgoPendientes';
 import EmptyState from '../components/common/EmptyState';
 
 const iconosPorTipo = {
-  Vencimiento:         Clock,
-  Riesgo:              AlertTriangle,
-  Comentario:          MessageSquare,
-  MencionUsuario:      MessageSquare,
-  Evidencia:           FileText,
-  PermisoNuevo:        UserPlus,
-  Invitacion:          UserPlus,
-  RespuestaInvitacion: MailCheck,
-  Solicitud:           MailQuestion,
-  RespuestaSolicitud:  MailCheck,
-  AccionBloqueada:     Ban,
-  General:             Bell,
+  Vencimiento:              Clock,
+  Inactividad:              Clock,
+  Riesgo:                   AlertTriangle,
+  Comentario:               MessageSquare,
+  MencionUsuario:           MessageSquare,
+  Evidencia:                FileText,
+  PermisoNuevo:             UserPlus,
+  Invitacion:               UserPlus,
+  RespuestaInvitacion:      MailCheck,
+  Solicitud:                MailQuestion,
+  RespuestaSolicitud:       MailCheck,
+  AsignacionRiesgo:         Shield,
+  RespuestaAsignacionRiesgo: Shield,
+  AccionBloqueada:          Ban,
+  AvanceDG:                 TrendingUp,
+  General:                  Bell,
 };
+
+// Catálogo de "Avisos" por categoría — para que una bandeja con varios
+// tipos de notificación distintos se lea de un vistazo en vez de como una
+// sola lista plana. El orden de las categorías es el orden en que
+// aparecen; un tipo no listado aquí cae en "Sistema" (catch-all).
+const CATEGORIAS_AVISO = [
+  { titulo: 'Riesgos', tipos: ['Riesgo', 'RespuestaAsignacionRiesgo'] },
+  { titulo: 'Solicitudes e invitaciones', tipos: ['RespuestaSolicitud', 'RespuestaInvitacion'] },
+  { titulo: 'Actividad del proyecto', tipos: ['Comentario', 'MencionUsuario', 'AccionBloqueada', 'AvanceDG', 'PermisoNuevo', 'Evidencia'] },
+];
+function categoriaDe(tipo) {
+  return CATEGORIAS_AVISO.find(c => c.tipos.includes(tipo))?.titulo || 'Sistema';
+}
 
 // Dónde vive lo que originó el aviso. Sin id_proyecto no hay a dónde ir.
 function rutaDe(n) {
@@ -69,6 +88,7 @@ export default function Notificaciones() {
   const [invitaciones, setInvitaciones] = useState([]);
   const [solicitudes, setSolicitudes] = useState([]);
   const [resueltas, setResueltas] = useState([]);
+  const [asignacionesRiesgo, setAsignacionesRiesgo] = useState([]);
 
   const cargarInvitaciones = useCallback(async () => {
     try { setInvitaciones(await misInvitaciones()); } catch { /* buzón vacío */ }
@@ -82,9 +102,13 @@ export default function Notificaciones() {
     try { setResueltas(await solicitudesResueltas()); } catch { /* sin historial todavía */ }
   }, []);
 
+  const cargarAsignacionesRiesgo = useCallback(async () => {
+    try { setAsignacionesRiesgo(await asignacionesRiesgoPendientes()); } catch { /* nada pendiente */ }
+  }, []);
+
   useEffect(() => {
-    cargarInvitaciones(); cargarSolicitudes(); cargarResueltas();
-  }, [cargarInvitaciones, cargarSolicitudes, cargarResueltas]);
+    cargarInvitaciones(); cargarSolicitudes(); cargarResueltas(); cargarAsignacionesRiesgo();
+  }, [cargarInvitaciones, cargarSolicitudes, cargarResueltas, cargarAsignacionesRiesgo]);
 
   function alResponderInvitacion() {
     cargarInvitaciones();
@@ -98,6 +122,15 @@ export default function Notificaciones() {
   function alResolverSolicitud() {
     cargarSolicitudes();
     cargarResueltas();
+    recargarResumen?.();
+  }
+
+  // Una asignación de riesgo respondida no tiene una sección de "historial"
+  // propia (a diferencia de las solicitudes) — la respuesta ya le llega a
+  // quien asignó como notificación (RespuestaAsignacionRiesgo) en Avisos,
+  // así que aquí solo hace falta que se caiga de la bandeja de pendientes.
+  function alResponderAsignacionRiesgo() {
+    cargarAsignacionesRiesgo();
     recargarResumen?.();
   }
 
@@ -121,7 +154,16 @@ export default function Notificaciones() {
     );
   }
 
-  const sinNada = notificaciones.length === 0 && invitaciones.length === 0 && solicitudes.length === 0;
+  const sinNada = notificaciones.length === 0 && invitaciones.length === 0
+    && solicitudes.length === 0 && asignacionesRiesgo.length === 0;
+
+  // Avisos agrupados por categoría, en el orden de CATEGORIAS_AVISO — así
+  // "varios tipos de notificación" se leen como secciones, no como una
+  // sola lista larga donde un comentario y un vencimiento se mezclan sin
+  // distinción.
+  const gruposAviso = [...CATEGORIAS_AVISO.map(c => c.titulo), 'Sistema']
+    .map(titulo => ({ titulo, items: notificaciones.filter(n => categoriaDe(n.tipo) === titulo) }))
+    .filter(g => g.items.length > 0);
 
   return (
     <div className="space-y-6">
@@ -146,6 +188,14 @@ export default function Notificaciones() {
                 {' · '}
               </span>
             )}
+            {asignacionesRiesgo.length > 0 && (
+              <span className="text-orange-700 font-medium">
+                {asignacionesRiesgo.length === 1
+                  ? '1 asignación de riesgo por responder'
+                  : `${asignacionesRiesgo.length} asignaciones de riesgo por responder`}
+                {' · '}
+              </span>
+            )}
             {noLeidas > 0 ? `${noLeidas} sin leer` : 'Todas leídas'}
           </p>
         </div>
@@ -167,6 +217,11 @@ export default function Notificaciones() {
         onRespondida={alResolverSolicitud}
       />
 
+      <AsignacionesRiesgoPendientes
+        asignaciones={asignacionesRiesgo}
+        onRespondida={alResponderAsignacionRiesgo}
+      />
+
       <SolicitudesResueltas solicitudes={resueltas} />
 
       {sinNada ? (
@@ -176,51 +231,58 @@ export default function Notificaciones() {
           subtitulo="No tienes notificaciones aún. Aparecerán aquí cuando haya eventos relevantes."
         />
       ) : (
-        <div className="space-y-2">
-          {(invitaciones.length > 0 || solicitudes.length > 0) && notificaciones.length > 0 && (
+        <div className="space-y-4">
+          {(invitaciones.length > 0 || solicitudes.length > 0 || asignacionesRiesgo.length > 0) && notificaciones.length > 0 && (
             <h2 className="text-sm font-semibold text-gray-700 pt-2">Avisos</h2>
           )}
-          {notificaciones.map(notificacion => {
-            const Icono = iconosPorTipo[notificacion.tipo] || Bell;
-            const clicable = !!rutaDe(notificacion);
+          {gruposAviso.map(grupo => (
+            <div key={grupo.titulo} className="space-y-2">
+              {gruposAviso.length > 1 && (
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{grupo.titulo}</h3>
+              )}
+              {grupo.items.map(notificacion => {
+                const Icono = iconosPorTipo[notificacion.tipo] || Bell;
+                const clicable = !!rutaDe(notificacion);
 
-            return (
-              <button
-                key={notificacion.id}
-                onClick={() => abrir(notificacion)}
-                className={`w-full text-left card p-4 flex items-start gap-4 transition-colors ${
-                  notificacion.leida ? 'bg-white' : 'bg-blue-50 border-blue-200'
-                } ${clicable ? 'hover:shadow-sm cursor-pointer' : 'cursor-default'}`}
-              >
-                {/* Ícono */}
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  notificacion.leida ? 'bg-gray-100 text-gray-400' : 'bg-guinda-100 text-guinda-500'
-                }`}>
-                  <Icono size={18} />
-                </div>
+                return (
+                  <button
+                    key={notificacion.id}
+                    onClick={() => abrir(notificacion)}
+                    className={`w-full text-left card p-4 flex items-start gap-4 transition-colors ${
+                      notificacion.leida ? 'bg-white' : 'bg-blue-50 border-blue-200'
+                    } ${clicable ? 'hover:shadow-sm cursor-pointer' : 'cursor-default'}`}
+                  >
+                    {/* Ícono */}
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      notificacion.leida ? 'bg-gray-100 text-gray-400' : 'bg-guinda-100 text-guinda-500'
+                    }`}>
+                      <Icono size={18} />
+                    </div>
 
-                {/* Contenido */}
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm ${notificacion.leida ? 'text-gray-600' : 'text-gray-900 font-medium'}`}>
-                    {notificacion.mensaje}
-                  </p>
-                  {clicable && (
-                    <p className="text-xs text-guinda-600 mt-0.5">Ver</p>
-                  )}
-                </div>
+                    {/* Contenido */}
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm ${notificacion.leida ? 'text-gray-600' : 'text-gray-900 font-medium'}`}>
+                        {notificacion.mensaje}
+                      </p>
+                      {clicable && (
+                        <p className="text-xs text-guinda-600 mt-0.5">Ver</p>
+                      )}
+                    </div>
 
-                {/* Fecha */}
-                <span className="text-xs text-gray-400 flex-shrink-0">
-                  {formatearFechaRelativa(notificacion.created_at)}
-                </span>
+                    {/* Fecha */}
+                    <span className="text-xs text-gray-400 flex-shrink-0">
+                      {formatearFechaRelativa(notificacion.created_at)}
+                    </span>
 
-                {/* Indicador de no leída */}
-                {!notificacion.leida && (
-                  <div className="w-2.5 h-2.5 bg-guinda-500 rounded-full flex-shrink-0 mt-1" />
-                )}
-              </button>
-            );
-          })}
+                    {/* Indicador de no leída */}
+                    {!notificacion.leida && (
+                      <div className="w-2.5 h-2.5 bg-guinda-500 rounded-full flex-shrink-0 mt-1" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </div>
       )}
     </div>

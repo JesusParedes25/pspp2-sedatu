@@ -16,6 +16,7 @@
 const notificacionesQueries = require('../db/queries/notificaciones.queries');
 const miembrosQueries = require('../db/queries/miembros.queries');
 const solicitudesQueries = require('../db/queries/solicitudes.queries');
+const riesgosQueries = require('../db/queries/riesgos.queries');
 
 // GET /notificaciones/resumen — para la campanita del header.
 //
@@ -33,18 +34,20 @@ const solicitudesQueries = require('../db/queries/solicitudes.queries');
 // sola con ella en lugar de quedarse atrás.
 async function resumen(req, res, next) {
   try {
-    const [noLeidas, invitaciones, solicitudes] = await Promise.all([
+    const [noLeidas, invitaciones, solicitudes, asignacionesRiesgo] = await Promise.all([
       notificacionesQueries.contarNoLeidasParaCampanita(req.usuario.id),
       miembrosQueries.invitacionesPendientes(req.usuario.id),
       solicitudesQueries.pendientesQuePuedeResolver(req.usuario),
+      riesgosQueries.asignacionesPendientesDe(req.usuario.id),
     ]);
 
     const datos = {
       no_leidas: noLeidas,
       invitaciones: invitaciones.length,
       solicitudes: solicitudes.length,
+      asignaciones_riesgo: asignacionesRiesgo.length,
     };
-    datos.total = datos.no_leidas + datos.invitaciones + datos.solicitudes;
+    datos.total = datos.no_leidas + datos.invitaciones + datos.solicitudes + datos.asignaciones_riesgo;
 
     res.json({ datos, mensaje: 'Resumen de pendientes' });
   } catch (err) {
