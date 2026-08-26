@@ -34,11 +34,12 @@ const menuItems = [
   { to: '/admin/catalogos', icono: Shield, etiqueta: 'Administración', requiereRol: 'superadmin' },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ pendientesNotificaciones = 0 }) {
   const { sidebarAbierto, toggleSidebar } = useUI();
   const { usuario, logout } = useAuth();
   const { puedeCrearProyecto } = usePermisosGlobales();
   const { vencidas } = useMisPendientes();
+  const BADGES = { '/mis-actividades': vencidas, '/notificaciones': pendientesNotificaciones };
 
   return (
     <aside className={`fixed top-0 left-0 h-screen bg-guinda-700 text-white flex flex-col transition-all duration-300 z-30 ${sidebarAbierto ? 'w-64' : 'w-16'}`}>
@@ -92,11 +93,11 @@ export default function Sidebar() {
           >
             <span className="relative flex-shrink-0">
               <item.icono size={20} />
-              {item.to === '/mis-actividades' && vencidas > 0 && (
+              {BADGES[item.to] > 0 && (
                 <span className={`absolute bg-red-500 text-white rounded-full flex items-center justify-center font-bold ${
                   sidebarAbierto ? '-top-1 -right-1.5 text-[9px] w-4 h-4' : '-top-1 -right-1 text-[8px] w-3.5 h-3.5'
                 }`}>
-                  {vencidas > 9 ? '9+' : vencidas}
+                  {BADGES[item.to] > 9 ? '9+' : BADGES[item.to]}
                 </span>
               )}
             </span>

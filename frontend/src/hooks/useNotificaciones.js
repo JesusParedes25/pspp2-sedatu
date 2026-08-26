@@ -1,23 +1,26 @@
 /**
  * ARCHIVO: useNotificaciones.js
- * PROPÓSITO: Hook personalizado para polling de notificaciones.
+ * PROPÓSITO: Hook para la lista de notificaciones, en tiempo real.
  *
- * MINI-CLASE: Polling con setInterval en React
+ * MINI-CLASE: SSE con polling de respaldo
  * ─────────────────────────────────────────────────────────────────
- * Este hook configura un setInterval que consulta las notificaciones
- * cada 30 segundos. useEffect limpia el interval al desmontar el
- * componente para evitar memory leaks. El conteo de no leídas se
- * actualiza en cada polling para mantener el badge del header
- * sincronizado sin necesidad de WebSockets.
+ * Además de la carga inicial y el polling de respaldo (intervalo
+ * largo, por si la conexión de tiempo real no se pudo abrir), este
+ * hook se suscribe a /notificaciones/stream (ver api/notificaciones.js
+ * → suscribirEnVivo): en cuanto el backend crea una notificación nueva
+ * para este usuario, avisa por esa conexión y aquí se recarga la lista
+ * al instante — sin esperar hasta 30-60s a que toque el próximo ciclo
+ * de polling.
  * ─────────────────────────────────────────────────────────────────
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import * as notificacionesApi from '../api/notificaciones';
 
-export function useNotificaciones(intervaloMs = 30000) {
+export function useNotificaciones(intervaloMs = 60000) {
   const [notificaciones, setNotificaciones] = useState([]);
   const [noLeidas, setNoLeidas] = useState(0);
   const [cargando, setCargando] = useState(true);
+  const cargarRef = useRef(null);
 
   const cargar = useCallback(async () => {
     try {
@@ -30,12 +33,14 @@ export function useNotificaciones(intervaloMs = 30000) {
       setCargando(false);
     }
   }, []);
+  cargarRef.current = cargar;
 
-  // Carga inicial + polling cada N milisegundos
+  // Carga inicial + polling de respaldo + tiempo real por SSE
   useEffect(() => {
     cargar();
     const intervalo = setInterval(cargar, intervaloMs);
-    return () => clearInterval(intervalo);
+    const desuscribir = notificacionesApi.suscribirEnVivo(() => cargarRef.current());
+    return () => { clearInterval(intervalo); desuscribir(); };
   }, [cargar, intervaloMs]);
 
   const marcarLeida = useCallback(async (id) => {

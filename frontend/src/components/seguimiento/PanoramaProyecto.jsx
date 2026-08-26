@@ -7,8 +7,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Users, UserPlus, Target, MapPin, AlertTriangle, Clock, Activity,
-  TrendingUp, Calendar, Shield, ChevronRight, X, Trash2, Search, Loader2, MessageSquare
+  TrendingUp, Calendar, Shield, ChevronRight, X, Trash2, Search, Loader2, MessageSquare, Layers,
 } from 'lucide-react';
+import { NIVELES } from '../../config/niveles';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useAuth } from '../../context/AuthContext';
 import { usePermisosProyecto } from '../../hooks/usePermisos';
@@ -86,6 +87,21 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
   const pct = parseFloat(proyecto?.porcentaje_calculado) || 0;
   const sem = calcularColorSemaforo(pct, proyecto?.fecha_inicio, proyecto?.fecha_limite);
 
+  // Gestor de usuarios: dos grupos, no una lista plana — "todo el
+  // proyecto" aparte de "por partes", y esto último agrupado por nodo
+  // (no por persona) para que se lea como "quién está en cada etapa/
+  // acción/tarea", que es la pregunta que de verdad se hace quien
+  // administra el equipo.
+  const miembrosProyecto = miembros.filter(m => m.alcance === 'proyecto');
+  const gruposPorNodo = Object.values(
+    miembros.filter(m => m.alcance !== 'proyecto').reduce((acc, m) => {
+      const clave = m.nodo_id || `${m.alcance}:${m.nodo_nombre}`;
+      if (!acc[clave]) acc[clave] = { nodo_id: clave, nodo_tipo: m.nodo_tipo, nodo_nombre: m.nodo_nombre, miembros: [] };
+      acc[clave].miembros.push(m);
+      return acc;
+    }, {})
+  );
+
   return (
     <div className="space-y-5">
       {/* ═══ ENCABEZADO ═══ */}
@@ -126,12 +142,15 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
       </div>
 
       {/* ═══ GESTOR DE USUARIOS DEL PROYECTO ═══
-          Antes esto era solo una vista de lectura: para mover a alguien
-          de "colaborador de una etapa" a "colaborador de todo el
-          proyecto" había que salir a la etapa a quitarlo, volver aquí y
-          volver a invitarlo. Ahora cada tarjeta trae sus propias acciones
-          (cambiar función, ampliar a todo el proyecto, quitar) para que
-          esto sea de verdad un gestor y no solo una lista. */}
+          Antes esto era solo una vista de lectura, todos en una sola
+          rejilla sin distinguir quién tiene acceso a todo del proyecto y
+          quién solo a una parte — y asignar a alguien a una etapa/acción
+          puntual quedaba escondido dentro de "Invitar usuario", detrás
+          de un radio button. Ahora son dos grupos explícitos ("Todo el
+          proyecto" y, agrupado por elemento, "Etapas, acciones y
+          tareas"), un botón propio para asignar a una parte, y cada
+          tarjeta trae sus acciones (cambiar función, ampliar a todo el
+          proyecto, quitar) para que esto sea de verdad un gestor. */}
       <section className="bg-white rounded-xl border border-gray-200 shadow-sm">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 flex-wrap gap-2">
@@ -152,33 +171,97 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
               las dos acciones son la misma conversación vista desde cada
               lado, así que viven en el mismo lugar — junto a la lista de
               quiénes participan, que es donde surge la pregunta. */}
-          <BotonSolicitarParticipar proyecto={proyecto} permisos={permisos} />
-          {permisos.puedeInvitar && (
-            <button
-              onClick={() => setModalInvitar(true)}
-              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-guinda-200 text-guinda-700 hover:bg-guinda-50 transition"
-            >
-              <UserPlus size={14} /> Invitar usuario
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            <BotonSolicitarParticipar proyecto={proyecto} permisos={permisos} />
+            {permisos.puedeInvitar && (
+              <>
+                <button
+                  onClick={() => setModalInvitar('nodos')}
+                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition"
+                  title="Asignar a una etapa, acción o tarea específica"
+                >
+                  <Layers size={14} /> Asignar a una parte
+                </button>
+                <button
+                  onClick={() => setModalInvitar('proyecto')}
+                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-guinda-200 text-guinda-700 hover:bg-guinda-50 transition"
+                >
+                  <UserPlus size={14} /> Invitar a todo el proyecto
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
-        <div className="p-5">
+        <div className="p-5 space-y-6">
           {miembros.length === 0 ? (
             <p className="text-xs text-gray-400 text-center py-4">Sin participantes registrados</p>
           ) : (
-            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-              {miembros.map(m => (
-                <ParticipanteCard
-                  key={`${m.id_usuario}-${m.alcance}-${m.nodo_id || ''}`}
-                  miembro={m}
-                  puedeGestionar={permisos.puedeInvitar && m.id_usuario !== usuario?.id}
-                  onEliminar={() => handleEliminarMiembro(m)}
-                  onCambiarRol={nuevoRol => handleCambiarRol(m, nuevoRol)}
-                  onAmpliarATodoElProyecto={() => handleAmpliarATodoElProyecto(m)}
-                />
-              ))}
-            </div>
+            <>
+              {/* Todo el proyecto */}
+              <div>
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2.5">
+                  Todo el proyecto
+                  <span className="ml-1 text-gray-400 font-normal normal-case">({miembrosProyecto.length})</span>
+                </h4>
+                {miembrosProyecto.length === 0 ? (
+                  <p className="text-xs text-gray-400">Nadie tiene acceso a todo el proyecto todavía.</p>
+                ) : (
+                  <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                    {miembrosProyecto.map(m => (
+                      <ParticipanteCard
+                        key={`${m.id_usuario}-proyecto`}
+                        miembro={m}
+                        puedeGestionar={permisos.puedeInvitar && m.id_usuario !== usuario?.id}
+                        onEliminar={() => handleEliminarMiembro(m)}
+                        onCambiarRol={nuevoRol => handleCambiarRol(m, nuevoRol)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Etapas, acciones y tareas — agrupado por elemento, no una
+                  lista plana de personas: lo que importa aquí es "quién
+                  está en cada parte", no solo "quién es colaborador". */}
+              {gruposPorNodo.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2.5">
+                    Etapas, acciones y tareas
+                    <span className="ml-1 text-gray-400 font-normal normal-case">
+                      ({gruposPorNodo.reduce((n, g) => n + g.miembros.length, 0)})
+                    </span>
+                  </h4>
+                  <div className="space-y-3">
+                    {gruposPorNodo.map(grupo => {
+                      const IconoNodo = NIVELES[grupo.nodo_tipo]?.icono || Layers;
+                      return (
+                        <div key={grupo.nodo_id} className="border border-gray-100 rounded-lg p-3 bg-gray-50/60">
+                          <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
+                            <IconoNodo size={13} className="text-gray-400 flex-shrink-0" />
+                            {grupo.nodo_nombre}
+                            <span className="text-gray-400 font-normal">· {ETIQUETA_ALCANCE[grupo.nodo_tipo]}</span>
+                          </p>
+                          <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                            {grupo.miembros.map(m => (
+                              <ParticipanteCard
+                                key={`${m.id_usuario}-${grupo.nodo_id}`}
+                                miembro={m}
+                                puedeGestionar={permisos.puedeInvitar && m.id_usuario !== usuario?.id}
+                                onEliminar={() => handleEliminarMiembro(m)}
+                                onCambiarRol={nuevoRol => handleCambiarRol(m, nuevoRol)}
+                                onAmpliarATodoElProyecto={() => handleAmpliarATodoElProyecto(m)}
+                                mostrarAlcance={false}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </section>
@@ -327,6 +410,7 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
         <ModalInvitar
           proyectoId={proyectoId}
           etapas={etapas}
+          alcanceInicial={modalInvitar === 'nodos' ? 'nodos' : 'proyecto'}
           onClose={() => setModalInvitar(false)}
           onInvitado={() => {
             setModalInvitar(false);
@@ -417,9 +501,11 @@ function alcanceLabel(alcance, nodo_tipo, nodo_nombre) {
   return `Asignado a: ${tipoEs}${nodo_nombre ? ` — ${nodo_nombre}` : ''}`;
 }
 
-function ParticipanteCard({ miembro: m, puedeGestionar, onEliminar, onCambiarRol, onAmpliarATodoElProyecto }) {
+function ParticipanteCard({ miembro: m, puedeGestionar, onEliminar, onCambiarRol, onAmpliarATodoElProyecto, mostrarAlcance = true }) {
   const cfg = ROL_CFG[m.rol] || ROL_CFG.invitado;
-  const scopeText = alcanceLabel(m.alcance, m.nodo_tipo, m.nodo_nombre);
+  // Dentro de un grupo por nodo el encabezado del grupo ya dice de qué
+  // etapa/acción/tarea se trata — repetirlo en cada tarjeta sería ruido.
+  const scopeText = mostrarAlcance ? alcanceLabel(m.alcance, m.nodo_tipo, m.nodo_nombre) : null;
   // 'invitado' es un rol especial para gente externa (ver ModalInvitar) —
   // no se ofrece como algo a lo que cambiar desde aquí, solo se respeta
   // si ya es lo que tiene.
@@ -493,13 +579,18 @@ function ParticipanteCard({ miembro: m, puedeGestionar, onEliminar, onCambiarRol
         </a>
       )}
 
-      {/* Scope + ampliar a todo el proyecto — la acción que resuelve la
-          fricción de "está en una parte, quiero que esté en todo": antes
-          exigía quitarlo de la parte y volver a invitarlo desde cero. */}
-      {scopeText && (
+      {/* Scope (si aplica) + ampliar a todo el proyecto — la acción que
+          resuelve la fricción de "está en una parte, quiero que esté en
+          todo": antes exigía quitarlo de la parte y volver a invitarlo
+          desde cero. El botón vive independiente del texto de alcance:
+          dentro de un grupo por nodo no se repite el texto, pero la
+          acción sigue haciendo falta. */}
+      {m.alcance !== 'proyecto' && (
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[11px] text-amber-600 italic leading-tight truncate">{scopeText}</p>
-          {puedeGestionar && (
+          {scopeText ? (
+            <p className="text-[11px] text-amber-600 italic leading-tight truncate">{scopeText}</p>
+          ) : <span />}
+          {puedeGestionar && onAmpliarATodoElProyecto && (
             <button
               onClick={onAmpliarATodoElProyecto}
               className="text-[10px] font-medium text-guinda-600 hover:text-guinda-800 whitespace-nowrap flex-shrink-0"
@@ -548,7 +639,7 @@ function IndicadorCard({ indicador }) {
 }
 
 // ─── Modal Invitar ────────────────────────────────────────────
-function ModalInvitar({ proyectoId, etapas, onClose, onInvitado }) {
+function ModalInvitar({ proyectoId, etapas, alcanceInicial = 'proyecto', onClose, onInvitado }) {
   const [dgs, setDgs] = useState([]);
   const [das, setDas] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
@@ -558,7 +649,10 @@ function ModalInvitar({ proyectoId, etapas, onClose, onInvitado }) {
   const [rol, setRol] = useState('colaborador');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
-  const [alcance, setAlcance] = useState('proyecto');
+  // Quien llega por "Asignar a una parte" ya dijo lo que quiere hacer —
+  // arrancar con el radio en "Todo el proyecto" y obligarlo a cambiarlo
+  // sería deshacer la elección que ya hizo con ese clic.
+  const [alcance, setAlcance] = useState(alcanceInicial);
   const [nodosSeleccionados, setNodosSeleccionados] = useState(new Set());
 
   useEffect(() => {
