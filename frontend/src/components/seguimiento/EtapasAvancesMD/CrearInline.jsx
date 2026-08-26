@@ -2,12 +2,28 @@
  * ARCHIVO: CrearInline.jsx
  * PROPÓSITO: Botón "+ Etapa/Acción/Tarea" con input inline (clic → nombre →
  *            Enter/Esc) reutilizado en el árbol y en el panel de detalle.
+ *
+ * MINI-CLASE: dos variantes, mismo mecanismo
+ * ─────────────────────────────────────────────────────────────────
+ * 'sutil' (default) es el enlace junto al encabezado de la lista de
+ * hijos — ya vive ahí, solo se le subió el peso visual (antes pasaba
+ * casi inadvertido, gris y diminuto). 'destacado' es la misma acción
+ * con el mismo peso que "Registrar avance"/"Reportar riesgo" en el
+ * panel derecho, para quien no repara en el encabezado de la lista.
+ * Dos entradas, una sola implementación: evita que crear un hijo se
+ * comporte distinto según por dónde se abrió.
+ * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Loader2 } from 'lucide-react';
 import { useJerarquiaProyecto } from '../../../hooks/useJerarquiaProyecto';
 
-export default function CrearInline({ tipo, padreId, proyectoId, onCreado, etiqueta: etiquetaProp }) {
+const CLASE_BOTON = {
+  sutil: 'inline-flex items-center gap-1 text-[11px] font-semibold text-guinda-700 bg-guinda-50 hover:bg-guinda-100 border border-guinda-200 px-2 py-1 rounded-md transition-colors',
+  destacado: 'w-full flex items-center justify-center gap-1.5 text-[12px] font-semibold px-3 py-2.5 rounded-lg border-2 border-dashed border-guinda-300 text-guinda-700 hover:bg-guinda-50 hover:border-guinda-400 transition-colors',
+};
+
+export default function CrearInline({ tipo, padreId, proyectoId, onCreado, etiqueta: etiquetaProp, variante = 'sutil' }) {
   const { crear } = useJerarquiaProyecto(proyectoId);
   const [activo, setActivo] = useState(false);
   const [nombre, setNombre] = useState('');
@@ -18,7 +34,7 @@ export default function CrearInline({ tipo, padreId, proyectoId, onCreado, etiqu
     if (activo && refInput.current) refInput.current.focus();
   }, [activo]);
 
-  const etiqueta = etiquetaProp || (tipo === 'etapa' ? '+ Etapa' : tipo === 'accion' ? '+ Acción' : '+ Tarea');
+  const etiqueta = etiquetaProp || (tipo === 'etapa' ? 'Etapa' : tipo === 'accion' ? 'Acción' : 'Tarea');
 
   async function guardar() {
     if (!nombre.trim() || guardando) return;
@@ -37,17 +53,14 @@ export default function CrearInline({ tipo, padreId, proyectoId, onCreado, etiqu
 
   if (!activo) {
     return (
-      <button
-        onClick={() => setActivo(true)}
-        className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-[#7B1C3E] py-1 px-1 transition-colors"
-      >
-        <Plus size={10} /> {etiqueta}
+      <button onClick={() => setActivo(true)} className={CLASE_BOTON[variante] || CLASE_BOTON.sutil}>
+        <Plus size={variante === 'destacado' ? 14 : 11} /> {etiqueta}
       </button>
     );
   }
 
   return (
-    <div className="flex items-center gap-1 py-0.5 px-1">
+    <div className={variante === 'destacado' ? 'flex items-center gap-1.5 w-full' : 'flex items-center gap-1 py-0.5 px-1'}>
       <input
         ref={refInput}
         value={nombre}
@@ -55,7 +68,9 @@ export default function CrearInline({ tipo, padreId, proyectoId, onCreado, etiqu
         onKeyDown={e => { if (e.key === 'Enter') guardar(); if (e.key === 'Escape') { setActivo(false); setNombre(''); } }}
         onBlur={() => { if (!nombre.trim()) { setActivo(false); setNombre(''); } }}
         placeholder={`Nombre de ${tipo}...`}
-        className="text-xs border border-gray-300 rounded px-1.5 py-0.5 flex-1 min-w-0 focus:border-[#7B1C3E] focus:ring-1 focus:ring-[#7B1C3E]/20 outline-none"
+        className={variante === 'destacado'
+          ? 'text-xs border border-gray-300 rounded-lg px-2.5 py-2 flex-1 min-w-0 focus:border-[#7B1C3E] focus:ring-1 focus:ring-[#7B1C3E]/20 outline-none'
+          : 'text-xs border border-gray-300 rounded px-1.5 py-0.5 flex-1 min-w-0 focus:border-[#7B1C3E] focus:ring-1 focus:ring-[#7B1C3E]/20 outline-none'}
         disabled={guardando}
       />
       {guardando && <Loader2 size={10} className="animate-spin text-gray-400" />}

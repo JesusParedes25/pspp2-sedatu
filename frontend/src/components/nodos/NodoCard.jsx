@@ -35,6 +35,8 @@ import CampoFecha from '../common/CampoFecha';
 import { formatFecha, diasRestantes } from '../../utils/fecha';
 import { useUI } from '../../context/UIContext';
 import { permisosDeNodo } from '../../hooks/usePermisos';
+import { NIVELES } from '../../config/niveles';
+import CrearInline from '../seguimiento/EtapasAvancesMD/CrearInline';
 
 const SEM = { verde: '#22c55e', ambar: '#f59e0b', rojo: '#ef4444', gris: '#9ca3af' };
 const TIPO_LABEL = { etapa: 'Etapa', accion: 'Acción', tarea: 'Tarea' };
@@ -373,6 +375,22 @@ export default function NodoCard({
                 className={`w-full flex items-center justify-center gap-1.5 text-[11px] font-medium px-2.5 py-2 rounded-lg border disabled:opacity-40 transition-colors ${modo === 'riesgo' || mostrarModalRiesgo ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
                 <AlertTriangle size={13} /> Reportar riesgo
               </button>
+            )}
+            {/* Agregar hijo — mismo peso visual que "Registrar avance"/
+                "Reportar riesgo" de arriba. Antes la única forma de crear
+                un hijo era un enlace chico junto al encabezado de la lista
+                (a la izquierda, fuera de este panel), fácil de pasar por
+                alto; esta es la misma acción (CrearInline), solo con más
+                presencia para quien mira este panel primero. */}
+            {esContenedor && !soloLectura && NIVELES[tipo]?.hijoTipo && (
+              <CrearInline
+                tipo={NIVELES[tipo].hijoTipo}
+                padreId={nodo.id}
+                proyectoId={proyectoId}
+                onCreado={() => onCambiado?.()}
+                etiqueta={`Agregar ${NIVELES[tipo].hijoLabel.toLowerCase()}`}
+                variante="destacado"
+              />
             )}
             {ultimoRegistro && (
               <p className="text-[10px] text-gray-400 text-center">

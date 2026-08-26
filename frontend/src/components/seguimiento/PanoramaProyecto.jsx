@@ -12,8 +12,8 @@ import {
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useAuth } from '../../context/AuthContext';
 import { usePermisosProyecto } from '../../hooks/usePermisos';
-import { obtenerPanorama, crearInvitacion, eliminarMiembro, cancelarInvitacion } from '../../api/miembros';
-import { agregarMiembroNodo } from '../../api/nodo-miembros';
+import { obtenerPanorama, crearInvitacion, agregarMiembro, eliminarMiembro, cancelarInvitacion } from '../../api/miembros';
+import { agregarMiembroNodo, actualizarRolNodo, eliminarMiembroNodo } from '../../api/nodo-miembros';
 import { calcularColorSemaforo } from '../../utils/semaforoColor';
 import client from '../../api/client';
 import TarjetaIndicador from '../indicadores/TarjetaIndicador';
@@ -125,14 +125,20 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
         </div>
       </div>
 
-      {/* ═══ PARTICIPANTES ═══ */}
+      {/* ═══ GESTOR DE USUARIOS DEL PROYECTO ═══
+          Antes esto era solo una vista de lectura: para mover a alguien
+          de "colaborador de una etapa" a "colaborador de todo el
+          proyecto" había que salir a la etapa a quitarlo, volver aquí y
+          volver a invitarlo. Ahora cada tarjeta trae sus propias acciones
+          (cambiar función, ampliar a todo el proyecto, quitar) para que
+          esto sea de verdad un gestor y no solo una lista. */}
       <section className="bg-white rounded-xl border border-gray-200 shadow-sm">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <Users size={16} className="text-gray-500" />
             <h3 className="text-sm font-semibold text-gray-800">
-              Participantes del proyecto
+              Gestor de usuarios del proyecto
               <span className="ml-1.5 text-gray-400 font-normal text-xs">
                 ({miembros.length} persona{miembros.length !== 1 ? 's' : ''}
                 {(() => {
@@ -164,10 +170,12 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
             <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {miembros.map(m => (
                 <ParticipanteCard
-                  key={m.id_usuario}
+                  key={`${m.id_usuario}-${m.alcance}-${m.nodo_id || ''}`}
                   miembro={m}
-                  puedeEliminar={permisos.puedeInvitar && m.id_usuario !== usuario?.id && m.alcance === 'proyecto'}
-                  onEliminar={() => handleEliminarMiembro(m.id_usuario)}
+                  puedeGestionar={permisos.puedeInvitar && m.id_usuario !== usuario?.id}
+                  onEliminar={() => handleEliminarMiembro(m)}
+                  onCambiarRol={nuevoRol => handleCambiarRol(m, nuevoRol)}
+                  onAmpliarATodoElProyecto={() => handleAmpliarATodoElProyecto(m)}
                 />
               ))}
             </div>
@@ -329,14 +337,60 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
     </div>
   );
 
-  async function handleEliminarMiembro(userId) {
-    if (!confirm('¿Eliminar a este usuario del proyecto?')) return;
+  // Quita a alguien — del proyecto entero si su alcance es 'proyecto', o
+  // solo de la etapa/acción/tarea puntual si es un colaborador de nodo.
+  // El mensaje de confirmación cambia según cuál de las dos cosas está
+  // a punto de pasar: no es lo mismo perder todo el acceso que perder
+  // acceso a una sola parte.
+  async function handleEliminarMiembro(m) {
+    const deQue = m.alcance === 'proyecto' ? 'del proyecto' : `de esa ${ETIQUETA_ALCANCE[m.nodo_tipo] || 'parte'}`;
+    if (!confirm(`¿Quitar a ${m.nombre_completo} ${deQue}?`)) return;
     try {
-      await eliminarMiembro(proyectoId, userId);
+      if (m.alcance === 'proyecto') {
+        await eliminarMiembro(proyectoId, m.id_usuario);
+      } else {
+        await eliminarMiembroNodo(m.nodo_tipo, m.nodo_id, m.id_usuario);
+      }
       const nuevosDatos = await obtenerPanorama(proyectoId);
       setDatos(nuevosDatos);
     } catch (e) {
-      alert(e.response?.data?.mensaje || 'Error al eliminar miembro');
+      alert(e.response?.data?.mensaje || 'Error al quitar al usuario');
+    }
+  }
+
+  // Cambia la función (colaborador ↔ responsable) sin tocar el alcance.
+  // Para 'proyecto' reusa el mismo endpoint que agrega miembros — ya
+  // hace upsert de rol si la persona está aceptada, así que cambia la
+  // función al instante sin pedirle que vuelva a aceptar nada.
+  async function handleCambiarRol(m, nuevoRol) {
+    if (nuevoRol === m.rol) return;
+    try {
+      if (m.alcance === 'proyecto') {
+        await agregarMiembro(proyectoId, m.id_usuario, nuevoRol);
+      } else {
+        await actualizarRolNodo(m.nodo_tipo, m.nodo_id, m.id_usuario, nuevoRol);
+      }
+      const nuevosDatos = await obtenerPanorama(proyectoId);
+      setDatos(nuevosDatos);
+    } catch (e) {
+      alert(e.response?.data?.mensaje || 'Error al cambiar la función');
+    }
+  }
+
+  // La fricción que se quiere resolver: alguien ya colabora en una parte
+  // y ahora se le quiere en todo el proyecto. En vez de "sal de esa
+  // etapa, vuelve aquí, invítalo de nuevo", un solo botón manda la
+  // invitación a todo el proyecto — su acceso a la parte puntual se
+  // queda como está hasta que se acepte (y se puede quitar aparte si ya
+  // no hace falta), pero no bloquea nada mientras tanto.
+  async function handleAmpliarATodoElProyecto(m) {
+    if (!confirm(`¿Invitar a ${m.nombre_completo} a todo el proyecto como ${m.rol}? Podrá aceptar o rechazar la invitación.`)) return;
+    try {
+      await crearInvitacion(proyectoId, m.id_usuario, m.rol);
+      const nuevosDatos = await obtenerPanorama(proyectoId);
+      setDatos(nuevosDatos);
+    } catch (e) {
+      alert(e.response?.data?.mensaje || 'Error al invitar al usuario');
     }
   }
 }
@@ -355,25 +409,30 @@ function iniciales(nombre) {
   return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
 }
 
+const ETIQUETA_ALCANCE = { etapa: 'etapa', accion: 'acción', tarea: 'tarea' };
+
 function alcanceLabel(alcance, nodo_tipo, nodo_nombre) {
   if (!alcance || alcance === 'proyecto') return null;
-  const tipo = nodo_tipo || alcance;
-  const tipoEs = tipo === 'etapa' ? 'etapa' : tipo === 'accion' ? 'acción' : 'tarea';
+  const tipoEs = ETIQUETA_ALCANCE[nodo_tipo || alcance] || 'parte';
   return `Asignado a: ${tipoEs}${nodo_nombre ? ` — ${nodo_nombre}` : ''}`;
 }
 
-function ParticipanteCard({ miembro: m, puedeEliminar, onEliminar }) {
+function ParticipanteCard({ miembro: m, puedeGestionar, onEliminar, onCambiarRol, onAmpliarATodoElProyecto }) {
   const cfg = ROL_CFG[m.rol] || ROL_CFG.invitado;
   const scopeText = alcanceLabel(m.alcance, m.nodo_tipo, m.nodo_nombre);
+  // 'invitado' es un rol especial para gente externa (ver ModalInvitar) —
+  // no se ofrece como algo a lo que cambiar desde aquí, solo se respeta
+  // si ya es lo que tiene.
+  const puedeCambiarRol = puedeGestionar && m.rol !== 'invitado';
 
   return (
     <div className="relative group border border-gray-200 rounded-xl p-3 bg-white hover:shadow-sm transition-shadow flex flex-col gap-2">
-      {/* Botón eliminar (hover) */}
-      {puedeEliminar && (
+      {/* Botón quitar (hover) */}
+      {puedeGestionar && (
         <button
           onClick={onEliminar}
           className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-400 hover:text-red-500 rounded"
-          title="Eliminar del proyecto"
+          title={m.alcance === 'proyecto' ? 'Quitar del proyecto' : 'Quitar de esta parte'}
         >
           <Trash2 size={13} />
         </button>
@@ -389,9 +448,24 @@ function ParticipanteCard({ miembro: m, puedeEliminar, onEliminar }) {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-bold text-gray-900 truncate leading-tight">{m.nombre_completo}</p>
-          <span className={`inline-block text-[10px] font-medium px-1.5 py-0 rounded-full border mt-0.5 ${cfg.badgeCls}`}>
-            {cfg.label}
-          </span>
+          {/* La función es lo primero que se toca al gestionar a alguien,
+              así que si se puede cambiar, se ofrece de una vez como select
+              en vez de mandar a otro lugar a hacerlo. */}
+          {puedeCambiarRol ? (
+            <select
+              value={m.rol}
+              onChange={e => onCambiarRol(e.target.value)}
+              onClick={e => e.stopPropagation()}
+              className={`mt-0.5 text-[10px] font-medium pl-1.5 pr-1 py-0 rounded-full border outline-none cursor-pointer ${cfg.badgeCls}`}
+            >
+              <option value="colaborador">Colaborador</option>
+              <option value="responsable">Responsable</option>
+            </select>
+          ) : (
+            <span className={`inline-block text-[10px] font-medium px-1.5 py-0 rounded-full border mt-0.5 ${cfg.badgeCls}`}>
+              {cfg.label}
+            </span>
+          )}
           {/* Invitar propone: hasta que la persona no acepta, no tiene
               permisos. Mostrarla como participante sin más sería mentir. */}
           {m.estado === 'pendiente' && (
@@ -419,9 +493,22 @@ function ParticipanteCard({ miembro: m, puedeEliminar, onEliminar }) {
         </a>
       )}
 
-      {/* Scope */}
+      {/* Scope + ampliar a todo el proyecto — la acción que resuelve la
+          fricción de "está en una parte, quiero que esté en todo": antes
+          exigía quitarlo de la parte y volver a invitarlo desde cero. */}
       {scopeText && (
-        <p className="text-[11px] text-amber-600 italic leading-tight">{scopeText}</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[11px] text-amber-600 italic leading-tight truncate">{scopeText}</p>
+          {puedeGestionar && (
+            <button
+              onClick={onAmpliarATodoElProyecto}
+              className="text-[10px] font-medium text-guinda-600 hover:text-guinda-800 whitespace-nowrap flex-shrink-0"
+              title="Enviar invitación a todo el proyecto"
+            >
+              + Todo el proyecto
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
