@@ -46,7 +46,7 @@ export default function ListaHijos({ tipo, esContenedor, hijos, expandidos, onTo
             padreId={padreId}
             proyectoId={proyectoId}
             onCreado={onCreado}
-            etiqueta={`+ Agregar ${nivel.hijoLabel.toLowerCase()}`}
+            etiqueta={`Agregar ${nivel.hijoLabel.toLowerCase()}`}
           />
         )}
       </div>

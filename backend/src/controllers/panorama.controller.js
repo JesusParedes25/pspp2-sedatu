@@ -162,24 +162,24 @@ async function obtenerTodosParticipantes(proyectoId) {
   const { rows } = await pool.query(`
     WITH fuentes AS (
       SELECT pu.id_usuario, pu.rol, 'proyecto' AS alcance,
-             NULL::text AS nodo_nombre, NULL::text AS nodo_tipo, pu.estado
+             NULL::text AS nodo_nombre, NULL::text AS nodo_tipo, NULL::uuid AS nodo_id, pu.estado
       FROM proyecto_usuarios pu
       WHERE pu.id_proyecto = $1 AND pu.estado <> 'rechazada'
       UNION ALL
       SELECT nm.id_usuario, nm.rol, 'etapa' AS alcance,
-             e.nombre AS nodo_nombre, 'etapa' AS nodo_tipo, nm.estado
+             e.nombre AS nodo_nombre, 'etapa' AS nodo_tipo, e.id AS nodo_id, nm.estado
       FROM nodo_miembros nm
       JOIN etapas e ON nm.tipo_nodo = 'etapa' AND nm.id_nodo = e.id
       WHERE e.id_proyecto = $1 AND nm.estado <> 'rechazada'
       UNION ALL
       SELECT nm.id_usuario, nm.rol, 'accion' AS alcance,
-             a.nombre AS nodo_nombre, 'accion' AS nodo_tipo, nm.estado
+             a.nombre AS nodo_nombre, 'accion' AS nodo_tipo, a.id AS nodo_id, nm.estado
       FROM nodo_miembros nm
       JOIN acciones a ON nm.tipo_nodo = 'accion' AND nm.id_nodo = a.id
       WHERE a.id_proyecto = $1 AND nm.estado <> 'rechazada'
       UNION ALL
       SELECT nm.id_usuario, nm.rol, 'tarea' AS alcance,
-             t.nombre AS nodo_nombre, 'tarea' AS nodo_tipo, nm.estado
+             t.nombre AS nodo_nombre, 'tarea' AS nodo_tipo, t.id AS nodo_id, nm.estado
       FROM nodo_miembros nm
       JOIN tareas t ON nm.tipo_nodo = 'tarea' AND nm.id_nodo = t.id
       JOIN acciones a2 ON t.id_accion = a2.id
@@ -189,7 +189,7 @@ async function obtenerTodosParticipantes(proyectoId) {
       u.id AS id_usuario, u.nombre_completo, u.correo, u.cargo,
       dg.siglas AS dg_siglas,
       da.siglas AS da_siglas,
-      f.rol, f.alcance, f.nodo_nombre, f.nodo_tipo, f.estado
+      f.rol, f.alcance, f.nodo_nombre, f.nodo_tipo, f.nodo_id, f.estado
     FROM fuentes f
     JOIN usuarios u ON u.id = f.id_usuario
     LEFT JOIN direcciones_generales dg ON dg.id = u.id_dg
