@@ -22,7 +22,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
   Bell, CheckCheck, Clock, AlertTriangle, MessageSquare, FileText,
-  UserPlus, MailCheck, Ban, MailQuestion, Shield, TrendingUp,
+  UserPlus, MailCheck, Ban, MailQuestion, Shield, TrendingUp, Inbox, History,
 } from 'lucide-react';
 import { useNotificaciones } from '../hooks/useNotificaciones';
 import { misInvitaciones } from '../api/miembros';
@@ -89,6 +89,7 @@ export default function Notificaciones() {
   const [solicitudes, setSolicitudes] = useState([]);
   const [resueltas, setResueltas] = useState([]);
   const [asignacionesRiesgo, setAsignacionesRiesgo] = useState([]);
+  const [tab, setTab] = useState('pendientes');
 
   const cargarInvitaciones = useCallback(async () => {
     try { setInvitaciones(await misInvitaciones()); } catch { /* buzón vacío */ }
@@ -109,6 +110,21 @@ export default function Notificaciones() {
   useEffect(() => {
     cargarInvitaciones(); cargarSolicitudes(); cargarResueltas(); cargarAsignacionesRiesgo();
   }, [cargarInvitaciones, cargarSolicitudes, cargarResueltas, cargarAsignacionesRiesgo]);
+
+  const pendientesTotal = invitaciones.length + solicitudes.length + asignacionesRiesgo.length;
+
+  // Al cargar, si no hay nada pendiente por responder no tiene caso abrir
+  // en esa pestaña vacía — se arranca directo en Historial. Solo se decide
+  // una vez (tabElegida): después de eso manda lo que la persona haya
+  // clicado, aunque un pendiente nuevo llegue por polling mientras mira
+  // Historial.
+  const [tabElegida, setTabElegida] = useState(false);
+  useEffect(() => {
+    if (!cargando && !tabElegida) {
+      setTab(pendientesTotal > 0 ? 'pendientes' : 'historial');
+      setTabElegida(true);
+    }
+  }, [cargando, tabElegida, pendientesTotal]);
 
   function alResponderInvitacion() {
     cargarInvitaciones();
@@ -154,16 +170,22 @@ export default function Notificaciones() {
     );
   }
 
-  const sinNada = notificaciones.length === 0 && invitaciones.length === 0
-    && solicitudes.length === 0 && asignacionesRiesgo.length === 0;
-
   // Avisos agrupados por categoría, en el orden de CATEGORIAS_AVISO — así
   // "varios tipos de notificación" se leen como secciones, no como una
   // sola lista larga donde un comentario y un vencimiento se mezclan sin
-  // distinción.
+  // distinción. Los encabezados de categoría se muestran siempre, incluso
+  // con una sola categoría presente: son los que le dan sentido a
+  // "catalogado", no un extra que solo aparece cuando hay variedad.
   const gruposAviso = [...CATEGORIAS_AVISO.map(c => c.titulo), 'Sistema']
     .map(titulo => ({ titulo, items: notificaciones.filter(n => categoriaDe(n.tipo) === titulo) }))
     .filter(g => g.items.length > 0);
+
+  const historialVacio = resueltas.length === 0 && notificaciones.length === 0;
+
+  const TABS = [
+    { id: 'pendientes', etiqueta: 'Pendientes', icono: Inbox, cuenta: pendientesTotal },
+    { id: 'historial', etiqueta: 'Historial', icono: History, cuenta: noLeidas },
+  ];
 
   return (
     <div className="space-y-6">
@@ -172,34 +194,13 @@ export default function Notificaciones() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Notificaciones</h1>
           <p className="text-sm text-gray-500 mt-1">
-            {invitaciones.length > 0 && (
-              <span className="text-guinda-700 font-medium">
-                {invitaciones.length === 1
-                  ? '1 invitación por responder'
-                  : `${invitaciones.length} invitaciones por responder`}
-                {' · '}
-              </span>
-            )}
-            {solicitudes.length > 0 && (
-              <span className="text-blue-700 font-medium">
-                {solicitudes.length === 1
-                  ? '1 solicitud por resolver'
-                  : `${solicitudes.length} solicitudes por resolver`}
-                {' · '}
-              </span>
-            )}
-            {asignacionesRiesgo.length > 0 && (
-              <span className="text-orange-700 font-medium">
-                {asignacionesRiesgo.length === 1
-                  ? '1 asignación de riesgo por responder'
-                  : `${asignacionesRiesgo.length} asignaciones de riesgo por responder`}
-                {' · '}
-              </span>
-            )}
-            {noLeidas > 0 ? `${noLeidas} sin leer` : 'Todas leídas'}
+            {pendientesTotal > 0
+              ? `${pendientesTotal} ${pendientesTotal === 1 ? 'pendiente' : 'pendientes'} por responder · `
+              : ''}
+            {noLeidas > 0 ? `${noLeidas} sin leer` : 'Todo al día'}
           </p>
         </div>
-        {noLeidas > 0 && (
+        {tab === 'historial' && noLeidas > 0 && (
           <button onClick={alMarcarTodasLeidas} className="btn-secondary text-xs flex items-center gap-2">
             <CheckCheck size={14} />
             Marcar todas como leídas
@@ -207,39 +208,73 @@ export default function Notificaciones() {
         )}
       </div>
 
-      <InvitacionesPendientes
-        invitaciones={invitaciones}
-        onRespondida={alResponderInvitacion}
-      />
+      {/* Pestañas */}
+      <div className="border-b border-gray-200 flex gap-6">
+        {TABS.map(t => {
+          const Icono = t.icono;
+          const activa = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex items-center gap-2 pb-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                activa
+                  ? 'border-guinda-500 text-guinda-700'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Icono size={15} />
+              {t.etiqueta}
+              {t.cuenta > 0 && (
+                <span className={`text-[10px] font-medium rounded-full px-1.5 py-0.5 ${
+                  activa ? 'bg-guinda-100 text-guinda-700' : 'bg-gray-100 text-gray-500'
+                }`}>
+                  {t.cuenta}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
 
-      <SolicitudesPorResolver
-        solicitudes={solicitudes}
-        onRespondida={alResolverSolicitud}
-      />
+      {tab === 'pendientes' ? (
+        pendientesTotal === 0 ? (
+          <EmptyState
+            icono={Inbox}
+            titulo="Sin pendientes"
+            subtitulo="No tienes invitaciones, solicitudes ni riesgos asignados esperando tu respuesta."
+          />
+        ) : (
+          <div className="space-y-6">
+            <InvitacionesPendientes
+              invitaciones={invitaciones}
+              onRespondida={alResponderInvitacion}
+            />
 
-      <AsignacionesRiesgoPendientes
-        asignaciones={asignacionesRiesgo}
-        onRespondida={alResponderAsignacionRiesgo}
-      />
+            <SolicitudesPorResolver
+              solicitudes={solicitudes}
+              onRespondida={alResolverSolicitud}
+            />
 
-      <SolicitudesResueltas solicitudes={resueltas} />
-
-      {sinNada ? (
+            <AsignacionesRiesgoPendientes
+              asignaciones={asignacionesRiesgo}
+              onRespondida={alResponderAsignacionRiesgo}
+            />
+          </div>
+        )
+      ) : historialVacio ? (
         <EmptyState
           icono={Bell}
           titulo="Sin notificaciones"
           subtitulo="No tienes notificaciones aún. Aparecerán aquí cuando haya eventos relevantes."
         />
       ) : (
-        <div className="space-y-4">
-          {(invitaciones.length > 0 || solicitudes.length > 0 || asignacionesRiesgo.length > 0) && notificaciones.length > 0 && (
-            <h2 className="text-sm font-semibold text-gray-700 pt-2">Avisos</h2>
-          )}
+        <div className="space-y-6">
+          <SolicitudesResueltas solicitudes={resueltas} />
+
           {gruposAviso.map(grupo => (
             <div key={grupo.titulo} className="space-y-2">
-              {gruposAviso.length > 1 && (
-                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{grupo.titulo}</h3>
-              )}
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{grupo.titulo}</h3>
               {grupo.items.map(notificacion => {
                 const Icono = iconosPorTipo[notificacion.tipo] || Bell;
                 const clicable = !!rutaDe(notificacion);
