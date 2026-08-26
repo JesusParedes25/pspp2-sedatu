@@ -196,6 +196,25 @@ async function actualizar(req, res, next) {
   }
 }
 
+// Notifica al usuario que fue quitado de un nodo puntual. Se saltea en
+// autoeliminación — ver la llamada en eliminar().
+async function notificarRetiroNodo(tipo, idNodo, idUsuarioRetirado, quienQuita) {
+  try {
+    const tabla = TABLA_POR_TIPO[tipo];
+    const { rows } = await pool.query(`SELECT nombre FROM ${tabla} WHERE id = $1`, [idNodo]);
+    const nombreNodo = rows[0]?.nombre || 'un elemento del proyecto';
+    await crearNotificacion({
+      tipo: 'RetiroParticipante',
+      mensaje: `${quienQuita || 'Alguien'} te quitó de ${ETIQUETA_POR_TIPO[tipo]} "${nombreNodo}".`,
+      entidadTipo: ENTIDAD_TIPO_POR_TIPO[tipo],
+      entidadId: idNodo,
+      idUsuario: idUsuarioRetirado,
+    });
+  } catch (err) {
+    console.error('[nodo-miembros] Error al notificar retiro:', err.message);
+  }
+}
+
 // DELETE /etapas/:etapaId/miembros-nodo/:userId
 // DELETE /acciones/:accionId/miembros-nodo/:userId
 async function eliminar(req, res, next) {
@@ -213,6 +232,9 @@ async function eliminar(req, res, next) {
     }
     const resultado = await nodoMiembrosQueries.eliminarMiembro(tipo, idNodo, userId);
     if (!resultado) return res.status(404).json({ error: true, mensaje: 'Miembro no encontrado' });
+    if (!esAutoeliminacion) {
+      await notificarRetiroNodo(tipo, idNodo, userId, req.usuario?.nombre_completo);
+    }
     res.json({ datos: resultado, mensaje: 'Miembro eliminado' });
   } catch (err) {
     next(err);

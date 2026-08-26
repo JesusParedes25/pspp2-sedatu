@@ -27,6 +27,25 @@ async function notificarNuevoMiembro(proyectoId, idUsuarioNuevo, rol, quienInvit
   }
 }
 
+// Notifica al usuario que fue quitado del proyecto. Se saltea cuando la
+// propia persona se retira (no tiene sentido avisarle a alguien que se
+// fue solo) — ver la llamada en eliminarMiembro.
+async function notificarRetiro(proyectoId, idUsuarioRetirado, quienQuita) {
+  try {
+    const { rows } = await pool.query('SELECT nombre FROM proyectos WHERE id = $1', [proyectoId]);
+    const nombreProyecto = rows[0]?.nombre || 'un proyecto';
+    await crearNotificacion({
+      tipo: 'RetiroParticipante',
+      mensaje: `${quienQuita || 'Alguien'} te quitó del proyecto "${nombreProyecto}".`,
+      entidadTipo: 'Proyecto',
+      entidadId: proyectoId,
+      idUsuario: idUsuarioRetirado,
+    });
+  } catch (err) {
+    console.error('[miembros] Error al notificar retiro:', err.message);
+  }
+}
+
 // GET /mis-invitaciones — las que este usuario tiene sin responder
 async function misInvitaciones(req, res, next) {
   try {
@@ -152,6 +171,9 @@ async function eliminarMiembro(req, res, next) {
 
     const eliminado = await miembrosQueries.eliminarMiembro(id, userId);
     if (!eliminado) return res.status(404).json({ mensaje: 'Miembro no encontrado' });
+    if (userId !== req.usuario.id) {
+      await notificarRetiro(id, userId, req.usuario.nombre_completo);
+    }
     res.json({ mensaje: 'Miembro eliminado del proyecto' });
   } catch (err) { next(err); }
 }
