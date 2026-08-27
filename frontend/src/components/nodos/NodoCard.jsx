@@ -280,11 +280,20 @@ export default function NodoCard({
   // El banner ámbar solo trae lo que ya viene en el stream de actividad
   // (contenido + nivel/estado) — para editar TODOS los campos (causa,
   // impacto, responsable, medida de mitigación...) hay que traer el
-  // riesgo completo antes de abrir el modal.
+  // riesgo completo antes de abrir el modal. Ojo: metadata.riesgo_id solo
+  // existe cuando el registro viene de la tabla `riesgos` (ver el UNION en
+  // obtenerActividadNodo). Reportes viejos hechos con el cuadro de texto
+  // rápido que existió antes (reportarRiesgo en api/actividad.js, ya sin
+  // uso) quedaron como filas sueltas en `actividad` sin fila en `riesgos`
+  // detrás — no tienen riesgo_id y no hay nada estructurado que editar, así
+  // que NO se debe caer a riesgoActivo.id (que apunta a esa fila de
+  // actividad, no a un riesgo, y el PUT/GET /riesgos/:id con ese id
+  // siempre respondía 404 "Riesgo no encontrado").
   async function abrirEditarRiesgoActivo() {
-    if (!riesgoActivo || soloLectura) return;
+    const riesgoId = riesgoActivo?.metadata?.riesgo_id;
+    if (!riesgoId || soloLectura) return;
     try {
-      const { datos } = await obtenerRiesgo(riesgoActivo.metadata?.riesgo_id || riesgoActivo.id);
+      const { datos } = await obtenerRiesgo(riesgoId);
       setRiesgoEditando(datos);
     } catch (err) {
       alert(err.response?.data?.mensaje || 'No se pudo abrir el riesgo');
@@ -368,7 +377,7 @@ export default function NodoCard({
             <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
               <AlertTriangle size={13} className="text-amber-500 flex-shrink-0 mt-0.5" />
               <p className="text-xs text-amber-800 leading-snug flex-1">{riesgoActivo.contenido}</p>
-              {!soloLectura && (
+              {!soloLectura && riesgoActivo.metadata?.riesgo_id && (
                 <button
                   onClick={abrirEditarRiesgoActivo}
                   title="Editar este riesgo"
