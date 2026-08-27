@@ -22,7 +22,7 @@
  * el "containing block" de cualquier hijo con position:fixed, y el modal
  * terminaba encajonado dentro del rail en vez de cubrir toda la pantalla.
  */
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Loader2, Paperclip, Link2, ChevronDown, ChevronRight, Lock, CheckCircle2, Plus } from 'lucide-react';
 import * as etapasApi from '../../api/etapas';
@@ -92,6 +92,14 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
   const [evidencias, setEvidencias] = useState([]);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
+  // Candado síncrono aparte de `guardando`: dos clics casi simultáneos
+  // (doble clic, o Enter + clic) pueden disparar guardar() dos veces antes
+  // de que React re-renderice con el botón ya deshabilitado — `guardando`
+  // es estado, así que ambas llamadas lo leen en false todavía. Un ref se
+  // actualiza al instante, sin esperar un render, así que sí corta la
+  // segunda llamada. Sin esto, un reporte con estatus/avance + evidencia
+  // podía quedar duplicado por completo en el stream de actividad.
+  const guardandoRef = useRef(false);
 
   const puedeCapturarAvance = !esContenedor && !congelado;
   const puedeGuardar = estatus.trim().length > 0 && !guardando
@@ -114,7 +122,8 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
   }
 
   async function guardar() {
-    if (!puedeGuardar) return;
+    if (!puedeGuardar || guardandoRef.current) return;
+    guardandoRef.current = true;
     setGuardando(true); setError('');
     try {
       const datos = { estatus_cualitativo: estatus.trim() };
@@ -146,6 +155,7 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
     } catch (err) {
       setError(err.response?.data?.mensaje || 'No se pudo guardar el avance');
     } finally {
+      guardandoRef.current = false;
       setGuardando(false);
     }
   }
