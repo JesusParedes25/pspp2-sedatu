@@ -8,27 +8,24 @@
 import { useState, useRef, useEffect } from 'react';
 import { Plus, Loader2 } from 'lucide-react';
 import { DIMENSIONES } from './NodoBase';
+import { useEnvioUnico } from '../../../hooks/useEnvioUnico';
 
 export default function NodoGhostEtapa({ data }) {
   const [activo, setActivo] = useState(false);
   const [nombre, setNombre] = useState('');
-  const [guardando, setGuardando] = useState(false);
   const refInput = useRef(null);
   const { w, h } = DIMENSIONES.etapa;
 
   useEffect(() => { if (activo) refInput.current?.focus(); }, [activo]);
 
-  async function guardar() {
-    if (!nombre.trim() || guardando) return;
-    setGuardando(true);
-    try {
-      await data.onCrear?.(nombre.trim());
-      setNombre('');
-      setActivo(false);
-    } finally {
-      setGuardando(false);
-    }
-  }
+  // Solo-Enter: sin candado síncrono, el autorepeat del teclado podía
+  // crear N etapas de golpe (mismo patrón que CrearInline.jsx).
+  const [guardar, guardando] = useEnvioUnico(async () => {
+    if (!nombre.trim()) return;
+    await data.onCrear?.(nombre.trim());
+    setNombre('');
+    setActivo(false);
+  });
 
   return (
     <div

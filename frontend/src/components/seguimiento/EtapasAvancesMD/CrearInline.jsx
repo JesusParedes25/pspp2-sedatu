@@ -18,6 +18,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Loader2 } from 'lucide-react';
 import { useJerarquiaProyecto } from '../../../hooks/useJerarquiaProyecto';
+import { useEnvioUnico } from '../../../hooks/useEnvioUnico';
 
 const CLASE_BOTON = {
   sutil: 'inline-flex items-center gap-1 text-[11px] font-medium text-gray-400 hover:text-guinda-600 hover:bg-gray-100 px-1.5 py-1 rounded transition-colors',
@@ -28,7 +29,6 @@ export default function CrearInline({ tipo, padreId, proyectoId, onCreado, etiqu
   const { crear } = useJerarquiaProyecto(proyectoId);
   const [activo, setActivo] = useState(false);
   const [nombre, setNombre] = useState('');
-  const [guardando, setGuardando] = useState(false);
   const refInput = useRef(null);
 
   useEffect(() => {
@@ -37,9 +37,10 @@ export default function CrearInline({ tipo, padreId, proyectoId, onCreado, etiqu
 
   const etiqueta = etiquetaProp || (tipo === 'etapa' ? 'Etapa' : tipo === 'accion' ? 'Acción' : 'Tarea');
 
-  async function guardar() {
-    if (!nombre.trim() || guardando) return;
-    setGuardando(true);
+  // Solo-Enter: sin candado síncrono, el autorepeat del teclado (mantener
+  // Enter presionado) podía crear N nodos de golpe.
+  const [guardar, guardando] = useEnvioUnico(async () => {
+    if (!nombre.trim()) return;
     try {
       await crear(tipo, padreId, { nombre: nombre.trim() });
       setNombre('');
@@ -47,10 +48,8 @@ export default function CrearInline({ tipo, padreId, proyectoId, onCreado, etiqu
       onCreado?.();
     } catch (err) {
       console.error(err);
-    } finally {
-      setGuardando(false);
     }
-  }
+  });
 
   if (!activo) {
     return (

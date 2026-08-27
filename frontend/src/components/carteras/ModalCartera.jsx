@@ -9,13 +9,13 @@ import { X, Loader2, Briefcase } from 'lucide-react';
 import * as carterasApi from '../../api/carteras';
 import * as catalogosApi from '../../api/catalogos';
 import { useUI } from '../../context/UIContext';
+import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 
 export default function ModalCartera({ cartera, onCerrar, onGuardada }) {
   const { mostrarToast } = useUI();
   const esEdicion = !!cartera;
   const [dgs, setDgs] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
-  const [guardando, setGuardando] = useState(false);
   const [datos, setDatos] = useState({
     nombre: cartera?.nombre || '',
     descripcion: cartera?.descripcion || '',
@@ -38,12 +38,11 @@ export default function ModalCartera({ cartera, onCerrar, onGuardada }) {
     setDatos(prev => ({ ...prev, [campo]: valor }));
   }
 
-  async function guardar() {
+  const [guardar, guardando] = useEnvioUnico(async () => {
     if (!datos.nombre.trim()) {
       mostrarToast('El nombre de la cartera es obligatorio', 'error');
       return;
     }
-    setGuardando(true);
     try {
       const respuesta = esEdicion
         ? await carterasApi.actualizarCartera(cartera.id, datos)
@@ -52,10 +51,8 @@ export default function ModalCartera({ cartera, onCerrar, onGuardada }) {
       onGuardada?.(respuesta.datos);
     } catch (err) {
       mostrarToast(err.response?.data?.mensaje || 'Error al guardar la cartera', 'error');
-    } finally {
-      setGuardando(false);
     }
-  }
+  });
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={onCerrar}>

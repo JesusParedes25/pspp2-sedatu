@@ -14,6 +14,7 @@ import * as actividadApi from '../../api/actividad';
 import FilePreviewModal from '../evidencias/FilePreviewModal';
 import { permisosDeNodo } from '../../hooks/usePermisos';
 import CATEGORIAS_EVIDENCIA from '../seguimiento/categoriasEvidencia';
+import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 
 export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, permisos: permisosProyecto }) {
   const permisos = permisosDeNodo(permisosProyecto, tipo, id);
@@ -30,7 +31,6 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
   const [archivo, setArchivo] = useState(null);
   const [urlLink, setUrlLink] = useState('');
   const [notas, setNotas] = useState('');
-  const [subiendo, setSubiendo] = useState(false);
   const [detalleEv, setDetalleEv] = useState(null);
   const [previewEv, setPreviewEv] = useState(null);
 
@@ -39,9 +39,9 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
     setArchivo(null); setUrlLink(''); setNotas('');
   }
 
-  async function enviar() {
-    if (subiendo) return;
-    setSubiendo(true);
+  // Sin candado síncrono, un doble clic duplicaba el archivo en MinIO (no
+  // solo la fila en la base de datos).
+  const [enviar, subiendo] = useEnvioUnico(async () => {
     try {
       if (tipoMedio === 'link') {
         if (!urlLink.trim()) return;
@@ -66,10 +66,8 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
       onRecargar?.();
     } catch (err) {
       console.error('Error subiendo evidencia:', err);
-    } finally {
-      setSubiendo(false);
     }
-  }
+  });
 
   function iconoParaTipo(ev) {
     if (ev.tipo_medio === 'link') return <Link2 size={13} className="text-blue-500 flex-shrink-0" />;

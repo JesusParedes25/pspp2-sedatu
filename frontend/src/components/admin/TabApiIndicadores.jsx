@@ -16,6 +16,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2, Plus, Copy, Check, Trash2, KeyRound, X, AlertTriangle } from 'lucide-react';
 import * as adminApi from '../../api/admin';
+import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 
 function Campo({ etiqueta, children }) {
   return (
@@ -31,7 +32,6 @@ export default function TabApiIndicadores() {
   const [cargando, setCargando] = useState(true);
   const [creando, setCreando] = useState(false);
   const [nuevo, setNuevo] = useState({ nombre: '', descripcion: '' });
-  const [guardando, setGuardando] = useState(false);
   const [recienCreado, setRecienCreado] = useState(null);
   const [copiado, setCopiado] = useState(false);
   const [porRevocar, setPorRevocar] = useState(null);
@@ -49,9 +49,8 @@ export default function TabApiIndicadores() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  async function crear() {
+  const [crear, guardando] = useEnvioUnico(async () => {
     if (!nuevo.nombre.trim()) return;
-    setGuardando(true);
     setError('');
     try {
       const res = await adminApi.crearApiToken(nuevo);
@@ -61,8 +60,8 @@ export default function TabApiIndicadores() {
       cargar();
     } catch (err) {
       setError(err.response?.data?.mensaje || 'No se pudo crear el acceso.');
-    } finally { setGuardando(false); }
-  }
+    }
+  });
 
   async function revocar(t) {
     setError('');
