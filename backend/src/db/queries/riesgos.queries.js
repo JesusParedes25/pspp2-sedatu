@@ -32,6 +32,9 @@ async function obtenerRiesgosPorProyecto(proyectoId) {
        OR (r.entidad_tipo = 'Accion' AND r.entidad_id IN (
             SELECT id FROM acciones WHERE id_proyecto = $1
           ))
+       OR (r.entidad_tipo = 'Tarea' AND r.entidad_id IN (
+            SELECT t.id FROM tareas t JOIN acciones a ON a.id = t.id_accion WHERE a.id_proyecto = $1
+          ))
     ORDER BY
       CASE r.nivel WHEN 'Critico' THEN 1 WHEN 'Alto' THEN 2 WHEN 'Medio' THEN 3 ELSE 4 END,
       r.created_at DESC
@@ -53,6 +56,9 @@ async function obtenerRiesgosPorEtapa(etapaId) {
     WHERE (r.entidad_tipo = 'Etapa' AND r.entidad_id = $1)
        OR (r.entidad_tipo = 'Accion' AND r.entidad_id IN (
             SELECT id FROM acciones WHERE id_etapa = $1
+          ))
+       OR (r.entidad_tipo = 'Tarea' AND r.entidad_id IN (
+            SELECT t.id FROM tareas t JOIN acciones a ON a.id = t.id_accion WHERE a.id_etapa = $1
           ))
     ORDER BY
       CASE r.nivel WHEN 'Critico' THEN 1 WHEN 'Alto' THEN 2 WHEN 'Medio' THEN 3 ELSE 4 END,
@@ -258,7 +264,7 @@ async function obtenerRiesgosPorAccion(accionId) {
     LEFT JOIN usuarios u_resp ON u_resp.id = r.id_responsable
     LEFT JOIN usuarios u_rep ON u_rep.id = r.id_reportador
     WHERE (r.entidad_tipo = 'Accion' AND r.entidad_id = $1)
-       OR (r.entidad_tipo = 'Subaccion' AND r.entidad_id IN (
+       OR (r.entidad_tipo = 'Accion' AND r.entidad_id IN (
             SELECT id FROM acciones WHERE id_accion_padre = $1
           ))
        OR (r.entidad_tipo = 'Tarea' AND r.entidad_id IN (
