@@ -14,6 +14,7 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import client from '../../api/client';
+import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 
 const TIPOS = ['Riesgo', 'Problema'];
 const NIVELES = ['Bajo', 'Medio', 'Alto', 'Critico'];
@@ -49,7 +50,6 @@ export default function ModalRiesgo({ riesgo, entidadTipo, entidadId, onGuardar,
     id_responsable: '',
   });
   const [errores, setErrores] = useState({});
-  const [guardando, setGuardando] = useState(false);
   const [usuarios, setUsuarios] = useState([]);
 
   useEffect(() => {
@@ -96,10 +96,12 @@ export default function ModalRiesgo({ riesgo, entidadTipo, entidadId, onGuardar,
     return Object.keys(e).length === 0;
   }
 
-  async function handleSubmit(ev) {
-    ev.preventDefault();
+  // e.preventDefault() vive en handleSubmit, FUERA del candado: si se
+  // envolviera el evento completo, un segundo submit bloqueado saldría
+  // por el early-return del candado sin llamar preventDefault, y el
+  // navegador haría submit nativo (recarga de página).
+  const [guardar, guardando] = useEnvioUnico(async () => {
     if (!validar()) return;
-    setGuardando(true);
     try {
       const datos = {
         ...form,
@@ -111,9 +113,12 @@ export default function ModalRiesgo({ riesgo, entidadTipo, entidadId, onGuardar,
       await onGuardar(datos);
     } catch (err) {
       setErrores({ _general: err.response?.data?.mensaje || err.message || 'Error al guardar' });
-    } finally {
-      setGuardando(false);
     }
+  });
+
+  function handleSubmit(ev) {
+    ev.preventDefault();
+    guardar();
   }
 
   // createPortal a document.body: cuando este modal se abre desde NodoCard
