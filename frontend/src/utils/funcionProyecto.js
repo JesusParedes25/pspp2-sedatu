@@ -42,7 +42,7 @@ export const FUNCION = {
 export const ETIQUETA_FUNCION = {
   [FUNCION.RESPONSABLE]: 'Responsable',
   [FUNCION.COLABORADOR]: 'Colaborador',
-  [FUNCION.ATRIBUCION]: 'Editas de acuerdo a tu cargo',
+  [FUNCION.ATRIBUCION]: 'Edición institucional',
   [FUNCION.SEGUIMIENTO]: 'Solo seguimiento',
   [FUNCION.PARCIAL]: 'Participas en una parte',
   [FUNCION.LECTOR]: 'Solo lectura',

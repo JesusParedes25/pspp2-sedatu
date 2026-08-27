@@ -117,10 +117,33 @@ async function eliminarTarea(id) {
   return resultado.rows[0] || null;
 }
 
+// Un solo campo, para edición inline (Vista Lista) — mismo patrón que
+// patchCampoEtapa/patchCampoAccion. "fecha_fin" es alias de fecha_limite:
+// Vista Lista usa el mismo nombre de columna para los tres niveles (mismo
+// concepto, "hasta cuándo"), aunque en tareas la columna real se llama
+// fecha_limite. Tareas no tienen campos_extra (esa columna no existe en
+// esta tabla), así que a diferencia de etapas/acciones no hay rama para
+// "campos_extra.*".
+async function patchCampoTarea(tareaId, campo, valor) {
+  const CAMPOS_DIRECTOS = {
+    nombre: 'nombre', descripcion: 'descripcion', estado: 'estado',
+    fecha_inicio: 'fecha_inicio', fecha_fin: 'fecha_limite', prioridad: 'prioridad',
+  };
+  const columna = CAMPOS_DIRECTOS[campo];
+  if (!columna) throw new Error(`Campo no permitido: ${campo}`);
+
+  const { rows } = await pool.query(
+    `UPDATE tareas SET ${columna} = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+    [valor, tareaId]
+  );
+  return rows[0] || null;
+}
+
 module.exports = {
   obtenerTareasPorAccion,
   obtenerTareaPorId,
   crearTarea,
   actualizarTarea,
-  eliminarTarea
+  eliminarTarea,
+  patchCampoTarea,
 };

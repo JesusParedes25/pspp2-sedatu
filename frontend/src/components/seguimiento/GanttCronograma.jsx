@@ -1,23 +1,26 @@
 /**
  * ARCHIVO: GanttCronograma.jsx
  * PROPÓSITO: Diagrama de Gantt jerárquico que muestra etapas → acciones
- *            → subacciones como barras horizontales sobre una línea de
- *            tiempo con meses.
+ *            → subacciones/tareas como barras horizontales sobre una
+ *            línea de tiempo con meses.
  *
  * MINI-CLASE: Gantt jerárquico con carga bajo demanda
  * ─────────────────────────────────────────────────────────────────
  * Un Gantt es una tabla donde el eje Y son las tareas y el eje X
  * es el tiempo. Las etapas se expanden para mostrar acciones, y las
- * acciones con subacciones se expanden un nivel más. Las acciones
- * y subacciones se cargan bajo demanda (lazy loading) al expandir
- * la etapa correspondiente. Cada barra muestra el porcentaje de
- * avance como relleno interno, y un tooltip con detalles al hover.
- * La línea roja vertical marca el día de hoy.
+ * acciones se expanden un nivel más para mostrar sus subacciones y
+ * sus tareas —mezcladas, ordenadas por fecha límite: son hermanas,
+ * ambas cuelgan directo de la acción—. Todo se carga bajo demanda
+ * (lazy loading) al expandir la etapa o la acción correspondiente.
+ * Cada barra muestra el porcentaje de avance como relleno interno, y
+ * un tooltip con detalles al hover. La línea roja vertical marca el
+ * día de hoy.
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useMemo, useCallback } from 'react';
-import { ChevronDown, ChevronRight, Milestone, Layers } from 'lucide-react';
+import { ChevronDown, ChevronRight, Milestone, Layers, CheckSquare } from 'lucide-react';
 import * as accionesApi from '../../api/acciones';
+import * as tareasApi from '../../api/tareas';
 import { parseFechaLocal, formatFecha } from '../../utils/fecha';
 
 const COLORES = {
@@ -140,10 +143,22 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
     setAccionesExpandidas(prev => ({ ...prev, [accionId]: !yaExpandida }));
     if (!yaExpandida && !subaccionesPorAccion[accionId]) {
       try {
-        const res = await accionesApi.obtenerSubacciones(accionId);
-        setSubaccionesPorAccion(prev => ({ ...prev, [accionId]: res.datos || [] }));
+        const [resSubs, resTareas] = await Promise.all([
+          accionesApi.obtenerSubacciones(accionId),
+          tareasApi.obtenerTareasPorAccion(accionId),
+        ]);
+        const subs = (resSubs.datos || []).map(s => ({ ...s, _esTarea: false }));
+        // Las tareas no traen fecha_fin ni fecha_fin_efectiva (su columna
+        // se llama fecha_limite) — se normalizan aquí para que
+        // ordenarPorFechaLimite y calcularBarra, que sí leen esos dos
+        // nombres, funcionen igual sin duplicar lógica por tipo.
+        const tareas = (resTareas.datos || []).map(t => ({
+          ...t, _esTarea: true,
+          fecha_fin: t.fecha_limite, fecha_fin_efectiva: t.fecha_limite,
+        }));
+        setSubaccionesPorAccion(prev => ({ ...prev, [accionId]: [...subs, ...tareas] }));
       } catch (err) {
-        console.error('Error cargando subacciones para Gantt:', err);
+        console.error('Error cargando subacciones/tareas para Gantt:', err);
       }
     }
   }, [accionesExpandidas, subaccionesPorAccion]);
@@ -152,7 +167,7 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
   const fmtFecha = (f) => formatFecha(f) || '—';
 
   // ─── Componente de fila de barra ─────────────────────────────
-  function FilaGantt({ nombre, fechaInicio, fechaFin, estado, porcentaje, nivel, tieneHijos, estaExpandida, onToggle, esHito }) {
+  function FilaGantt({ nombre, fechaInicio, fechaFin, estado, porcentaje, nivel, tieneHijos, estaExpandida, onToggle, esHito, esTarea }) {
     const barra = calcularBarra(fechaInicio, fechaFin);
     const colores = COLORES[estado] || COLORES.Pendiente;
     const pct = parseFloat(porcentaje || 0);
@@ -179,6 +194,7 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
             </span>
           )}
           {esHito && <Milestone size={12} className="text-purple-500 flex-shrink-0" />}
+          {esTarea && <CheckSquare size={11} className="text-amber-700 flex-shrink-0" />}
 
           <span className={`truncate ${nivel === 0 ? 'text-xs font-semibold text-gray-800' : nivel === 1 ? 'text-[11px] font-medium text-gray-700' : 'text-[11px] text-gray-500'}`} title={nombre}>
             {nombre}
@@ -291,7 +307,13 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
 
               {/* Acciones de la etapa */}
               {estaExpandida && acciones.map(accion => {
-                const tieneSubs = parseInt(accion.total_subacciones) > 0;
+                // total_subacciones (nietas de otra acción) y total_tareas
+                // (el tercer nivel real de la jerarquía, en su propia
+                // tabla) son las dos formas en que una acción tiene hijos —
+                // antes solo se miraba total_subacciones, así que una
+                // acción con tareas pero sin subacciones no mostraba ni
+                // chevron para expandirla: sus tareas eran inalcanzables.
+                const tieneHijosAccion = parseInt(accion.total_subacciones) > 0 || parseInt(accion.total_tareas) > 0;
                 const subsExpandidas = accionesExpandidas[accion.id];
                 const subs = ordenarPorFechaLimite(subaccionesPorAccion[accion.id] || []);
 
@@ -304,13 +326,15 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
                       estado={accion.estado}
                       porcentaje={accion.avance_efectivo ?? accion.porcentaje_avance}
                       nivel={1}
-                      tieneHijos={tieneSubs}
+                      tieneHijos={tieneHijosAccion}
                       estaExpandida={subsExpandidas}
                       onToggle={() => toggleAccion(accion.id)}
                       esHito={accion.tipo === 'Hito'}
                     />
 
-                    {/* Subacciones */}
+                    {/* Subacciones + tareas, mezcladas y ordenadas por fecha
+                        límite — son hermanas (ambas cuelgan directo de esta
+                        acción), no dos niveles distintos. */}
                     {subsExpandidas && subs.map(sub => (
                       <FilaGantt
                         key={sub.id}
@@ -321,6 +345,7 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
                         porcentaje={sub.avance_efectivo ?? sub.porcentaje_avance}
                         nivel={2}
                         tieneHijos={false}
+                        esTarea={sub._esTarea}
                       />
                     ))}
                   </div>

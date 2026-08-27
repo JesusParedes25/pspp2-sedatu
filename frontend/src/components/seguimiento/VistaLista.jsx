@@ -2,9 +2,15 @@
  * ARCHIVO: VistaLista.jsx
  * PROPÓSITO: DataGrid editable con TanStack Table para seguimiento en vista lista.
  *
- * - Columnas fijas: semáforo, nombre, estado, fecha_inicio, fecha_fin
+ * - Jerarquía completa: etapa → acción → subacción/tarea → tarea (de la
+ *   subacción), con indentación e ícono por nivel — no solo etapa+acción.
+ * - Columnas fijas: semáforo, nombre, estado, fecha_inicio, fecha_fin, %,
+ *   Registrar avance
  * - Columnas dinámicas: generadas desde campos_extra JSONB del proyecto
+ *   (no aplica a tareas: esa tabla no tiene columna campos_extra)
  * - Inline editing: click en celda → input/select → PATCH al backend
+ * - Registrar avance: mismo modal que usan Detalle y Diagrama, para poder
+ *   reportar avance sin salir de la tabla
  * - Estética institucional: grises oscuros, rojos profundos, minimalist
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -15,16 +21,27 @@ import {
   getFilteredRowModel,
   flexRender,
 } from '@tanstack/react-table';
-import { ArrowUpDown, SlidersHorizontal, MapPin } from 'lucide-react';
+import { ArrowUpDown, SlidersHorizontal, MapPin, Layers, Target, CheckSquare, TrendingUp } from 'lucide-react';
 import client from '../../api/client';
+import * as etapasApi from '../../api/etapas';
 import SemaforoDot from '../common/SemaforoDot';
+import ModalRegistrarAvance from '../nodos/ModalRegistrarAvance';
 import { formatFecha } from '../../utils/fecha';
 
 const ESTADOS_OPCIONES = ['Pendiente', 'En_proceso', 'Bloqueada', 'Completada', 'Cancelada'];
-const SEMAFORO_OPCIONES = ['verde', 'amarillo', 'naranja', 'rojo', 'gris', 'azul', 'negro'];
 
 // dd/mm/aaaa — formato compacto para columnas angostas de la tabla
 const formatFechaCorta = (valor) => formatFecha(valor, { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+// Ícono por nivel — mismo criterio que config/niveles.js (Etapa/Acción/
+// Tarea), pero en un tono neutro: el color de nivel y el de estatus
+// (SemaforoDot, en su propia columna) nunca se combinan en el mismo
+// elemento, para que cada señal se lea aparte de un vistazo.
+const ICONO_TIPO = { etapa: Layers, accion: Target, tarea: CheckSquare };
+
+// Indentación por profundidad: 0 etapa · 1 acción · 2 subacción/tarea-de-
+// acción · 3 tarea-de-subacción.
+const INDENT_NIVEL = ['pl-1', 'pl-5', 'pl-9', 'pl-14'];
 
 // ─── Celda editable ───────────────────────────────────────────
 // formatoDisplay: formatea el valor solo para la vista de solo-lectura
@@ -74,7 +91,21 @@ function CeldaEditable({ getValue, row, column, table, formatoDisplay }) {
   );
 }
 
-// ─── Celda select (para estado/semáforo) ──────────────────────
+// ─── Celda de nombre: ícono de nivel + indentación + texto editable ────
+function CeldaNombre(props) {
+  const { nivel, tipo } = props.row.original;
+  const Icono = ICONO_TIPO[tipo] || Target;
+  return (
+    <div className={`flex items-center gap-1.5 ${INDENT_NIVEL[nivel] || ''}`}>
+      <Icono size={12} className="text-gray-400 flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <CeldaEditable {...props} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Celda select (para estado) ────────────────────────────────
 function CeldaSelect({ getValue, row, column, table, opciones }) {
   const value = getValue();
 
@@ -95,9 +126,17 @@ function CeldaSelect({ getValue, row, column, table, opciones }) {
   );
 }
 
+// ─── Celda de campo extra: las tareas no tienen columna campos_extra ───
+function CeldaExtra(props) {
+  if (props.row.original.tipo === 'tarea') {
+    return <div className="px-2 py-1 text-xs text-gray-300">—</div>;
+  }
+  return <CeldaEditable {...props} />;
+}
+
 // ─── Componente principal ─────────────────────────────────────
 export default function VistaLista({ etapas, proyectoId, onRefresh }) {
-  const [acciones, setAcciones] = useState([]);
+  const [arbol, setArbol] = useState([]);
   const [camposExtraKeys, setCamposExtraKeys] = useState([]);
   const [columnVisibility, setColumnVisibility] = useState({});
   const [sorting, setSorting] = useState([]);
@@ -105,18 +144,23 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
   const [showColSelector, setShowColSelector] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [coberturaMap, setCoberturaMap] = useState({});
+  const [filaAvance, setFilaAvance] = useState(null); // fila (row.original) con el modal abierto, o null
 
-  // Cargar acciones de todas las etapas
-  useEffect(() => {
-    if (!etapas || etapas.length === 0) { setCargando(false); return; }
+  // Árbol completo del proyecto (etapas → acciones → subacciones/tareas →
+  // tareas de la subacción) en una sola llamada — el mismo endpoint que ya
+  // usa Detalle, con avance/semáforo efectivos resueltos por el backend.
+  // Antes esta vista pedía SOLO las acciones de cada etapa (una llamada por
+  // etapa) y se quedaba ahí: ni subacciones ni tareas llegaban a mostrarse.
+  const cargarArbol = useCallback(() => {
+    if (!proyectoId) { setCargando(false); return; }
     setCargando(true);
-    Promise.all(
-      etapas.map(e => client.get(`/etapas/${e.id}/acciones`).then(r => r.data.datos || []).catch(() => []))
-    ).then(results => {
-      setAcciones(results.flat());
-      setCargando(false);
-    });
-  }, [etapas]);
+    etapasApi.obtenerArbol(proyectoId)
+      .then(res => setArbol(res.datos || []))
+      .catch(() => setArbol([]))
+      .finally(() => setCargando(false));
+  }, [proyectoId]);
+
+  useEffect(() => { cargarArbol(); }, [cargarArbol, etapas]);
 
   // Cargar schema de campos extra + cobertura geográfica
   useEffect(() => {
@@ -140,54 +184,59 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
       .catch(() => {});
   }, [proyectoId]);
 
-  // Transformar etapas + acciones en filas planas para la tabla
+  // Transformar el árbol en filas planas para la tabla, con nivel para la
+  // indentación y esContenedor para decidir si "Registrar avance" captura
+  // directo o solo informa que se calcula desde sus partes.
   const data = useMemo(() => {
     const filas = [];
-    for (const etapa of (etapas || [])) {
-      filas.push({
-        id: etapa.id,
-        tipo: 'etapa',
-        nombre: etapa.nombre,
-        estado: etapa.estado,
-        semaforo: etapa.semaforo_efectivo,
-        fecha_inicio: etapa.fecha_inicio,
-        fecha_fin: etapa.fecha_fin,
-        // avance_efectivo (recalculado al vuelo, igual que Detalle) — antes
-        // decía "etapa.porcentaje_avance", un campo que ni siquiera existe
-        // en una etapa (esa columna se llama porcentaje_calculado y solo
-        // aplica a acciones), así que la fila de etapa siempre mostraba "—".
-        porcentaje_avance: etapa.avance_efectivo,
-        campos_extra: etapa.campos_extra || {},
-        ubicacion: coberturaMap[etapa.id] || [],
-        _raw: etapa,
-      });
-      for (const accion of (acciones || []).filter(a => a.id_etapa === etapa.id && !a.id_accion_padre)) {
-        filas.push({
-          id: accion.id,
-          tipo: 'accion',
-          nombre: `  └ ${accion.nombre}`,
-          estado: accion.estado,
-          semaforo: accion.semaforo_efectivo,
-          // _efectiva: misma idea que avance_efectivo — cuando la acción no
-          // trae fecha propia, obtenerAccionesPorEtapa ya la resuelve desde
-          // sus tareas (COALESCE) en el backend; leer la columna cruda aquí
-          // hacía que una acción con fechas solo a nivel tarea se viera sin
-          // fecha en esta vista, aunque Detalle sí las mostrara heredadas.
-          fecha_inicio: accion.fecha_inicio_efectiva ?? accion.fecha_inicio,
-          fecha_fin: accion.fecha_fin_efectiva ?? accion.fecha_fin,
-          porcentaje_avance: accion.avance_efectivo ?? accion.porcentaje_avance,
-          campos_extra: accion.campos_extra || {},
-          ubicacion: coberturaMap[accion.id] || [],
-          _raw: accion,
-        });
+
+    function fila(nodo, tipo, nivel, esContenedor) {
+      const esTarea = tipo === 'tarea';
+      return {
+        id: nodo.id,
+        tipo,
+        nivel,
+        esContenedor,
+        nombre: nodo.nombre,
+        estado: nodo.estado,
+        semaforo: nodo.semaforo_efectivo,
+        fecha_inicio: nodo.fecha_inicio_efectiva ?? nodo.fecha_inicio,
+        // Tareas guardan "hasta cuándo" en fecha_limite, no fecha_fin — se
+        // normaliza aquí para que el resto de la vista (columna, orden,
+        // edición) trate a los cuatro niveles por igual.
+        fecha_fin: esTarea ? nodo.fecha_limite : (nodo.fecha_fin_efectiva ?? nodo.fecha_fin),
+        porcentaje_avance: nodo.avance_efectivo ?? nodo.porcentaje_avance,
+        campos_extra: esTarea ? {} : (nodo.campos_extra || {}),
+        ubicacion: coberturaMap[nodo.id] || [],
+        _raw: nodo,
+      };
+    }
+
+    for (const etapa of arbol) {
+      filas.push(fila(etapa, 'etapa', 0, (etapa.acciones || []).length > 0));
+      for (const accion of (etapa.acciones || [])) {
+        const tieneHijosAccion = (accion.subacciones || []).length > 0 || (accion.tareas || []).length > 0;
+        filas.push(fila(accion, 'accion', 1, tieneHijosAccion));
+
+        // Subacciones (acciones anidadas) y sus propias tareas.
+        for (const sub of (accion.subacciones || [])) {
+          filas.push(fila(sub, 'accion', 2, (sub.tareas || []).length > 0));
+          for (const t of (sub.tareas || [])) {
+            filas.push(fila(t, 'tarea', 3, false));
+          }
+        }
+        // Tareas directas de la acción (el caso más común).
+        for (const t of (accion.tareas || [])) {
+          filas.push(fila(t, 'tarea', 2, false));
+        }
       }
     }
     return filas;
-  }, [etapas, acciones, coberturaMap]);
+  }, [arbol, coberturaMap]);
 
   // Handler para guardar inline edits
   const actualizarCelda = useCallback(async (row, columnId, value) => {
-    const endpoint = row.tipo === 'etapa' ? 'etapas' : 'acciones';
+    const endpoint = row.tipo === 'etapa' ? 'etapas' : row.tipo === 'tarea' ? 'tareas' : 'acciones';
     let campo = columnId;
     let valor = value;
 
@@ -199,11 +248,15 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
 
     try {
       await client.patch(`/${endpoint}/${row.id}/campo`, { campo, valor });
+      // Recarga propia: esta vista ya no depende solo del prop `etapas`
+      // (ahora trae su propio árbol con subacciones/tareas), así que un
+      // refresco del padre no basta para reflejar el cambio aquí.
+      cargarArbol();
       if (onRefresh) onRefresh();
     } catch (err) {
       console.error('Error al guardar:', err);
     }
-  }, [onRefresh]);
+  }, [onRefresh, cargarArbol]);
 
   // Columnas base
   const columns = useMemo(() => {
@@ -220,8 +273,8 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
         id: 'nombre',
         header: 'Nombre',
         accessorKey: 'nombre',
-        size: 250,
-        cell: CeldaEditable,
+        size: 260,
+        cell: CeldaNombre,
       },
       {
         id: 'estado',
@@ -277,16 +330,31 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
           return v != null ? <span className="text-xs font-mono">{v}%</span> : <span className="text-gray-300">—</span>;
         },
       },
+      {
+        id: 'registrar_avance',
+        header: '',
+        size: 36,
+        enableSorting: false,
+        cell: ({ row }) => (
+          <button
+            onClick={() => setFilaAvance(row.original)}
+            className="p-1 text-gray-300 hover:text-guinda-600 rounded hover:bg-guinda-50 transition-colors"
+            title="Registrar avance"
+          >
+            <TrendingUp size={14} />
+          </button>
+        ),
+      },
     ];
 
-    // Columnas dinámicas desde campos_extra
+    // Columnas dinámicas desde campos_extra (no aplica a tareas)
     for (const key of camposExtraKeys) {
       cols.push({
         id: `extra_${key}`,
         header: key.replace(/_/g, ' '),
         accessorFn: row => row.campos_extra?.[key] ?? '',
         size: 120,
-        cell: CeldaEditable,
+        cell: CeldaExtra,
       });
     }
 
@@ -399,6 +467,16 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
         <span>{data.length} elementos</span>
         <span className="text-gray-400">Click en celda para editar</span>
       </div>
+
+      {filaAvance && (
+        <ModalRegistrarAvance
+          tipo={filaAvance.tipo}
+          nodo={filaAvance._raw}
+          esContenedor={filaAvance.esContenedor}
+          onGuardado={async () => { setFilaAvance(null); cargarArbol(); onRefresh?.(); }}
+          onCerrar={() => setFilaAvance(null)}
+        />
+      )}
     </div>
   );
 }
