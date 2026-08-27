@@ -58,6 +58,27 @@ async function actualizar(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// PATCH /tareas/:id/campo — un solo campo, para edición inline (Vista
+// Lista) — mismo patrón que etapas/acciones (ver etapas.controller.js).
+async function patchCampo(req, res, next) {
+  try {
+    const { campo, valor } = req.body;
+    if (!campo) return res.status(400).json({ error: true, mensaje: 'Se requiere "campo"' });
+
+    const tarea = await tareasQueries.patchCampoTarea(req.params.id, campo, valor);
+    if (!tarea) {
+      return res.status(404).json({ error: true, mensaje: 'Tarea no encontrada', codigo: 'NO_ENCONTRADO' });
+    }
+
+    res.json({ datos: tarea, mensaje: `Campo "${campo}" actualizado` });
+  } catch (err) {
+    if (err.message?.startsWith('Campo no permitido')) {
+      return res.status(400).json({ error: true, mensaje: err.message });
+    }
+    next(err);
+  }
+}
+
 async function eliminar(req, res, next) {
   try {
     // DELETE /etapas/:id y DELETE /acciones/:id ya validaban esto; aquí
@@ -249,4 +270,4 @@ async function patchAvanceSemaforo(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listar, crear, actualizar, eliminar, patchAvanceSemaforo };
+module.exports = { listar, crear, actualizar, eliminar, patchAvanceSemaforo, patchCampo };

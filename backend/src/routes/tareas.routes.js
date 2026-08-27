@@ -10,6 +10,7 @@ const router = Router();
 
 router.put('/:id', exigirEdicionNodo('tarea'), tareasController.actualizar);
 router.patch('/:id', exigirEdicionNodo('tarea'), tareasController.patchAvanceSemaforo);
+router.patch('/:id/campo', exigirEdicionNodo('tarea'), tareasController.patchCampo);
 router.delete('/:id', tareasController.eliminar);   // verifica adentro (puedeGestionarNodo)
 
 module.exports = router;

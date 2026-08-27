@@ -30,6 +30,7 @@ async function obtenerAccionesPorEtapa(etapaId) {
       da.siglas AS direccion_area_siglas,
       COUNT(e.id) AS total_evidencias,
       (SELECT COUNT(*) FROM acciones sub WHERE sub.id_accion_padre = a.id) AS total_subacciones,
+      (SELECT COUNT(*) FROM tareas t2 WHERE t2.id_accion = a.id) AS total_tareas,
       (SELECT COALESCE(json_agg(json_build_object('cve_mun', am.cve_mun, 'nombre', gm.nombre) ORDER BY gm.nombre), '[]'::json)
          FROM accion_municipios am JOIN geo_municipios gm ON gm.cvegeo = am.cve_mun
          WHERE am.accion_id = a.id) AS municipios,
