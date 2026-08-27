@@ -138,7 +138,10 @@ function CeldaExtra(props) {
 export default function VistaLista({ etapas, proyectoId, onRefresh }) {
   const [arbol, setArbol] = useState([]);
   const [camposExtraKeys, setCamposExtraKeys] = useState([]);
-  const [columnVisibility, setColumnVisibility] = useState({});
+  // "Ubicación" empieza oculta: el vínculo con Territorio todavía no
+  // resuelve bien en todos los casos, así que no tiene sentido mostrarla
+  // por default — sigue disponible para quien la active desde "Columnas".
+  const [columnVisibility, setColumnVisibility] = useState({ ubicacion: false });
   const [sorting, setSorting] = useState([]);
   const [globalFilter, setGlobalFilter] = useState('');
   const [showColSelector, setShowColSelector] = useState(false);

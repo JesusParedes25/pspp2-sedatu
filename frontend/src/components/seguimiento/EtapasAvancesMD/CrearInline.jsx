@@ -6,8 +6,9 @@
  * MINI-CLASE: dos variantes, mismo mecanismo
  * ─────────────────────────────────────────────────────────────────
  * 'sutil' (default) es el enlace junto al encabezado de la lista de
- * hijos — ya vive ahí, solo se le subió el peso visual (antes pasaba
- * casi inadvertido, gris y diminuto). 'destacado' es la misma acción
+ * hijos — mismo peso visual que los demás botones de ícono de esa
+ * cabecera (filtros, cerrar): sin relleno de color, solo texto/ícono
+ * gris que se resalta al pasar el mouse. 'destacado' es la misma acción
  * con el mismo peso que "Registrar avance"/"Reportar riesgo" en el
  * panel derecho, para quien no repara en el encabezado de la lista.
  * Dos entradas, una sola implementación: evita que crear un hijo se
@@ -19,7 +20,7 @@ import { Plus, Loader2 } from 'lucide-react';
 import { useJerarquiaProyecto } from '../../../hooks/useJerarquiaProyecto';
 
 const CLASE_BOTON = {
-  sutil: 'inline-flex items-center gap-1 text-[11px] font-semibold text-guinda-700 bg-guinda-50 hover:bg-guinda-100 border border-guinda-200 px-2 py-1 rounded-md transition-colors',
+  sutil: 'inline-flex items-center gap-1 text-[11px] font-medium text-gray-400 hover:text-guinda-600 hover:bg-gray-100 px-1.5 py-1 rounded transition-colors',
   destacado: 'w-full flex items-center justify-center gap-1.5 text-[12px] font-semibold px-3 py-2.5 rounded-lg border-2 border-dashed border-guinda-300 text-guinda-700 hover:bg-guinda-50 hover:border-guinda-400 transition-colors',
 };
 
