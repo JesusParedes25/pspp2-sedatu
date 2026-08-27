@@ -19,8 +19,7 @@ const pool = require('../pool');
 const COND_RIESGO_DE_PROYECTO = `(
   (r.entidad_tipo = 'Proyecto' AND r.entidad_id = p.id)
   OR (r.entidad_tipo = 'Etapa' AND r.entidad_id IN (SELECT id FROM etapas WHERE id_proyecto = p.id))
-  OR (r.entidad_tipo = 'Accion' AND r.entidad_id IN (SELECT id FROM acciones WHERE id_proyecto = p.id AND id_accion_padre IS NULL))
-  OR (r.entidad_tipo = 'Subaccion' AND r.entidad_id IN (SELECT id FROM acciones WHERE id_proyecto = p.id AND id_accion_padre IS NOT NULL))
+  OR (r.entidad_tipo = 'Accion' AND r.entidad_id IN (SELECT id FROM acciones WHERE id_proyecto = p.id))
 )`;
 
 // El campo proyectos.fecha_limite es una meta general del proyecto y en la
