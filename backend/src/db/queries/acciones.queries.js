@@ -872,18 +872,23 @@ async function obtenerIndicadoresAccion(accionId) {
 // semaforo_override, y no recalculaba nada hacia arriba — el estatus se
 // cambia desde el selector de Estatus (SelectorEstado → PUT /estado).
 async function patchCampoAccion(accionId, campo, valor) {
-  const CAMPOS_DIRECTOS = ['nombre', 'descripcion', 'porcentaje_avance', 'fecha_inicio', 'fecha_fin', 'prioridad', 'tipo'];
+  // porcentaje_avance NO está en CAMPOS_DIRECTOS a propósito: la columna
+  // "%" de Vista Lista es de solo lectura (avance efectivo, calculado),
+  // nunca hay una celda que dispare este PATCH con ese campo — dejarlo
+  // aquí era una vía muerta que el siguiente recálculo revertiría en
+  // silencio si algún día se activara sin querer.
+  const CAMPOS_DIRECTOS = ['nombre', 'descripcion', 'fecha_inicio', 'fecha_fin', 'prioridad', 'tipo'];
   const CAMPOS_GOBERNADOS = ['estado', 'semaforo'];
 
   let query, params;
   if (CAMPOS_GOBERNADOS.includes(campo)) {
     throw new Error(`Campo no permitido: ${campo} — se cambia desde el selector de Estatus (motivo de bloqueo, cascada y auditoría), no por edición en línea.`);
   } else if (CAMPOS_DIRECTOS.includes(campo)) {
-    query = `UPDATE acciones SET ${campo} = $1 WHERE id = $2 RETURNING *`;
+    query = `UPDATE acciones SET ${campo} = $1, updated_at = NOW() WHERE id = $2 RETURNING *`;
     params = [valor, accionId];
   } else if (campo.startsWith('campos_extra.')) {
     const clave = campo.replace('campos_extra.', '');
-    query = `UPDATE acciones SET campos_extra = jsonb_set(COALESCE(campos_extra, '{}'), $1, $2) WHERE id = $3 RETURNING *`;
+    query = `UPDATE acciones SET campos_extra = jsonb_set(COALESCE(campos_extra, '{}'), $1, $2), updated_at = NOW() WHERE id = $3 RETURNING *`;
     params = [`{${clave}}`, JSON.stringify(valor), accionId];
   } else {
     throw new Error(`Campo no permitido: ${campo}`);

@@ -224,7 +224,7 @@ async function patchAvanceSemaforo(req, res, next) {
   const etapaId = req.params.id;
   const { avance_actual, semaforo, estado, prioridad, fecha_limite, fecha_inicio,
           escala_territorial, instrumento, cve_ent, cve_mun, id_zm, tipo, id_responsable,
-          nombre, descripcion, estatus_cualitativo, municipios,
+          nombre, descripcion, observaciones, estatus_cualitativo, municipios,
           motivo_bloqueo, nota_resolucion } = req.body;
 
   const client = await pool.connect();
@@ -389,6 +389,10 @@ async function patchAvanceSemaforo(req, res, next) {
     if (descripcion !== undefined) {
       sets.push(`descripcion = $${idx}`);
       params.push(descripcion); idx++;
+    }
+    if (observaciones !== undefined) {
+      sets.push(`observaciones = $${idx}`);
+      params.push(observaciones || null); idx++;
     }
     if (estatus_cualitativo !== undefined) {
       sets.push(`estatus_cualitativo = $${idx}`);

@@ -209,7 +209,14 @@ export default function MisActividades() {
                     key={`${it.tipo}-${it.id}`}
                     tipo={it.tipo}
                     nodo={it}
-                    esContenedor={false}
+                    // Etapa siempre es contenedor — antes se trataba toda
+                    // fila como hoja, así que una etapa pendiente ofrecía
+                    // "marcar completada"/"reportar riesgo" directo, que
+                    // no aplica a un nodo cuyo avance se calcula de sus
+                    // partes. Acción/tarea pueden ser contenedor si tienen
+                    // hijos, pero esta consulta de agenda (6 ramas UNION)
+                    // no trae es_hoja — se deja como caso de borde aparte.
+                    esContenedor={it.tipo === 'etapa'}
                     proyectoId={it.proyecto_id}
                     permisos={PERMISOS_PROPIOS}
                     breadcrumb={breadcrumb}

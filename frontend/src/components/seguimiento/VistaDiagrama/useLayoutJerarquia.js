@@ -35,7 +35,9 @@ export function contarDescendientes(nodoOriginal, tipo) {
     );
   }
   if (tipo === 'accion') {
-    return (nodoOriginal.tareas || []).length;
+    const subacciones = nodoOriginal.subacciones || [];
+    return (nodoOriginal.tareas || []).length
+      + subacciones.reduce((suma, s) => suma + 1 + contarDescendientes(s, 'accion'), 0);
   }
   return 0;
 }
@@ -53,8 +55,13 @@ export function useLayoutJerarquia(raices, colapsados) {
         return acciones.length > 0 ? acciones.map(a => ({ ...a, __tipo: 'accion' })) : null;
       }
       if (d.__tipo === 'accion') {
-        const tareas = d.tareas || [];
-        return tareas.length > 0 ? tareas.map(t => ({ ...t, __tipo: 'tarea' })) : null;
+        // subacciones se marcan __tipo:'accion' (no un tipo aparte) — así
+        // la recursión de este mismo hijos() las trata igual que una
+        // acción de primer nivel si a su vez tienen sus propios hijos.
+        const subacciones = (d.subacciones || []).map(s => ({ ...s, __tipo: 'accion' }));
+        const tareas = (d.tareas || []).map(t => ({ ...t, __tipo: 'tarea' }));
+        const hijosNodo = [...subacciones, ...tareas];
+        return hijosNodo.length > 0 ? hijosNodo : null;
       }
       return null;
     }

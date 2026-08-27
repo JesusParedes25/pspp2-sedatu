@@ -515,7 +515,7 @@ export default function NodoCard({
               {permisos?.puedeInvitar && (
                 <BotonContextual icono={UserPlus} label="Invitar participante" activo={seccion === 'invitar'} onClick={() => setSeccion(seccion === 'invitar' ? null : 'invitar')} />
               )}
-              {!agrupado && !esContenedor && permisos?.puedeCrearAccion && (tipo === 'accion' || tipo === 'tarea') && (
+              {!agrupado && permisos?.puedeCrearAccion && (tipo === 'accion' || tipo === 'tarea') && (
                 <BotonContextual icono={Copy} label="Duplicar" activo={false} onClick={() => setMostrarDuplicar(true)} />
               )}
               {!agrupado && tipo === 'etapa' && permisos?.puedeCrearEtapa && (
@@ -542,9 +542,9 @@ export default function NodoCard({
             {/* Pie del panel agrupado: Duplicar/Eliminar, chicos, discretos,
                 alineados a la derecha y separados por una línea — para
                 evitar clics accidentales en algo destructivo. */}
-            {agrupado && (permisos?.puedeEliminar || (!esContenedor && permisos?.puedeCrearAccion && (tipo === 'accion' || tipo === 'tarea')) || (tipo === 'etapa' && permisos?.puedeCrearEtapa)) && (
+            {agrupado && (permisos?.puedeEliminar || (permisos?.puedeCrearAccion && (tipo === 'accion' || tipo === 'tarea')) || (tipo === 'etapa' && permisos?.puedeCrearEtapa)) && (
               <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-end gap-3">
-                {!esContenedor && permisos?.puedeCrearAccion && (tipo === 'accion' || tipo === 'tarea') && (
+                {permisos?.puedeCrearAccion && (tipo === 'accion' || tipo === 'tarea') && (
                   <button onClick={() => setMostrarDuplicar(true)} className="text-[11px] text-gray-400 hover:text-gray-600">
                     Duplicar {TIPO_LABEL_MIN[tipo]}
                   </button>
