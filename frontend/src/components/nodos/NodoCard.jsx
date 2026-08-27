@@ -428,8 +428,15 @@ export default function NodoCard({
                 un hijo era un enlace chico junto al encabezado de la lista
                 (a la izquierda, fuera de este panel), fácil de pasar por
                 alto; esta es la misma acción (CrearInline), solo con más
-                presencia para quien mira este panel primero. */}
-            {esContenedor && !soloLectura && NIVELES[tipo]?.hijoTipo && (
+                presencia para quien mira este panel primero.
+                Se muestra aunque el nodo todavía sea hoja (esContenedor
+                falso): una acción sin tareas no es un estado permanente,
+                es solo que no las tiene TODAVÍA — agregar la primera es
+                precisamente cómo se decide descomponerla. Etapa siempre
+                pasaba este filtro igual (esContenedor es fijo ahí), así
+                que quitar la condición no le cambia nada; a acción sí la
+                pone al mismo nivel. */}
+            {!soloLectura && NIVELES[tipo]?.hijoTipo && (
               <CrearInline
                 tipo={NIVELES[tipo].hijoTipo}
                 padreId={nodo.id}
