@@ -363,8 +363,15 @@ async function eliminarAccion(accionId) {
 
   // cobertura_geografica es polimórfica (sin FK real) y no se limpia sola al
   // borrar la acción; se hace explícito para no dejar filas huérfanas.
+  // Incluye subacciones (se borran en cascada por id_accion_padre) y
+  // tareas — tanto las de esta acción como las de sus subacciones.
   await pool.query(
-    "DELETE FROM cobertura_geografica WHERE tipo_entidad = 'accion' AND id_entidad = $1",
+    `DELETE FROM cobertura_geografica WHERE
+       (tipo_entidad = 'accion' AND id_entidad IN (
+          SELECT id FROM acciones WHERE id = $1 OR id_accion_padre = $1))
+    OR (tipo_entidad = 'tarea' AND id_entidad IN (
+          SELECT id FROM tareas WHERE id_accion = $1
+             OR id_accion IN (SELECT id FROM acciones WHERE id_accion_padre = $1)))`,
     [accionId]
   );
 
