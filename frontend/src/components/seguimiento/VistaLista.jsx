@@ -138,6 +138,23 @@ function CeldaExtra(props) {
   return <CeldaEditable {...props} />;
 }
 
+// ─── Celda de fecha: en una etapa, fecha_inicio/fecha_fin son derivadas
+// (la más temprana/tardía entre sus acciones/tareas) — el backend ya no
+// acepta escribirlas directo (patchCampoEtapa), así que aquí tampoco se
+// ofrecen como editables para no prometer una captura que el siguiente
+// recálculo revierte en silencio.
+function CeldaFecha(props) {
+  if (props.row.original.tipo === 'etapa') {
+    const valor = props.getValue();
+    return (
+      <div className="px-2 py-1 text-xs text-gray-400" title="Se calcula de sus acciones/tareas">
+        {valor ? formatFechaCorta(valor) : '—'}
+      </div>
+    );
+  }
+  return <CeldaEditable {...props} formatoDisplay={formatFechaCorta} />;
+}
+
 // ─── Componente principal ─────────────────────────────────────
 export default function VistaLista({ etapas, proyectoId, onRefresh }) {
   const [arbol, setArbol] = useState([]);
@@ -220,7 +237,12 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
     }
 
     for (const etapa of arbol) {
-      filas.push(fila(etapa, 'etapa', 0, (etapa.acciones || []).length > 0));
+      // Etapa siempre es contenedor, tenga o no acciones capturadas todavía
+      // — mismo invariante que el resto del código (tipo === 'etapa' ||
+      // es_hoja === false). Contar .acciones.length la trataba como hoja
+      // mientras estuviera vacía, ofreciendo captura manual de avance/fecha
+      // que el siguiente recálculo revertía en silencio.
+      filas.push(fila(etapa, 'etapa', 0, true));
       for (const accion of (etapa.acciones || [])) {
         const tieneHijosAccion = (accion.subacciones || []).length > 0 || (accion.tareas || []).length > 0;
         filas.push(fila(accion, 'accion', 1, tieneHijosAccion));
@@ -303,14 +325,14 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
         header: 'Inicio',
         accessorKey: 'fecha_inicio',
         size: 110,
-        cell: (props) => <CeldaEditable {...props} formatoDisplay={formatFechaCorta} />,
+        cell: CeldaFecha,
       },
       {
         id: 'fecha_fin',
         header: 'Fin',
         accessorKey: 'fecha_fin',
         size: 110,
-        cell: (props) => <CeldaEditable {...props} formatoDisplay={formatFechaCorta} />,
+        cell: CeldaFecha,
       },
       {
         id: 'ubicacion',

@@ -133,7 +133,7 @@ async function patchAvanceSemaforo(req, res, next) {
       return res.status(404).json({ error: true, mensaje: 'Tarea no encontrada' });
     }
 
-    const { avance_actual, semaforo, estado, motivo_bloqueo, nota_resolucion, prioridad, fecha_inicio, fecha_limite, nombre, descripcion, estatus_cualitativo, cve_ent, municipios } = req.body;
+    const { avance_actual, semaforo, estado, motivo_bloqueo, nota_resolucion, prioridad, fecha_inicio, fecha_limite, nombre, descripcion, observaciones, id_responsable, estatus_cualitativo, cve_ent, municipios } = req.body;
     const sets = []; const params = []; let idx = 1;
 
     // ── Estado (tareas siempre son hojas) — delega a validaciones-estado.js
@@ -194,6 +194,8 @@ async function patchAvanceSemaforo(req, res, next) {
     if (fecha_limite !== undefined) { sets.push(`fecha_limite = $${idx}`); params.push(fecha_limite); idx++; }
     if (nombre !== undefined) { sets.push(`nombre = $${idx}`); params.push(nombre); idx++; }
     if (descripcion !== undefined) { sets.push(`descripcion = $${idx}`); params.push(descripcion); idx++; }
+    if (observaciones !== undefined) { sets.push(`observaciones = $${idx}`); params.push(observaciones || null); idx++; }
+    if (id_responsable !== undefined) { sets.push(`id_responsable = $${idx}`); params.push(id_responsable || null); idx++; }
     if (estatus_cualitativo !== undefined) {
       sets.push(`estatus_cualitativo = $${idx}`); params.push(estatus_cualitativo || null); idx++;
       sets.push('estatus_cualitativo_fecha = NOW()');

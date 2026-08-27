@@ -300,7 +300,11 @@ async function eliminarEtapa(etapaId) {
 // semaforo_override, y no recalculaba nada hacia arriba — el estatus se
 // cambia desde el selector de Estatus (SelectorEstado → PUT /estado).
 async function patchCampoEtapa(etapaId, campo, valor) {
-  const CAMPOS_DIRECTOS = ['nombre', 'descripcion', 'fecha_inicio', 'fecha_fin', 'prioridad'];
+  // fecha_inicio/fecha_fin tampoco están aquí: son columnas derivadas
+  // para una etapa (la más temprana/tardía entre sus acciones/tareas) —
+  // recalcularEtapa las sobreescribe en cuanto algo debajo cambia, así
+  // que capturarlas a mano aquí era otra vía muerta.
+  const CAMPOS_DIRECTOS = ['nombre', 'descripcion', 'prioridad'];
   const CAMPOS_GOBERNADOS = ['estado', 'semaforo'];
 
   let query, params;
