@@ -13,6 +13,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import EstadoChip from './EstadoChip';
 import ModalBloqueo from './ModalBloqueo';
 import * as estadoApi from '../../api/estado';
@@ -49,29 +50,43 @@ export default function SelectorEstado({
   className = ''
 }) {
   const [abierto, setAbierto] = useState(false);
-  const [abrirHaciaArriba, setAbrirHaciaArriba] = useState(false);
+  const [posicion, setPosicion] = useState({ top: 0, left: 0 });
   const [cargando, setCargando] = useState(false);
   const [modalBloqueo, setModalBloqueo] = useState(false);
   const [confirmCancelar, setConfirmCancelar] = useState(null);
   const refPopover = useRef(null);
+  const refMenu = useRef(null);
 
-  // El popover puede caer cerca del borde inferior del panel (el chip de
-  // Ficha vive en un panel angosto que se puede scrollear) — sin esto,
-  // "Cancelada" y "Volver a automático" quedaban cortados fuera de vista.
-  // ~260px es la altura aproximada del popover completo (5 estados + el
-  // separador y "Volver a automático").
+  // El popover se renderiza con createPortal en document.body (mismo
+  // patrón que AccionFicha) — no como hijo posicionado `absolute` dentro
+  // del botón, para escapar del `overflow-y-auto` de cualquier contenedor
+  // scrolleable donde viva este selector (p. ej. la tabla de Vista Lista):
+  // un popover `absolute` que abre hacia arriba cerca del borde superior
+  // de un contenedor con overflow queda recortado y sus opciones dejan de
+  // ser clicables, aunque existan en el DOM. Posición fija calculada
+  // contra el viewport, no contra el contenedor. ~260px es la altura
+  // aproximada del popover completo (5 estados + separador + "Volver a
+  // automático").
   function alAbrir() {
     if (refPopover.current) {
-      const { bottom } = refPopover.current.getBoundingClientRect();
-      setAbrirHaciaArriba(window.innerHeight - bottom < 260);
+      const rect = refPopover.current.getBoundingClientRect();
+      const arriba = window.innerHeight - rect.bottom < 260;
+      setPosicion({
+        top: arriba ? undefined : rect.bottom + 4,
+        bottom: arriba ? (window.innerHeight - rect.top + 4) : undefined,
+        left: Math.min(rect.left, window.innerWidth - 216),
+      });
     }
     setAbierto(v => !v);
   }
 
-  // Cerrar popover al clicar fuera
+  // Cerrar popover al clicar fuera (el botón O el menú del portal)
   useEffect(() => {
     function handleClickFuera(e) {
-      if (refPopover.current && !refPopover.current.contains(e.target)) {
+      if (
+        refPopover.current && !refPopover.current.contains(e.target) &&
+        refMenu.current && !refMenu.current.contains(e.target)
+      ) {
         setAbierto(false);
       }
     }
@@ -165,9 +180,15 @@ export default function SelectorEstado({
         {cargando && <span className="ml-1 text-xs text-gray-400 animate-pulse">…</span>}
       </button>
 
-      {/* Popover de opciones — se abre hacia arriba si no cabe hacia abajo */}
-      {abierto && (
-        <div className={`absolute z-50 w-52 bg-white border border-gray-200 rounded-lg shadow-lg py-1 left-0 ${abrirHaciaArriba ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+      {/* Popover de opciones — portal a document.body, posición fija
+          calculada contra el viewport (ver comentario en alAbrir). Se
+          abre hacia arriba si no cabe hacia abajo. */}
+      {abierto && createPortal(
+        <div
+          ref={refMenu}
+          className="fixed z-[9999] w-52 bg-white border border-gray-200 rounded-lg shadow-lg py-1"
+          style={{ top: posicion.top, bottom: posicion.bottom, left: posicion.left }}
+        >
           {ESTADOS.map((est) => (
             <button
               key={est}
@@ -195,7 +216,8 @@ export default function SelectorEstado({
               </button>
             </>
           )}
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal de bloqueo */}

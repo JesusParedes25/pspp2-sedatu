@@ -294,11 +294,19 @@ async function eliminarEtapa(etapaId) {
 }
 
 // Actualiza un solo campo de una etapa (para inline editing en DataGrid)
+// "estado"/"semaforo" NO están aquí a propósito: escribirlos directo sin
+// pasar por cambiarEstadoUtil (validaciones-estado.js) se saltaba el
+// motivo de bloqueo, la fila en `bloqueos`, la auditoría, estado_override/
+// semaforo_override, y no recalculaba nada hacia arriba — el estatus se
+// cambia desde el selector de Estatus (SelectorEstado → PUT /estado).
 async function patchCampoEtapa(etapaId, campo, valor) {
-  const CAMPOS_DIRECTOS = ['nombre', 'descripcion', 'estado', 'semaforo', 'fecha_inicio', 'fecha_fin', 'prioridad'];
+  const CAMPOS_DIRECTOS = ['nombre', 'descripcion', 'fecha_inicio', 'fecha_fin', 'prioridad'];
+  const CAMPOS_GOBERNADOS = ['estado', 'semaforo'];
 
   let query, params;
-  if (CAMPOS_DIRECTOS.includes(campo)) {
+  if (CAMPOS_GOBERNADOS.includes(campo)) {
+    throw new Error(`Campo no permitido: ${campo} — se cambia desde el selector de Estatus (motivo de bloqueo, cascada y auditoría), no por edición en línea.`);
+  } else if (CAMPOS_DIRECTOS.includes(campo)) {
     query = `UPDATE etapas SET ${campo} = $1, updated_at = NOW() WHERE id = $2 RETURNING *`;
     params = [valor, etapaId];
   } else if (campo.startsWith('campos_extra.')) {
