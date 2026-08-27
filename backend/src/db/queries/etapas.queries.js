@@ -263,10 +263,15 @@ async function eliminarEtapa(etapaId) {
       `DELETE FROM evidencias WHERE id_accion IN (SELECT id FROM acciones WHERE id_etapa = $1)`,
       [etapaId]
     );
-    // Eliminar cobertura geográfica vinculada
+    // Eliminar cobertura geográfica vinculada — incluye las tareas de las
+    // acciones de esta etapa; antes se quedaban huérfanas (la fila de
+    // cobertura_geografica sobrevive aunque la tarea se borre en cascada,
+    // porque esa tabla es polimórfica y no tiene FK real).
     await client.query(
       `DELETE FROM cobertura_geografica WHERE (tipo_entidad = 'etapa' AND id_entidad = $1)
-        OR (tipo_entidad = 'accion' AND id_entidad IN (SELECT id FROM acciones WHERE id_etapa = $1))`,
+        OR (tipo_entidad = 'accion' AND id_entidad IN (SELECT id FROM acciones WHERE id_etapa = $1))
+        OR (tipo_entidad = 'tarea' AND id_entidad IN (
+              SELECT t.id FROM tareas t JOIN acciones a ON a.id = t.id_accion WHERE a.id_etapa = $1))`,
       [etapaId]
     );
     // Eliminar acciones de esta etapa

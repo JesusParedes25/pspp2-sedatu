@@ -457,14 +457,15 @@ async function duplicarEtapa(idEtapaOrigen) {
     for (const a of acciones) {
       const { rows: [nuevaAccion] } = await client.query(`
         INSERT INTO acciones (
-          id_etapa, id_accion_padre, nombre, descripcion, tipo, prioridad, peso_porcentaje,
+          id_proyecto, id_etapa, id_accion_padre, nombre, descripcion, tipo, prioridad, peso_porcentaje,
           instancia_responsable, enlace_responsable, observaciones,
           escala_territorial, instrumento, campos_extra, id_dg, id_direccion_area,
           estado, porcentaje_avance, avance_actual, avance_override, semaforo_override
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
           'Pendiente', 0, 0, false, false)
         RETURNING id
       `, [
+        origen.id_proyecto,
         nuevaEtapa.id,
         a.id_accion_padre ? mapaAcciones.get(a.id_accion_padre) || null : null,
         a.nombre, a.descripcion, a.tipo, a.prioridad, a.peso_porcentaje,
