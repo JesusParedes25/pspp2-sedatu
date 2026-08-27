@@ -17,6 +17,7 @@ import * as proyectosApi from '../api/proyectos';
 import emailjs from '@emailjs/browser';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import { ROLES, DESCRIPCION_ROL, colorRol } from '../utils/roles';
+import { useCandado, useEnvioUnico } from '../hooks/useEnvioUnico';
 
 // ─── Tab: Catálogos ──────────────────────────────────────────────
 function TabCatalogos() {
@@ -26,6 +27,10 @@ function TabCatalogos() {
   const [tipoAbierto, setTipoAbierto] = useState(null);
   const [editando, setEditando] = useState(null);
   const [nuevo, setNuevo] = useState(null);
+  // Un solo candado para guardarNuevo/guardarEdicion — nunca están
+  // activos a la vez (nuevo vs editando son estados mutuamente
+  // excluyentes en esta UI), pero comparten el mismo guard síncrono.
+  const [ejecutar] = useCandado();
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -36,15 +41,19 @@ function TabCatalogos() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  async function guardarNuevo() {
+  function guardarNuevo() {
     if (!nuevo?.valor?.trim()) return;
-    try { await adminApi.agregarValor(nuevo.tipo, nuevo.valor, nuevo.descripcion); setNuevo(null); cargar(); }
-    catch (e) { setError(e.response?.data?.mensaje || 'Error'); }
+    ejecutar(async () => {
+      try { await adminApi.agregarValor(nuevo.tipo, nuevo.valor, nuevo.descripcion); setNuevo(null); cargar(); }
+      catch (e) { setError(e.response?.data?.mensaje || 'Error'); }
+    });
   }
-  async function guardarEdicion() {
+  function guardarEdicion() {
     if (!editando) return;
-    try { await adminApi.editarValor(editando.id, { valor: editando.valor, descripcion: editando.descripcion }); setEditando(null); cargar(); }
-    catch (e) { setError(e.response?.data?.mensaje || 'Error'); }
+    ejecutar(async () => {
+      try { await adminApi.editarValor(editando.id, { valor: editando.valor, descripcion: editando.descripcion }); setEditando(null); cargar(); }
+      catch (e) { setError(e.response?.data?.mensaje || 'Error'); }
+    });
   }
 
   if (cargando) return <div className="flex justify-center py-10"><Loader2 size={24} className="animate-spin text-guinda-600" /></div>;
@@ -161,7 +170,6 @@ function TabUsuarios({ dgs, das }) {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
   const [modal, setModal] = useState(null); // null | { modo: 'crear'|'editar', datos }
-  const [enviando, setEnviando] = useState(false);
   const [inviteLink, setInviteLink] = useState(null); // { usuario, invite_link, correoEnviado, motivoFallo }
   const [porEliminarU, setPorEliminarU] = useState(null);
   const [busqueda, setBusqueda] = useState('');
@@ -180,8 +188,7 @@ function TabUsuarios({ dgs, das }) {
 
   const dasDgActual = modal ? das.filter(d => d.id_dg === modal.datos.id_dg) : [];
 
-  async function guardar() {
-    setEnviando(true);
+  const [guardar, enviando] = useEnvioUnico(async () => {
     try {
       if (modal.modo === 'crear') {
         const r = await adminApi.crearUsuarioAdmin(modal.datos);
@@ -196,8 +203,7 @@ function TabUsuarios({ dgs, das }) {
         cargar();
       }
     } catch (e) { setError(e.response?.data?.mensaje || 'Error'); }
-    finally { setEnviando(false); }
-  }
+  });
 
   async function reenviar(u) {
     try {
@@ -445,7 +451,6 @@ function TabAreas({ dgs, das, recargar }) {
   const [tab, setTab] = useState('dg');
   const [modal, setModal] = useState(null);
   const [porEliminar, setPorEliminar] = useState(null);
-  const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState(null);
 
   const urs = [...new Set(dgs.filter(d => d.ur_siglas).map(d => d.ur_siglas))];
@@ -466,8 +471,7 @@ function TabAreas({ dgs, das, recargar }) {
     }
   }
 
-  async function guardar() {
-    setEnviando(true);
+  const [guardar, enviando] = useEnvioUnico(async () => {
     try {
       if (tab === 'dg') {
         if (modal.modo === 'crear') await adminApi.crearDGAdmin(modal.datos);
@@ -479,8 +483,7 @@ function TabAreas({ dgs, das, recargar }) {
       setModal(null);
       recargar();
     } catch (e) { setError(e.response?.data?.mensaje || 'Error'); }
-    finally { setEnviando(false); }
-  }
+  });
 
   const internas = dgs.filter(d => !d.es_externa);
   const externas = dgs.filter(d => d.es_externa);
@@ -621,7 +624,6 @@ function TabAreas({ dgs, das, recargar }) {
 function TabConfiguracion() {
   const [config, setConfig] = useState({});
   const [cargando, setCargando] = useState(true);
-  const [guardando, setGuardando] = useState(false);
   const [ok, setOk] = useState(false);
   const [error, setError] = useState(null);
   const [mostrarKey, setMostrarKey] = useState(false);
@@ -634,15 +636,14 @@ function TabConfiguracion() {
     }).catch(() => {}).finally(() => setCargando(false));
   }, []);
 
-  async function guardar() {
-    setGuardando(true); setOk(false); setError(null);
+  const [guardar, guardando] = useEnvioUnico(async () => {
+    setOk(false); setError(null);
     try {
       await adminApi.actualizarConfig(Object.entries(config).map(([clave, valor]) => ({ clave, valor })));
       setOk(true);
       setTimeout(() => setOk(false), 3000);
     } catch (e) { setError(e.response?.data?.mensaje || 'Error al guardar'); }
-    finally { setGuardando(false); }
-  }
+  });
 
   if (cargando) return <div className="flex justify-center py-10"><Loader2 size={24} className="animate-spin text-guinda-600" /></div>;
 

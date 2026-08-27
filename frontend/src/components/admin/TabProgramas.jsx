@@ -24,6 +24,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Loader2, Search, Pencil, EyeOff, Eye, X, Plus, Trash2 } from 'lucide-react';
 import * as adminApi from '../../api/admin';
 import ConfirmDialog from '../common/ConfirmDialog';
+import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 
 // Modalidades presupuestarias de SHCP. La letra inicial de la clave es
 // justamente la modalidad, por eso se muestran juntas.
@@ -55,7 +56,6 @@ export default function TabProgramas() {
   const [verInactivos, setVerInactivos] = useState(false);
   const [editando, setEditando] = useState(null);   // { ...programa } o VACIO con modo
   const [porEliminar, setPorEliminar] = useState(null);
-  const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
 
   const cargar = useCallback(async () => {
@@ -78,8 +78,8 @@ export default function TabProgramas() {
       .some(v => (v || '').toLowerCase().includes(texto));
   });
 
-  async function guardar() {
-    setGuardando(true); setError('');
+  const [guardar, guardando] = useEnvioUnico(async () => {
+    setError('');
     try {
       const datos = {
         nombre: editando.nombre,
@@ -95,8 +95,8 @@ export default function TabProgramas() {
       cargar();
     } catch (err) {
       setError(err.response?.data?.mensaje || 'No se pudo guardar.');
-    } finally { setGuardando(false); }
-  }
+    }
+  });
 
   async function alternarActivo(p) {
     setError('');

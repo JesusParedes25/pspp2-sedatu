@@ -32,6 +32,7 @@ import HiloComentarios from '../comentarios/HiloComentarios';
 import PanelRiesgos from '../riesgos/PanelRiesgos';
 import ModalRiesgo from '../riesgos/ModalRiesgo';
 import CampoFecha from '../common/CampoFecha';
+import { useCandado } from '../../hooks/useEnvioUnico';
 import { formatFecha, diasRestantes } from '../../utils/fecha';
 import { useUI } from '../../context/UIContext';
 import { permisosDeNodo } from '../../hooks/usePermisos';
@@ -123,6 +124,10 @@ export default function NodoCard({
   const { mostrarToast } = useUI();
   const [abierto, setAbierto] = useState(defaultAbierto);
   const [guardando, setGuardando] = useState(false);
+  // Candado propio para enviarComentario, separado del `guardando`
+  // genérico de patch() (checklist, etc.) — no deben bloquearse entre sí,
+  // son acciones independientes.
+  const [ejecutarComentario, enviandoComentario] = useCandado();
   const [mostrarModalAvance, setMostrarModalAvance] = useState(false);
   const [mostrarModalRiesgo, setMostrarModalRiesgo] = useState(false);
   const [riesgoEditando, setRiesgoEditando] = useState(null); // riesgo completo del banner, en edición
@@ -307,16 +312,17 @@ export default function NodoCard({
   }
 
   // Solo para 'tarea': etapa/accion usan HiloComentarios (tabla vieja) directamente.
-  async function enviarComentario() {
+  function enviarComentario() {
     if (!comentarioTexto.trim()) return;
-    setGuardando(true);
-    try {
-      await actividadApi.comentar(tipo, nodo.id, comentarioTexto.trim());
-      setComentarioTexto('');
-      cargarActividad();
-    } catch (err) {
-      alert(err.response?.data?.mensaje || 'Error al comentar');
-    } finally { setGuardando(false); }
+    ejecutarComentario(async () => {
+      try {
+        await actividadApi.comentar(tipo, nodo.id, comentarioTexto.trim());
+        setComentarioTexto('');
+        cargarActividad();
+      } catch (err) {
+        alert(err.response?.data?.mensaje || 'Error al comentar');
+      }
+    });
   }
 
   const todosRiesgos = (actividad || []).filter(a => a.tipo_evento === 'riesgo');
@@ -622,7 +628,7 @@ export default function NodoCard({
                       onKeyDown={e => e.key === 'Enter' && enviarComentario()}
                       placeholder="Escribe un comentario..." autoFocus
                       className="flex-1 text-xs border border-gray-200 rounded px-2 py-1.5 bg-white focus:border-guinda-400 outline-none" />
-                    <button onClick={enviarComentario} disabled={guardando || !comentarioTexto.trim()} className="p-1.5 bg-guinda-600 text-white rounded hover:bg-guinda-700 disabled:opacity-40">
+                    <button onClick={enviarComentario} disabled={enviandoComentario || !comentarioTexto.trim()} className="p-1.5 bg-guinda-600 text-white rounded hover:bg-guinda-700 disabled:opacity-40">
                       <Send size={13} />
                     </button>
                   </div>

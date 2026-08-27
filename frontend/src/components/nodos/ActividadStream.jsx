@@ -26,6 +26,7 @@ import { MessageSquare, Paperclip, AlertTriangle, ArrowRightCircle, Send, Loader
 import * as actividadApi from '../../api/actividad';
 import * as evidenciasApi from '../../api/evidencias';
 import FilePreviewModal from '../evidencias/FilePreviewModal';
+import { useCandado } from '../../hooks/useEnvioUnico';
 
 // El stream mezcla 3 orígenes de archivo: la tabla nueva `actividad`, una
 // evidencia del modelo viejo (trae metadata.evidencia_id), o un link externo
@@ -126,7 +127,9 @@ export default function ActividadStream({ tipo, id, titulo, soloLectura = false 
   const [cargando, setCargando] = useState(true);
   const [filtro, setFiltro] = useState('todo');
   const [texto, setTexto] = useState('');
-  const [enviando, setEnviando] = useState(false);
+  // Un solo candado para enviar/adjuntar: comparten `enviando` en la UI
+  // y no deben poder correr a la vez.
+  const [ejecutar, enviando] = useCandado();
   const [detalleItem, setDetalleItem] = useState(null);
   const [previewItem, setPreviewItem] = useState(null);
 
@@ -146,22 +149,22 @@ export default function ActividadStream({ tipo, id, titulo, soloLectura = false 
   const filtrados = filtro === 'todo' ? items : items.filter(i => CHIP_DE_TIPO[i.tipo_evento] === filtro);
   const grupos = useMemo(() => agruparParaLinea(filtrados), [filtrados]);
 
-  async function enviar() {
+  function enviar() {
     if (!texto.trim()) return;
-    setEnviando(true);
-    try {
+    ejecutar(async () => {
       await actividadApi.comentar(tipo, id, texto.trim());
       setTexto('');
       cargar();
-    } finally { setEnviando(false); }
+    });
   }
 
-  async function adjuntar(e) {
+  function adjuntar(e) {
     const archivo = e.target.files?.[0];
     if (!archivo) return;
-    setEnviando(true);
-    try { await actividadApi.adjuntarArchivo(tipo, id, archivo); cargar(); }
-    finally { setEnviando(false); e.target.value = ''; }
+    ejecutar(async () => {
+      await actividadApi.adjuntarArchivo(tipo, id, archivo);
+      cargar();
+    }).finally(() => { e.target.value = ''; });
   }
 
   return (
