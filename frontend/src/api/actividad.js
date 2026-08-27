@@ -15,13 +15,6 @@ export async function comentar(tipo, id, contenido) {
   return data;
 }
 
-export async function reportarRiesgo(tipo, id, contenido, nivel) {
-  const { data } = await client.post('/actividad', {
-    tipo_nodo: tipo, id_nodo: id, tipo_evento: 'riesgo', contenido, metadata: { nivel },
-  });
-  return data;
-}
-
 export async function adjuntarArchivo(tipo, id, archivo) {
   const formData = new FormData();
   formData.append('archivo', archivo);
