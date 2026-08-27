@@ -92,23 +92,28 @@ async function crearTarea(datos) {
   }
 }
 
+// "estado" no se escribe aquí a propósito — el estatus se cambia por
+// PATCH /tareas/:id (patchAvanceSemaforo, vía cambiarEstadoUtil) o por
+// PUT /estado, nunca por este PUT genérico (duplicaría la cascada en un
+// tercer sitio). Todas las columnas usan COALESCE: un PUT parcial (p.
+// ej. solo { nombre }) no debe borrar las demás — antes fecha_inicio/
+// fecha_limite/id_responsable/observaciones se escribían sin COALESCE,
+// así que un PUT así las ponía en NULL sin que nadie lo pidiera.
 async function actualizarTarea(id, datos) {
   const resultado = await pool.query(`
     UPDATE tareas SET
       nombre = COALESCE($2, nombre),
-      estado = COALESCE($3, estado),
-      prioridad = COALESCE($4, prioridad),
-      fecha_inicio = $5,
-      fecha_limite = $6,
-      id_responsable = $7,
-      observaciones = $8,
+      prioridad = COALESCE($3, prioridad),
+      fecha_inicio = COALESCE($4, fecha_inicio),
+      fecha_limite = COALESCE($5, fecha_limite),
+      id_responsable = COALESCE($6, id_responsable),
+      observaciones = COALESCE($7, observaciones),
       updated_at = NOW()
     WHERE id = $1
     RETURNING *
   `, [
     id,
     datos.nombre,
-    datos.estado,
     datos.prioridad,
     datos.fecha_inicio !== undefined ? datos.fecha_inicio : null,
     datos.fecha_limite !== undefined ? datos.fecha_limite : null,
