@@ -25,6 +25,7 @@ const pool = require('../pool');
 const { minioClient, BUCKET } = require('../../utils/minio');
 const { recalcularPesosEtapa } = require('./acciones.queries');
 const { recalcularEtapa, recalcularProyecto } = require('../../utils/recalculos');
+const { sincronizarCobertura } = require('./cobertura-sync.queries');
 
 // Campos del proyecto que describen QUÉ es (viajan siempre). Se dejan
 // fuera a propósito: estado y porcentaje_calculado (progreso), fechas
@@ -238,6 +239,29 @@ async function duplicarProyecto(idOrigen, opciones, creadorId) {
       await copiarMunicipios('etapa_municipios', 'etapa_id', mapaEtapas);
       await copiarMunicipios('accion_municipios', 'accion_id', mapaAcciones);
       await copiarMunicipios('tarea_municipios', 'tarea_id', mapaTareas);
+
+      // Espejo en cobertura_geografica (dashboard/Panorama/Vista Lista): el
+      // territorio ya quedó copiado arriba en cve_ent/*_municipios, pero esa
+      // tabla es un mirror aparte que nadie llena solo — sin esto, un
+      // proyecto duplicado con "Territorio" activado se ve sin ubicación en
+      // esas tres pantallas hasta que alguien vuelva a guardar el territorio
+      // a mano en cada nodo. Nodos en modo Zona Metropolitana (id_zm) se
+      // omiten a propósito, igual que en el PATCH manual (ver
+      // acciones.controller.js/etapas.controller.js): esa tabla no soporta
+      // ZM, solo estado/municipio.
+      const sincronizarNodosCopiados = async (tipoNodo, tablaNodo, tablaMun, columnaMun, mapa) => {
+        for (const nuevoId of mapa.values()) {
+          const { rows: [nodo] } = await client.query(`SELECT cve_ent FROM ${tablaNodo} WHERE id = $1`, [nuevoId]);
+          if (!nodo?.cve_ent) continue;
+          const { rows: munis } = await client.query(
+            `SELECT cve_mun FROM ${tablaMun} WHERE ${columnaMun} = $1`, [nuevoId]
+          );
+          await sincronizarCobertura(client, tipoNodo, nuevoId, nodo.cve_ent, munis.map(m => m.cve_mun));
+        }
+      };
+      await sincronizarNodosCopiados('etapa', 'etapas', 'etapa_municipios', 'etapa_id', mapaEtapas);
+      await sincronizarNodosCopiados('accion', 'acciones', 'accion_municipios', 'accion_id', mapaAcciones);
+      await sincronizarNodosCopiados('tarea', 'tareas', 'tarea_municipios', 'tarea_id', mapaTareas);
     }
 
     // ─── 6. Indicadores ───

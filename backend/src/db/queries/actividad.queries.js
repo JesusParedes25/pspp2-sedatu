@@ -132,11 +132,15 @@ async function obtenerActividadNodo(tipoNodo, idNodo, limite = 50) {
       : Promise.resolve([])
   );
 
-  // 4. Riesgos (modelo viejo)
+  // 4. Riesgos (modelo viejo) — Tarea se agrega aparte: soporta riesgos
+  // propios desde la migración 061 (antes 'Tarea' no era un entidad_tipo
+  // válido en la tabla riesgos), así que sin esta rama un riesgo reportado
+  // sobre una tarea nunca aparecía en el stream ni en el banner de NodoCard.
   const entidadesRiesgos = [];
   const paramsRi = [];
   if (etapaIds.length) { paramsRi.push(etapaIds); entidadesRiesgos.push(`(entidad_tipo = 'Etapa' AND entidad_id = ANY($${paramsRi.length}))`); }
   if (accionIds.length) { paramsRi.push(accionIds); entidadesRiesgos.push(`(entidad_tipo IN ('Accion','Subaccion') AND entidad_id = ANY($${paramsRi.length}))`); }
+  if (tareaIds.length) { paramsRi.push(tareaIds); entidadesRiesgos.push(`(entidad_tipo = 'Tarea' AND entidad_id = ANY($${paramsRi.length}))`); }
   promesas.push(
     entidadesRiesgos.length
       ? pool.query(`

@@ -9,6 +9,7 @@ const { recalcularIndicadoresProyecto } = require('../db/queries/indicadores.que
 const { recalcularEtapa, recalcularProyecto } = require('../utils/recalculos');
 const actividadQueries = require('../db/queries/actividad.queries');
 const municipiosNodoQueries = require('../db/queries/municipios-nodo.queries');
+const { sincronizarCobertura } = require('../db/queries/cobertura-sync.queries');
 const { puedeGestionarNodo } = require('../utils/autorizacion');
 const { cambiarEstado: cambiarEstadoUtil } = require('../utils/validaciones-estado');
 
@@ -201,6 +202,14 @@ async function patchAvanceSemaforo(req, res, next) {
       await municipiosNodoQueries.reemplazarMunicipiosTarea(client, req.params.id, lista);
     } else if (cve_ent !== undefined && !cve_ent) {
       await municipiosNodoQueries.reemplazarMunicipiosTarea(client, req.params.id, []);
+    }
+    // Espejo en cobertura_geografica (dashboard/Panorama/Vista Lista) — se
+    // recalcula si cambió el estado o los municipios. Tareas no tienen modo
+    // ZM (esa columna no existe en la tabla), a diferencia de etapas/acciones.
+    if (cve_ent !== undefined || municipios !== undefined) {
+      const cveEntFinal = cve_ent !== undefined ? (cve_ent || null) : tarea.cve_ent;
+      const municipiosGuardados = await municipiosNodoQueries.obtenerMunicipiosTarea(req.params.id, client);
+      await sincronizarCobertura(client, 'tarea', req.params.id, cveEntFinal, municipiosGuardados.map(m => m.cve_mun));
     }
 
     if (sets.length === 0 && municipios === undefined && !estadoCambiado) {

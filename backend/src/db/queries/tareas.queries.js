@@ -4,6 +4,7 @@
  */
 const pool = require('../pool');
 const municipiosNodoQueries = require('./municipios-nodo.queries');
+const { sincronizarCobertura } = require('./cobertura-sync.queries');
 
 async function obtenerTareasPorAccion(accionId) {
   const resultado = await pool.query(`
@@ -71,6 +72,11 @@ async function crearTarea(datos) {
         await municipiosNodoQueries.reemplazarMunicipiosTarea(client, tarea.id, municipios);
       }
     }
+    // Espejo en cobertura_geografica (dashboard/Panorama/Vista Lista),
+    // igual que hace crearAccionEnEtapa — si no, una tarea territorializada
+    // desde su creación nunca aparece en esas pantallas hasta que alguien
+    // vuelva a guardar su territorio manualmente.
+    await sincronizarCobertura(client, 'tarea', tarea.id, cveEnt, municipios);
 
     await client.query('COMMIT');
 
@@ -113,6 +119,13 @@ async function actualizarTarea(id, datos) {
 }
 
 async function eliminarTarea(id) {
+  // cobertura_geografica es polimórfica (sin FK real) y no se limpia sola al
+  // borrar la tarea; se hace explícito para no dejar filas huérfanas (mismo
+  // patrón que eliminarAccion en acciones.queries.js).
+  await pool.query(
+    "DELETE FROM cobertura_geografica WHERE tipo_entidad = 'tarea' AND id_entidad = $1",
+    [id]
+  );
   const resultado = await pool.query('DELETE FROM tareas WHERE id = $1 RETURNING *', [id]);
   return resultado.rows[0] || null;
 }

@@ -13,7 +13,7 @@ import { Link } from 'react-router-dom';
 import {
   ChevronDown, ChevronRight, Lock, CheckCircle2, Circle, AlertTriangle,
   MessageSquare, Paperclip, Shield, BarChart3, UserPlus, MapPin, Loader2, X, Send, Copy,
-  TrendingUp, Trash2,
+  TrendingUp, Trash2, Pencil,
 } from 'lucide-react';
 import ModalDuplicarNodo from './ModalDuplicarNodo';
 import ModalRegistrarAvance from './ModalRegistrarAvance';
@@ -23,7 +23,7 @@ import * as accionesApi from '../../api/acciones';
 import * as tareasApi from '../../api/tareas';
 import * as evidenciasApi from '../../api/evidencias';
 import * as actividadApi from '../../api/actividad';
-import { crearRiesgo } from '../../api/riesgos';
+import { crearRiesgo, obtenerRiesgo, actualizarRiesgo } from '../../api/riesgos';
 import SeccionMiembrosNodo from '../seguimiento/SeccionMiembrosNodo';
 import TabIndicadores from '../seguimiento/TabIndicadores';
 import TerritorioSelector from './TerritorioSelector';
@@ -125,6 +125,7 @@ export default function NodoCard({
   const [guardando, setGuardando] = useState(false);
   const [mostrarModalAvance, setMostrarModalAvance] = useState(false);
   const [mostrarModalRiesgo, setMostrarModalRiesgo] = useState(false);
+  const [riesgoEditando, setRiesgoEditando] = useState(null); // riesgo completo del banner, en edición
 
   const [seccion, setSeccion] = useState(null); // null | 'comentar' | 'adjuntar' | 'riesgos' | 'indicador' | 'invitar' | 'territorio'
   const [comentarioTexto, setComentarioTexto] = useState('');
@@ -276,6 +277,26 @@ export default function NodoCard({
     cargarActividad();
   }
 
+  // El banner ámbar solo trae lo que ya viene en el stream de actividad
+  // (contenido + nivel/estado) — para editar TODOS los campos (causa,
+  // impacto, responsable, medida de mitigación...) hay que traer el
+  // riesgo completo antes de abrir el modal.
+  async function abrirEditarRiesgoActivo() {
+    if (!riesgoActivo || soloLectura) return;
+    try {
+      const { datos } = await obtenerRiesgo(riesgoActivo.metadata?.riesgo_id || riesgoActivo.id);
+      setRiesgoEditando(datos);
+    } catch (err) {
+      alert(err.response?.data?.mensaje || 'No se pudo abrir el riesgo');
+    }
+  }
+
+  async function guardarRiesgoEditado(datos) {
+    await actualizarRiesgo(riesgoEditando.id, datos);
+    setRiesgoEditando(null);
+    cargarActividad();
+  }
+
   // Solo para 'tarea': etapa/accion usan HiloComentarios (tabla vieja) directamente.
   async function enviarComentario() {
     if (!comentarioTexto.trim()) return;
@@ -346,7 +367,16 @@ export default function NodoCard({
           {riesgoActivo && (
             <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
               <AlertTriangle size={13} className="text-amber-500 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-800 leading-snug">{riesgoActivo.contenido}</p>
+              <p className="text-xs text-amber-800 leading-snug flex-1">{riesgoActivo.contenido}</p>
+              {!soloLectura && (
+                <button
+                  onClick={abrirEditarRiesgoActivo}
+                  title="Editar este riesgo"
+                  className="flex-shrink-0 text-amber-500 hover:text-amber-700 hover:bg-amber-100 rounded p-0.5 transition-colors"
+                >
+                  <Pencil size={12} />
+                </button>
+              )}
             </div>
           )}
 
@@ -423,6 +453,16 @@ export default function NodoCard({
               entidadId={nodo.id}
               onGuardar={crearRiesgoDesdeTarjeta}
               onCerrar={() => setMostrarModalRiesgo(false)}
+            />
+          )}
+
+          {riesgoEditando && (
+            <ModalRiesgo
+              riesgo={riesgoEditando}
+              entidadTipo={ENTIDAD_TIPO_RIESGO[tipo]}
+              entidadId={nodo.id}
+              onGuardar={guardarRiesgoEditado}
+              onCerrar={() => setRiesgoEditando(null)}
             />
           )}
 

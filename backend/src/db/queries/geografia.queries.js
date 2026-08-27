@@ -128,6 +128,8 @@ async function obtenerCoberturaDetalladaProyecto(idProyecto) {
      LEFT JOIN cat_municipios m ON cg.id_municipio = m.id
      WHERE (cg.tipo_entidad = 'etapa' AND cg.id_entidad IN (SELECT id FROM etapas WHERE id_proyecto = $1))
         OR (cg.tipo_entidad = 'accion' AND cg.id_entidad IN (SELECT id FROM acciones WHERE id_proyecto = $1))
+        OR (cg.tipo_entidad = 'tarea' AND cg.id_entidad IN (
+              SELECT t.id FROM tareas t JOIN acciones a ON a.id = t.id_accion WHERE a.id_proyecto = $1))
      ORDER BY ef.nombre, m.nombre`,
     [idProyecto]
   );
