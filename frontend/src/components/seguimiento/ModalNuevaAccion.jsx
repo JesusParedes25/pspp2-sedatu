@@ -24,6 +24,7 @@ import * as catalogosApi from '../../api/catalogos';
 import * as etapasApi from '../../api/etapas';
 import * as indicadoresApi from '../../api/indicadores';
 import { useAuth } from '../../context/AuthContext';
+import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 import CatalogSelector from '../common/CatalogSelector';
 
 // ── Componente de tarjeta de indicador reutilizable ─────────────
@@ -132,7 +133,6 @@ export default function ModalNuevaAccion({ proyecto, etapaId, onGuardar, onCerra
   const [dgs, setDgs] = useState([]);
   const [direccionesArea, setDireccionesArea] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
-  const [enviando, setEnviando] = useState(false);
 
   const hoy = new Date().toISOString().split('T')[0];
   const enUnMes = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
@@ -242,20 +242,21 @@ export default function ModalNuevaAccion({ proyecto, etapaId, onGuardar, onCerra
     }));
   }
 
-  async function manejarSubmit(e) {
-    e.preventDefault();
+  // e.preventDefault() vive en manejarSubmit, FUERA del candado — ver
+  // useEnvioUnico.js.
+  const [guardar, enviando] = useEnvioUnico(async () => {
     if (!datos.nombre.trim() || !datos.fecha_inicio || !datos.fecha_fin) return;
-    setEnviando(true);
-    try {
-      await onGuardar({
-        ...datos,
-        id_dg: datos.id_dg || null,
-        id_direccion_area: datos.id_direccion_area || null,
-        id_responsable: datos.id_responsable || null,
-      });
-    } finally {
-      setEnviando(false);
-    }
+    await onGuardar({
+      ...datos,
+      id_dg: datos.id_dg || null,
+      id_direccion_area: datos.id_direccion_area || null,
+      id_responsable: datos.id_responsable || null,
+    });
+  });
+
+  function manejarSubmit(e) {
+    e.preventDefault();
+    guardar();
   }
 
   const dasFiltradas = direccionesArea.filter(da => {

@@ -17,6 +17,7 @@ import { useState, useEffect, useRef } from 'react';
 import { MessageSquare, Send, ChevronDown, ChevronUp } from 'lucide-react';
 import * as comentariosApi from '../../api/comentarios';
 import ComentarioItem from './ComentarioItem';
+import { useCandado } from '../../hooks/useEnvioUnico';
 
 // soloLectura: quien no participa en el proyecto lee el hilo pero no
 // escribe en él. El servidor aplica la misma regla en POST /comentarios,
@@ -28,7 +29,10 @@ export default function HiloComentarios({ entidadTipo, entidadId, compacto = tru
   const [nuevoTexto, setNuevoTexto] = useState('');
   const [respondiendo, setRespondiendo] = useState(null); // id del comentario al que se responde
   const [textoRespuesta, setTextoRespuesta] = useState('');
-  const [enviando, setEnviando] = useState(false);
+  // Un solo candado para publicar/publicarRespuesta: comparten `enviando`
+  // en la UI (deshabilitan sus botones cruzados mientras cualquiera de
+  // los dos envía) y no deben poder correr a la vez.
+  const [ejecutar, enviando] = useCandado();
   const inputRef = useRef(null);
 
   // Cargar comentarios cuando se abre el hilo
@@ -54,54 +58,51 @@ export default function HiloComentarios({ entidadTipo, entidadId, compacto = tru
     (sum, c) => sum + 1 + (c.respuestas?.length || 0), 0
   );
 
-  // Publicar comentario nuevo
-  async function publicar(e) {
+  // Publicar comentario nuevo. e.preventDefault() vive aquí, FUERA del
+  // candado — ver useEnvioUnico.js.
+  function publicar(e) {
     e.preventDefault();
-    if (!nuevoTexto.trim() || enviando) return;
-
-    setEnviando(true);
-    try {
-      await comentariosApi.crearComentario({
-        entidad_tipo: entidadTipo,
-        entidad_id: entidadId,
-        contenido: nuevoTexto,
-      });
-      setNuevoTexto('');
-      // Recargar
-      const res = await comentariosApi.obtenerComentarios(entidadTipo, entidadId);
-      setComentarios(res.datos || []);
-      onStatsChange && onStatsChange();
-    } catch (err) {
-      console.error('Error publicando comentario:', err);
-    } finally {
-      setEnviando(false);
-    }
+    if (!nuevoTexto.trim()) return;
+    ejecutar(async () => {
+      try {
+        await comentariosApi.crearComentario({
+          entidad_tipo: entidadTipo,
+          entidad_id: entidadId,
+          contenido: nuevoTexto,
+        });
+        setNuevoTexto('');
+        // Recargar
+        const res = await comentariosApi.obtenerComentarios(entidadTipo, entidadId);
+        setComentarios(res.datos || []);
+        onStatsChange && onStatsChange();
+      } catch (err) {
+        console.error('Error publicando comentario:', err);
+      }
+    });
   }
 
   // Publicar respuesta a un comentario
-  async function publicarRespuesta(e, comentarioPadreId) {
+  function publicarRespuesta(e, comentarioPadreId) {
     e.preventDefault();
-    if (!textoRespuesta.trim() || enviando) return;
-
-    setEnviando(true);
-    try {
-      await comentariosApi.crearComentario({
-        entidad_tipo: entidadTipo,
-        entidad_id: entidadId,
-        contenido: textoRespuesta,
-        id_padre: comentarioPadreId,
-      });
-      setTextoRespuesta('');
-      setRespondiendo(null);
-      // Recargar
-      const res = await comentariosApi.obtenerComentarios(entidadTipo, entidadId);
-      setComentarios(res.datos || []);
-      onStatsChange && onStatsChange();
-    } catch (err) {
-      console.error('Error publicando respuesta:', err);
-    } finally {
-      setEnviando(false);
-    }
+    if (!textoRespuesta.trim()) return;
+    ejecutar(async () => {
+      try {
+        await comentariosApi.crearComentario({
+          entidad_tipo: entidadTipo,
+          entidad_id: entidadId,
+          contenido: textoRespuesta,
+          id_padre: comentarioPadreId,
+        });
+        setTextoRespuesta('');
+        setRespondiendo(null);
+        // Recargar
+        const res = await comentariosApi.obtenerComentarios(entidadTipo, entidadId);
+        setComentarios(res.datos || []);
+        onStatsChange && onStatsChange();
+      } catch (err) {
+        console.error('Error publicando respuesta:', err);
+      }
+    });
   }
 
   // Vista compacta: solo botón para abrir/cerrar

@@ -20,13 +20,13 @@ import { X, Plus, Trash2 } from 'lucide-react';
 import * as catalogosApi from '../../api/catalogos';
 import { useAuth } from '../../context/AuthContext';
 import CatalogSelector from '../common/CatalogSelector';
+import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 
 export default function ModalNuevaEtapa({ proyecto, etapas, onGuardar, onCerrar }) {
   const { usuario } = useAuth();
   const [dgs, setDgs] = useState([]);
   const [direccionesArea, setDireccionesArea] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
-  const [enviando, setEnviando] = useState(false);
 
   const [datos, setDatos] = useState({
     nombre: '',
@@ -123,21 +123,22 @@ export default function ModalNuevaEtapa({ proyecto, etapas, onGuardar, onCerrar 
     }));
   }
 
-  async function manejarSubmit(e) {
-    e.preventDefault();
+  // e.preventDefault() vive en manejarSubmit, FUERA del candado — ver
+  // useEnvioUnico.js.
+  const [guardar, enviando] = useEnvioUnico(async () => {
     if (!datos.nombre.trim()) return;
-    setEnviando(true);
-    try {
-      await onGuardar({
-        ...datos,
-        id_dg: datos.id_dg || null,
-        id_direccion_area: datos.id_direccion_area || null,
-        id_responsable: datos.id_responsable || null,
-        depende_de: datos.depende_de || null,
-      });
-    } finally {
-      setEnviando(false);
-    }
+    await onGuardar({
+      ...datos,
+      id_dg: datos.id_dg || null,
+      id_direccion_area: datos.id_direccion_area || null,
+      id_responsable: datos.id_responsable || null,
+      depende_de: datos.depende_de || null,
+    });
+  });
+
+  function manejarSubmit(e) {
+    e.preventDefault();
+    guardar();
   }
 
   // Indicadores del proyecto
