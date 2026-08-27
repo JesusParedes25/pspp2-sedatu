@@ -22,7 +22,7 @@
  * el "containing block" de cualquier hijo con position:fixed, y el modal
  * terminaba encajonado dentro del rail en vez de cubrir toda la pantalla.
  */
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Loader2, Paperclip, Link2, ChevronDown, ChevronRight, Lock, CheckCircle2, Plus } from 'lucide-react';
 import * as etapasApi from '../../api/etapas';
@@ -33,6 +33,7 @@ import * as actividadApi from '../../api/actividad';
 import { crearComentario } from '../../api/comentarios';
 import { NIVELES } from '../../config/niveles';
 import CATEGORIAS_EVIDENCIA from '../seguimiento/categoriasEvidencia';
+import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 
 // comentarios/evidencias del modelo viejo NUNCA soportaron 'Tarea' — para
 // tarea todo cae al stream unificado `actividad` (mismo criterio que ya usa
@@ -90,20 +91,9 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
   // usuario no tiene que abrir el modal de nuevo para dejar una segunda
   // evidencia del mismo reporte.
   const [evidencias, setEvidencias] = useState([]);
-  const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
-  // Candado síncrono aparte de `guardando`: dos clics casi simultáneos
-  // (doble clic, o Enter + clic) pueden disparar guardar() dos veces antes
-  // de que React re-renderice con el botón ya deshabilitado — `guardando`
-  // es estado, así que ambas llamadas lo leen en false todavía. Un ref se
-  // actualiza al instante, sin esperar un render, así que sí corta la
-  // segunda llamada. Sin esto, un reporte con estatus/avance + evidencia
-  // podía quedar duplicado por completo en el stream de actividad.
-  const guardandoRef = useRef(false);
 
   const puedeCapturarAvance = !esContenedor && !congelado;
-  const puedeGuardar = estatus.trim().length > 0 && !guardando
-    && evidencias.every(ev => ev.modo === 'archivo' || ev.url.trim().length > 0);
 
   function agregarArchivos(fileList) {
     const nuevos = Array.from(fileList).map(archivo => ({
@@ -121,10 +111,15 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
     setEvidencias(prev => prev.filter(ev => ev.id !== id));
   }
 
-  async function guardar() {
-    if (!puedeGuardar || guardandoRef.current) return;
-    guardandoRef.current = true;
-    setGuardando(true); setError('');
+  // useEnvioUnico ya trae su propio candado síncrono (useRef) contra
+  // doble-submit — dos clics casi simultáneos (doble clic, o Enter +
+  // clic) antes ejecutaban el cuerpo completo dos veces porque
+  // `guardando` es estado de React (asíncrono); sin candado síncrono, un
+  // reporte con estatus/avance + evidencia podía quedar duplicado por
+  // completo en el stream de actividad.
+  const [guardar, guardando] = useEnvioUnico(async () => {
+    if (!puedeGuardar) return;
+    setError('');
     try {
       const datos = { estatus_cualitativo: estatus.trim() };
       if (puedeCapturarAvance) {
@@ -154,11 +149,11 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
       onCerrar?.();
     } catch (err) {
       setError(err.response?.data?.mensaje || 'No se pudo guardar el avance');
-    } finally {
-      guardandoRef.current = false;
-      setGuardando(false);
     }
-  }
+  });
+
+  const puedeGuardar = estatus.trim().length > 0 && !guardando
+    && evidencias.every(ev => ev.modo === 'archivo' || ev.url.trim().length > 0);
 
   return createPortal((
     <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4" onClick={onCerrar}>

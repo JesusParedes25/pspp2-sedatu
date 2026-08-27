@@ -27,6 +27,7 @@ import ModalCartera from '../../components/carteras/ModalCartera';
 import { ImagePlus, X, Plus, Trash2, ChevronDown, Briefcase, Copy } from 'lucide-react';
 import ModalDuplicarProyecto from '../../components/proyectos/ModalDuplicarProyecto';
 import SelectorIndicadorCatalogo from '../../components/indicadores/SelectorIndicadorCatalogo';
+import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 
 const PASOS = [
   'Información general',
@@ -67,7 +68,6 @@ export default function NuevoProyecto() {
   const { usuario } = useAuth();
   const { puedeCrearProyecto } = usePermisosGlobales();
   const [pasoActual, setPasoActual] = useState(0);
-  const [enviando, setEnviando] = useState(false);
 
   // Catálogos para selects
   const [dgs, setDgs] = useState([]);
@@ -168,9 +168,10 @@ export default function NuevoProyecto() {
     if (refImagen.current) refImagen.current.value = '';
   }
 
-  // Enviar formulario
-  async function crearProyecto() {
-    setEnviando(true);
+  // Enviar formulario — sin este candado, un doble clic en "Crear
+  // proyecto" duplicaba TODO: el proyecto, la cartera, la portada y cada
+  // etapa/acción planificada.
+  const [crearProyecto, enviando] = useEnvioUnico(async () => {
     try {
       const respuesta = await proyectosApi.crearProyecto(datos);
       const nuevoId = respuesta.datos.id;
@@ -225,10 +226,8 @@ export default function NuevoProyecto() {
       navigate(`/proyectos/${nuevoId}`);
     } catch (err) {
       mostrarToast(err.response?.data?.mensaje || 'Error al crear proyecto', 'error');
-    } finally {
-      setEnviando(false);
     }
-  }
+  });
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">

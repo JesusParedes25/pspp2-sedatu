@@ -21,13 +21,13 @@ import { X, Loader2, Copy } from 'lucide-react';
 import * as etapasApi from '../../api/etapas';
 import * as accionesApi from '../../api/acciones';
 import * as tareasApi from '../../api/tareas';
+import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 
 export default function ModalDuplicarNodo({ tipo, nodo, proyectoId, onCerrar, onCompletado, mostrarToast }) {
   const [cargandoDestinos, setCargandoDestinos] = useState(true);
   const [etapas, setEtapas] = useState([]); // para tipo 'accion': lista plana de etapas
   const [gruposAcciones, setGruposAcciones] = useState([]); // para tipo 'tarea': [{etapa, acciones:[]}]
   const [seleccionados, setSeleccionados] = useState(() => new Set());
-  const [duplicando, setDuplicando] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -63,9 +63,8 @@ export default function ModalDuplicarNodo({ tipo, nodo, proyectoId, onCerrar, on
     });
   }
 
-  async function confirmar() {
+  const [confirmar, duplicando] = useEnvioUnico(async () => {
     if (seleccionados.size === 0) return;
-    setDuplicando(true);
     setError(null);
     let exitos = 0;
     let fallos = 0;
@@ -110,7 +109,6 @@ export default function ModalDuplicarNodo({ tipo, nodo, proyectoId, onCerrar, on
       }
     }
 
-    setDuplicando(false);
     if (exitos > 0) {
       mostrarToast?.(
         fallos > 0
@@ -123,7 +121,7 @@ export default function ModalDuplicarNodo({ tipo, nodo, proyectoId, onCerrar, on
     } else {
       setError('No se pudo duplicar en ningún destino. Intenta de nuevo.');
     }
-  }
+  });
 
   const sinDestinos = !cargandoDestinos && tipo === 'accion' ? etapas.length === 0 : (!cargandoDestinos && gruposAcciones.length === 0);
 
