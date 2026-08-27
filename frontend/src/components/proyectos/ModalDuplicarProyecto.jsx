@@ -18,6 +18,7 @@ import { useState, useEffect } from 'react';
 import { X, Loader2, Copy, Search, Calendar, MapPin, BarChart3, Users, Paperclip, Check } from 'lucide-react';
 import * as proyectosApi from '../../api/proyectos';
 import * as etapasApi from '../../api/etapas';
+import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 
 const OPCIONES = [
   { clave: 'fechas', icono: Calendar, etiqueta: 'Fechas',
@@ -58,7 +59,6 @@ export default function ModalDuplicarProyecto({ proyectoOrigen = null, onCerrar,
     fechas: false, indicadores: true, territorio: true, participantes: false, archivos: false,
   });
   const [estructura, setEstructura] = useState(null);
-  const [duplicando, setDuplicando] = useState(false);
   const [error, setError] = useState(null);
 
   // Lista de proyectos para elegir origen
@@ -99,9 +99,8 @@ export default function ModalDuplicarProyecto({ proyectoOrigen = null, onCerrar,
     return () => { vivo = false; };
   }, [origen]);
 
-  async function confirmar() {
+  const [confirmar, duplicando] = useEnvioUnico(async () => {
     if (!origen || !nombre.trim()) return;
-    setDuplicando(true);
     setError(null);
     try {
       const res = await proyectosApi.duplicarProyecto(origen.id, { nombre: nombre.trim(), incluir });
@@ -109,9 +108,8 @@ export default function ModalDuplicarProyecto({ proyectoOrigen = null, onCerrar,
       onDuplicado?.(res.datos);
     } catch (err) {
       setError(err.response?.data?.mensaje || 'No se pudo duplicar el proyecto.');
-      setDuplicando(false);
     }
-  }
+  });
 
   const total = estructura ? estructura.etapas + estructura.acciones + estructura.tareas : 0;
 

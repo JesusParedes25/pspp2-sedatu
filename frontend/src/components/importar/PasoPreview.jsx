@@ -6,12 +6,12 @@ import { useState, useEffect } from 'react';
 import { Check, AlertTriangle, AlertCircle, Loader2 } from 'lucide-react';
 import ArbolPreview from './ArbolPreview';
 import * as importarApi from '../../api/importar';
+import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 
 export default function PasoPreview({ fileId, config, proyectoId, sheetIndex, onImportado, onCerrar }) {
   const [preview, setPreview] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
-  const [importando, setImportando] = useState(false);
   const [resultado, setResultado] = useState(null);
 
   useEffect(() => {
@@ -31,8 +31,7 @@ export default function PasoPreview({ fileId, config, proyectoId, sheetIndex, on
     }
   };
 
-  const ejecutarImport = async () => {
-    setImportando(true);
+  const [ejecutarImport, importando] = useEnvioUnico(async () => {
     setError(null);
     try {
       const res = await importarApi.confirmar({ fileId, config, proyectoId, skipDuplicados: true, sheetIndex });
@@ -40,10 +39,8 @@ export default function PasoPreview({ fileId, config, proyectoId, sheetIndex, on
       if (onImportado) onImportado();
     } catch (e) {
       setError(e.response?.data?.mensaje || e.message);
-    } finally {
-      setImportando(false);
     }
-  };
+  });
 
   // Estado: resultado exitoso
   if (resultado) {

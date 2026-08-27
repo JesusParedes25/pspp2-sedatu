@@ -20,6 +20,7 @@ import SelectorIndicadorCatalogo from '../indicadores/SelectorIndicadorCatalogo'
 import * as etapasApi from '../../api/etapas';
 import * as accionesApi from '../../api/acciones';
 import { usePermisosProyecto } from '../../hooks/usePermisos';
+import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 
 const TIPOS_INDICADOR = [
   { valor: 'Avance_fisico', etiqueta: 'Avance físico' },
@@ -53,7 +54,6 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
   const [programas, setProgramas]           = useState([]);
   const [direccionesArea, setDireccionesArea] = useState([]);
   const [cargando, setCargando]             = useState(true);
-  const [enviando, setEnviando]             = useState(false);
   const [mostrarCatalogoInd, setMostrarCatalogoInd] = useState(false);
   const [textoEtiqueta, setTextoEtiqueta]   = useState('');
   const [imagenPortada, setImagenPortada]   = useState(null);
@@ -275,9 +275,8 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
     setTimeout(() => actualizarIndicador(key, 'metas_anuales', nuevas), 0);
   }
 
-  async function guardar() {
-    if (!datos.nombre.trim() || enviando) return;
-    setEnviando(true);
+  const [guardar, enviando] = useEnvioUnico(async () => {
+    if (!datos.nombre.trim()) return;
     try {
       // 1. Verificar cascade deletes antes de proceder
       const eliminados = datos.indicadores.filter(i => i._eliminado && !i._esNuevo);
@@ -285,7 +284,7 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
         const check = await indicadoresApi.eliminarIndicadorConConfirm(ind.id, false);
         if (check.requiere_confirmacion) {
           const ok = confirm(check.mensaje + '\n\n¿Deseas continuar?');
-          if (!ok) { setEnviando(false); return; }
+          if (!ok) return;
         }
       }
 
@@ -315,10 +314,8 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
       onCerrar();
     } catch (err) {
       alert(err.response?.data?.mensaje || 'Error al guardar el proyecto');
-    } finally {
-      setEnviando(false);
     }
-  }
+  });
 
   const dasFiltradas = direccionesArea.filter(da => {
     if (!datos.id_dg_lider) return true;

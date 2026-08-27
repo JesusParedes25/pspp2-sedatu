@@ -11,6 +11,7 @@
 import { useState } from 'react';
 import { Layers, Zap, ListChecks, ChevronDown, ChevronRight, AlertTriangle, CheckCircle2, Loader2, ArrowRight } from 'lucide-react';
 import * as importarApi from '../../api/importar';
+import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 
 // ─── Propiedades destino por nivel ─────────────────────────────
 const PROPS_CONTENEDOR = [
@@ -179,7 +180,11 @@ export default function PasoMultiHoja({ fileId, multiHoja, proyectoId, onImporta
     } finally { setCargando(false); }
   }
 
-  async function ejecutarImportacion() {
+  // El candado del hook es lo único que evita disparar la importación dos
+  // veces: el botón que la dispara no tiene su propio `disabled` de
+  // "ocupado" (la UI cambia a la pantalla "Importando…" vía `paso`, pero
+  // eso pasa un instante después del clic, no en el mismo tick).
+  const [ejecutarImportacion] = useEnvioUnico(async () => {
     setPaso('importando');
     setError(null);
     try {
@@ -190,7 +195,7 @@ export default function PasoMultiHoja({ fileId, multiHoja, proyectoId, onImporta
       setError(e.response?.data?.mensaje || 'Error durante la importación.');
       setPaso('preview');
     }
-  }
+  });
 
   // ─── MAPEO: tabla de asignación de columnas ────────────────
   if (paso === 'mapeo') {
