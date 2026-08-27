@@ -137,11 +137,19 @@ async function eliminarTarea(id) {
 // fecha_limite. Tareas no tienen campos_extra (esa columna no existe en
 // esta tabla), así que a diferencia de etapas/acciones no hay rama para
 // "campos_extra.*".
+// "estado" NO está en CAMPOS_DIRECTOS a propósito: escribirlo directo sin
+// pasar por cambiarEstadoUtil (validaciones-estado.js) se saltaba el
+// motivo de bloqueo, la fila en `bloqueos`, la auditoría, estado_override,
+// y no recalculaba nada hacia arriba — el estatus se cambia desde el
+// selector de Estatus (SelectorEstado → PUT /estado).
 async function patchCampoTarea(tareaId, campo, valor) {
   const CAMPOS_DIRECTOS = {
-    nombre: 'nombre', descripcion: 'descripcion', estado: 'estado',
+    nombre: 'nombre', descripcion: 'descripcion',
     fecha_inicio: 'fecha_inicio', fecha_fin: 'fecha_limite', prioridad: 'prioridad',
   };
+  if (campo === 'estado') {
+    throw new Error(`Campo no permitido: ${campo} — se cambia desde el selector de Estatus (motivo de bloqueo, cascada y auditoría), no por edición en línea.`);
+  }
   const columna = CAMPOS_DIRECTOS[campo];
   if (!columna) throw new Error(`Campo no permitido: ${campo}`);
 

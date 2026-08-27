@@ -25,10 +25,9 @@ import { ArrowUpDown, SlidersHorizontal, MapPin, Layers, Target, CheckSquare, Tr
 import client from '../../api/client';
 import * as etapasApi from '../../api/etapas';
 import SemaforoDot from '../common/SemaforoDot';
+import SelectorEstado from '../common/SelectorEstado';
 import ModalRegistrarAvance from '../nodos/ModalRegistrarAvance';
 import { formatFecha } from '../../utils/fecha';
-
-const ESTADOS_OPCIONES = ['Pendiente', 'En_proceso', 'Bloqueada', 'Completada', 'Cancelada'];
 
 // dd/mm/aaaa — formato compacto para columnas angostas de la tabla
 const formatFechaCorta = (valor) => formatFecha(valor, { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -105,24 +104,28 @@ function CeldaNombre(props) {
   );
 }
 
-// ─── Celda select (para estado) ────────────────────────────────
-function CeldaSelect({ getValue, row, column, table, opciones }) {
-  const value = getValue();
-
-  const onChange = (e) => {
-    table.options.meta?.actualizarCelda(row.original, column.id, e.target.value);
-  };
+// ─── Celda de estado: SelectorEstado (motivo de bloqueo, cascada,
+// auditoría) — antes un <select> plano que escribía `estado` directo por
+// PATCH /:tipo/:id/campo, sin ninguna de esas garantías (ver
+// patchCampoEtapa/Accion/Tarea). `entidadTipo` distingue Subaccion de
+// Accion porque cambiarEstadoUtil las trata distinto (cascada a hijos).
+function CeldaEstado({ row, table }) {
+  const { tipo, estado, _raw } = row.original;
+  const entidadTipo = tipo === 'etapa'
+    ? 'Etapa'
+    : tipo === 'tarea'
+      ? 'Tarea'
+      : (_raw.id_accion_padre ? 'Subaccion' : 'Accion');
 
   return (
-    <select
-      value={value || ''}
-      onChange={onChange}
-      title={value ? value.replace(/_/g, ' ') : ''}
-      className="w-full px-1 py-1 text-xs border rounded bg-white cursor-pointer hover:bg-red-50"
-    >
-      <option value="">—</option>
-      {opciones.map(op => <option key={op} value={op}>{op.replace(/_/g, ' ')}</option>)}
-    </select>
+    <SelectorEstado
+      entidadTipo={entidadTipo}
+      entidadId={row.original.id}
+      estadoActual={estado}
+      estadoOverride={!!_raw.estado_override}
+      onCambio={() => table.options.meta?.onCambioEstado?.()}
+      className="text-xs"
+    />
   );
 }
 
@@ -261,6 +264,14 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
     }
   }, [onRefresh, cargarArbol]);
 
+  // "Estado" ya no pasa por actualizarCelda: SelectorEstado llama a
+  // PUT /estado directo (motivo de bloqueo, cascada, auditoría) y solo
+  // necesita que la tabla se refresque después.
+  const onCambioEstado = useCallback(() => {
+    cargarArbol();
+    if (onRefresh) onRefresh();
+  }, [onRefresh, cargarArbol]);
+
   // Columnas base
   const columns = useMemo(() => {
     const cols = [
@@ -284,7 +295,7 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
         header: 'Estado',
         accessorKey: 'estado',
         size: 130,
-        cell: (props) => <CeldaSelect {...props} opciones={ESTADOS_OPCIONES} />,
+        cell: CeldaEstado,
       },
       {
         id: 'fecha_inicio',
@@ -374,7 +385,7 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    meta: { actualizarCelda },
+    meta: { actualizarCelda, onCambioEstado },
   });
 
   if (cargando) {
