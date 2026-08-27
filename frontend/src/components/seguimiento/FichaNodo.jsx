@@ -136,6 +136,7 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
               entidadId={id}
               estadoActual={data.estado || 'Pendiente'}
               estadoOverride={data.estado_override}
+              esContenedor={esContenedor}
               onCambio={onActualizado}
               soloLectura={permisos.esSoloLectura}
             />

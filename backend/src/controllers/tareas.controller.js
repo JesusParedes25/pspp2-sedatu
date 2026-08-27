@@ -116,14 +116,14 @@ async function eliminar(req, res, next) {
 }
 
 async function patchAvanceSemaforo(req, res, next) {
+  const pool = require('../db/pool');
+  const client = await pool.connect();
   try {
-    const pool = require('../db/pool');
-    const client = await pool.connect();
     await client.query('BEGIN');
 
     const { rows: [tarea] } = await client.query('SELECT * FROM tareas WHERE id = $1', [req.params.id]);
     if (!tarea) {
-      await client.query('ROLLBACK'); client.release();
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: true, mensaje: 'Tarea no encontrada' });
     }
 
@@ -152,18 +152,18 @@ async function patchAvanceSemaforo(req, res, next) {
       if (estadoEfectivo === 'Completada' || estadoEfectivo === 'Pendiente' || estadoEfectivo === 'Cancelada') {
         // Ignorar: avance fijo según estado
       } else if (estadoEfectivo === 'Bloqueada') {
-        await client.query('ROLLBACK'); client.release();
+        await client.query('ROLLBACK');
         return res.status(400).json({ error: true, mensaje: 'No se puede modificar el avance de un nodo bloqueado.' });
       } else if (avance_actual === null) {
         sets.push('avance_actual = NULL, avance_override = FALSE');
       } else {
         const v = parseInt(avance_actual);
         if (isNaN(v) || v < 0) {
-          await client.query('ROLLBACK'); client.release();
+          await client.query('ROLLBACK');
           return res.status(400).json({ error: true, mensaje: 'avance_actual debe ser entre 0 y 99.' });
         }
         if (v >= 100) {
-          await client.query('ROLLBACK'); client.release();
+          await client.query('ROLLBACK');
           return res.status(400).json({ error: true, mensaje: 'Para llegar al 100% marca el nodo como Completada.' });
         }
         sets.push(`avance_actual = $${idx}, avance_override = TRUE`);
@@ -176,7 +176,7 @@ async function patchAvanceSemaforo(req, res, next) {
         sets.push('semaforo = NULL, semaforo_override = FALSE');
       } else {
         if (!['verde', 'ambar', 'rojo', 'gris'].includes(semaforo)) {
-          await client.query('ROLLBACK'); client.release();
+          await client.query('ROLLBACK');
           return res.status(400).json({ error: true, mensaje: 'Valor de semáforo inválido' });
         }
         sets.push(`semaforo = $${idx}, semaforo_override = TRUE`);
@@ -213,7 +213,7 @@ async function patchAvanceSemaforo(req, res, next) {
     }
 
     if (sets.length === 0 && municipios === undefined && !estadoCambiado) {
-      await client.query('ROLLBACK'); client.release();
+      await client.query('ROLLBACK');
       return res.status(400).json({ error: true, mensaje: 'No se proporcionaron campos para actualizar' });
     }
 
@@ -250,7 +250,7 @@ async function patchAvanceSemaforo(req, res, next) {
     }
 
     // Stream de actividad: registrar cambios de estatus/avance (misma transacción)
-    if (estado !== undefined) {
+    if (estadoCambiado) {
       await actividadQueries.crearActividad({
         tipoNodo: 'tarea', idNodo: req.params.id, tipoEvento: 'cambio_estatus',
         idUsuario: req.usuario?.id, contenido: `Estatus cambiado a ${estado}`,
@@ -273,10 +273,14 @@ async function patchAvanceSemaforo(req, res, next) {
     }
 
     await client.query('COMMIT');
-    client.release();
 
     res.json({ datos: updated, mensaje: 'Tarea actualizada' });
-  } catch (err) { next(err); }
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
 }
 
 module.exports = { listar, crear, actualizar, eliminar, patchAvanceSemaforo, patchCampo };

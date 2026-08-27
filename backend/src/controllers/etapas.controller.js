@@ -224,7 +224,8 @@ async function patchAvanceSemaforo(req, res, next) {
   const etapaId = req.params.id;
   const { avance_actual, semaforo, estado, prioridad, fecha_limite, fecha_inicio,
           escala_territorial, instrumento, cve_ent, cve_mun, id_zm, tipo, id_responsable,
-          nombre, descripcion, estatus_cualitativo, municipios } = req.body;
+          nombre, descripcion, estatus_cualitativo, municipios,
+          motivo_bloqueo, nota_resolucion } = req.body;
 
   const client = await pool.connect();
   try {
@@ -286,7 +287,13 @@ async function patchAvanceSemaforo(req, res, next) {
       }
     }
 
-    // Estado: rechazar si contenedor
+    // Estado: rechazar si contenedor. Si cambia, delega a cambiarEstadoUtil
+    // (validaciones-estado.js) — mismo patrón ya usado en tareas.controller.js
+    // y en actualizar() de este archivo: exige motivo al bloquear, cierra el
+    // bloqueo activo al salir de Bloqueada, registra auditoría, fija
+    // estado_override, y ya pone avance_actual=100/0 en Completada/Pendiente
+    // (con la columna correcta por tipo) — por eso ya no se hace a mano aquí.
+    let estadoCambiado = false;
     if (estado !== undefined) {
       if (!esHoja) {
         await client.query('ROLLBACK');
@@ -295,13 +302,16 @@ async function patchAvanceSemaforo(req, res, next) {
           mensaje: 'El estatus de un contenedor se calcula automáticamente a partir de sus partes.'
         });
       }
-      sets.push(`estado = $${idx}`);
-      params.push(estado); idx++;
-      if (estado === 'Completada') {
-        sets.push(`avance_actual = 100, avance_override = TRUE, porcentaje_calculado = 100`);
-      }
-      if (estado === 'Pendiente') {
-        sets.push(`avance_actual = 0, avance_override = TRUE, porcentaje_calculado = 0`);
+      // El chequeo de "no cambió" es obligatorio: sin él, un no-op (volver a
+      // mandar el mismo estado junto con otro campo) dispara el 400 de
+      // cambiarEstadoUtil ("ya está en ese estado").
+      if (estado !== rows[0].estado) {
+        await cambiarEstadoUtil(
+          'Etapa', etapaId, estado,
+          { motivoBloqueo: motivo_bloqueo, notaResolucion: nota_resolucion, idUsuario: req.usuario?.id },
+          client
+        );
+        estadoCambiado = true;
       }
     }
 
@@ -404,7 +414,7 @@ async function patchAvanceSemaforo(req, res, next) {
     }
 
     // Stream de actividad: registrar cambios de estatus/avance (misma transacción)
-    if (estado !== undefined) {
+    if (estadoCambiado) {
       await actividadQueries.crearActividad({
         tipoNodo: 'etapa', idNodo: etapaId, tipoEvento: 'cambio_estatus',
         idUsuario: req.usuario?.id, contenido: `Estatus cambiado a ${estado}`,

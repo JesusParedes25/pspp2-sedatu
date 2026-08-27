@@ -32,10 +32,21 @@ const ICONOS_ESTADO = {
  * @param {string}   entidadTipo    - 'Proyecto'|'Etapa'|'Accion'|'Subaccion'
  * @param {string}   entidadId      - UUID de la entidad
  * @param {string}   estadoActual   - Estado actual de la entidad
- * @param {boolean}  estadoOverride - Si es un contenedor con estatus fijado
- *                                    a mano (en vez del calculado de sus
- *                                    partes) — muestra la opción "Volver a
- *                                    automático".
+ * @param {boolean}  estadoOverride - Si el estatus quedó fijado a mano (en
+ *                                    vez del calculado de sus partes).
+ * @param {boolean}  esContenedor   - Si la entidad es un contenedor
+ *                                    (Etapa siempre, Accion/Subaccion con
+ *                                    hijos). El ✎/"Volver a automático"
+ *                                    solo tiene sentido para contenedores:
+ *                                    cambiarEstadoUtil fija estado_override
+ *                                    también en hojas (para que el cambio
+ *                                    "pegue" aunque el nodo no tenga nada
+ *                                    que lo recalcule solo), pero en una
+ *                                    hoja no hay "automático" al que volver
+ *                                    — "Volver a automático" ahí siempre
+ *                                    devuelve 400. Default true para no
+ *                                    cambiar el comportamiento donde no se
+ *                                    pasa (Proyecto, siempre contenedor).
  * @param {function} onCambio      - Callback tras cambio exitoso
  * @param {boolean}  soloLectura   - Deshabilita interacción
  * @param {string}   className     - Clases CSS adicionales
@@ -45,6 +56,7 @@ export default function SelectorEstado({
   entidadId,
   estadoActual,
   estadoOverride = false,
+  esContenedor = true,
   onCambio,
   soloLectura = false,
   className = ''
@@ -174,7 +186,7 @@ export default function SelectorEstado({
         title={soloLectura ? 'Solo lectura' : 'Cambiar estado'}
       >
         <EstadoChip estado={estadoActual} />
-        {estadoOverride && (
+        {estadoOverride && esContenedor && (
           <span title="Estatus fijado a mano — normalmente se calcula de sus partes" className="ml-1 text-gray-400 text-xs align-top">✎</span>
         )}
         {cargando && <span className="ml-1 text-xs text-gray-400 animate-pulse">…</span>}
@@ -204,7 +216,7 @@ export default function SelectorEstado({
               {est.replace(/_/g, ' ')}
             </button>
           ))}
-          {estadoOverride && (
+          {estadoOverride && esContenedor && (
             <>
               <div className="border-t border-gray-100 my-1" />
               <button

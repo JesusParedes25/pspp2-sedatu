@@ -304,7 +304,7 @@ async function patchAvanceSemaforo(req, res, next) {
   const accionId = req.params.id;
   const { avance_actual, semaforo, estado, prioridad, fecha_limite, fecha_inicio,
           escala_territorial, instrumento, cve_ent, cve_mun, id_zm, tipo, id_responsable, nombre, descripcion, observaciones,
-          estatus_cualitativo, municipios } = req.body;
+          estatus_cualitativo, municipios, motivo_bloqueo, nota_resolucion } = req.body;
 
   const client = await pool.connect();
   try {
@@ -340,18 +340,21 @@ async function patchAvanceSemaforo(req, res, next) {
     const params = [];
     let idx = 1;
 
-    // ── Estado (solo hojas) ──
-    if (estado !== undefined && esHoja) {
-      sets.push(`estado = $${idx}`);
-      params.push(estado); idx++;
-      // Completada → avance = 100
-      if (estado === 'Completada') {
-        sets.push(`avance_actual = 100, avance_override = TRUE, porcentaje_avance = 100`);
-      }
-      // Pendiente → avance = 0
-      if (estado === 'Pendiente') {
-        sets.push(`avance_actual = 0, avance_override = TRUE, porcentaje_avance = 0`);
-      }
+    // ── Estado (solo hojas) ── delega a cambiarEstadoUtil, mismo patrón
+    // que patchAvanceSemaforo de etapas y actualizar() de este archivo:
+    // exige motivo al bloquear, cierra el bloqueo activo al salir de
+    // Bloqueada, registra auditoría, fija estado_override, y ya pone
+    // avance_actual=100/0 en Completada/Pendiente — por eso ya no se hace
+    // a mano aquí. tipoRealAccion distingue Accion de Subaccion porque
+    // cambiarEstadoUtil las trata distinto (cascada a hijos).
+    let estadoCambiado = false;
+    if (estado !== undefined && esHoja && estado !== accion.estado) {
+      await cambiarEstadoUtil(
+        tipoRealAccion(accion), accionId, estado,
+        { motivoBloqueo: motivo_bloqueo, notaResolucion: nota_resolucion, idUsuario: req.usuario?.id },
+        client
+      );
+      estadoCambiado = true;
     }
 
     // ── Avance actual (solo hojas) ──
@@ -479,7 +482,7 @@ async function patchAvanceSemaforo(req, res, next) {
     }
 
     // Stream de actividad: registrar cambios de estatus/avance (misma transacción)
-    if (estado !== undefined) {
+    if (estadoCambiado) {
       await actividadQueries.crearActividad({
         tipoNodo: 'accion', idNodo: accionId, tipoEvento: 'cambio_estatus',
         idUsuario: req.usuario?.id, contenido: `Estatus cambiado a ${estado}`,
