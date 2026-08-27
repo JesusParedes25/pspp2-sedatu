@@ -22,7 +22,31 @@ const { recalcularEtapa, recalcularProyecto } = require('../utils/recalculos');
 const { recalcularIndicadoresProyecto } = require('../db/queries/indicadores.queries');
 const { recalcularAportacionesProyecto } = require('../db/queries/aportaciones.queries');
 const { registrarActividad } = require('../utils/actividad-log');
-const { obtenerProyectoId } = require('../utils/avance-semaforo');
+const { obtenerProyectoId, recalcularPadres } = require('../utils/avance-semaforo');
+
+// Tabla real por tipo de entidad — Subaccion es una fila más de `acciones`
+// (mismo modelo, distinta profundidad), Tarea vive en su propia tabla.
+const TABLA_POR_TIPO = { Proyecto: 'proyectos', Etapa: 'etapas', Accion: 'acciones', Subaccion: 'acciones', Tarea: 'tareas' };
+
+// Resuelve el id_proyecto de cualquier tipo de entidad. Reemplaza tres
+// bloques if/else casi idénticos que existían antes en este archivo (uno
+// por endpoint) — el de Tarea faltaba en los tres: como esta función caía
+// al branch de "accion" con el id de una TAREA, la consulta a `acciones`
+// nunca encontraba la fila y el registro de actividad/recálculo de
+// indicadores se saltaba en silencio para cualquier cambio de estado de
+// Tarea hecho desde PUT /estado.
+async function resolverProyectoId(entidadTipo, entidadId, client) {
+  if (entidadTipo === 'Proyecto') return entidadId;
+  if (entidadTipo === 'Etapa') {
+    const { rows: [e] } = await client.query('SELECT id_proyecto FROM etapas WHERE id = $1', [entidadId]);
+    return e?.id_proyecto || null;
+  }
+  if (entidadTipo === 'Tarea') {
+    const { rows: [t] } = await client.query('SELECT id_accion FROM tareas WHERE id = $1', [entidadId]);
+    return t ? obtenerProyectoId('accion', t.id_accion, client) : null;
+  }
+  return obtenerProyectoId('accion', entidadId, client); // Accion / Subaccion
+}
 
 /**
  * PUT /api/v1/estado
@@ -57,19 +81,10 @@ async function cambiarEstado(req, res) {
     await recalcularTrasEstado(entidad_tipo, entidad_id, client);
 
     // Registrar actividad
-    let proyectoId = null;
-    if (entidad_tipo === 'Proyecto') proyectoId = entidad_id;
-    else if (entidad_tipo === 'Etapa') {
-      const e = await client.query('SELECT id_proyecto FROM etapas WHERE id = $1', [entidad_id]);
-      proyectoId = e.rows[0]?.id_proyecto;
-    } else {
-      proyectoId = await obtenerProyectoId('accion', entidad_id, client);
-    }
+    const proyectoId = await resolverProyectoId(entidad_tipo, entidad_id, client);
     if (proyectoId) {
       const { rows: [ent] } = await client.query(
-        `SELECT nombre FROM ${
-          entidad_tipo === 'Proyecto' ? 'proyectos' : entidad_tipo === 'Etapa' ? 'etapas' : 'acciones'
-        } WHERE id = $1`, [entidad_id]
+        `SELECT nombre FROM ${TABLA_POR_TIPO[entidad_tipo]} WHERE id = $1`, [entidad_id]
       );
       await registrarActividad({
         id_proyecto: proyectoId,
@@ -123,23 +138,13 @@ async function restaurarEstadoAutomatico(req, res) {
 
     // Recalcular indicadores/aportaciones del proyecto afectado, igual que
     // tras cualquier otro cambio de estado.
-    let proyectoId = null;
-    if (entidad_tipo === 'Proyecto') {
-      proyectoId = entidad_id;
-    } else if (entidad_tipo === 'Etapa') {
-      const e = await client.query('SELECT id_proyecto FROM etapas WHERE id = $1', [entidad_id]);
-      proyectoId = e.rows[0]?.id_proyecto;
-    } else {
-      proyectoId = await obtenerProyectoId('accion', entidad_id, client);
-    }
+    const proyectoId = await resolverProyectoId(entidad_tipo, entidad_id, client);
     if (proyectoId) {
       await recalcularIndicadoresProyecto(proyectoId, client);
       await recalcularAportacionesProyecto(proyectoId, client);
 
       const { rows: [ent] } = await client.query(
-        `SELECT nombre FROM ${
-          entidad_tipo === 'Proyecto' ? 'proyectos' : entidad_tipo === 'Etapa' ? 'etapas' : 'acciones'
-        } WHERE id = $1`, [entidad_id]
+        `SELECT nombre FROM ${TABLA_POR_TIPO[entidad_tipo]} WHERE id = $1`, [entidad_id]
       );
       await registrarActividad({
         id_proyecto: proyectoId,
@@ -232,17 +237,24 @@ async function recalcularTrasEstado(entidadTipo, entidadId, client) {
     await recalcularProyecto(entidadId, client);
   }
 
-  // Recalcular indicadores auto-calculados del proyecto afectado
-  let proyectoId = null;
-  if (entidadTipo === 'Proyecto') {
-    proyectoId = entidadId;
-  } else if (entidadTipo === 'Etapa') {
-    const e = await client.query('SELECT id_proyecto FROM etapas WHERE id = $1', [entidadId]);
-    proyectoId = e.rows[0]?.id_proyecto;
-  } else if (entidadTipo === 'Accion' || entidadTipo === 'Subaccion') {
-    const a = await client.query('SELECT id_proyecto FROM acciones WHERE id = $1', [entidadId]);
-    proyectoId = a.rows[0]?.id_proyecto;
+  // Tarea: aditivo puro, antes esta rama no existía — cambiar el estatus
+  // de una tarea desde PUT /estado actualizaba `tareas.estado` pero nunca
+  // recalculaba la acción/etapa/proyecto padre (calcada de
+  // tareas.controller.js:232-243, que sí lo hace bien vía su propio
+  // PATCH).
+  if (entidadTipo === 'Tarea') {
+    const { rows: [tarea] } = await client.query('SELECT id_accion FROM tareas WHERE id = $1', [entidadId]);
+    if (!tarea) return;
+    await recalcularPadres('accion', tarea.id_accion, client);
+    const { rows: [accionPadre] } = await client.query(
+      'SELECT id_etapa, id_proyecto FROM acciones WHERE id = $1', [tarea.id_accion]
+    );
+    if (accionPadre?.id_etapa) await recalcularEtapa(accionPadre.id_etapa, client);
+    else if (accionPadre?.id_proyecto) await recalcularProyecto(accionPadre.id_proyecto, client);
   }
+
+  // Recalcular indicadores auto-calculados del proyecto afectado
+  const proyectoId = await resolverProyectoId(entidadTipo, entidadId, client);
   if (proyectoId) {
     await recalcularIndicadoresProyecto(proyectoId, client);
     await recalcularAportacionesProyecto(proyectoId, client);
