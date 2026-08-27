@@ -110,7 +110,7 @@ function CeldaNombre(props) {
 // patchCampoEtapa/Accion/Tarea). `entidadTipo` distingue Subaccion de
 // Accion porque cambiarEstadoUtil las trata distinto (cascada a hijos).
 function CeldaEstado({ row, table }) {
-  const { tipo, estado, _raw } = row.original;
+  const { tipo, estado, esContenedor, _raw } = row.original;
   const entidadTipo = tipo === 'etapa'
     ? 'Etapa'
     : tipo === 'tarea'
@@ -123,6 +123,7 @@ function CeldaEstado({ row, table }) {
       entidadId={row.original.id}
       estadoActual={estado}
       estadoOverride={!!_raw.estado_override}
+      esContenedor={esContenedor}
       onCambio={() => table.options.meta?.onCambioEstado?.()}
       className="text-xs"
     />
