@@ -53,6 +53,12 @@ async function crear(req, res, next) {
 
 async function actualizar(req, res, next) {
   try {
+    if (req.body.estado !== undefined) {
+      return res.status(400).json({
+        error: true,
+        mensaje: 'El estatus se cambia por PATCH /tareas/:id o por PUT /estado, no por aquí.'
+      });
+    }
     const tarea = await tareasQueries.actualizarTarea(req.params.id, req.body);
     if (!tarea) return res.status(404).json({ error: true, mensaje: 'Tarea no encontrada' });
     res.json({ datos: tarea, mensaje: 'Tarea actualizada' });
