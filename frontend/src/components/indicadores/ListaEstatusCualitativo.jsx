@@ -1,8 +1,8 @@
 /**
  * ARCHIVO: ListaEstatusCualitativo.jsx
  * PROPÓSITO: Mostrar los estatus cualitativos —la nota corta de texto
- *            libre por etapa, migración 047— en Tablero, Resumen de
- *            cartera y Panorama del proyecto.
+ *            libre por etapa/acción/tarea, migración 047— en Tablero,
+ *            Resumen de cartera y Panorama del proyecto.
  *
  * MINI-CLASE: el dato cualitativo junto al cuantitativo
  * ─────────────────────────────────────────────────────────────────
@@ -10,7 +10,9 @@
  * escondido: en el Tablero solo aparecía si el usuario pasaba el mouse
  * por la tarjeta correcta, y en el Panorama solo como nota suelta
  * dentro de las listas de acciones vencidas. En la práctica, alguien
- * se tomaba el trabajo de escribirlo y casi nadie lo leía.
+ * se tomaba el trabajo de escribirlo y casi nadie lo leía. Además,
+ * hasta hace poco solo se leía a nivel etapa aunque el modal lo captura
+ * en los tres niveles — cada item trae `tipo_nodo` para distinguirlos.
  *
  * `dentroDeProyecto` decide si se escribe el nombre del proyecto: en
  * el Panorama ya se sabe cuál es y repetirlo en cada línea es ruido;
@@ -19,6 +21,7 @@
  */
 import { Link } from 'react-router-dom';
 import { MessageSquare } from 'lucide-react';
+import { breadcrumbInternoEstatusCualitativo } from '../../utils/estatusCualitativo';
 
 function fechaCorta(valor) {
   if (!valor) return null;
@@ -30,7 +33,7 @@ function fechaCorta(valor) {
 export default function ListaEstatusCualitativo({
   items = [],
   dentroDeProyecto = false,
-  vacio = 'Ninguna etapa tiene un estatus cualitativo capturado todavía.',
+  vacio = 'Nada tiene un estatus cualitativo capturado todavía.',
   maxAltura = 'max-h-80',
 }) {
   if (items.length === 0) {
@@ -50,8 +53,8 @@ export default function ListaEstatusCualitativo({
             <div className="flex items-baseline justify-between gap-2">
               <p className="text-[11px] text-gray-500 min-w-0 truncate">
                 {dentroDeProyecto
-                  ? e.etapa_nombre
-                  : `${e.proyecto_nombre} › ${e.etapa_nombre}${e.dg_siglas ? ` · ${e.dg_siglas}` : ''}`}
+                  ? breadcrumbInternoEstatusCualitativo(e)
+                  : `${e.proyecto_nombre} › ${breadcrumbInternoEstatusCualitativo(e)}${e.dg_siglas ? ` · ${e.dg_siglas}` : ''}`}
               </p>
               {fecha && <span className="text-[10px] text-gray-400 flex-shrink-0">{fecha}</span>}
             </div>

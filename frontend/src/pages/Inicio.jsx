@@ -7,7 +7,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   FolderKanban, Activity, AlertTriangle, TrendingUp,
-  MapPin, ChevronRight, Clock, Target, Shield, Calendar, Layers
+  MapPin, ChevronRight, Clock, Target, Shield, Calendar, Layers, MessageSquare
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../context/AuthContext';
@@ -16,6 +16,7 @@ import client from '../api/client';
 import MapaTerritorialInicio from '../components/inicio/MapaTerritorialInicio';
 import TarjetaIndicador, { ETIQUETA_TIPO_INDICADOR } from '../components/indicadores/TarjetaIndicador';
 import ListaEstatusCualitativo, { TituloEstatusCualitativo } from '../components/indicadores/ListaEstatusCualitativo';
+import { breadcrumbInternoEstatusCualitativo } from '../utils/estatusCualitativo';
 
 const GUINDA = '#7B1C3E';
 const SEM = { verde: '#22c55e', ambar: '#f59e0b', rojo: '#ef4444', gris: '#9ca3af' };
@@ -291,7 +292,7 @@ function ProyectoCard({ proyecto }) {
     timeoutRef.current = setTimeout(() => {
       client.get(`/proyectos/${proyecto.id}/panorama-rapido`)
         .then(res => { cacheRef.current = res.data.datos; setPopover(p => p ? { ...p, cargando: false, datos: res.data.datos } : p); })
-        .catch(() => setPopover(p => p ? { ...p, cargando: false, datos: { etapas: [], actividad: [] } } : p));
+        .catch(() => setPopover(p => p ? { ...p, cargando: false, datos: { etapas: [], estatus_cualitativo: [], actividad: [] } } : p));
     }, 250);
   }
   function ocultarPopover() {
@@ -359,13 +360,30 @@ function ProyectoCard({ proyecto }) {
                         <span className="text-gray-400 flex-shrink-0">{et.acciones_completadas}/{et.total_acciones}</span>
                         <span className="text-gray-400 tabular-nums flex-shrink-0 w-8 text-right">{Math.round(et.avance)}%</span>
                       </div>
-                      {et.estatus_cualitativo && (
-                        <p className="text-[10px] text-gray-400 italic truncate pl-3">{et.estatus_cualitativo}</p>
-                      )}
                     </li>
                   ))}
                   {popover.datos.etapas.length > 6 && (
                     <li className="text-[10px] text-gray-400 text-center">+{popover.datos.etapas.length - 6} etapas más…</li>
+                  )}
+                </ul>
+              )}
+
+              <div className="flex items-center gap-1.5 mb-1.5 pt-1.5 border-t border-gray-100">
+                <MessageSquare size={11} className="text-teal-600" />
+                <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Estatus cualitativo</p>
+              </div>
+              {popover.datos.estatus_cualitativo.length === 0 ? (
+                <p className="text-[11px] text-gray-400 italic mb-2">Sin estatus cualitativo capturado.</p>
+              ) : (
+                <ul className="space-y-1 mb-2">
+                  {popover.datos.estatus_cualitativo.slice(0, 4).map(item => (
+                    <li key={item.id} className="text-[11px] leading-snug">
+                      <span className="text-gray-400">{breadcrumbInternoEstatusCualitativo(item)}: </span>
+                      <span className="text-gray-700 italic truncate">"{item.estatus_cualitativo}"</span>
+                    </li>
+                  ))}
+                  {popover.datos.estatus_cualitativo.length > 4 && (
+                    <li className="text-[10px] text-gray-400 text-center">+{popover.datos.estatus_cualitativo.length - 4} más…</li>
                   )}
                 </ul>
               )}

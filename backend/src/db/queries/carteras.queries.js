@@ -252,12 +252,16 @@ async function resumenCartera(carteraId) {
     valor_actual: parseFloat(i.valor_actual) || 0,
   }));
 
-  // Estatus cualitativo (nota corta de texto libre, migración 047) de las
-  // etapas de los proyectos de la cartera — mismo nivel que ya usa el
-  // popover de proyecto en Inicio.jsx (ProyectoCard), no a nivel acción ni
-  // tarea: es la señal de "¿cómo va esto ahora mismo?" por fase principal.
+  // Estatus cualitativo (nota corta de texto libre, migración 047) de los
+  // proyectos de la cartera — se captura en los tres niveles (etapa,
+  // acción/subacción, tarea), así que se lee con un UNION ALL de los tres,
+  // igual que obtenerEstatusCualitativo en inicio.queries.js (mismo
+  // criterio, escopado aquí por cartera_proyecto en vez de proyectoIds).
   const { rows: estatusCualitativo } = await pool.query(`
-    SELECT e.id, e.nombre AS etapa_nombre, e.estatus_cualitativo, e.estatus_cualitativo_fecha,
+    SELECT e.id, 'etapa' AS tipo_nodo,
+      e.nombre AS etapa_nombre, NULL::text AS accion_nombre,
+      NULL::text AS accion_padre_nombre, NULL::text AS tarea_nombre,
+      e.estatus_cualitativo, e.estatus_cualitativo_fecha,
       p.id AS id_proyecto, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas
     FROM cartera_proyecto cp
     JOIN etapas e ON e.id_proyecto = cp.proyecto_id
@@ -265,7 +269,40 @@ async function resumenCartera(carteraId) {
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
     WHERE cp.cartera_id = $1
       AND e.estatus_cualitativo IS NOT NULL AND e.estatus_cualitativo != ''
-    ORDER BY e.estatus_cualitativo_fecha DESC NULLS LAST
+
+    UNION ALL
+
+    SELECT a.id, 'accion' AS tipo_nodo,
+      et.nombre AS etapa_nombre, a.nombre AS accion_nombre,
+      padre.nombre AS accion_padre_nombre, NULL::text AS tarea_nombre,
+      a.estatus_cualitativo, a.estatus_cualitativo_fecha,
+      p.id AS id_proyecto, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas
+    FROM cartera_proyecto cp
+    JOIN acciones a ON a.id_proyecto = cp.proyecto_id
+    JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
+    LEFT JOIN etapas et ON et.id = a.id_etapa
+    LEFT JOIN acciones padre ON padre.id = a.id_accion_padre
+    LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
+    WHERE cp.cartera_id = $1
+      AND a.estatus_cualitativo IS NOT NULL AND a.estatus_cualitativo != ''
+
+    UNION ALL
+
+    SELECT t.id, 'tarea' AS tipo_nodo,
+      et.nombre AS etapa_nombre, a.nombre AS accion_nombre,
+      NULL::text AS accion_padre_nombre, t.nombre AS tarea_nombre,
+      t.estatus_cualitativo, t.estatus_cualitativo_fecha,
+      p.id AS id_proyecto, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas
+    FROM cartera_proyecto cp
+    JOIN acciones a ON a.id_proyecto = cp.proyecto_id
+    JOIN tareas t ON t.id_accion = a.id
+    JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
+    LEFT JOIN etapas et ON et.id = a.id_etapa
+    LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
+    WHERE cp.cartera_id = $1
+      AND t.estatus_cualitativo IS NOT NULL AND t.estatus_cualitativo != ''
+
+    ORDER BY estatus_cualitativo_fecha DESC NULLS LAST
   `, [carteraId]);
 
   return {

@@ -204,14 +204,18 @@ async function obtenerTodosParticipantes(proyectoId) {
 }
 
 // GET /proyectos/:id/panorama-rapido — vista compacta para el hover de ProyectoCard
-// en Inicio: árbol de etapas (nivel superior) + últimas actividades del proyecto.
-// Deliberadamente ligero (sin subacciones/tareas anidadas) para que responda
-// rápido en un hover sin disparar N+1 queries pesadas.
+// en Inicio: árbol de etapas (nivel superior) + estatus cualitativo (los tres
+// niveles) + últimas actividades del proyecto. El árbol de "Estructura" es
+// deliberadamente ligero (sin subacciones/tareas anidadas) para que responda
+// rápido en un hover sin disparar N+1 queries pesadas — el estatus cualitativo
+// SÍ cubre los tres niveles porque reutiliza obtenerEstatusCualitativo, la
+// misma query ya usada (y ya rápida) en el Panorama completo.
 async function obtenerPanoramaRapido(req, res, next) {
   try {
     const proyectoId = req.params.id;
-    const [etapas, actividad] = await Promise.all([
+    const [etapas, estatusCualitativo, actividad] = await Promise.all([
       etapasQueries.obtenerEtapasPorProyecto(proyectoId),
+      inicioQueries.obtenerEstatusCualitativo([proyectoId]),
       inicioQueries.obtenerActividadReciente([proyectoId]),
     ]);
 
@@ -222,8 +226,8 @@ async function obtenerPanoramaRapido(req, res, next) {
           avance: e.avance_actual ?? Number(e.porcentaje_calculado) ?? 0,
           total_acciones: Number(e.total_acciones) || 0,
           acciones_completadas: Number(e.acciones_completadas) || 0,
-          estatus_cualitativo: e.estatus_cualitativo,
         })),
+        estatus_cualitativo: estatusCualitativo,
         actividad: actividad.slice(0, 6),
       },
     });
