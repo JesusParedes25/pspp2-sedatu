@@ -91,11 +91,29 @@ export default function Inicio() {
 
       {/* ═══ MAPA + INDICADORES (mitad de ancho cada uno; el que falte, el otro ocupa todo) ═══ */}
       <div className={`grid grid-cols-1 gap-4 ${indicadores.length > 0 ? 'lg:grid-cols-2' : ''}`}>
-        <div className="card p-5">
-          <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
-            <MapPin size={14} /> Incidencia territorial
-          </h2>
-          <MapaTerritorialInicio />
+        <div className="space-y-4">
+          <div className="card p-5">
+            <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
+              <MapPin size={14} /> Incidencia territorial
+            </h2>
+            <MapaTerritorialInicio />
+          </div>
+
+          {/* ═══ ESTATUS CUALITATIVO ═══
+              La nota corta por etapa que responde "¿cómo va esto ahora
+              mismo?". Antes solo se veía pasando el mouse por la tarjeta
+              de un proyecto, o sea casi nunca: alguien se tomaba el
+              trabajo de escribirla y nadie la leía. Va debajo del mapa
+              porque esa columna suele quedar más corta que la de
+              Indicadores — llena el espacio que si no quedaría en
+              blanco, en vez de vivir como bloque aparte de ancho
+              completo. */}
+          {estatus_cualitativo.length > 0 && (
+            <div className="card p-5">
+              <TituloEstatusCualitativo />
+              <ListaEstatusCualitativo items={estatus_cualitativo} maxAltura="max-h-72" />
+            </div>
+          )}
         </div>
 
         {indicadores.length > 0 && (
@@ -107,20 +125,6 @@ export default function Inicio() {
           </div>
         )}
       </div>
-
-      {/* ═══ ESTATUS CUALITATIVO ═══
-          La nota corta por etapa que responde "¿cómo va esto ahora
-          mismo?". Antes solo se veía pasando el mouse por la tarjeta de
-          un proyecto, o sea casi nunca: alguien se tomaba el trabajo de
-          escribirla y nadie la leía. Va después de los indicadores
-          porque es su contraparte — el número dice cuánto, esto dice
-          por qué. */}
-      {estatus_cualitativo.length > 0 && (
-        <div className="card p-5">
-          <TituloEstatusCualitativo />
-          <ListaEstatusCualitativo items={estatus_cualitativo} maxAltura="max-h-72" />
-        </div>
-      )}
 
       {/* ═══ VENCIDOS + POR VENCER (mitad de ancho cada uno; el que falte, el otro ocupa todo) ═══ */}
       {(vencidos.length > 0 || por_vencer.length > 0) && (
