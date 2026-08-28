@@ -5,11 +5,18 @@
  *            semáforo y el selector múltiple de municipios.
  */
 import { useState, useEffect, useRef } from 'react';
-import { Lock } from 'lucide-react';
+import { Lock, Pencil } from 'lucide-react';
 import { COLORES_SEMAFORO, CHIP_BG } from '../../common/SemaforoDot';
 
 // ─── Campo texto inline (click-to-edit) ──────────────────────
-export function CampoTextoInline({ valor, campo, onGuardar, soloLectura, placeholder, className, multiline, maxLength }) {
+// iconoEditar: lápiz visible junto al valor — sin esto, la única señal de
+// que el texto es editable es el cursor+hover+title al pasar el mouse, que
+// resultó no ser descubrible (un campo así, sin nada que lo distinga de
+// texto plano, se reportó como "no se puede editar").
+// requerido: si se confirma vacío, revierte al valor anterior sin llamar
+// onGuardar (mismo camino que Escape) — evita mandar NULL a una columna
+// NOT NULL (nombre en etapas/acciones/tareas) y que el guardado truene.
+export function CampoTextoInline({ valor, campo, onGuardar, soloLectura, placeholder, className, multiline, maxLength, iconoEditar, requerido }) {
   const [editando, setEditando] = useState(false);
   const [texto, setTexto] = useState(valor || '');
   const ref = useRef(null);
@@ -18,18 +25,25 @@ export function CampoTextoInline({ valor, campo, onGuardar, soloLectura, placeho
   useEffect(() => { if (editando && ref.current) ref.current.focus(); }, [editando]);
 
   function confirmar() {
+    const limpio = texto.trim();
+    if (requerido && !limpio) {
+      setTexto(valor || '');
+      setEditando(false);
+      return;
+    }
     setEditando(false);
-    if (texto.trim() !== (valor || '').trim()) onGuardar(texto.trim() || null);
+    if (limpio !== (valor || '').trim()) onGuardar(limpio || null);
   }
 
   if (soloLectura || !editando) {
     return (
       <div
         onClick={() => !soloLectura && setEditando(true)}
-        className={`${className} ${!soloLectura ? 'cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1' : ''} ${!valor && !soloLectura ? 'italic text-gray-300' : ''}`}
+        className={`${className} ${!soloLectura ? 'cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1' : ''} ${!valor && !soloLectura ? 'italic text-gray-300' : ''} ${iconoEditar ? 'inline-flex items-center gap-1.5' : ''}`}
         title={!soloLectura ? 'Clic para editar' : undefined}
       >
-        {valor || placeholder || '—'}
+        <span>{valor || placeholder || '—'}</span>
+        {iconoEditar && !soloLectura && <Pencil size={12} className="text-gray-300 flex-shrink-0" />}
       </div>
     );
   }
