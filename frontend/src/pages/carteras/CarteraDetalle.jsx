@@ -260,14 +260,15 @@ export default function CarteraDetalle() {
             )}
           </div>
 
-          {/* Estatus cualitativo — la nota corta por etapa (migración 047)
-              que dice "¿cómo va esto ahora mismo?". Misma sección y mismo
-              componente que el Tablero y el Panorama del proyecto. */}
+          {/* Estatus cualitativo — la nota corta por etapa/acción/tarea
+              (migración 047) que dice "¿cómo va esto ahora mismo?". Misma
+              sección y mismo componente que el Tablero y el Panorama del
+              proyecto. */}
           <div className="card p-5">
             <TituloEstatusCualitativo />
             <ListaEstatusCualitativo
               items={resumen.estatus_cualitativo}
-              vacio="Ninguna etapa de los proyectos de esta cartera tiene un estatus cualitativo capturado todavía."
+              vacio="Ningún proyecto de esta cartera tiene un estatus cualitativo capturado todavía."
             />
           </div>
 

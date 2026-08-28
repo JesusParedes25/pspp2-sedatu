@@ -192,26 +192,61 @@ async function obtenerActividadReciente(proyectoIds) {
   return rows;
 }
 
-// Estatus cualitativo — la nota corta de texto libre por etapa
-// (migración 047) que responde "¿cómo va esto ahora mismo?". Hasta
-// ahora en el Tablero solo se veía dentro del popover de un proyecto,
-// o sea únicamente si el usuario pasaba el mouse por la tarjeta
-// correcta: en la práctica, invisible. Mismo criterio que el Resumen de
-// cartera — solo etapas, que es el nivel donde se captura.
+// Estatus cualitativo — la nota corta de texto libre por nodo
+// (migración 047) que responde "¿cómo va esto ahora mismo?". Se captura
+// en los tres niveles (etapa, acción/subacción, tarea) desde el mismo
+// modal "Registrar avance", así que se lee con un UNION ALL de los tres
+// — antes solo se leía "FROM etapas", dejando fuera notas capturadas a
+// nivel acción o tarea aunque se hubieran guardado correctamente.
+// `acciones` trae id_etapa/id_proyecto en cada fila (incluidas
+// subacciones, backfill migración 065), así que no hace falta recorrer
+// id_accion_padre para llegar a etapa/proyecto — solo para el nombre
+// del padre (accion_padre_nombre, breadcrumb de subacción).
 async function obtenerEstatusCualitativo(proyectoIds) {
   if (!proyectoIds || proyectoIds.length === 0) return [];
   const { rows } = await pool.query(`
-    SELECT e.id, e.nombre AS etapa_nombre, e.estatus_cualitativo,
-           e.estatus_cualitativo_fecha,
-           p.id AS id_proyecto, p.nombre AS proyecto_nombre,
-           dg.siglas AS dg_siglas
+    SELECT e.id, 'etapa' AS tipo_nodo,
+           e.nombre AS etapa_nombre, NULL::text AS accion_nombre,
+           NULL::text AS accion_padre_nombre, NULL::text AS tarea_nombre,
+           e.estatus_cualitativo, e.estatus_cualitativo_fecha,
+           p.id AS id_proyecto, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas
       FROM etapas e
       JOIN proyectos p ON p.id = e.id_proyecto AND p.deleted_at IS NULL
       LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
      WHERE e.id_proyecto = ANY($1::uuid[])
-       AND e.estatus_cualitativo IS NOT NULL
-       AND e.estatus_cualitativo <> \'\'
-     ORDER BY e.estatus_cualitativo_fecha DESC NULLS LAST
+       AND e.estatus_cualitativo IS NOT NULL AND e.estatus_cualitativo <> \'\'
+
+    UNION ALL
+
+    SELECT a.id, 'accion' AS tipo_nodo,
+           et.nombre AS etapa_nombre, a.nombre AS accion_nombre,
+           padre.nombre AS accion_padre_nombre, NULL::text AS tarea_nombre,
+           a.estatus_cualitativo, a.estatus_cualitativo_fecha,
+           p.id AS id_proyecto, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas
+      FROM acciones a
+      JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
+      LEFT JOIN etapas et ON et.id = a.id_etapa
+      LEFT JOIN acciones padre ON padre.id = a.id_accion_padre
+      LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
+     WHERE a.id_proyecto = ANY($1::uuid[])
+       AND a.estatus_cualitativo IS NOT NULL AND a.estatus_cualitativo <> \'\'
+
+    UNION ALL
+
+    SELECT t.id, 'tarea' AS tipo_nodo,
+           et.nombre AS etapa_nombre, a.nombre AS accion_nombre,
+           NULL::text AS accion_padre_nombre, t.nombre AS tarea_nombre,
+           t.estatus_cualitativo, t.estatus_cualitativo_fecha,
+           p.id AS id_proyecto, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas
+      FROM tareas t
+      JOIN acciones a ON a.id = t.id_accion
+      JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
+      LEFT JOIN etapas et ON et.id = a.id_etapa
+      LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
+     WHERE a.id_proyecto = ANY($1::uuid[])
+       AND t.estatus_cualitativo IS NOT NULL AND t.estatus_cualitativo <> \'\'
+
+     ORDER BY estatus_cualitativo_fecha DESC NULLS LAST
      LIMIT 20
   `, [proyectoIds]);
   return rows;

@@ -1,8 +1,10 @@
 /**
  * ARCHIVO: ListadoProyectos.jsx
  * PROPÓSITO: Página con grid de proyectos, filtros y paginación. Tiene dos
- *            vistas intercambiables: "Agrupado" (carteras + proyectos sin
- *            cartera) y "Todos los proyectos" (grid plano, como antes).
+ *            vistas intercambiables, en este orden: "Todos los proyectos"
+ *            (grid plano) y "Carteras de proyectos" (solo la grilla de
+ *            carteras — un proyecto sin cartera se ve únicamente en
+ *            "Todos los proyectos").
  *
  * MINI-CLASE: Paginación del lado del servidor
  * ─────────────────────────────────────────────────────────────────
@@ -16,10 +18,11 @@
  *
  * MINI-CLASE: Vista recordada en localStorage + URL
  * ─────────────────────────────────────────────────────────────────
- * El modo de vista (Agrupado / Todos los proyectos) se guarda en
+ * El modo de vista (identificador interno 'agrupado'/'todos', sin
+ * relación con el orden en que se muestran los botones) se guarda en
  * localStorage para que la próxima visita abra en el mismo modo, y
- * también en el query param ?vista= para que un link directo a
- * "Todos los proyectos" funcione sin depender de localStorage.
+ * también en el query param ?vista= para que un link directo funcione
+ * sin depender de localStorage.
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect } from 'react';
@@ -92,15 +95,6 @@ export default function ListadoProyectos() {
       {/* Switcher de vista */}
       <div role="group" aria-label="Modo de vista" className="inline-flex bg-gray-100 rounded-lg p-1">
         <button
-          onClick={() => cambiarVista('agrupado')}
-          aria-pressed={vista === 'agrupado'}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-            vista === 'agrupado' ? 'bg-white text-guinda-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <Briefcase size={13} /> Agrupado
-        </button>
-        <button
           onClick={() => cambiarVista('todos')}
           aria-pressed={vista === 'todos'}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
@@ -108,6 +102,15 @@ export default function ListadoProyectos() {
           }`}
         >
           <List size={13} /> Todos los proyectos
+        </button>
+        <button
+          onClick={() => cambiarVista('agrupado')}
+          aria-pressed={vista === 'agrupado'}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+            vista === 'agrupado' ? 'bg-white text-guinda-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Briefcase size={13} /> Carteras de proyectos
         </button>
       </div>
 
@@ -123,21 +126,21 @@ export default function ListadoProyectos() {
   );
 }
 
-// ─── Vista "Agrupado": carteras + proyectos sin cartera ───────────
+// ─── Vista "Carteras de proyectos": solo la grilla de carteras — un
+// proyecto que no pertenece a ninguna cartera no aparece aquí, solo en
+// "Todos los proyectos" ───────────────────────────────────────────
 function VistaAgrupada() {
   const [busqueda, setBusqueda] = useState('');
   const { carteras, cargando: cargandoCarteras, setFiltros: setFiltrosCarteras } = useCarteras();
-  const { proyectos: sinCartera, cargando: cargandoSinCartera, actualizarFiltros: actualizarFiltrosSinCartera } = useProyectos({ sin_cartera: true, limite: 24 });
 
   // Debounce: esperar a que el usuario deje de escribir antes de recargar
-  // carteras y proyectos sin cartera con el nuevo término de búsqueda.
+  // carteras con el nuevo término de búsqueda.
   useEffect(() => {
     const t = setTimeout(() => {
       setFiltrosCarteras({ busqueda: busqueda || undefined });
-      actualizarFiltrosSinCartera({ busqueda: busqueda || undefined, pagina: 1 });
     }, 300);
     return () => clearTimeout(t);
-  }, [busqueda, setFiltrosCarteras, actualizarFiltrosSinCartera]);
+  }, [busqueda, setFiltrosCarteras]);
 
   return (
     <div className="space-y-6">
@@ -145,7 +148,7 @@ function VistaAgrupada() {
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
         <input
           type="text"
-          placeholder="Buscar cartera o proyecto..."
+          placeholder="Buscar cartera..."
           value={busqueda}
           onChange={e => setBusqueda(e.target.value)}
           className="input-base pl-9"
@@ -166,24 +169,6 @@ function VistaAgrupada() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {carteras.map(cartera => <TarjetaCartera key={cartera.id} cartera={cartera} />)}
-          </div>
-        )}
-      </div>
-
-      {/* Proyectos sin cartera */}
-      <div>
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">Proyectos {!cargandoSinCartera && `(${sinCartera.length})`}</h2>
-        {cargandoSinCartera ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[1, 2, 3].map(i => <div key={i} className="card p-5 animate-pulse h-40" />)}
-          </div>
-        ) : sinCartera.length === 0 ? (
-          <p className="text-sm text-gray-400 italic px-1">
-            {busqueda ? 'Sin proyectos sueltos que coincidan con la búsqueda.' : 'Todos los proyectos pertenecen a alguna cartera.'}
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {sinCartera.map(proyecto => <TarjetaProyecto key={proyecto.id} proyecto={proyecto} />)}
           </div>
         )}
       </div>
