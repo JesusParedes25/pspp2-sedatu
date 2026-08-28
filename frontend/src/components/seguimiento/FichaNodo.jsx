@@ -34,6 +34,8 @@ import NodoCard from '../nodos/NodoCard';
 import PropiedadesElemento from './PropiedadesElemento';
 import LineageClicable from './LineageClicable';
 import SelectorEstado from '../common/SelectorEstado';
+import { CampoTextoInline } from './EtapasAvancesMD/Campos';
+import { useJerarquiaProyecto } from '../../hooks/useJerarquiaProyecto';
 import { formatFecha } from '../../utils/fecha';
 import { NIVELES } from '../../config/niveles';
 import { permisosDeNodo } from '../../hooks/usePermisos';
@@ -58,6 +60,19 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
   const esContenedor = tipo === 'etapa' || data.es_hoja === false;
   const [editandoFicha, setEditandoFicha] = useState(false);
   const fichaRef = useRef(null);
+  const { actualizar } = useJerarquiaProyecto(proyectoId);
+
+  // Mismo camino que guardarCampo en PanelDetalle.jsx (el otro lugar que ya
+  // edita nombre) — PATCH /etapas|acciones|tareas/:id vía useJerarquiaProyecto.
+  async function guardarNombre(valor) {
+    try {
+      await actualizar(tipo, id, 'nombre', valor);
+      mostrarToast?.('Actualizado', 'exito');
+      onActualizado?.();
+    } catch (err) {
+      mostrarToast?.(err.response?.data?.mensaje || 'Error al actualizar', 'error');
+    }
+  }
 
   // "Cambiar estatus" en la leyenda de Bloqueada/Cancelada (dentro de
   // NodoCard) trae a la vista el control de Estatus de Ficha — vive más
@@ -113,6 +128,25 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
                 {editandoFicha ? <><X size={11} /> Cerrar</> : <><Pencil size={11} /> Editar</>}
               </button>
             )}
+          </div>
+
+          {/* Nombre — mismo criterio que Estatus abajo: fuera del toggle
+              "Editar", guarda solo en cuanto se confirma. Es el único lugar
+              del panel derecho donde se puede renombrar (el encabezado
+              corto de arriba es solo de referencia, y las filas del centro
+              son a propósito de solo lectura — ver PanelDetalle.jsx, que
+              también edita nombre, en su encabezado grande). */}
+          <div className="mb-2.5">
+            <span className="text-[10px] text-gray-400 block">Nombre</span>
+            <CampoTextoInline
+              valor={data.nombre}
+              campo="nombre"
+              onGuardar={guardarNombre}
+              soloLectura={permisos.esSoloLectura}
+              className="text-sm font-medium text-gray-800"
+              iconoEditar
+              requerido
+            />
           </div>
 
           {/* Estatus (Pendiente/En_proceso/Bloqueada/Completada/Cancelada) —

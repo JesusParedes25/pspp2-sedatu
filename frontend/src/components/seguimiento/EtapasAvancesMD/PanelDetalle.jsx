@@ -113,6 +113,8 @@ export default function PanelDetalle({
             onGuardar={v => guardarCampo('nombre', v)}
             soloLectura={permisos.esSoloLectura}
             className="text-xl font-bold text-gray-900 leading-tight"
+            iconoEditar
+            requerido
           />
 
           <div className="mt-1.5 mb-1">
