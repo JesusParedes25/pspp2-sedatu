@@ -69,10 +69,12 @@ export const COLOR_FUNCION = {
   [FUNCION.LECTOR]: 'bg-gray-50 text-gray-500 border-gray-200',
 };
 
-// Funciones que implican participación real en el proyecto (aparecen
-// siempre) frente a los que solo describen el alcance del cargo (ruido
-// en un listado: se repetirían idénticos en cada tarjeta).
-const FUNCIONES_DE_PARTICIPACION = [FUNCION.RESPONSABLE, FUNCION.COLABORADOR, FUNCION.ATRIBUCION, FUNCION.PARCIAL];
+// Funciones que implican participación directa y personal en el
+// proyecto (responsable o colaborador asignado). Todo lo demás —
+// atribución por cargo, seguimiento, captura parcial, lectura— describe
+// alcance institucional o de consulta, no participación, y en un
+// listado de tarjetas es ruido: se repetiría casi idéntico en cada una.
+const FUNCIONES_DE_PARTICIPACION = [FUNCION.RESPONSABLE, FUNCION.COLABORADOR];
 
 /**
  * @param {object} proyecto  necesita id_creador, id_dg_lider y, si se
