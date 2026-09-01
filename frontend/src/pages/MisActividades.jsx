@@ -9,8 +9,14 @@
  * Los botones Semana/Mes/Trimestre/Año filtran por CUÁNDO vence algo
  * (una ventana de días alrededor de hoy). Las tarjetas Vencidas/
  * Próximas/En proceso/Completadas filtran por QUÉ ESTADO tiene. Ambos
- * filtros se combinan con AND: primero se decide qué estados mostrar,
- * luego de ese subconjunto se recorta al rango de fechas elegido.
+ * filtros se combinan con AND, y los dos parten de la MISMA base ya
+ * recortada por periodo (disponiblesPeriodo): primero se recorta al
+ * rango de fechas elegido, y de ahí se separa por estado. Los conteos
+ * de las tarjetas también salen de esa misma base — así son siempre
+ * el número exacto de resultados que aparecen al hacer clic en una,
+ * sin importar el periodo activo (antes los conteos ignoraban el
+ * periodo, así que una tarjeta podía marcar "30" con la lista
+ * mostrando solo 3, o vacía, según el periodo elegido).
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useMemo } from 'react';
@@ -88,46 +94,50 @@ export default function MisActividades() {
   // Base: nunca se muestran Canceladas (no hay tarjeta/filtro para eso).
   const disponibles = useMemo(() => items.filter(it => it.estado !== 'Cancelada'), [items]);
 
+  // Base recortada por periodo — ventana simétrica alrededor de hoy, así
+  // Semana ⊆ Mes ⊆ Trimestre ⊆ Año. Tanto los conteos de las tarjetas
+  // como la lista parten de esta misma base, para que sea imposible que
+  // se desincronicen entre sí (antes los conteos se calculaban sobre
+  // `disponibles` sin recortar, y la lista sí lo recortaba — una
+  // tarjeta podía marcar "30" con la lista mostrando 3, o vacía).
+  const disponiblesPeriodo = useMemo(() => {
+    const dias = PERIODOS.find(p => p.id === periodo)?.dias ?? 30;
+    return disponibles.filter(it => {
+      const d = diasRestantes(it.fecha_fin);
+      return d === null || (d >= -dias && d <= dias);
+    });
+  }, [disponibles, periodo]);
+
   // Filtro de estado. Sin selección ("Todas") = comportamiento actual:
   // excluye Completadas. Con selección, un ítem entra si coincide con
-  // CUALQUIERA de los filtros activos (OR entre chips, AND con el rango).
+  // CUALQUIERA de los filtros activos (OR entre chips, AND con el rango,
+  // ya aplicado en disponiblesPeriodo).
   const porEstado = useMemo(() => {
-    if (filtrosEstado.size === 0) return disponibles.filter(it => it.estado !== 'Completada');
-    return disponibles.filter(it => {
+    if (filtrosEstado.size === 0) return disponiblesPeriodo.filter(it => it.estado !== 'Completada');
+    return disponiblesPeriodo.filter(it => {
       const cats = categoriasDe(it);
       for (const f of filtrosEstado) if (cats.has(f)) return true;
       return false;
     });
-  }, [disponibles, filtrosEstado]);
+  }, [disponiblesPeriodo, filtrosEstado]);
 
-  // Filtro de rango de tiempo — ventana simétrica alrededor de hoy, así
-  // Semana ⊆ Mes ⊆ Trimestre ⊆ Año. Antes solo comparaba "d <= dias", lo
-  // que dejaba pasar cualquier vencida sin importar hace cuánto (una
-  // acción vencida hace 55 días aparecía igual en "Semana").
-  const filtrados = useMemo(() => {
-    const dias = PERIODOS.find(p => p.id === periodo)?.dias ?? 30;
-    return porEstado
-      .filter(it => {
-        const d = diasRestantes(it.fecha_fin);
-        return d === null || (d >= -dias && d <= dias);
-      })
-      .sort((a, b) => {
-        const da = diasRestantes(a.fecha_fin); const db = diasRestantes(b.fecha_fin);
-        if (da === null) return 1; if (db === null) return -1;
-        return da - db;
-      });
-  }, [porEstado, periodo]);
+  const filtrados = useMemo(() => [...porEstado].sort((a, b) => {
+    const da = diasRestantes(a.fecha_fin); const db = diasRestantes(b.fecha_fin);
+    if (da === null) return 1; if (db === null) return -1;
+    return da - db;
+  }), [porEstado]);
 
-  // Conteos de las tarjetas: totales estables (no se mueven al cambiar de
-  // periodo ni de chip activo) para que sirvan de referencia consistente.
+  // Conteos de las tarjetas: salen de disponiblesPeriodo, así que
+  // siempre coinciden con lo que se ve al hacer clic en una tarjeta con
+  // el periodo activo.
   const resumen = useMemo(() => {
-    const activos = disponibles.filter(it => it.estado !== 'Completada');
+    const activos = disponiblesPeriodo.filter(it => it.estado !== 'Completada');
     const vencidas = activos.filter(it => categoriasDe(it).has('vencidas')).length;
     const proximas = activos.filter(it => categoriasDe(it).has('proximas')).length;
     const enProceso = activos.filter(it => it.estado === 'En_proceso').length;
-    const completadas = disponibles.filter(it => it.estado === 'Completada').length;
+    const completadas = disponiblesPeriodo.filter(it => it.estado === 'Completada').length;
     return { total: activos.length, vencidas, proximas, enProceso, completadas };
-  }, [disponibles]);
+  }, [disponiblesPeriodo]);
 
   const CONTEO_POR_FILTRO = { vencidas: resumen.vencidas, proximas: resumen.proximas, enProceso: resumen.enProceso, completadas: resumen.completadas };
 
@@ -184,7 +194,7 @@ export default function MisActividades() {
             {filtrosEstado.size > 0 && (
               <button onClick={() => setFiltrosEstado(new Set())}
                 className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full text-guinda-600 hover:bg-guinda-50">
-                <X size={11} /> Limpiar filtros ({filtrados.length})
+                <X size={11} /> Limpiar filtros ({filtrosEstado.size})
               </button>
             )}
             {filtrosEstado.size === 0 && (

@@ -15,7 +15,7 @@
  * El calendario se muestra por defecto.
  * â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
  */
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { CalendarDays, List, ChevronLeft, ChevronRight, X, AlertCircle, Clock, CheckCircle2, Search, Layers, Target, CheckSquare, User, ChevronDown } from 'lucide-react';
 import * as accionesApi from '../api/acciones';
@@ -87,14 +87,15 @@ export default function Agenda(){
   const grupos=useMemo(()=>{
     const act=filtrados.filter(i=>i.estado!=='Completada'&&i.estado!=='Cancelada');
     const fin=filtrados.filter(i=>i.estado==='Completada'||i.estado==='Cancelada');
-    const asc=(a,b)=>(a.fecha_fin||'')<(b.fecha_fin||'')?-1:1;
+    const asc=(a,b)=>{const fa=a.fecha_fin||'',fb=b.fecha_fin||'';return fa<fb?-1:fa>fb?1:0;};
+    const desc=(a,b)=>-asc(a,b);
     return[
       {id:'venc',tit:'Vencidas',    I:AlertCircle, ic:'text-red-500',   items:act.filter(i=>(diff(i.fecha_fin)??0)<0).sort(asc)},
       {id:'hoy', tit:'Hoy',         I:Clock,       ic:'text-orange-500',items:act.filter(i=>i.fecha_fin===HOY)},
       {id:'sem', tit:'Esta semana', I:CalendarDays,ic:'text-amber-500', items:act.filter(i=>{const d=diff(i.fecha_fin);return d!==null&&d>0&&d<=7;}).sort(asc)},
       {id:'mes', tit:'Este mes',    I:CalendarDays,ic:'text-blue-500',  items:act.filter(i=>{const d=diff(i.fecha_fin);return d!==null&&d>7&&d<=30;}).sort(asc)},
       {id:'prox',tit:'PrÃ³ximas',    I:CalendarDays,ic:'text-green-500', items:act.filter(i=>{const d=diff(i.fecha_fin);return d!==null&&d>30;}).sort(asc)},
-      {id:'fin', tit:'Finalizadas', I:CheckCircle2,ic:'text-gray-400',  items:fin.sort((a,b)=>(b.fecha_fin||'')<(a.fecha_fin||'')?-1:1)},
+      {id:'fin', tit:'Finalizadas', I:CheckCircle2,ic:'text-gray-400',  items:fin.sort(desc)},
     ].filter(g=>g.items.length>0);
   },[filtrados]);
 
@@ -176,15 +177,47 @@ function Item({it}){
     </div>
   );
 }
-function Grupo({g}){
-  const[open,setOpen]=useState(g.id!=='fin');
-  return(<div><button onClick={()=>setOpen(v=>!v)} className="w-full flex items-center gap-2 mb-3"><g.I size={15} className={g.ic}/><span className="text-sm font-semibold text-gray-700">{g.tit}</span><span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{g.items.length}</span><ChevronDown size={13} className={`text-gray-400 ml-auto transition-transform ${open?'':'rotate-180'}`}/></button>{open&&<div className="space-y-2">{g.items.map(i=><Item key={`${i.tipo}-${i.id}`} it={i}/>)}</div>}</div>);
+// Agrupa un arreglo ya ordenado en "corridas" de items consecutivos del
+// mismo proyecto — para el grupo "Vencidas", que con 30+ items suele
+// tener varios seguidos del mismo proyecto y se lee mejor con un
+// sub-encabezado. No reordena nada, solo detecta rachas en el orden que
+// ya trae `items`.
+function corridasPorProyecto(items){
+  const corridas=[];
+  for(const it of items){
+    const ultima=corridas[corridas.length-1];
+    if(ultima&&ultima.proyecto_id===it.proyecto_id)ultima.items.push(it);
+    else corridas.push({proyecto_id:it.proyecto_id,proyecto_nombre:it.proyecto_nombre,items:[it]});
+  }
+  return corridas;
 }
-function VistaLista({grupos}){return <div className="space-y-6">{grupos.map(g=><Grupo key={g.id} g={g}/>)}</div>;}
+function Grupo({g,agruparPorProyecto}){
+  const[open,setOpen]=useState(g.id!=='fin');
+  return(<div><button onClick={()=>setOpen(v=>!v)} className="w-full flex items-center gap-2 mb-3"><g.I size={15} className={g.ic}/><span className="text-sm font-semibold text-gray-700">{g.tit}</span><span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{g.items.length}</span><ChevronDown size={13} className={`text-gray-400 ml-auto transition-transform ${open?'':'rotate-180'}`}/></button>
+  {open&&(agruparPorProyecto?(
+    <div>{corridasPorProyecto(g.items).map((c,idx)=>(
+      <div key={c.proyecto_id||idx}>
+        {c.items.length>=2&&<p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mt-3 mb-1 first:mt-0">{c.proyecto_nombre||'Sin proyecto'}</p>}
+        <div className="space-y-2">{c.items.map(i=><Item key={`${i.tipo}-${i.id}`} it={i}/>)}</div>
+      </div>
+    ))}</div>
+  ):(
+    <div className="space-y-2">{g.items.map(i=><Item key={`${i.tipo}-${i.id}`} it={i}/>)}</div>
+  ))}</div>);
+}
+function VistaLista({grupos}){return <div className="space-y-6">{grupos.map(g=><Grupo key={g.id} g={g} agruparPorProyecto={g.id==='venc'}/>)}</div>;}
 function VistaCalendario({diasCal,mes,setMes,dia,setDia,itemsDia}){
   function prev(){setMes(p=>new Date(p.getFullYear(),p.getMonth()-1,1));setDia(null);}
   function next(){setMes(p=>new Date(p.getFullYear(),p.getMonth()+1,1));setDia(null);}
   function irHoy(){const h=new Date();setMes(new Date(h.getFullYear(),h.getMonth(),1));setDia(null);}
+  // El panel de detalle se monta debajo del calendario y a menudo queda
+  // fuera del viewport sin que el usuario note que apareció — se lleva
+  // la vista hacia él en cuanto hay un día seleccionado con actividades
+  // (mismo patrón que FichaNodo.jsx::irAFicha).
+  const panelRef=useRef(null);
+  useEffect(()=>{
+    if(dia&&itemsDia.length>0)panelRef.current?.scrollIntoView({behavior:'smooth',block:'nearest'});
+  },[dia,itemsDia.length]);
   return(<div className="space-y-4"><div className="card p-4">
     <div className="flex items-center justify-between mb-4">
       <button onClick={prev} className="p-1.5 rounded-lg hover:bg-gray-100"><ChevronLeft size={18} className="text-gray-500"/></button>
@@ -201,6 +234,6 @@ function VistaCalendario({diasCal,mes,setMes,dia,setDia,itemsDia}){
     </div>
     <div className="flex flex-wrap items-center gap-4 mt-3 text-[11px] text-gray-400">{[['bg-red-500','Vencida'],['bg-orange-500','Hoy'],['bg-amber-400','Esta semana'],['bg-blue-400','Próxima'],['bg-gray-300','Finalizada']].map(([c,l])=><span key={l} className="flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${c}`}/>{l}</span>)}</div>
   </div>
-  {dia&&itemsDia.length>0&&<div className="card p-4"><div className="flex items-center justify-between mb-3"><h3 className="text-sm font-semibold text-gray-700">{(()=>{const[y,m,d]=dia.split('-').map(Number);return new Date(y,m-1,d);})().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}<span className="ml-2 text-xs font-normal text-gray-400">({itemsDia.length} actividad{itemsDia.length!==1?'es':''})</span></h3><button onClick={()=>setDia(null)} className="p-1 rounded hover:bg-gray-100"><X size={14} className="text-gray-400"/></button></div><div className="space-y-2">{itemsDia.map(it=><Item key={`${it.tipo}-${it.id}`} it={it}/>)}</div></div>}
+  {dia&&itemsDia.length>0&&<div ref={panelRef} className="card p-4"><div className="flex items-center justify-between mb-3"><h3 className="text-sm font-semibold text-gray-700">{(()=>{const[y,m,d]=dia.split('-').map(Number);return new Date(y,m-1,d);})().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}<span className="ml-2 text-xs font-normal text-gray-400">({itemsDia.length} actividad{itemsDia.length!==1?'es':''})</span></h3><button onClick={()=>setDia(null)} className="p-1 rounded hover:bg-gray-100"><X size={14} className="text-gray-400"/></button></div><div className="space-y-2">{itemsDia.map(it=><Item key={`${it.tipo}-${it.id}`} it={it}/>)}</div></div>}
   </div>);
 }
