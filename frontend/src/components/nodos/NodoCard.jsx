@@ -120,6 +120,13 @@ export default function NodoCard({
   // acción asociada. Sin esta prop (uso normal fuera del panel agrupado)
   // la leyenda se queda sin el enlace.
   onIrAFicha,
+  // Opcional: NodoCard no expone su estado abierto/cerrado hacia afuera
+  // por defecto — este callback avisa al contenedor cada vez que
+  // cambia, para que pueda mostrar algo propio solo mientras la tarjeta
+  // está expandida (p. ej. Mis actividades, que agrega ahí el acceso a
+  // Comentarios/Evidencia/Riesgos que agrupado oculta). Sin esta prop
+  // no pasa nada distinto — es un aviso adicional, no un control.
+  onToggleAbierto,
 }) {
   const { mostrarToast } = useUI();
   const [abierto, setAbierto] = useState(defaultAbierto);
@@ -203,6 +210,7 @@ export default function NodoCard({
   function toggleAbierto() {
     const next = !abierto;
     setAbierto(next);
+    onToggleAbierto?.(next);
     if (next && actividad === null) cargarActividad();
   }
 

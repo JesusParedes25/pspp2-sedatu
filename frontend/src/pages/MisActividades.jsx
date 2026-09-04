@@ -20,9 +20,10 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useMemo } from 'react';
-import { ListChecks, CalendarDays, AlertTriangle, Clock, TrendingUp, CheckCircle2, X } from 'lucide-react';
+import { ListChecks, CalendarDays, AlertTriangle, Clock, TrendingUp, CheckCircle2, X, MessageSquare, ChevronDown } from 'lucide-react';
 import * as accionesApi from '../api/acciones';
 import NodoCard from '../components/nodos/NodoCard';
+import ActividadStream from '../components/nodos/ActividadStream';
 import Agenda from './Agenda';
 
 const PERIODOS = [
@@ -70,6 +71,16 @@ export default function MisActividades() {
   const [cargando, setCargando] = useState(true);
   const [periodo, setPeriodo] = useState('mes');
   const [filtrosEstado, setFiltrosEstado] = useState(() => new Set());
+  // Tarjetas expandidas ahora mismo (NodoCard avisa vía onToggleAbierto) —
+  // solo mientras una tarjeta está abierta se ofrece el acceso a su
+  // Actividad (Comentarios/Evidencia/Riesgos), para no abultar la lista
+  // colapsada con un enlace que nadie pidió ver todavía.
+  const [abiertos, setAbiertos] = useState(() => new Set());
+  // Para cuáles tarjetas abiertas, además, se pidió ver su Actividad —
+  // independiente de "abiertos": abrir la tarjeta no carga el feed solo,
+  // hay que pedirlo explícitamente (mismo criterio que la pestaña
+  // "Actividad" del drawer de Diagrama).
+  const [actividadAbierta, setActividadAbierta] = useState(() => new Set());
 
   async function cargar() {
     setCargando(true);
@@ -87,6 +98,26 @@ export default function MisActividades() {
     setFiltrosEstado(prev => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function marcarAbierto(key, abierto) {
+    setAbiertos(prev => {
+      const next = new Set(prev);
+      abierto ? next.add(key) : next.delete(key);
+      return next;
+    });
+    // Al cerrar la tarjeta, también se oculta su Actividad — evita que
+    // quede "recordada" abierta y reaparezca ya cargada si se vuelve a
+    // expandir mucho después, con datos que pudieron cambiar.
+    if (!abierto) setActividadAbierta(prev => { if (!prev.has(key)) return prev; const next = new Set(prev); next.delete(key); return next; });
+  }
+
+  function toggleActividad(key) {
+    setActividadAbierta(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
       return next;
     });
   }
@@ -214,25 +245,51 @@ export default function MisActividades() {
             <div className="space-y-2">
               {filtrados.map(it => {
                 const breadcrumb = [it.proyecto_nombre, it.etapa_nombre, it.accion_nombre].filter(Boolean).join(' › ');
+                const key = `${it.tipo}-${it.id}`;
+                const mostrarActividad = actividadAbierta.has(key);
                 return (
-                  <NodoCard
-                    key={`${it.tipo}-${it.id}`}
-                    tipo={it.tipo}
-                    nodo={it}
-                    // Etapa siempre es contenedor — antes se trataba toda
-                    // fila como hoja, así que una etapa pendiente ofrecía
-                    // "marcar completada"/"reportar riesgo" directo, que
-                    // no aplica a un nodo cuyo avance se calcula de sus
-                    // partes. Acción/tarea pueden ser contenedor si tienen
-                    // hijos, pero esta consulta de agenda (6 ramas UNION)
-                    // no trae es_hoja — se deja como caso de borde aparte.
-                    esContenedor={it.tipo === 'etapa'}
-                    proyectoId={it.proyecto_id}
-                    permisos={PERMISOS_PROPIOS}
-                    breadcrumb={breadcrumb}
-                    onProyectoClick={`/proyectos/${it.proyecto_id}?tab=seguimiento&nodo=${it.id}`}
-                    onCambiado={cargar}
-                  />
+                  <div key={key}>
+                    <NodoCard
+                      tipo={it.tipo}
+                      nodo={it}
+                      // Etapa siempre es contenedor — antes se trataba toda
+                      // fila como hoja, así que una etapa pendiente ofrecía
+                      // "marcar completada"/"reportar riesgo" directo, que
+                      // no aplica a un nodo cuyo avance se calcula de sus
+                      // partes. Acción/tarea pueden ser contenedor si tienen
+                      // hijos, pero esta consulta de agenda (6 ramas UNION)
+                      // no trae es_hoja — se deja como caso de borde aparte.
+                      esContenedor={it.tipo === 'etapa'}
+                      proyectoId={it.proyecto_id}
+                      permisos={PERMISOS_PROPIOS}
+                      breadcrumb={breadcrumb}
+                      onProyectoClick={`/proyectos/${it.proyecto_id}?tab=seguimiento&nodo=${it.id}`}
+                      onCambiado={cargar}
+                      // Homologado con el rail de Seguimiento/Detalle y el
+                      // drawer de Diagrama (FichaNodo.jsx): Comentar/
+                      // Evidencia/Riesgos se sacan del grid de botones —
+                      // se recuperan abajo, bajo demanda, vía Actividad.
+                      agrupado
+                      onToggleAbierto={abierto => marcarAbierto(key, abierto)}
+                    />
+                    {abiertos.has(key) && (
+                      <div className="mt-1 ml-1">
+                        <button
+                          onClick={() => toggleActividad(key)}
+                          className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 hover:text-guinda-600 transition-colors"
+                        >
+                          <MessageSquare size={12} />
+                          Comentarios, evidencia y riesgos
+                          <ChevronDown size={11} className={`transition-transform ${mostrarActividad ? 'rotate-180' : ''}`} />
+                        </button>
+                        {mostrarActividad && (
+                          <div className="card p-3.5 mt-1.5">
+                            <ActividadStream tipo={it.tipo} id={it.id} titulo={it.nombre} />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
