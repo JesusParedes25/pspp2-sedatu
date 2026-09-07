@@ -22,7 +22,7 @@
  * el "containing block" de cualquier hijo con position:fixed, y el modal
  * terminaba encajonado dentro del rail en vez de cubrir toda la pantalla.
  */
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Loader2, Paperclip, Link2, ChevronDown, ChevronRight, Lock, CheckCircle2, Plus } from 'lucide-react';
 import * as etapasApi from '../../api/etapas';
@@ -34,6 +34,7 @@ import { crearComentario } from '../../api/comentarios';
 import { NIVELES } from '../../config/niveles';
 import CATEGORIAS_EVIDENCIA from '../seguimiento/categoriasEvidencia';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
+import { agruparParaLinea } from './ActividadStream';
 
 // comentarios/evidencias del modelo viejo NUNCA soportaron 'Tarea' — para
 // tarea todo cae al stream unificado `actividad` (mismo criterio que ya usa
@@ -47,6 +48,18 @@ const ENTIDAD_TIPO = { etapa: 'Etapa', accion: 'Accion' };
 // se deja editable, con la casilla "Marcar como concluida" pre-marcada
 // para que reabrirlo sea una decisión explícita, no un accidente.
 const ESTADOS_CONGELADOS = { Bloqueada: 'Bloqueada: avance congelado', Cancelada: 'Cancelada' };
+
+// Fecha relativa corta para el historial de Estatus cualitativo — mismo
+// criterio que rel() en ActividadStream.jsx, sin importarlo por ser trivial.
+function relCorto(fecha) {
+  const diff = Date.now() - new Date(fecha).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'ahora';
+  if (m < 60) return `hace ${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `hace ${h}h`;
+  return `hace ${Math.floor(h / 24)}d`;
+}
 
 async function patchNodo(tipo, id, datos) {
   if (tipo === 'etapa') return etapasApi.patchEtapa(id, datos);
@@ -80,7 +93,11 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
   const estadoActual = nodo.estado || 'Pendiente';
   const congelado = ESTADOS_CONGELADOS[estadoActual];
 
-  const [estatus, setEstatus] = useState(nodo.estatus_cualitativo || '');
+  // Arranca vacío a propósito — antes traía el estatus cualitativo
+  // anterior ya escrito, como si fuera un valor por defecto, y había que
+  // borrarlo a mano para reportar el nuevo. El anterior se ve abajo, en
+  // el historial tenue, en vez de colarse en el campo activo.
+  const [estatus, setEstatus] = useState('');
   const [avance, setAvance] = useState(Math.min(avanceActual, 99));
   const [concluir, setConcluir] = useState(estadoActual === 'Completada');
   const [detalleAbierto, setDetalleAbierto] = useState(false);
@@ -92,8 +109,39 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
   // evidencia del mismo reporte.
   const [evidencias, setEvidencias] = useState([]);
   const [error, setError] = useState('');
+  // Historial de Estatus cualitativo — carga silenciosa, aparte del resto
+  // del modal (que es usable de inmediato con o sin esto todavía cargado).
+  const [historialRaw, setHistorialRaw] = useState([]);
 
   const puedeCapturarAvance = !esContenedor && !congelado;
+
+  useEffect(() => {
+    let vivo = true;
+    actividadApi.obtenerActividadNodo(tipo, nodo.id)
+      .then(res => { if (vivo) setHistorialRaw(res.datos || []); })
+      .catch(() => { if (vivo) setHistorialRaw([]); });
+    return () => { vivo = false; };
+  }, [tipo, nodo.id]);
+
+  // De cada grupo (misma correlación autor+15s que ya usa ActividadStream
+  // para el feed completo) que trae un estatus_cualitativo, se arma una
+  // entrada de historial con el avance del mismo reporte si lo hubo.
+  const historial = useMemo(() => {
+    const grupos = agruparParaLinea(historialRaw);
+    const entradas = [];
+    for (const g of grupos) {
+      const estatusEv = g.eventos.find(e => e.tipo_evento === 'estatus_cualitativo');
+      if (!estatusEv) continue;
+      const avanceEv = g.eventos.find(e => e.tipo_evento === 'cambio_avance');
+      const estadoEv = g.eventos.find(e => e.tipo_evento === 'cambio_estatus');
+      let avanceGrupo = null;
+      if (avanceEv?.metadata?.avance_actual != null) avanceGrupo = Math.round(parseFloat(avanceEv.metadata.avance_actual));
+      else if (estadoEv?.metadata?.estado === 'Completada') avanceGrupo = 100;
+      else if (estadoEv?.metadata?.estado === 'Pendiente') avanceGrupo = 0;
+      entradas.push({ id: estatusEv.id, fecha: estatusEv.created_at, texto: estatusEv.contenido, avance: avanceGrupo });
+    }
+    return entradas.slice(0, 5);
+  }, [historialRaw]);
 
   function agregarArchivos(fileList) {
     const nuevos = Array.from(fileList).map(archivo => ({
@@ -186,6 +234,20 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
               autoFocus
               className="input-base text-sm w-full"
             />
+            {/* Historial tenue — línea de tiempo de referencia, no un
+                valor por defecto: cada nota anterior con su avance del
+                mismo reporte, cuando lo hubo. */}
+            {historial.length > 0 && (
+              <div className="mt-2 pl-2.5 border-l-2 border-gray-100 space-y-1.5">
+                {historial.map(h => (
+                  <p key={h.id} className="text-[11px] leading-snug text-gray-400">
+                    <span>{relCorto(h.fecha)}</span>
+                    {h.avance != null && <span> · {h.avance}%</span>}
+                    <span className="italic text-gray-500"> "{h.texto}"</span>
+                  </p>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Avance */}

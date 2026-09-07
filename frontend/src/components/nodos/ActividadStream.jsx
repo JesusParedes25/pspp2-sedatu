@@ -57,7 +57,7 @@ const VENTANA_AGRUPACION_MS = 15000;
 
 // Junta filas del mismo autor, de tipos agrupables, separadas por menos de
 // VENTANA_AGRUPACION_MS, en una sola tarjeta — ver mini-clase arriba.
-function agruparParaLinea(items) {
+export function agruparParaLinea(items) {
   const grupos = [];
   for (const item of items) {
     const ultimo = grupos[grupos.length - 1];
