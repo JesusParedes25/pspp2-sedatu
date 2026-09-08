@@ -31,41 +31,46 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
   const [archivo, setArchivo] = useState(null);
   const [urlLink, setUrlLink] = useState('');
   const [notas, setNotas] = useState('');
+  // Título editable, separado del nombre real del archivo — se prellena con
+  // el nombre del archivo elegido (no hay de dónde prellenarlo en modo
+  // liga) pero el usuario puede cambiarlo antes de guardar.
+  const [titulo, setTitulo] = useState('');
   const [detalleEv, setDetalleEv] = useState(null);
   const [previewEv, setPreviewEv] = useState(null);
 
   function resetForm() {
     setPaso('lista'); setCategoria(''); setTipoMedio(null);
-    setArchivo(null); setUrlLink(''); setNotas('');
+    setArchivo(null); setUrlLink(''); setNotas(''); setTitulo('');
   }
 
   // Sin candado síncrono, un doble clic duplicaba el archivo en MinIO (no
   // solo la fila en la base de datos).
   const [enviar, subiendo] = useEnvioUnico(async () => {
     try {
+      const tituloFinal = titulo.trim() || null;
       if (tipoMedio === 'link') {
         if (!urlLink.trim()) return;
         if (esActividad) {
-          await actividadApi.registrarLinkActividad(tipo, id, urlLink.trim(), { categoria, notas });
+          await actividadApi.registrarLinkActividad(tipo, id, urlLink.trim(), { categoria, notas, titulo: tituloFinal });
         } else if (tipo === 'etapa') {
-          await evidenciasApi.registrarLinkEtapa(id, urlLink.trim(), { categoria, notas });
+          await evidenciasApi.registrarLinkEtapa(id, urlLink.trim(), { categoria, notas, titulo: tituloFinal });
         } else {
-          await evidenciasApi.registrarLinkAccion(id, urlLink.trim(), { categoria, notas });
+          await evidenciasApi.registrarLinkAccion(id, urlLink.trim(), { categoria, notas, titulo: tituloFinal });
         }
       } else {
         if (!archivo) return;
         if (esActividad) {
-          await actividadApi.subirArchivoActividad(tipo, id, archivo, { categoria, notas });
+          await actividadApi.subirArchivoActividad(tipo, id, archivo, { categoria, notas, titulo: tituloFinal });
         } else if (tipo === 'etapa') {
-          await evidenciasApi.subirEvidenciaEtapa(id, archivo, { categoria, notas });
+          await evidenciasApi.subirEvidenciaEtapa(id, archivo, { categoria, notas, titulo: tituloFinal });
         } else {
-          await evidenciasApi.subirEvidenciaAccion(id, archivo, { categoria, notas });
+          await evidenciasApi.subirEvidenciaAccion(id, archivo, { categoria, notas, titulo: tituloFinal });
         }
       }
       resetForm();
       onRecargar?.();
     } catch (err) {
-      console.error('Error subiendo evidencia:', err);
+      console.error('Error subiendo documento:', err);
     }
   });
 
@@ -92,13 +97,18 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
           <div className="flex items-start gap-2">
             {iconoParaTipo(detalleEv)}
             <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-800 truncate" title={detalleEv.titulo || detalleEv.nombre_original || detalleEv.nombre_archivo || detalleEv.url}>
+                {detalleEv.titulo || detalleEv.nombre_original || detalleEv.nombre_archivo || detalleEv.url}
+              </p>
               {esLink ? (
-                <a href={detalleEv.url} target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline break-all">
+                <a href={detalleEv.url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline break-all">
                   {detalleEv.url}
                 </a>
-              ) : (
-                <p className="text-sm font-medium text-gray-800 truncate" title={detalleEv.nombre_original || detalleEv.nombre_archivo}>{detalleEv.nombre_original || detalleEv.nombre_archivo}</p>
-              )}
+              ) : detalleEv.titulo && (detalleEv.nombre_original || detalleEv.nombre_archivo) && detalleEv.titulo !== (detalleEv.nombre_original || detalleEv.nombre_archivo) ? (
+                <p className="text-xs text-gray-400 truncate" title={detalleEv.nombre_original || detalleEv.nombre_archivo}>
+                  {detalleEv.nombre_original || detalleEv.nombre_archivo}
+                </p>
+              ) : null}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs mt-2">
@@ -170,7 +180,7 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
     return (
       <div className="p-3 space-y-2">
         <div className="flex items-center justify-between mb-1">
-          <span className="text-xs font-semibold text-gray-700">Paso 1: Tipo de evidencia</span>
+          <span className="text-xs font-semibold text-gray-700">Paso 1: Tipo de documento</span>
           <button onClick={resetForm} className="text-[10px] text-gray-400 hover:text-gray-600">Cancelar</button>
         </div>
         <div className="grid grid-cols-2 gap-1.5">
@@ -198,7 +208,7 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
             <button onClick={() => setPaso('paso1_categoria')} className="text-gray-400 hover:text-gray-600">
               <ChevronRight size={14} className="rotate-180" />
             </button>
-            <span className="text-xs font-semibold text-gray-700">Paso 2: Subir evidencia</span>
+            <span className="text-xs font-semibold text-gray-700">Paso 2: Subir documento</span>
           </div>
           <button onClick={resetForm} className="text-[10px] text-gray-400 hover:text-gray-600">Cancelar</button>
         </div>
@@ -254,7 +264,13 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
             <label className="text-[10px] text-gray-500 uppercase block mb-0.5">Seleccionar archivo</label>
             <input
               type="file"
-              onChange={e => setArchivo(e.target.files?.[0] || null)}
+              onChange={e => {
+                const f = e.target.files?.[0] || null;
+                setArchivo(f);
+                // Prellena el título con el nombre del archivo, sin pisar
+                // uno que el usuario ya haya escrito a mano.
+                if (f && !titulo.trim()) setTitulo(f.name);
+              }}
               className="text-xs w-full"
             />
             {archivo && (
@@ -262,6 +278,21 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
                 {archivo.name} — {archivo.size > 1048576 ? `${(archivo.size / 1048576).toFixed(1)} MB` : `${(archivo.size / 1024).toFixed(0)} KB`}
               </p>
             )}
+          </div>
+        )}
+
+        {/* Título del documento — separado del nombre real del archivo, es
+            lo que se muestra en los listados. */}
+        {tipoMedio && (
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase block mb-0.5">Título del documento</label>
+            <input
+              type="text"
+              value={titulo}
+              onChange={e => setTitulo(e.target.value)}
+              placeholder="Ej. Acta de entrega — fase 1"
+              className="text-xs border border-gray-200 rounded px-2 py-1.5 w-full focus:border-[#7B1C3E] outline-none"
+            />
           </div>
         )}
 
@@ -312,8 +343,8 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
               >
                 {iconoParaTipo(ev)}
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-800 truncate group-hover:text-[#7B1C3E]" title={esLink ? ev.url : (ev.nombre_original || ev.nombre_archivo)}>
-                    {esLink ? ev.url : (ev.nombre_original || ev.nombre_archivo)}
+                  <p className="text-xs text-gray-800 truncate group-hover:text-[#7B1C3E]" title={ev.titulo || (esLink ? ev.url : (ev.nombre_original || ev.nombre_archivo))}>
+                    {ev.titulo || (esLink ? ev.url : (ev.nombre_original || ev.nombre_archivo))}
                   </p>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-[9px] text-gray-400">{ev.autor_nombre || ''}</span>
@@ -337,7 +368,7 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
         </div>
       )}
       {evidencias.length === 0 && (
-        <p className="text-xs text-gray-400 text-center py-4 italic">Sin evidencias adjuntas</p>
+        <p className="text-xs text-gray-400 text-center py-4 italic">Sin documentos adjuntos</p>
       )}
 
       {!permisos?.esSoloLectura && (
@@ -345,7 +376,7 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
           onClick={() => setPaso('paso1_categoria')}
           className="flex items-center gap-1.5 text-xs text-[#7B1C3E] hover:text-[#5a1430] font-medium py-1.5"
         >
-          <Plus size={12} /> Agregar evidencia
+          <Plus size={12} /> Agregar documento
         </button>
       )}
     </div>

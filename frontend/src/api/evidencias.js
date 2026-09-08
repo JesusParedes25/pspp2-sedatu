@@ -28,6 +28,7 @@ export async function subirEvidenciaEtapa(etapaId, archivo, metadatos = {}) {
   formData.append('archivo', archivo);
   if (metadatos.categoria) formData.append('categoria', metadatos.categoria);
   if (metadatos.notas) formData.append('notas', metadatos.notas);
+  if (metadatos.titulo) formData.append('titulo', metadatos.titulo);
   const { data } = await client.post(`/etapas/${etapaId}/evidencias`, formData);
   return data;
 }
@@ -37,6 +38,7 @@ export async function registrarLinkEtapa(etapaId, url, metadatos = {}) {
     url,
     categoria: metadatos.categoria || 'Otro',
     notas: metadatos.notas || null,
+    titulo: metadatos.titulo || null,
   });
   return data;
 }
@@ -57,6 +59,7 @@ export async function subirEvidenciaAccion(accionId, archivo, metadatos = {}) {
   if (metadatos.categoria) formData.append('categoria', metadatos.categoria);
   if (metadatos.notas) formData.append('notas', metadatos.notas);
   if (metadatos.fecha_generacion) formData.append('fecha_generacion', metadatos.fecha_generacion);
+  if (metadatos.titulo) formData.append('titulo', metadatos.titulo);
   const { data } = await client.post(`/acciones/${accionId}/evidencias`, formData);
   return data;
 }
@@ -66,6 +69,7 @@ export async function registrarLinkAccion(accionId, url, metadatos = {}) {
     url,
     categoria: metadatos.categoria || 'Otro',
     notas: metadatos.notas || null,
+    titulo: metadatos.titulo || null,
   });
   return data;
 }

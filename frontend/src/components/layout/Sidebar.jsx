@@ -29,7 +29,7 @@ const menuItems = [
   { to: '/proyectos', icono: FolderKanban, etiqueta: 'Proyectos' },
   { to: '/proyectos/nuevo', icono: PlusCircle, etiqueta: 'Nuevo proyecto', requiereCrear: true },
   { to: '/mapa', icono: Map, etiqueta: 'Territorio' },
-  { to: '/evidencias', icono: FileText, etiqueta: 'Evidencias' },
+  { to: '/evidencias', icono: FileText, etiqueta: 'Documentos' },
   { to: '/notificaciones', icono: Bell, etiqueta: 'Notificaciones' },
   { to: '/admin/catalogos', icono: Shield, etiqueta: 'Administración', requiereRol: 'superadmin' },
 ];

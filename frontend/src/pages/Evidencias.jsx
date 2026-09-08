@@ -101,6 +101,7 @@ export default function Evidencias() {
     if (!busqueda.trim()) return evidencias;
     const q = busqueda.toLowerCase();
     return evidencias.filter(e =>
+      e.titulo?.toLowerCase().includes(q) ||
       e.nombre_original?.toLowerCase().includes(q) ||
       e.notas?.toLowerCase().includes(q) ||
       e.autor_nombre?.toLowerCase().includes(q) ||
@@ -133,9 +134,9 @@ export default function Evidencias() {
       {/* Header */}
       <div className="flex-shrink-0 flex items-center justify-between px-1 pb-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Evidencias</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Documentos</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Consulta y busca evidencias de tus proyectos
+            Consulta y busca documentos de tus proyectos
           </p>
         </div>
         <button
@@ -202,7 +203,7 @@ export default function Evidencias() {
               </button>
             )}
             <span className="text-xs text-gray-400 ml-auto">
-              {evidenciasFiltradas.length} evidencia{evidenciasFiltradas.length !== 1 ? 's' : ''}
+              {evidenciasFiltradas.length} documento{evidenciasFiltradas.length !== 1 ? 's' : ''}
               {evidencias.length !== evidenciasFiltradas.length && ` de ${evidencias.length}`}
             </span>
           </div>
@@ -220,10 +221,10 @@ export default function Evidencias() {
           ) : evidenciasFiltradas.length === 0 ? (
             <EmptyState
               icono={hayFiltrosActivos ? Search : FileText}
-              titulo={hayFiltrosActivos ? 'Sin resultados' : 'Sin evidencias'}
+              titulo={hayFiltrosActivos ? 'Sin resultados' : 'Sin documentos'}
               subtitulo={hayFiltrosActivos
-                ? 'No se encontraron evidencias con los filtros aplicados.'
-                : 'Aún no se han subido evidencias en tus proyectos.'}
+                ? 'No se encontraron documentos con los filtros aplicados.'
+                : 'Aún no se han subido documentos en tus proyectos.'}
             />
           ) : (
             <div className="space-y-1.5">
@@ -241,7 +242,7 @@ export default function Evidencias() {
             : (
               <div className="flex flex-col items-center justify-center h-full text-center px-6 text-gray-400">
                 <FileText size={32} className="mb-3 text-gray-200" />
-                <p className="text-sm font-medium text-gray-600">Selecciona una evidencia</p>
+                <p className="text-sm font-medium text-gray-600">Selecciona un documento</p>
                 <p className="text-xs mt-1">Haz clic en un archivo de la lista para ver su detalle completo.</p>
               </div>
             )}
@@ -269,7 +270,7 @@ function FilaEvidencia({ evidencia: ev, activa, onClick }) {
         {esLink ? <Link2 size={16} className="text-blue-500" /> : (ICONO_CATEGORIA[ev.categoria] || '📎')}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-900 truncate">{ev.nombre_original || ev.url}</p>
+        <p className="text-sm font-medium text-gray-900 truncate">{ev.titulo || ev.nombre_original || ev.url}</p>
         <p className="text-xs text-gray-400 truncate mt-0.5">{breadcrumb || 'Sin proyecto asociado'}</p>
       </div>
       <div className="flex-shrink-0 text-right">
@@ -294,11 +295,12 @@ function PanelDetalle({ evidencia: ev, onPreview, onEliminar }) {
           {esLink ? <Link2 size={18} className="text-blue-500" /> : (ICONO_CATEGORIA[ev.categoria] || '📎')}
         </div>
         <div className="min-w-0">
+          <p className="text-sm font-semibold text-gray-900 break-words leading-snug">{ev.titulo || ev.nombre_original || ev.url}</p>
           {esLink ? (
-            <a href={ev.url} target="_blank" rel="noreferrer" className="text-sm font-semibold text-blue-600 hover:underline break-words">{ev.url}</a>
-          ) : (
-            <p className="text-sm font-semibold text-gray-900 break-words leading-snug">{ev.nombre_original}</p>
-          )}
+            <a href={ev.url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline break-words">{ev.url}</a>
+          ) : ev.titulo && ev.nombre_original && ev.titulo !== ev.nombre_original ? (
+            <p className="text-xs text-gray-400 break-words">{ev.nombre_original}</p>
+          ) : null}
           <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded inline-block mt-1">{ev.categoria}</span>
         </div>
       </div>

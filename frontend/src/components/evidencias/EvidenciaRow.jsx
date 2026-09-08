@@ -45,7 +45,7 @@ export default function EvidenciaRow({ evidencia }) {
 
       {/* Info del archivo */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-900 truncate">{evidencia.nombre_original}</p>
+        <p className="text-sm font-medium text-gray-900 truncate">{evidencia.titulo || evidencia.nombre_original}</p>
         <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
           <span className="px-1.5 py-0.5 bg-gray-100 rounded text-xs">{evidencia.categoria}</span>
           {evidencia.autor_nombre && <span>{evidencia.autor_nombre}</span>}
