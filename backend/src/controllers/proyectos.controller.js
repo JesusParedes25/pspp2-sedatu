@@ -108,7 +108,16 @@ async function obtenerPorId(req, res, next) {
 // POST /proyectos — Crear un nuevo proyecto
 async function crear(req, res, next) {
   try {
-    const proyecto = await proyectosQueries.crearProyecto(req.body, req.usuario.id);
+    const nombre = (req.body?.nombre || '').trim();
+    if (!nombre) {
+      return res.status(400).json({
+        error: true,
+        mensaje: 'El proyecto necesita un nombre',
+        codigo: 'CAMPOS_REQUERIDOS'
+      });
+    }
+
+    const proyecto = await proyectosQueries.crearProyecto({ ...req.body, nombre }, req.usuario.id);
 
     res.status(201).json({
       datos: proyecto,

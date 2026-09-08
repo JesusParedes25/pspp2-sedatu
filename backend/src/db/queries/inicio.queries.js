@@ -90,7 +90,7 @@ async function obtenerRiesgosAbiertos(proyectoIds) {
     FROM riesgos r
     JOIN proyectos p ON r.entidad_tipo = 'Proyecto' AND r.entidad_id = p.id
     WHERE r.estado IN ('Abierto','En_mitigacion')
-      AND p.id = ANY($1)
+      AND p.id = ANY($1) AND p.deleted_at IS NULL
     UNION ALL
     SELECT
       r.id, r.titulo, r.nivel, r.estado AS estado_riesgo, r.entidad_tipo, r.entidad_id, r.created_at,
@@ -99,7 +99,7 @@ async function obtenerRiesgosAbiertos(proyectoIds) {
     JOIN etapas et ON r.entidad_tipo = 'Etapa' AND r.entidad_id = et.id
     JOIN proyectos p ON p.id = et.id_proyecto
     WHERE r.estado IN ('Abierto','En_mitigacion')
-      AND p.id = ANY($1)
+      AND p.id = ANY($1) AND p.deleted_at IS NULL
     UNION ALL
     SELECT
       r.id, r.titulo, r.nivel, r.estado AS estado_riesgo, r.entidad_tipo, r.entidad_id, r.created_at,
@@ -108,7 +108,7 @@ async function obtenerRiesgosAbiertos(proyectoIds) {
     JOIN acciones ac ON r.entidad_tipo IN ('Accion','Subaccion') AND r.entidad_id = ac.id
     JOIN proyectos p ON p.id = ac.id_proyecto
     WHERE r.estado IN ('Abierto','En_mitigacion')
-      AND p.id = ANY($1)
+      AND p.id = ANY($1) AND p.deleted_at IS NULL
     ORDER BY nivel, created_at DESC
     LIMIT 15
   `, [proyectoIds]);
@@ -147,7 +147,7 @@ async function obtenerIndicadoresAgregados(proyectoIds) {
       p.id AS proyecto_id, p.nombre AS proyecto_nombre,
       dg.siglas AS dg_siglas
     FROM indicadores i
-    JOIN proyectos p ON p.id = i.id_proyecto
+    JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
     WHERE i.activo = true AND i.id_proyecto = ANY($1)
     ORDER BY i.tipo, p.nombre, i.nombre
