@@ -534,9 +534,16 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
     : `AND p.id = ANY($2)`;
   const params = proyectoIds === null ? [cveEnt] : [cveEnt, proyectoIds];
 
-  // 1. Nodos (etapas + acciones) en ese estado
+  // 1. Nodos (etapas + acciones + tareas) en ese estado. id_etapa/etapa_nombre
+  // en cada rama son para que el frontend pueda agrupar de forma confiable
+  // bajo la etapa dueña aunque la etapa misma no tenga cobertura aquí (un
+  // hijo puede aparecer sin su padre presente). La rama de acciones ya
+  // cubre subacciones (acciones.id_etapa vive directo en cada fila, sin
+  // recorrer id_accion_padre) — 'tarea' ya no es un alias de subacción,
+  // significa una fila real de la tabla tareas.
   const { rows: nodos } = await pool.query(`
     SELECT 'etapa'::text AS tipo, e.id::text, e.nombre, NULL::text AS nombre_padre,
+           e.id::text AS id_etapa, e.nombre AS etapa_nombre,
            e.estado, e.semaforo,
            COALESCE(e.avance_actual, 0)::int AS avance,
            e.fecha_fin AS fecha_limite,
@@ -547,8 +554,8 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
       SELECT 1 FROM etapa_municipios em WHERE em.etapa_id = e.id AND LEFT(em.cve_mun, 2) = $1
     )) ${filtroProyecto}
     UNION ALL
-    SELECT CASE WHEN a.id_accion_padre IS NOT NULL THEN 'tarea' ELSE 'accion' END,
-           a.id::text, a.nombre, COALESCE(padre.nombre, et.nombre),
+    SELECT 'accion'::text, a.id::text, a.nombre, COALESCE(padre.nombre, et.nombre),
+           a.id_etapa::text, et.nombre,
            a.estado, a.semaforo,
            COALESCE(a.avance_actual, 0)::int,
            COALESCE(a.fecha_limite, a.fecha_fin),
@@ -559,6 +566,20 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
     LEFT JOIN etapas et ON et.id = a.id_etapa
     WHERE (a.cve_ent = $1 OR EXISTS (
       SELECT 1 FROM accion_municipios am WHERE am.accion_id = a.id AND LEFT(am.cve_mun, 2) = $1
+    )) ${filtroProyecto}
+    UNION ALL
+    SELECT 'tarea'::text, t.id::text, t.nombre, a.nombre,
+           a.id_etapa::text, et.nombre,
+           t.estado, t.semaforo,
+           COALESCE(t.avance_actual, 0)::int,
+           t.fecha_limite,
+           p.id::text, p.nombre
+    FROM tareas t
+    JOIN acciones a ON a.id = t.id_accion
+    JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
+    LEFT JOIN etapas et ON et.id = a.id_etapa
+    WHERE (t.cve_ent = $1 OR EXISTS (
+      SELECT 1 FROM tarea_municipios tm WHERE tm.tarea_id = t.id AND LEFT(tm.cve_mun, 2) = $1
     )) ${filtroProyecto}
     ORDER BY nombre_proyecto, nombre
   `, params);
@@ -689,6 +710,7 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
     })),
     etapas: nodos.map(n => ({
       id: n.id, tipo: n.tipo, nombre: n.nombre, nombre_padre: n.nombre_padre,
+      id_etapa: n.id_etapa, etapa_nombre: n.etapa_nombre,
       id_proyecto: n.id_proyecto, nombre_proyecto: n.nombre_proyecto,
       estatus: n.estado, avance: Number(n.avance), semaforo: n.semaforo,
     })),
@@ -725,6 +747,7 @@ async function obtenerMunicipiosActividadEstado(cveEnt, proyectoIds) {
     SELECT em.cve_mun AS cvegeo, e.id::text, e.nombre,
            e.estado, e.semaforo, COALESCE(e.avance_actual, 0)::int AS avance,
            'etapa'::text AS tipo, NULL::text AS nombre_padre,
+           e.id::text AS id_etapa, e.nombre AS etapa_nombre,
            p.id::text AS id_proyecto, p.nombre AS nombre_proyecto
     FROM etapas e
     JOIN etapa_municipios em ON em.etapa_id = e.id
@@ -733,8 +756,9 @@ async function obtenerMunicipiosActividadEstado(cveEnt, proyectoIds) {
     UNION ALL
     SELECT am.cve_mun, a.id::text, a.nombre,
            a.estado, a.semaforo, COALESCE(a.avance_actual, 0)::int,
-           CASE WHEN a.id_accion_padre IS NOT NULL THEN 'tarea' ELSE 'accion' END,
+           'accion'::text,
            COALESCE(padre.nombre, et.nombre),
+           a.id_etapa::text, et.nombre,
            p.id::text, p.nombre
     FROM acciones a
     JOIN accion_municipios am ON am.accion_id = a.id
@@ -742,6 +766,19 @@ async function obtenerMunicipiosActividadEstado(cveEnt, proyectoIds) {
     LEFT JOIN acciones padre ON padre.id = a.id_accion_padre
     LEFT JOIN etapas et ON et.id = a.id_etapa
     WHERE LEFT(am.cve_mun, 2) = $1 ${filtroProyecto}
+    UNION ALL
+    SELECT tm.cve_mun, t.id::text, t.nombre,
+           t.estado, t.semaforo, COALESCE(t.avance_actual, 0)::int,
+           'tarea'::text,
+           a.nombre,
+           a.id_etapa::text, et.nombre,
+           p.id::text, p.nombre
+    FROM tareas t
+    JOIN tarea_municipios tm ON tm.tarea_id = t.id
+    JOIN acciones a ON a.id = t.id_accion
+    JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
+    LEFT JOIN etapas et ON et.id = a.id_etapa
+    WHERE LEFT(tm.cve_mun, 2) = $1 ${filtroProyecto}
     ORDER BY nombre
   `, params);
 
@@ -755,6 +792,7 @@ async function obtenerMunicipiosActividadEstado(cveEnt, proyectoIds) {
     m.proyectos.add(r.id_proyecto);
     m.etapas.push({
       id: r.id, tipo: r.tipo, nombre: r.nombre, nombre_padre: r.nombre_padre,
+      id_etapa: r.id_etapa, etapa_nombre: r.etapa_nombre,
       estatus: r.estado, semaforo: r.semaforo, avance: Number(r.avance),
       id_proyecto: r.id_proyecto, nombre_proyecto: r.nombre_proyecto,
     });
@@ -776,8 +814,13 @@ async function obtenerDetalleZM(gidZm, proyectoIds) {
   const filtroProyecto = proyectoIds === null ? '' : 'AND p.id = ANY($2)';
   const params = proyectoIds === null ? [gidZm] : [gidZm, proyectoIds];
 
+  // Sin rama de tareas a propósito: tareas no tiene id_zm (ver comentario de
+  // la migración 064), así que no hay forma de ubicar una tarea dentro de
+  // una ZM — solo aplica a nivel estado/municipio (obtenerDetalleEstado /
+  // obtenerMunicipiosActividadEstado).
   const { rows: nodos } = await pool.query(`
     SELECT 'etapa'::text AS tipo, e.id::text, e.nombre, NULL::text AS nombre_padre,
+           e.id::text AS id_etapa, e.nombre AS etapa_nombre,
            e.estado, e.semaforo, COALESCE(e.avance_actual, 0)::int AS avance,
            e.fecha_fin AS fecha_limite,
            p.id::text AS id_proyecto, p.nombre AS nombre_proyecto
@@ -785,8 +828,9 @@ async function obtenerDetalleZM(gidZm, proyectoIds) {
     JOIN proyectos p ON p.id = e.id_proyecto AND p.deleted_at IS NULL
     WHERE e.id_zm = $1 ${filtroProyecto}
     UNION ALL
-    SELECT CASE WHEN a.id_accion_padre IS NOT NULL THEN 'tarea' ELSE 'accion' END,
+    SELECT 'accion'::text,
            a.id::text, a.nombre, COALESCE(padre.nombre, et.nombre),
+           a.id_etapa::text, et.nombre,
            a.estado, a.semaforo, COALESCE(a.avance_actual, 0)::int,
            COALESCE(a.fecha_limite, a.fecha_fin),
            p.id::text, p.nombre
@@ -906,6 +950,7 @@ async function obtenerDetalleZM(gidZm, proyectoIds) {
     })),
     etapas: nodos.map(n => ({
       id: n.id, tipo: n.tipo, nombre: n.nombre, nombre_padre: n.nombre_padre,
+      id_etapa: n.id_etapa, etapa_nombre: n.etapa_nombre,
       id_proyecto: n.id_proyecto, nombre_proyecto: n.nombre_proyecto,
       estatus: n.estado, avance: Number(n.avance), semaforo: n.semaforo,
     })),
