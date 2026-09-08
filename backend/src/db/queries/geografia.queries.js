@@ -543,6 +543,7 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
   // significa una fila real de la tabla tareas.
   const { rows: nodos } = await pool.query(`
     SELECT 'etapa'::text AS tipo, e.id::text, e.nombre, NULL::text AS nombre_padre,
+           NULL::text AS id_padre,
            e.id::text AS id_etapa, e.nombre AS etapa_nombre,
            e.estado, e.semaforo,
            COALESCE(e.avance_actual, 0)::int AS avance,
@@ -555,6 +556,7 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
     )) ${filtroProyecto}
     UNION ALL
     SELECT 'accion'::text, a.id::text, a.nombre, COALESCE(padre.nombre, et.nombre),
+           a.id_accion_padre::text,
            a.id_etapa::text, et.nombre,
            a.estado, a.semaforo,
            COALESCE(a.avance_actual, 0)::int,
@@ -569,6 +571,7 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
     )) ${filtroProyecto}
     UNION ALL
     SELECT 'tarea'::text, t.id::text, t.nombre, a.nombre,
+           a.id::text,
            a.id_etapa::text, et.nombre,
            t.estado, t.semaforo,
            COALESCE(t.avance_actual, 0)::int,
@@ -710,6 +713,7 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
     })),
     etapas: nodos.map(n => ({
       id: n.id, tipo: n.tipo, nombre: n.nombre, nombre_padre: n.nombre_padre,
+      id_padre: n.id_padre,
       id_etapa: n.id_etapa, etapa_nombre: n.etapa_nombre,
       id_proyecto: n.id_proyecto, nombre_proyecto: n.nombre_proyecto,
       estatus: n.estado, avance: Number(n.avance), semaforo: n.semaforo,
@@ -747,6 +751,7 @@ async function obtenerMunicipiosActividadEstado(cveEnt, proyectoIds) {
     SELECT em.cve_mun AS cvegeo, e.id::text, e.nombre,
            e.estado, e.semaforo, COALESCE(e.avance_actual, 0)::int AS avance,
            'etapa'::text AS tipo, NULL::text AS nombre_padre,
+           NULL::text AS id_padre,
            e.id::text AS id_etapa, e.nombre AS etapa_nombre,
            p.id::text AS id_proyecto, p.nombre AS nombre_proyecto
     FROM etapas e
@@ -758,6 +763,7 @@ async function obtenerMunicipiosActividadEstado(cveEnt, proyectoIds) {
            a.estado, a.semaforo, COALESCE(a.avance_actual, 0)::int,
            'accion'::text,
            COALESCE(padre.nombre, et.nombre),
+           a.id_accion_padre::text,
            a.id_etapa::text, et.nombre,
            p.id::text, p.nombre
     FROM acciones a
@@ -771,6 +777,7 @@ async function obtenerMunicipiosActividadEstado(cveEnt, proyectoIds) {
            t.estado, t.semaforo, COALESCE(t.avance_actual, 0)::int,
            'tarea'::text,
            a.nombre,
+           a.id::text,
            a.id_etapa::text, et.nombre,
            p.id::text, p.nombre
     FROM tareas t
@@ -792,6 +799,7 @@ async function obtenerMunicipiosActividadEstado(cveEnt, proyectoIds) {
     m.proyectos.add(r.id_proyecto);
     m.etapas.push({
       id: r.id, tipo: r.tipo, nombre: r.nombre, nombre_padre: r.nombre_padre,
+      id_padre: r.id_padre,
       id_etapa: r.id_etapa, etapa_nombre: r.etapa_nombre,
       estatus: r.estado, semaforo: r.semaforo, avance: Number(r.avance),
       id_proyecto: r.id_proyecto, nombre_proyecto: r.nombre_proyecto,
@@ -820,6 +828,7 @@ async function obtenerDetalleZM(gidZm, proyectoIds) {
   // obtenerMunicipiosActividadEstado).
   const { rows: nodos } = await pool.query(`
     SELECT 'etapa'::text AS tipo, e.id::text, e.nombre, NULL::text AS nombre_padre,
+           NULL::text AS id_padre,
            e.id::text AS id_etapa, e.nombre AS etapa_nombre,
            e.estado, e.semaforo, COALESCE(e.avance_actual, 0)::int AS avance,
            e.fecha_fin AS fecha_limite,
@@ -830,6 +839,7 @@ async function obtenerDetalleZM(gidZm, proyectoIds) {
     UNION ALL
     SELECT 'accion'::text,
            a.id::text, a.nombre, COALESCE(padre.nombre, et.nombre),
+           a.id_accion_padre::text,
            a.id_etapa::text, et.nombre,
            a.estado, a.semaforo, COALESCE(a.avance_actual, 0)::int,
            COALESCE(a.fecha_limite, a.fecha_fin),
@@ -950,6 +960,7 @@ async function obtenerDetalleZM(gidZm, proyectoIds) {
     })),
     etapas: nodos.map(n => ({
       id: n.id, tipo: n.tipo, nombre: n.nombre, nombre_padre: n.nombre_padre,
+      id_padre: n.id_padre,
       id_etapa: n.id_etapa, etapa_nombre: n.etapa_nombre,
       id_proyecto: n.id_proyecto, nombre_proyecto: n.nombre_proyecto,
       estatus: n.estado, avance: Number(n.avance), semaforo: n.semaforo,

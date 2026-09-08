@@ -34,6 +34,14 @@ export function filtrarArbol(nodos, nivelTipo, estado, usuario, dg) {
 }
 
 // ─── Utilidades de búsqueda en el árbol ────────────────────────
+// Nota: una acción puede tener subacciones (acciones anidadas, un solo
+// nivel de profundidad — ver backend/src/utils/avance-semaforo.js) además
+// de sus propias tareas. Las cuatro funciones de este bloque tienen que
+// recorrer también `acc.subacciones` y las tareas de cada subacción, si no
+// cualquier nodo dentro de una subacción (la subacción misma, o una tarea
+// colgada de ella) nunca se encuentra — antes rompía en silencio el
+// deep-link (?nodo=) y el breadcrumb clicable del panel derecho para esos
+// nodos.
 export function buscarNodoEnArbol(arbol, id) {
   for (const etapa of arbol) {
     if (etapa.id === id) return { tipo: 'etapa', id: etapa.id, data: etapa };
@@ -41,6 +49,12 @@ export function buscarNodoEnArbol(arbol, id) {
       if (acc.id === id) return { tipo: 'accion', id: acc.id, data: acc };
       for (const tarea of (acc.tareas || [])) {
         if (tarea.id === id) return { tipo: 'tarea', id: tarea.id, data: tarea };
+      }
+      for (const sub of (acc.subacciones || [])) {
+        if (sub.id === id) return { tipo: 'accion', id: sub.id, data: sub };
+        for (const tarea of (sub.tareas || [])) {
+          if (tarea.id === id) return { tipo: 'tarea', id: tarea.id, data: tarea };
+        }
       }
     }
   }
@@ -54,6 +68,12 @@ export function encontrarPath(arbol, targetId) {
       if (acc.id === targetId) return [etapa.id, acc.id];
       for (const tarea of (acc.tareas || [])) {
         if (tarea.id === targetId) return [etapa.id, acc.id, tarea.id];
+      }
+      for (const sub of (acc.subacciones || [])) {
+        if (sub.id === targetId) return [etapa.id, acc.id, sub.id];
+        for (const tarea of (sub.tareas || [])) {
+          if (tarea.id === targetId) return [etapa.id, acc.id, sub.id, tarea.id];
+        }
       }
     }
   }
@@ -71,6 +91,12 @@ export function resolverRutaNombres(arbol, targetId) {
       if (acc.id === targetId) return [etapa.nombre, acc.nombre];
       for (const tarea of (acc.tareas || [])) {
         if (tarea.id === targetId) return [etapa.nombre, acc.nombre, tarea.nombre];
+      }
+      for (const sub of (acc.subacciones || [])) {
+        if (sub.id === targetId) return [etapa.nombre, acc.nombre, sub.nombre];
+        for (const tarea of (sub.tareas || [])) {
+          if (tarea.id === targetId) return [etapa.nombre, acc.nombre, sub.nombre, tarea.nombre];
+        }
       }
     }
   }
@@ -107,6 +133,21 @@ export function resolverRutaConIds(arbol, targetId) {
           { tipo: 'accion', id: acc.id, nombre: acc.nombre },
           { tipo: 'tarea', id: tarea.id, nombre: tarea.nombre },
         ];
+      }
+      for (const sub of (acc.subacciones || [])) {
+        if (sub.id === targetId) return [
+          { tipo: 'etapa', id: etapa.id, nombre: etapa.nombre },
+          { tipo: 'accion', id: acc.id, nombre: acc.nombre },
+          { tipo: 'accion', id: sub.id, nombre: sub.nombre },
+        ];
+        for (const tarea of (sub.tareas || [])) {
+          if (tarea.id === targetId) return [
+            { tipo: 'etapa', id: etapa.id, nombre: etapa.nombre },
+            { tipo: 'accion', id: acc.id, nombre: acc.nombre },
+            { tipo: 'accion', id: sub.id, nombre: sub.nombre },
+            { tipo: 'tarea', id: tarea.id, nombre: tarea.nombre },
+          ];
+        }
       }
     }
   }
