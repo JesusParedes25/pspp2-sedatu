@@ -133,9 +133,12 @@ function BloqueIndicadores({ indicadores }) {
 // Una fila (etapa o hijo indentado). `subtitulo` opcional: solo se
 // muestra cuando aporta algo nuevo — un hijo directo de la etapa no
 // necesita repetir el nombre de la etapa bajo la que ya está agrupado.
+// El link lleva el nodo específico (?tab=seguimiento&nodo=) — mismo patrón
+// de deep-link que MisActividades.jsx/ListaEstatusCualitativo.jsx — antes
+// solo llevaba a la vista general del proyecto y el clic "se perdía".
 function FilaNodo({ item, subtitulo }) {
   return (
-    <Link to={`/proyectos/${item.id_proyecto}`}
+    <Link to={`/proyectos/${item.id_proyecto}?tab=seguimiento&nodo=${item.id}`}
       className="flex items-center gap-2 py-1 hover:bg-gray-50 rounded px-1 -mx-1 transition-colors">
       <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: SEM[item.semaforo || 'gris'] }} />
       <TipoBadge tipo={item.tipo} />
@@ -148,11 +151,20 @@ function FilaNodo({ item, subtitulo }) {
   );
 }
 
-// Agrupa la lista plana que manda el backend en proyecto → etapa, para
-// que la jerarquía etapa→acción/tarea se vea (línea tenue) en vez de una
-// lista intercalada. Usa id_etapa como llave — así un hijo (acción,
-// subacción o tarea) queda bajo su etapa aunque la etapa misma no tenga
-// cobertura geográfica aquí y por lo tanto no tenga fila propia.
+// Agrupa la lista plana que manda el backend en proyecto → etapa → (acción
+// raíz → subacción → tarea), para que la jerarquía real se vea con línea
+// tenue en cada nivel, en vez de una lista intercalada. Usa id_etapa como
+// llave de etapa — así un hijo (acción, subacción o tarea) queda bajo su
+// etapa aunque la etapa misma no tenga cobertura geográfica aquí y por lo
+// tanto no tenga fila propia. Dentro de cada etapa, usa id_padre (id de la
+// acción/subacción dueña, NULL para una acción raíz) para anidar
+// subacciones y tareas bajo su padre real en vez de dejarlas todas al
+// mismo nivel — así una tarea se ve un nivel más profunda que su acción,
+// como pidió el usuario. Cuando el padre real no tiene fila propia aquí
+// (sin cobertura geográfica en este estado/municipio), el hijo se queda
+// como "raíz huérfana" de la etapa y conserva el subtítulo "de: X" para no
+// perder el contexto — mismo criterio que ya se usaba para etapas sin fila
+// propia.
 // Objetos planos, no Map/Set — este archivo ya importa `Map` como ícono
 // de lucide-react (usado en SidebarVacia), así que `new Map()` aquí
 // instanciaría el componente en vez de la estructura de datos nativa.
@@ -174,10 +186,41 @@ function agruparPorProyectoYEtapa(etapas) {
     if (it.tipo === 'etapa') grupo.filaEtapa = it;
     else grupo.hijos.push(it);
   }
+  for (const proy of Object.values(porProyecto)) {
+    for (const claveEtapa of proy.ordenEtapas) {
+      const grupo = proy.porEtapa[claveEtapa];
+      const porId = {};
+      for (const h of grupo.hijos) { porId[h.id] = h; h._hijos = []; }
+      const raices = [];
+      for (const h of grupo.hijos) {
+        const padre = h.id_padre && porId[h.id_padre];
+        if (padre) padre._hijos.push(h);
+        else { raices.push(h); h._huerfano = !!h.id_padre; }
+      }
+      grupo.raices = raices;
+    }
+  }
   return ordenProyectos.map(id => {
     const proy = porProyecto[id];
     return { ...proy, gruposEtapa: proy.ordenEtapas.map(k => proy.porEtapa[k]) };
   });
+}
+
+// Fila de un nodo más, recursivamente, sus hijos anidados un nivel más
+// adentro con su propia línea tenue — así una subacción cuelga de su
+// acción raíz, y una tarea de la subacción o acción a la que pertenece.
+function FilaNodoConHijos({ item }) {
+  const hijos = item._hijos || [];
+  return (
+    <div>
+      <FilaNodo item={item} subtitulo={item._huerfano ? `de: ${item.nombre_padre}` : null} />
+      {hijos.length > 0 && (
+        <div className="ml-2.5 pl-2.5 border-l-2 border-gray-100 mt-1 space-y-1">
+          {hijos.map(h => <FilaNodoConHijos key={h.id} item={h} />)}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function BloqueEtapas({ etapas }) {
@@ -199,15 +242,9 @@ function BloqueEtapas({ etapas }) {
                   ) : (
                     <p className="text-[11px] font-medium text-gray-500 truncate">{grupo.nombre}</p>
                   )}
-                  {grupo.hijos.length > 0 && (
+                  {grupo.raices.length > 0 && (
                     <div className="ml-2.5 pl-2.5 border-l-2 border-gray-100 mt-1 space-y-1">
-                      {grupo.hijos.map(h => (
-                        <FilaNodo
-                          key={h.id}
-                          item={h}
-                          subtitulo={h.nombre_padre && h.nombre_padre !== grupo.nombre ? `de: ${h.nombre_padre}` : null}
-                        />
-                      ))}
+                      {grupo.raices.map(h => <FilaNodoConHijos key={h.id} item={h} />)}
                     </div>
                   )}
                 </div>
