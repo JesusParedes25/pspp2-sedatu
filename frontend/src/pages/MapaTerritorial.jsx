@@ -130,24 +130,90 @@ function BloqueIndicadores({ indicadores }) {
   );
 }
 
+// Una fila (etapa o hijo indentado). `subtitulo` opcional: solo se
+// muestra cuando aporta algo nuevo — un hijo directo de la etapa no
+// necesita repetir el nombre de la etapa bajo la que ya está agrupado.
+function FilaNodo({ item, subtitulo }) {
+  return (
+    <Link to={`/proyectos/${item.id_proyecto}`}
+      className="flex items-center gap-2 py-1 hover:bg-gray-50 rounded px-1 -mx-1 transition-colors">
+      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: SEM[item.semaforo || 'gris'] }} />
+      <TipoBadge tipo={item.tipo} />
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-gray-800 truncate">{item.nombre}</p>
+        {subtitulo && <p className="text-[10px] text-gray-400 italic truncate">{subtitulo}</p>}
+      </div>
+      <span className="text-[10px] text-gray-500 tabular-nums flex-shrink-0">{item.avance}%</span>
+    </Link>
+  );
+}
+
+// Agrupa la lista plana que manda el backend en proyecto → etapa, para
+// que la jerarquía etapa→acción/tarea se vea (línea tenue) en vez de una
+// lista intercalada. Usa id_etapa como llave — así un hijo (acción,
+// subacción o tarea) queda bajo su etapa aunque la etapa misma no tenga
+// cobertura geográfica aquí y por lo tanto no tenga fila propia.
+// Objetos planos, no Map/Set — este archivo ya importa `Map` como ícono
+// de lucide-react (usado en SidebarVacia), así que `new Map()` aquí
+// instanciaría el componente en vez de la estructura de datos nativa.
+function agruparPorProyectoYEtapa(etapas) {
+  const porProyecto = {};
+  const ordenProyectos = [];
+  for (const it of etapas) {
+    if (!porProyecto[it.id_proyecto]) {
+      porProyecto[it.id_proyecto] = { id: it.id_proyecto, nombre: it.nombre_proyecto, porEtapa: {}, ordenEtapas: [] };
+      ordenProyectos.push(it.id_proyecto);
+    }
+    const proy = porProyecto[it.id_proyecto];
+    const claveEtapa = it.id_etapa || 'sin-etapa';
+    if (!proy.porEtapa[claveEtapa]) {
+      proy.porEtapa[claveEtapa] = { id: it.id_etapa, nombre: it.etapa_nombre || 'Sin etapa', filaEtapa: null, hijos: [] };
+      proy.ordenEtapas.push(claveEtapa);
+    }
+    const grupo = proy.porEtapa[claveEtapa];
+    if (it.tipo === 'etapa') grupo.filaEtapa = it;
+    else grupo.hijos.push(it);
+  }
+  return ordenProyectos.map(id => {
+    const proy = porProyecto[id];
+    return { ...proy, gruposEtapa: proy.ordenEtapas.map(k => proy.porEtapa[k]) };
+  });
+}
+
 function BloqueEtapas({ etapas }) {
+  const porProyecto = useMemo(() => agruparPorProyectoYEtapa(etapas), [etapas]);
   if (!etapas.length) return null;
   return (
-    <Seccion titulo="Etapas y acciones aquí" icono={Layers} iconoCls="text-indigo-500">
-      <div className="space-y-1.5">
-        {etapas.map((et, i) => (
-          <Link key={i} to={`/proyectos/${et.id_proyecto}`}
-            className="flex items-center gap-2 py-1 hover:bg-gray-50 rounded px-1 -mx-1 transition-colors">
-            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: SEM[et.semaforo || 'gris'] }} />
-            <TipoBadge tipo={et.tipo} />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs text-gray-800 truncate">{et.nombre}</p>
-              <p className="text-[10px] text-gray-400 italic truncate">
-                {et.nombre_padre ? `${et.nombre_padre} · ` : ''}{et.nombre_proyecto}
-              </p>
+    <Seccion titulo="Etapas, acciones y tareas aquí" icono={Layers} iconoCls="text-indigo-500">
+      <div className="space-y-4">
+        {porProyecto.map(proy => (
+          <div key={proy.id}>
+            <Link to={`/proyectos/${proy.id}`} className="text-[11px] font-semibold text-[#7B1C3E] hover:underline block mb-1.5 truncate">
+              {proy.nombre}
+            </Link>
+            <div className="space-y-2.5">
+              {proy.gruposEtapa.map(grupo => (
+                <div key={grupo.id || 'sin-etapa'}>
+                  {grupo.filaEtapa ? (
+                    <FilaNodo item={grupo.filaEtapa} />
+                  ) : (
+                    <p className="text-[11px] font-medium text-gray-500 truncate">{grupo.nombre}</p>
+                  )}
+                  {grupo.hijos.length > 0 && (
+                    <div className="ml-2.5 pl-2.5 border-l-2 border-gray-100 mt-1 space-y-1">
+                      {grupo.hijos.map(h => (
+                        <FilaNodo
+                          key={h.id}
+                          item={h}
+                          subtitulo={h.nombre_padre && h.nombre_padre !== grupo.nombre ? `de: ${h.nombre_padre}` : null}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
-            <span className="text-[10px] text-gray-500 tabular-nums flex-shrink-0">{et.avance}%</span>
-          </Link>
+          </div>
         ))}
       </div>
     </Seccion>
