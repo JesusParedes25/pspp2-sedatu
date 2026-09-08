@@ -58,7 +58,7 @@ import * as proyectosApi from '../../api/proyectos';
 const PESTANAS = [
   { id: 'seguimiento', etiqueta: 'Seguimiento', icono: Settings },
   { id: 'resumen', etiqueta: 'Panorama del proyecto', icono: LayoutDashboard },
-  { id: 'evidencias', etiqueta: 'Evidencias', icono: FileText },
+  { id: 'evidencias', etiqueta: 'Documentos', icono: FileText },
 ];
 
 // Subsecciones dentro de Seguimiento. Los `id` internos se mantienen sin
@@ -246,6 +246,7 @@ export default function DetalleProyecto() {
     if (filtroEvidencias.busqueda) {
       const q = filtroEvidencias.busqueda.toLowerCase();
       resultado = resultado.filter(e =>
+        e.titulo?.toLowerCase().includes(q) ||
         e.nombre_original?.toLowerCase().includes(q) ||
         e.notas?.toLowerCase().includes(q) ||
         e.autor_nombre?.toLowerCase().includes(q)
@@ -677,9 +678,9 @@ export default function DetalleProyecto() {
           {/* Lista filtrada */}
           <div className="space-y-2">
             {evidencias.length === 0 ? (
-              <EmptyState icono={FileText} titulo="Sin evidencias" subtitulo="Las evidencias se suben desde las acciones de cada etapa." />
+              <EmptyState icono={FileText} titulo="Sin documentos" subtitulo="Los documentos se suben desde las acciones de cada etapa." />
             ) : evidenciasFiltradas.length === 0 ? (
-              <EmptyState icono={Search} titulo="Sin resultados" subtitulo="Ninguna evidencia coincide con los filtros aplicados." />
+              <EmptyState icono={Search} titulo="Sin resultados" subtitulo="Ningún documento coincide con los filtros aplicados." />
             ) : (
               evidenciasFiltradas.map(ev => <EvidenciaRow key={ev.id} evidencia={ev} />)
             )}

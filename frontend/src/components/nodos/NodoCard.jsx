@@ -186,6 +186,7 @@ export default function NodoCard({
           .map(a => ({
             id: a.id,
             nombre_original: a.archivo_nombre,
+            titulo: a.metadata?.titulo || null,
             categoria: a.metadata?.categoria || 'Otro',
             tipo_medio: a.metadata?.tipo_medio || 'archivo',
             url: a.metadata?.tipo_medio === 'link' ? a.archivo_url : undefined,
@@ -496,27 +497,33 @@ export default function NodoCard({
             />
           )}
 
-          {/* Grupo "Vinculación" — en el layout agrupado (panel de Detalle
-              y drawer de Diagrama) son solo los 3 vínculos con otras
-              entidades; Comentar/Evidencia/Riesgos se navegan desde el
-              feed de Actividad, que vive al lado en ambos contextos. En el
-              layout plano (tarjeta de lista, Mis actividades — sin feed de
-              Actividad al lado) se conservan los de siempre. */}
+          {/* Grupo de vínculos — en el layout agrupado (panel de Detalle y
+              drawer de Diagrama) son los vínculos con otras entidades
+              (Indicador/Territorio/Participante/Documento), sin encabezado
+              visible; Comentar/Riesgos se navegan desde el feed de
+              Actividad, que vive al lado en ambos contextos. "Adjuntar
+              documento" SÍ se muestra aquí (a diferencia de Comentar y
+              Riesgos): el usuario debe poder adjuntar sin pasar por el
+              feed ni por Registrar avance. En el layout plano (tarjeta de
+              lista, Mis actividades — sin feed de Actividad al lado) se
+              conservan los de siempre, con su encabezado. */}
           <div className="pt-2 border-t border-gray-100">
-            <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider block mb-1.5">
-              {agrupado ? 'Vinculación' : 'Registro y vínculos'}
-            </span>
+            {!agrupado && (
+              <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider block mb-1.5">
+                Registro y vínculos
+              </span>
+            )}
             <div className="grid grid-cols-2 gap-1.5">
               {!agrupado && (
-                <>
-                  <BotonContextual icono={MessageSquare} label="Comentar" activo={seccion === 'comentar'} onClick={() => setSeccion(seccion === 'comentar' ? null : 'comentar')} />
-                  <BotonContextual icono={Paperclip} label="Evidencia" activo={seccion === 'adjuntar'} onClick={() => {
-                    const next = seccion === 'adjuntar' ? null : 'adjuntar';
-                    setSeccion(next);
-                    if (next === 'adjuntar' && evidenciasNodo === null) cargarEvidenciasNodo();
-                  }} />
-                  <BotonContextual icono={Shield} label={`Riesgos${riesgosCount ? ` (${riesgosCount})` : ''}`} activo={seccion === 'riesgos'} onClick={() => setSeccion(seccion === 'riesgos' ? null : 'riesgos')} />
-                </>
+                <BotonContextual icono={MessageSquare} label="Comentar" activo={seccion === 'comentar'} onClick={() => setSeccion(seccion === 'comentar' ? null : 'comentar')} />
+              )}
+              <BotonContextual icono={Paperclip} label={agrupado ? 'Adjuntar documento' : 'Documento'} activo={seccion === 'adjuntar'} onClick={() => {
+                const next = seccion === 'adjuntar' ? null : 'adjuntar';
+                setSeccion(next);
+                if (next === 'adjuntar' && evidenciasNodo === null) cargarEvidenciasNodo();
+              }} />
+              {!agrupado && (
+                <BotonContextual icono={Shield} label={`Riesgos${riesgosCount ? ` (${riesgosCount})` : ''}`} activo={seccion === 'riesgos'} onClick={() => setSeccion(seccion === 'riesgos' ? null : 'riesgos')} />
               )}
               <BotonContextual icono={BarChart3} label="Vincular indicador" activo={seccion === 'indicador'} onClick={() => setSeccion(seccion === 'indicador' ? null : 'indicador')} />
               <BotonContextual icono={MapPin} label="Territorio" activo={seccion === 'territorio'} onClick={() => setSeccion(seccion === 'territorio' ? null : 'territorio')} />

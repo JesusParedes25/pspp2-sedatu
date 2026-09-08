@@ -38,6 +38,7 @@ export async function subirArchivoActividad(tipo, id, archivo, metadatos = {}) {
   formData.append('metadata', JSON.stringify({
     categoria: metadatos.categoria || 'Otro',
     notas: metadatos.notas || null,
+    titulo: metadatos.titulo || null,
     tipo_medio: 'archivo',
   }));
   const { data } = await client.post('/actividad', formData);
@@ -52,6 +53,7 @@ export async function registrarLinkActividad(tipo, id, url, metadatos = {}) {
     metadata: {
       categoria: metadatos.categoria || 'Otro',
       notas: metadatos.notas || null,
+      titulo: metadatos.titulo || null,
       tipo_medio: 'link',
       url,
     },

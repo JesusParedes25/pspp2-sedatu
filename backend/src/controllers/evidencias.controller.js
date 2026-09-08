@@ -103,7 +103,7 @@ async function listarPorEtapa(req, res, next) {
 // POST /etapas/:id/evidencias — Subir evidencia (archivo o link) a una etapa
 async function subirParaEtapa(req, res, next) {
   try {
-    const { url, categoria, notas } = req.body;
+    const { url, categoria, notas, titulo } = req.body;
     const tipoMedio = url ? 'link' : 'archivo';
 
     if (tipoMedio === 'archivo' && !req.file) {
@@ -113,6 +113,7 @@ async function subirParaEtapa(req, res, next) {
     let datosEvidencia = {
       categoria: categoria || 'Otro',
       notas: notas || null,
+      titulo: titulo || null,
       id_etapa: req.params.id,
       id_autor: req.usuario.id,
       tipo_medio: tipoMedio,
@@ -135,7 +136,7 @@ async function subirParaEtapa(req, res, next) {
 
     const evidencia = await evidenciasQueries.crearEvidencia(datosEvidencia);
     const pId = await resolverProyectoId('etapa', req.params.id);
-    if (pId) await registrarActividad({ id_proyecto: pId, id_usuario: req.usuario.id, tipo: 'evidencia', titulo: `Evidencia subida a etapa`, entidad_tipo: 'etapa', entidad_id: req.params.id });
+    if (pId) await registrarActividad({ id_proyecto: pId, id_usuario: req.usuario.id, tipo: 'evidencia', titulo: `Documento subido a etapa`, entidad_tipo: 'etapa', entidad_id: req.params.id });
     res.status(201).json({ datos: evidencia, mensaje: tipoMedio === 'link' ? 'Link registrado exitosamente' : 'Evidencia subida exitosamente' });
   } catch (err) {
     next(err);
@@ -202,7 +203,7 @@ async function listarPorProyecto(req, res, next) {
 // POST /acciones/:id/evidencias — Subir evidencia (archivo o link) a una acción
 async function subirParaAccion(req, res, next) {
   try {
-    const { url, categoria, notas } = req.body;
+    const { url, categoria, notas, titulo } = req.body;
     const tipoMedio = url ? 'link' : 'archivo';
 
     if (tipoMedio === 'archivo' && !req.file) {
@@ -212,6 +213,7 @@ async function subirParaAccion(req, res, next) {
     let datosEvidencia = {
       categoria: categoria || 'Otro',
       notas: notas || null,
+      titulo: titulo || null,
       id_accion: req.params.id,
       id_autor: req.usuario.id,
       tipo_medio: tipoMedio,
@@ -234,7 +236,7 @@ async function subirParaAccion(req, res, next) {
 
     const evidencia = await evidenciasQueries.crearEvidencia(datosEvidencia);
     const pId = await resolverProyectoId('accion', req.params.id);
-    if (pId) await registrarActividad({ id_proyecto: pId, id_usuario: req.usuario.id, tipo: 'evidencia', titulo: `Evidencia subida a acción`, entidad_tipo: 'accion', entidad_id: req.params.id });
+    if (pId) await registrarActividad({ id_proyecto: pId, id_usuario: req.usuario.id, tipo: 'evidencia', titulo: `Documento subido a acción`, entidad_tipo: 'accion', entidad_id: req.params.id });
     res.status(201).json({ datos: evidencia, mensaje: tipoMedio === 'link' ? 'Link registrado exitosamente' : 'Evidencia subida exitosamente' });
   } catch (err) {
     next(err);

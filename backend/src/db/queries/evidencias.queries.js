@@ -113,8 +113,8 @@ async function crearEvidencia(datos) {
       nombre_archivo, nombre_original, ruta_minio, tipo_archivo,
       categoria, tamano_bytes, notas, fecha_generacion,
       id_accion, id_riesgo, id_subaccion, id_autor, id_etapa,
-      url, tipo_medio
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+      url, tipo_medio, titulo
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
     RETURNING *
   `, [
     datos.nombre_archivo || null, datos.nombre_original || null, datos.ruta_minio || null,
@@ -122,7 +122,7 @@ async function crearEvidencia(datos) {
     datos.notas || null, datos.fecha_generacion || null,
     datos.id_accion || null, datos.id_riesgo || null,
     datos.id_subaccion || null, datos.id_autor, datos.id_etapa || null,
-    datos.url || null, datos.tipo_medio || 'archivo'
+    datos.url || null, datos.tipo_medio || 'archivo', datos.titulo || null
   ]);
 
   return resultado.rows[0];

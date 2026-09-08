@@ -72,8 +72,8 @@ async function comentarEn(tipo, id, contenido) {
   return actividadApi.comentar(tipo, id, contenido);
 }
 
-async function adjuntarEvidencia(tipo, id, { archivo, url, categoria, notas }) {
-  const metadatos = { categoria: categoria || 'Otro', notas: notas?.trim() || null };
+async function adjuntarEvidencia(tipo, id, { archivo, url, categoria, notas, titulo }) {
+  const metadatos = { categoria: categoria || 'Otro', notas: notas?.trim() || null, titulo: titulo?.trim() || null };
   if (url) {
     if (tipo === 'tarea') return actividadApi.registrarLinkActividad(tipo, id, url, metadatos);
     if (tipo === 'etapa') return evidenciasApi.registrarLinkEtapa(id, url, metadatos);
@@ -144,13 +144,15 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
   }, [historialRaw]);
 
   function agregarArchivos(fileList) {
+    // titulo se prellena con el nombre del archivo (editable después) — en
+    // modo liga no hay de dónde prellenarlo, arranca vacío.
     const nuevos = Array.from(fileList).map(archivo => ({
-      id: idEvidencia(), modo: 'archivo', archivo, url: '', categoria: 'Otro', notas: '',
+      id: idEvidencia(), modo: 'archivo', archivo, url: '', categoria: 'Otro', notas: '', titulo: archivo.name,
     }));
     setEvidencias(prev => [...prev, ...nuevos]);
   }
   function agregarLiga() {
-    setEvidencias(prev => [...prev, { id: idEvidencia(), modo: 'liga', archivo: null, url: '', categoria: 'Otro', notas: '' }]);
+    setEvidencias(prev => [...prev, { id: idEvidencia(), modo: 'liga', archivo: null, url: '', categoria: 'Otro', notas: '', titulo: '' }]);
   }
   function actualizarEvidencia(id, campo, valor) {
     setEvidencias(prev => prev.map(ev => (ev.id === id ? { ...ev, [campo]: valor } : ev)));
@@ -189,8 +191,8 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
       // mismo nodo — más simple de seguir en el log del servidor y evita
       // sorpresas de orden si una evidencia depende de otra en el futuro.
       for (const ev of evidencias) {
-        if (ev.modo === 'archivo') await adjuntarEvidencia(tipo, nodo.id, { archivo: ev.archivo, categoria: ev.categoria, notas: ev.notas });
-        else if (ev.url.trim()) await adjuntarEvidencia(tipo, nodo.id, { url: ev.url.trim(), categoria: ev.categoria, notas: ev.notas });
+        if (ev.modo === 'archivo') await adjuntarEvidencia(tipo, nodo.id, { archivo: ev.archivo, categoria: ev.categoria, notas: ev.notas, titulo: ev.titulo });
+        else if (ev.url.trim()) await adjuntarEvidencia(tipo, nodo.id, { url: ev.url.trim(), categoria: ev.categoria, notas: ev.notas, titulo: ev.titulo });
       }
 
       await onGuardado?.();
@@ -310,14 +312,17 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
             )}
           </div>
 
-          {/* Evidencia (opcional) — una o varias, cada una con su propia
-              categoría y nota opcionales. Filas compactas tipo tabla en
-              vez de un formulario por evidencia, para que agregar 3 o 4
-              (el caso típico al cerrar un lote de trabajo) no signifique
-              abrir el modal varias veces. */}
+          {/* Adjuntar documento (opcional) — una o varias, cada una con su
+              propio título, categoría y nota opcionales. Filas compactas
+              tipo tabla en vez de un formulario por documento, para que
+              agregar 3 o 4 (el caso típico al cerrar un lote de trabajo)
+              no signifique abrir el modal varias veces. Se guarda en el
+              mismo listado de documentos del nodo que el botón
+              independiente "Adjuntar documento" del panel — misma fuente
+              de datos, solo otra ruta para llegar a ella. */}
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
-              Evidencia <span className="text-gray-400 font-normal">(opcional)</span>
+              Adjuntar documento <span className="text-gray-400 font-normal">(opcional)</span>
             </label>
 
             {evidencias.length > 0 && (
@@ -326,13 +331,18 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
                   <div key={ev.id} className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-2 py-1.5">
                     {ev.modo === 'liga' ? <Link2 size={13} className="text-blue-500 flex-shrink-0" /> : <Paperclip size={13} className="text-gray-400 flex-shrink-0" />}
                     <div className="flex-1 min-w-0">
+                      <input
+                        type="text" value={ev.titulo} onChange={e => actualizarEvidencia(ev.id, 'titulo', e.target.value)}
+                        placeholder="Título del documento"
+                        className="text-xs font-medium text-gray-700 w-full border-0 p-0 outline-none focus:ring-0 bg-transparent"
+                      />
                       {ev.modo === 'archivo' ? (
-                        <p className="text-xs text-gray-700 truncate" title={ev.archivo.name}>{ev.archivo.name}</p>
+                        <p className="text-[10px] text-gray-400 truncate" title={ev.archivo.name}>{ev.archivo.name}</p>
                       ) : (
                         <input
                           type="url" value={ev.url} onChange={e => actualizarEvidencia(ev.id, 'url', e.target.value)}
                           placeholder="https://..." autoFocus
-                          className="text-xs w-full border-0 p-0 outline-none focus:ring-0 bg-transparent"
+                          className="text-[11px] text-gray-500 w-full border-0 p-0 outline-none focus:ring-0 bg-transparent"
                         />
                       )}
                       <input
