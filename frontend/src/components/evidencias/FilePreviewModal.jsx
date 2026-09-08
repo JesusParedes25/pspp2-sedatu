@@ -6,6 +6,7 @@
  *            Evidencias — una sola implementación para ambos.
  */
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { FileText, X, Upload, Loader2, AlertTriangle, Link2 } from 'lucide-react';
 import * as evidenciasApi from '../../api/evidencias';
 
@@ -79,7 +80,13 @@ export default function FilePreviewModal({ evidencia, onClose, urlOverride }) {
     })();
   }, []);
 
-  return (
+  // createPortal a document.body: este modal se abre tanto desde el rail
+  // de Detalle/drawer de Diagrama como desde el feed de Actividad, ambos
+  // paneles posicionados con translate-x — eso los vuelve el "containing
+  // block" de cualquier hijo con position:fixed, y sin portal el modal
+  // quedaba encajonado dentro de ese panel angosto en vez de cubrir toda
+  // la pantalla (mismo problema ya resuelto así en ModalRegistrarAvance).
+  return createPortal((
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-[90vw] max-w-4xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Title bar */}
@@ -154,7 +161,7 @@ export default function FilePreviewModal({ evidencia, onClose, urlOverride }) {
         </div>
       </div>
     </div>
-  );
+  ), document.body);
 }
 
 function GeoPreviewMap({ data, isGeoJSON }) {
