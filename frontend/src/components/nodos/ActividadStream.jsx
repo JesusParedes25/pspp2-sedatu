@@ -346,10 +346,16 @@ export default function ActividadStream({ tipo, id, titulo, soloLectura = false 
                 )}
                 <div className="flex gap-2 pt-2 border-t border-gray-100">
                   {esLink ? (
-                    <a href={detalleItem.archivo_url} target="_blank" rel="noreferrer"
-                      className="flex items-center gap-1 px-3 py-1.5 bg-guinda-600 text-white text-xs rounded-lg hover:bg-guinda-700">
-                      <Link2 size={12} /> Abrir enlace
-                    </a>
+                    <>
+                      <button onClick={() => setPreviewItem(detalleItem)}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-guinda-600 text-white text-xs rounded-lg hover:bg-guinda-700">
+                        <FileText size={12} /> Vista previa
+                      </button>
+                      <a href={detalleItem.archivo_url} target="_blank" rel="noreferrer"
+                        className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 text-gray-700 text-xs rounded-lg hover:bg-gray-50">
+                        <Link2 size={12} /> Abrir enlace
+                      </a>
+                    </>
                   ) : (
                     <>
                       <button onClick={() => setPreviewItem(detalleItem)}
@@ -371,8 +377,13 @@ export default function ActividadStream({ tipo, id, titulo, soloLectura = false 
 
       {previewItem && (
         <FilePreviewModal
-          evidencia={{ nombre_original: previewItem.archivo_nombre }}
-          urlOverride={urlArchivo(previewItem)}
+          evidencia={{
+            nombre_original: previewItem.archivo_nombre,
+            titulo: previewItem.metadata?.titulo || null,
+            tipo_medio: previewItem.metadata?.tipo_medio,
+            url: previewItem.metadata?.tipo_medio === 'link' ? previewItem.archivo_url : undefined,
+          }}
+          urlOverride={previewItem.metadata?.tipo_medio === 'link' ? undefined : urlArchivo(previewItem)}
           onClose={() => setPreviewItem(null)}
         />
       )}

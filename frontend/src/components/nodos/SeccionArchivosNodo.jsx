@@ -2,8 +2,11 @@
  * ARCHIVO: SeccionArchivosNodo.jsx
  * PROPÓSITO: Gestor de evidencias de una etapa o acción — lista con
  *            iconos por tipo, detalle con notas/metadatos, vista previa
- *            (PDF/imagen/capas geográficas vía FilePreviewModal) y wizard
- *            de subida (categoría → archivo o enlace → notas).
+ *            (PDF/imagen/liga/capas geográficas vía FilePreviewModal) y
+ *            alta de uno o varios documentos (archivo o liga) a la vez,
+ *            cada uno con su propio título/categoría/nota antes de
+ *            guardar — mismo patrón rápido que ya usa "Registrar avance"
+ *            (ver FilaDocumentoPendiente, compartido entre los dos).
  *            Extraído de la antigua pestaña "Archivos" de Seguimiento
  *            (EtapasAvancesMD.jsx) para reutilizarse dentro de NodoCard.
  */
@@ -12,67 +15,73 @@ import { FileText, Link2, Plus, Upload, Trash2, AlertTriangle, Loader2, ChevronR
 import * as evidenciasApi from '../../api/evidencias';
 import * as actividadApi from '../../api/actividad';
 import FilePreviewModal from '../evidencias/FilePreviewModal';
+import FilaDocumentoPendiente from './FilaDocumentoPendiente';
 import { permisosDeNodo } from '../../hooks/usePermisos';
-import CATEGORIAS_EVIDENCIA from '../seguimiento/categoriasEvidencia';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
+
+let contadorPendiente = 0;
+const idPendiente = () => `p${++contadorPendiente}`;
 
 export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, permisos: permisosProyecto }) {
   const permisos = permisosDeNodo(permisosProyecto, tipo, id);
   // Una tarea no tiene tabla de evidencias propia (nunca la tuvo) — sus
   // adjuntos viven en el stream unificado `actividad` (tipo_evento='archivo'),
-  // mismo wizard categoría→archivo/link→notas, solo que el guardado y la
-  // URL de descarga van por otro endpoint. Eliminar queda deshabilitado
-  // para tarea: /actividad no tiene un DELETE todavía.
+  // mismo modelo categoría/notas/título, solo que el guardado y la URL de
+  // descarga van por otro endpoint. Eliminar queda deshabilitado para
+  // tarea: /actividad no tiene un DELETE todavía.
   const esActividad = tipo === 'tarea';
-  // Wizard: 'lista' | 'paso1_categoria' | 'paso2_medio'
-  const [paso, setPaso] = useState('lista');
-  const [categoria, setCategoria] = useState('');
-  const [tipoMedio, setTipoMedio] = useState(null); // 'archivo' | 'link'
-  const [archivo, setArchivo] = useState(null);
-  const [urlLink, setUrlLink] = useState('');
-  const [notas, setNotas] = useState('');
-  // Título editable, separado del nombre real del archivo — se prellena con
-  // el nombre del archivo elegido (no hay de dónde prellenarlo en modo
-  // liga) pero el usuario puede cambiarlo antes de guardar.
-  const [titulo, setTitulo] = useState('');
+
+  // Documentos elegidos pero todavía sin guardar — {id, modo, archivo, url,
+  // categoria, notas, titulo}[], igual que en ModalRegistrarAvance. Permite
+  // elegir varios archivos de una vez (input multiple) y/o agregar varias
+  // ligas antes de guardar todo junto con un solo clic.
+  const [pendientes, setPendientes] = useState([]);
   const [detalleEv, setDetalleEv] = useState(null);
   const [previewEv, setPreviewEv] = useState(null);
 
-  function resetForm() {
-    setPaso('lista'); setCategoria(''); setTipoMedio(null);
-    setArchivo(null); setUrlLink(''); setNotas(''); setTitulo('');
+  function agregarArchivos(fileList) {
+    const nuevos = Array.from(fileList).map(archivo => ({
+      id: idPendiente(), modo: 'archivo', archivo, url: '', categoria: 'Otro', notas: '', titulo: archivo.name,
+    }));
+    setPendientes(prev => [...prev, ...nuevos]);
+  }
+  function agregarLiga() {
+    setPendientes(prev => [...prev, { id: idPendiente(), modo: 'liga', archivo: null, url: '', categoria: 'Otro', notas: '', titulo: '' }]);
+  }
+  function actualizarPendiente(pid, campo, valor) {
+    setPendientes(prev => prev.map(p => (p.id === pid ? { ...p, [campo]: valor } : p)));
+  }
+  function quitarPendiente(pid) {
+    setPendientes(prev => prev.filter(p => p.id !== pid));
   }
 
   // Sin candado síncrono, un doble clic duplicaba el archivo en MinIO (no
-  // solo la fila en la base de datos).
-  const [enviar, subiendo] = useEnvioUnico(async () => {
+  // solo la fila en la base de datos). Secuencial, no Promise.all: son
+  // peticiones multipart contra el mismo nodo — más simple de seguir en el
+  // log del servidor, mismo criterio que ModalRegistrarAvance.
+  const [guardarPendientes, guardando] = useEnvioUnico(async () => {
     try {
-      const tituloFinal = titulo.trim() || null;
-      if (tipoMedio === 'link') {
-        if (!urlLink.trim()) return;
-        if (esActividad) {
-          await actividadApi.registrarLinkActividad(tipo, id, urlLink.trim(), { categoria, notas, titulo: tituloFinal });
-        } else if (tipo === 'etapa') {
-          await evidenciasApi.registrarLinkEtapa(id, urlLink.trim(), { categoria, notas, titulo: tituloFinal });
-        } else {
-          await evidenciasApi.registrarLinkAccion(id, urlLink.trim(), { categoria, notas, titulo: tituloFinal });
-        }
-      } else {
-        if (!archivo) return;
-        if (esActividad) {
-          await actividadApi.subirArchivoActividad(tipo, id, archivo, { categoria, notas, titulo: tituloFinal });
-        } else if (tipo === 'etapa') {
-          await evidenciasApi.subirEvidenciaEtapa(id, archivo, { categoria, notas, titulo: tituloFinal });
-        } else {
-          await evidenciasApi.subirEvidenciaAccion(id, archivo, { categoria, notas, titulo: tituloFinal });
+      for (const p of pendientes) {
+        const metadatos = { categoria: p.categoria, notas: p.notas, titulo: p.titulo?.trim() || null };
+        if (p.modo === 'archivo') {
+          if (esActividad) await actividadApi.subirArchivoActividad(tipo, id, p.archivo, metadatos);
+          else if (tipo === 'etapa') await evidenciasApi.subirEvidenciaEtapa(id, p.archivo, metadatos);
+          else await evidenciasApi.subirEvidenciaAccion(id, p.archivo, metadatos);
+        } else if (p.url.trim()) {
+          if (esActividad) await actividadApi.registrarLinkActividad(tipo, id, p.url.trim(), metadatos);
+          else if (tipo === 'etapa') await evidenciasApi.registrarLinkEtapa(id, p.url.trim(), metadatos);
+          else await evidenciasApi.registrarLinkAccion(id, p.url.trim(), metadatos);
         }
       }
-      resetForm();
+      setPendientes([]);
       onRecargar?.();
     } catch (err) {
-      console.error('Error subiendo documento:', err);
+      console.error('Error subiendo documentos:', err);
     }
   });
+
+  const puedeGuardar = pendientes.length > 0 && !guardando
+    && pendientes.every(p => p.modo === 'archivo' || p.url.trim().length > 0);
 
   function iconoParaTipo(ev) {
     if (ev.tipo_medio === 'link') return <Link2 size={13} className="text-blue-500 flex-shrink-0" />;
@@ -137,10 +146,16 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
           )}
           <div className="flex gap-2 pt-2 border-t border-gray-100">
             {esLink ? (
-              <a href={detalleEv.url} target="_blank" rel="noreferrer"
-                className="flex items-center gap-1 px-3 py-1 bg-[#7B1C3E] text-white text-xs rounded hover:bg-[#5a1430]">
-                <Link2 size={12} /> Abrir enlace
-              </a>
+              <>
+                <button onClick={() => setPreviewEv(detalleEv)}
+                  className="flex items-center gap-1 px-3 py-1 bg-[#7B1C3E] text-white text-xs rounded hover:bg-[#5a1430]">
+                  <FileText size={12} /> Vista previa
+                </button>
+                <a href={detalleEv.url} target="_blank" rel="noreferrer"
+                  className="flex items-center gap-1 px-3 py-1 border border-gray-300 text-gray-700 text-xs rounded hover:bg-gray-100">
+                  <Link2 size={12} /> Abrir enlace
+                </a>
+              </>
             ) : (
               <>
                 <button onClick={() => setPreviewEv(detalleEv)}
@@ -166,7 +181,7 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
           {previewEv && (
             <FilePreviewModal
               evidencia={previewEv}
-              urlOverride={esActividad ? actividadApi.obtenerUrlDescargaActividad(previewEv.id) : undefined}
+              urlOverride={esActividad && previewEv.tipo_medio !== 'link' ? actividadApi.obtenerUrlDescargaActividad(previewEv.id) : undefined}
               onClose={() => setPreviewEv(null)}
             />
           )}
@@ -175,160 +190,7 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
     );
   }
 
-  // ─── Paso 1: Elegir categoría ───
-  if (paso === 'paso1_categoria') {
-    return (
-      <div className="p-3 space-y-2">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-xs font-semibold text-gray-700">Paso 1: Tipo de documento</span>
-          <button onClick={resetForm} className="text-[10px] text-gray-400 hover:text-gray-600">Cancelar</button>
-        </div>
-        <div className="grid grid-cols-2 gap-1.5">
-          {CATEGORIAS_EVIDENCIA.map(cat => (
-            <button
-              key={cat.value}
-              onClick={() => { setCategoria(cat.value); setPaso('paso2_medio'); }}
-              className="flex items-center gap-2 px-3 py-2.5 border border-gray-200 rounded-lg hover:border-[#7B1C3E] hover:bg-[#7B1C3E]/5 text-left transition-colors group"
-            >
-              <span className="text-base">{cat.icon}</span>
-              <span className="text-xs text-gray-700 group-hover:text-[#7B1C3E] font-medium">{cat.value}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // ─── Paso 2: Archivo o Link ───
-  if (paso === 'paso2_medio') {
-    return (
-      <div className="p-3 space-y-3">
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-2">
-            <button onClick={() => setPaso('paso1_categoria')} className="text-gray-400 hover:text-gray-600">
-              <ChevronRight size={14} className="rotate-180" />
-            </button>
-            <span className="text-xs font-semibold text-gray-700">Paso 2: Subir documento</span>
-          </div>
-          <button onClick={resetForm} className="text-[10px] text-gray-400 hover:text-gray-600">Cancelar</button>
-        </div>
-        <div className="text-[10px] text-gray-500 bg-gray-50 rounded px-2 py-1">
-          Categoría seleccionada: <strong className="text-gray-700">{categoria}</strong>
-        </div>
-
-        {/* Tipo: archivo o link */}
-        {!tipoMedio && (
-          <div className="flex gap-2">
-            <button
-              onClick={() => setTipoMedio('archivo')}
-              className="flex-1 flex items-center justify-center gap-2 py-3 border border-gray-200 rounded-lg hover:border-[#7B1C3E] hover:bg-[#7B1C3E]/5 transition-colors"
-            >
-              <Upload size={16} className="text-gray-500" />
-              <span className="text-xs font-medium text-gray-700">Subir archivo</span>
-            </button>
-            <button
-              onClick={() => setTipoMedio('link')}
-              className="flex-1 flex items-center justify-center gap-2 py-3 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
-            >
-              <Link2 size={16} className="text-gray-500" />
-              <span className="text-xs font-medium text-gray-700">Pegar enlace</span>
-            </button>
-          </div>
-        )}
-
-        {/* Link input */}
-        {tipoMedio === 'link' && (
-          <div className="space-y-2">
-            <div>
-              <label className="text-[10px] text-gray-500 uppercase block mb-0.5">URL del enlace</label>
-              <input
-                value={urlLink}
-                onChange={e => setUrlLink(e.target.value)}
-                placeholder="https://..."
-                className="text-xs border border-gray-200 rounded px-2 py-1.5 w-full focus:border-blue-400 outline-none"
-                autoFocus
-              />
-            </div>
-            <div className="flex items-start gap-1.5 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
-              <AlertTriangle size={12} className="text-amber-500 flex-shrink-0 mt-0.5" />
-              <p className="text-[10px] text-amber-700 leading-relaxed">
-                Asegúrese de que el enlace sea <strong>público</strong> o accesible para cualquiera que tenga el link, para que otros usuarios del sistema puedan abrirlo.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* File input */}
-        {tipoMedio === 'archivo' && (
-          <div>
-            <label className="text-[10px] text-gray-500 uppercase block mb-0.5">Seleccionar archivo</label>
-            <input
-              type="file"
-              onChange={e => {
-                const f = e.target.files?.[0] || null;
-                setArchivo(f);
-                // Prellena el título con el nombre del archivo, sin pisar
-                // uno que el usuario ya haya escrito a mano.
-                if (f && !titulo.trim()) setTitulo(f.name);
-              }}
-              className="text-xs w-full"
-            />
-            {archivo && (
-              <p className="text-[10px] text-gray-500 mt-1">
-                {archivo.name} — {archivo.size > 1048576 ? `${(archivo.size / 1048576).toFixed(1)} MB` : `${(archivo.size / 1024).toFixed(0)} KB`}
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Título del documento — separado del nombre real del archivo, es
-            lo que se muestra en los listados. */}
-        {tipoMedio && (
-          <div>
-            <label className="text-[10px] text-gray-500 uppercase block mb-0.5">Título del documento</label>
-            <input
-              type="text"
-              value={titulo}
-              onChange={e => setTitulo(e.target.value)}
-              placeholder="Ej. Acta de entrega — fase 1"
-              className="text-xs border border-gray-200 rounded px-2 py-1.5 w-full focus:border-[#7B1C3E] outline-none"
-            />
-          </div>
-        )}
-
-        {/* Notas */}
-        {tipoMedio && (
-          <>
-            <div>
-              <label className="text-[10px] text-gray-500 uppercase block mb-0.5">Notas o comentarios (opcional)</label>
-              <textarea
-                value={notas}
-                onChange={e => setNotas(e.target.value)}
-                placeholder="Descripción breve, contexto, observaciones..."
-                rows={2}
-                className="text-xs border border-gray-200 rounded px-2 py-1 w-full resize-none focus:border-[#7B1C3E] outline-none"
-              />
-            </div>
-            <div className="flex gap-2 pt-1">
-              <button
-                onClick={enviar}
-                disabled={subiendo || (tipoMedio === 'archivo' && !archivo) || (tipoMedio === 'link' && !urlLink.trim())}
-                className="flex items-center gap-1 px-3 py-1.5 bg-[#7B1C3E] text-white text-xs rounded-lg hover:bg-[#5a1430] disabled:opacity-50 transition-colors"
-              >
-                {subiendo ? <Loader2 size={12} className="animate-spin" /> : (tipoMedio === 'link' ? <Link2 size={12} /> : <Upload size={12} />)}
-                {subiendo ? 'Guardando...' : (tipoMedio === 'link' ? 'Registrar enlace' : 'Subir archivo')}
-              </button>
-              <button onClick={() => setTipoMedio(null)} className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700">
-                Atrás
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    );
-  }
-
-  // ─── Lista de evidencias ───
+  // ─── Lista de evidencias + alta de una o varias ───
   return (
     <div className="p-3">
       {evidencias.length > 0 && (
@@ -367,17 +229,55 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
           })}
         </div>
       )}
-      {evidencias.length === 0 && (
+      {evidencias.length === 0 && pendientes.length === 0 && (
         <p className="text-xs text-gray-400 text-center py-4 italic">Sin documentos adjuntos</p>
       )}
 
       {!permisos?.esSoloLectura && (
-        <button
-          onClick={() => setPaso('paso1_categoria')}
-          className="flex items-center gap-1.5 text-xs text-[#7B1C3E] hover:text-[#5a1430] font-medium py-1.5"
-        >
-          <Plus size={12} /> Agregar documento
-        </button>
+        <>
+          {pendientes.length > 0 && (
+            <div className="space-y-1.5 mb-2">
+              {pendientes.map(p => (
+                <FilaDocumentoPendiente
+                  key={p.id}
+                  item={p}
+                  onCambiar={(campo, valor) => actualizarPendiente(p.id, campo, valor)}
+                  onQuitar={() => quitarPendiente(p.id)}
+                />
+              ))}
+            </div>
+          )}
+
+          {pendientes.some(p => p.modo === 'liga') && (
+            <div className="flex items-start gap-1.5 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mb-2">
+              <AlertTriangle size={12} className="text-amber-500 flex-shrink-0 mt-0.5" />
+              <p className="text-[10px] text-amber-700 leading-relaxed">
+                Asegúrese de que el enlace sea <strong>público</strong> o accesible para cualquiera que tenga el link, para que otros usuarios del sistema puedan abrirlo.
+              </p>
+            </div>
+          )}
+
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+              <Plus size={13} /> Archivo
+              <input type="file" multiple className="hidden" onChange={e => { agregarArchivos(e.target.files); e.target.value = ''; }} />
+            </label>
+            <button onClick={agregarLiga}
+              className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
+              <Plus size={13} /> Liga
+            </button>
+            {pendientes.length > 0 && (
+              <button
+                onClick={guardarPendientes}
+                disabled={!puedeGuardar}
+                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-[#7B1C3E] text-white text-xs rounded-lg hover:bg-[#5a1430] disabled:opacity-50 transition-colors"
+              >
+                {guardando && <Loader2 size={12} className="animate-spin" />}
+                Guardar{pendientes.length > 1 ? ` (${pendientes.length})` : ''}
+              </button>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

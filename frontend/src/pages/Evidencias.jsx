@@ -366,10 +366,15 @@ function PanelDetalle({ evidencia: ev, onPreview, onEliminar }) {
       {/* Acciones */}
       <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
         {esLink ? (
-          <a href={ev.url} target="_blank" rel="noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700">
-            <Link2 size={13} /> Abrir enlace
-          </a>
+          <>
+            <button onClick={onPreview} className="flex items-center gap-1.5 px-3 py-1.5 bg-[#7B1C3E] text-white text-xs rounded-lg hover:bg-[#5a1430]">
+              <Eye size={13} /> Vista previa
+            </button>
+            <a href={ev.url} target="_blank" rel="noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-gray-700 text-xs rounded-lg hover:bg-gray-100">
+              <Link2 size={13} /> Abrir enlace
+            </a>
+          </>
         ) : (
           <>
             <button onClick={onPreview} className="flex items-center gap-1.5 px-3 py-1.5 bg-[#7B1C3E] text-white text-xs rounded-lg hover:bg-[#5a1430]">

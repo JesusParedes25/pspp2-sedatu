@@ -24,7 +24,7 @@
  */
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Loader2, Paperclip, Link2, ChevronDown, ChevronRight, Lock, CheckCircle2, Plus } from 'lucide-react';
+import { X, Loader2, ChevronDown, ChevronRight, Lock, CheckCircle2, Plus } from 'lucide-react';
 import * as etapasApi from '../../api/etapas';
 import * as accionesApi from '../../api/acciones';
 import * as tareasApi from '../../api/tareas';
@@ -32,9 +32,9 @@ import * as evidenciasApi from '../../api/evidencias';
 import * as actividadApi from '../../api/actividad';
 import { crearComentario } from '../../api/comentarios';
 import { NIVELES } from '../../config/niveles';
-import CATEGORIAS_EVIDENCIA from '../seguimiento/categoriasEvidencia';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 import { agruparParaLinea } from './ActividadStream';
+import FilaDocumentoPendiente from './FilaDocumentoPendiente';
 
 // comentarios/evidencias del modelo viejo NUNCA soportaron 'Tarea' — para
 // tarea todo cae al stream unificado `actividad` (mismo criterio que ya usa
@@ -328,39 +328,12 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
             {evidencias.length > 0 && (
               <div className="space-y-1.5 mb-2">
                 {evidencias.map(ev => (
-                  <div key={ev.id} className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-2 py-1.5">
-                    {ev.modo === 'liga' ? <Link2 size={13} className="text-blue-500 flex-shrink-0" /> : <Paperclip size={13} className="text-gray-400 flex-shrink-0" />}
-                    <div className="flex-1 min-w-0">
-                      <input
-                        type="text" value={ev.titulo} onChange={e => actualizarEvidencia(ev.id, 'titulo', e.target.value)}
-                        placeholder="Título del documento"
-                        className="text-xs font-medium text-gray-700 w-full border-0 p-0 outline-none focus:ring-0 bg-transparent"
-                      />
-                      {ev.modo === 'archivo' ? (
-                        <p className="text-[10px] text-gray-400 truncate" title={ev.archivo.name}>{ev.archivo.name}</p>
-                      ) : (
-                        <input
-                          type="url" value={ev.url} onChange={e => actualizarEvidencia(ev.id, 'url', e.target.value)}
-                          placeholder="https://..." autoFocus
-                          className="text-[11px] text-gray-500 w-full border-0 p-0 outline-none focus:ring-0 bg-transparent"
-                        />
-                      )}
-                      <input
-                        type="text" value={ev.notas} onChange={e => actualizarEvidencia(ev.id, 'notas', e.target.value)}
-                        placeholder="Nota (opcional)"
-                        className="text-[11px] text-gray-400 w-full border-0 p-0 outline-none focus:ring-0 bg-transparent mt-0.5"
-                      />
-                    </div>
-                    <select
-                      value={ev.categoria} onChange={e => actualizarEvidencia(ev.id, 'categoria', e.target.value)}
-                      className="text-[10px] border border-gray-200 rounded px-1 py-1 flex-shrink-0 bg-white max-w-[6.5rem]"
-                    >
-                      {CATEGORIAS_EVIDENCIA.map(c => <option key={c.value} value={c.value}>{c.icon} {c.value}</option>)}
-                    </select>
-                    <button onClick={() => quitarEvidencia(ev.id)} className="text-gray-300 hover:text-red-500 flex-shrink-0">
-                      <X size={14} />
-                    </button>
-                  </div>
+                  <FilaDocumentoPendiente
+                    key={ev.id}
+                    item={ev}
+                    onCambiar={(campo, valor) => actualizarEvidencia(ev.id, campo, valor)}
+                    onQuitar={() => quitarEvidencia(ev.id)}
+                  />
                 ))}
               </div>
             )}
