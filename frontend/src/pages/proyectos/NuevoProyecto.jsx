@@ -68,6 +68,9 @@ export default function NuevoProyecto() {
   const { usuario } = useAuth();
   const { puedeCrearProyecto } = usePermisosGlobales();
   const [pasoActual, setPasoActual] = useState(0);
+  // Errores de validación por campo, mismo patrón que ModalRiesgo.jsx
+  // (borde rojo + texto rojo debajo del campo).
+  const [errores, setErrores] = useState({});
 
   // Catálogos para selects
   const [dgs, setDgs] = useState([]);
@@ -147,8 +150,14 @@ export default function NuevoProyecto() {
     setDatos(prev => ({ ...prev, [campo]: valor }));
   }
 
-  // Navegar entre pasos
+  // Navegar entre pasos. El paso 0 (Información general) no se puede
+  // saltar sin nombre — antes cualquier paso avanzaba sin validar nada,
+  // así que se podía llegar a "Revisión y crear" con el nombre en blanco.
   function siguiente() {
+    if (pasoActual === 0 && !datos.nombre.trim()) {
+      setErrores(prev => ({ ...prev, nombre: 'El nombre del proyecto es obligatorio' }));
+      return;
+    }
     if (pasoActual < PASOS.length - 1) setPasoActual(prev => prev + 1);
   }
   function anterior() {
@@ -172,6 +181,13 @@ export default function NuevoProyecto() {
   // proyecto" duplicaba TODO: el proyecto, la cartera, la portada y cada
   // etapa/acción planificada.
   const [crearProyecto, enviando] = useEnvioUnico(async () => {
+    // Última defensa: el botón ya viene deshabilitado sin nombre, pero si
+    // se llegó aquí de cualquier otra forma, no se manda la petición.
+    if (!datos.nombre.trim()) {
+      setErrores(prev => ({ ...prev, nombre: 'El nombre del proyecto es obligatorio' }));
+      setPasoActual(0);
+      return;
+    }
     try {
       const respuesta = await proyectosApi.crearProyecto(datos);
       const nuevoId = respuesta.datos.id;
@@ -295,8 +311,14 @@ export default function NuevoProyecto() {
             <h2 className="text-lg font-semibold text-gray-900 mb-2">Información general</h2>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del proyecto *</label>
-              <input type="text" value={datos.nombre} onChange={e => actualizar('nombre', e.target.value)}
-                placeholder="Ej: Programa Nacional de Regularización de Lotes" className="input-base" required />
+              <input type="text" value={datos.nombre}
+                onChange={e => {
+                  actualizar('nombre', e.target.value);
+                  if (errores.nombre && e.target.value.trim()) setErrores(prev => ({ ...prev, nombre: undefined }));
+                }}
+                placeholder="Ej: Programa Nacional de Regularización de Lotes"
+                className={`input-base ${errores.nombre ? 'border-red-400 focus:ring-red-300' : ''}`} required />
+              {errores.nombre && <p className="text-xs text-red-500 mt-0.5">{errores.nombre}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
@@ -670,7 +692,7 @@ export default function NuevoProyecto() {
         {pasoActual < PASOS.length - 1 ? (
           <button onClick={siguiente} className="btn-primary">Siguiente</button>
         ) : (
-          <button onClick={crearProyecto} disabled={enviando || !datos.nombre} className="btn-verde">
+          <button onClick={crearProyecto} disabled={enviando || !datos.nombre.trim()} className="btn-verde">
             {enviando ? 'Creando...' : 'Crear proyecto'}
           </button>
         )}

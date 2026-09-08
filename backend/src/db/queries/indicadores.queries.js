@@ -341,7 +341,7 @@ async function listarPublicables(filtros = {}) {
       dg.siglas AS dg_siglas,
       dg.nombre AS dg_nombre
     FROM indicadores i
-    JOIN proyectos p ON p.id = i.id_proyecto
+    JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
     WHERE ${where}
     ORDER BY dg.siglas, p.nombre, i.nombre

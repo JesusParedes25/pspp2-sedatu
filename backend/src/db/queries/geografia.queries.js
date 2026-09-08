@@ -160,7 +160,7 @@ async function obtenerResumenTerritorial(idEstado, filtros = {}) {
       m.nombre AS municipio_nombre
     FROM cobertura_geografica cg
     JOIN acciones a ON cg.tipo_entidad = 'accion' AND cg.id_entidad = a.id
-    JOIN proyectos p ON a.id_proyecto = p.id
+    JOIN proyectos p ON a.id_proyecto = p.id AND p.deleted_at IS NULL
     LEFT JOIN etapas e ON a.id_etapa = e.id
     LEFT JOIN direcciones_generales dg ON p.id_dg_lider = dg.id
     LEFT JOIN cat_municipios m ON cg.id_municipio = m.id
@@ -182,7 +182,7 @@ async function obtenerResumenTerritorial(idEstado, filtros = {}) {
         OR (r.entidad_tipo = 'Accion' AND r.entidad_id IN (SELECT id FROM acciones WHERE id_proyecto = p.id))
       )
       WHERE r.estado IN ('Abierto','En_mitigacion')
-        AND p.id = ANY($1)
+        AND p.id = ANY($1) AND p.deleted_at IS NULL
       ORDER BY CASE r.nivel WHEN 'Critico' THEN 1 WHEN 'Alto' THEN 2 ELSE 3 END
       LIMIT 10
     `, [proyectoIds]);
@@ -196,7 +196,7 @@ async function obtenerResumenTerritorial(idEstado, filtros = {}) {
       SELECT i.nombre, i.meta_global, i.valor_actual, i.unidad, i.unidad_personalizada,
         p.nombre AS proyecto_nombre, p.id AS proyecto_id
       FROM indicadores i
-      JOIN proyectos p ON p.id = i.id_proyecto
+      JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL
       WHERE i.es_publicable = true AND i.activo = true AND p.id = ANY($1)
       ORDER BY p.nombre, i.nombre
     `, [proyectoIds]);
@@ -271,7 +271,7 @@ async function obtenerResumenPorEstados(filtros = {}) {
     FROM cobertura_geografica cg
     JOIN cat_entidades_federativas ef ON cg.id_estado = ef.id
     JOIN acciones a ON cg.tipo_entidad = 'accion' AND cg.id_entidad = a.id
-    JOIN proyectos p ON a.id_proyecto = p.id
+    JOIN proyectos p ON a.id_proyecto = p.id AND p.deleted_at IS NULL
     WHERE a.estado != 'Cancelada' ${filtrosDG}
     GROUP BY ef.id, ef.clave, ef.nombre
     ORDER BY ef.nombre

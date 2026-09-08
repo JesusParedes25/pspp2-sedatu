@@ -518,7 +518,7 @@ async function listarProgramas(req, res, next) {
     const { rows } = await pool.query(`
       SELECT p.id, p.nombre, p.clave, p.tipo, p.ejercicio_fiscal,
              p.unidad_responsable, p.descripcion, p.activo,
-             (SELECT count(*) FROM proyectos pr WHERE pr.id_programa = p.id)::int AS usos
+             (SELECT count(*) FROM proyectos pr WHERE pr.id_programa = p.id AND pr.deleted_at IS NULL)::int AS usos
       FROM programas p
       ORDER BY p.clave
     `);
@@ -607,6 +607,12 @@ async function cambiarActivoPrograma(req, res, next) {
 async function eliminarPrograma(req, res, next) {
   try {
     const { id } = req.params;
+    // A diferencia de listarProgramas (que sí excluye Papelera del conteo
+    // informativo), aquí NO se filtra deleted_at: un proyecto en Papelera
+    // todavía tiene la referencia FK a este programa (se restaura con
+    // `deleted_at = NULL` sin tocar `id_programa`), así que si se
+    // contara como "0 usos" el DELETE de abajo igual fallaría, pero con
+    // el error crudo de la constraint FK en vez de este mensaje claro.
     const { rows: [{ usos }] } = await pool.query(
       'SELECT count(*)::int AS usos FROM proyectos WHERE id_programa = $1', [id]);
 
