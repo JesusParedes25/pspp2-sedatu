@@ -6,7 +6,7 @@
  *            Evidencias — una sola implementación para ambos.
  */
 import { useState, useEffect, useRef } from 'react';
-import { FileText, X, Upload, Loader2, AlertTriangle } from 'lucide-react';
+import { FileText, X, Upload, Loader2, AlertTriangle, Link2 } from 'lucide-react';
 import * as evidenciasApi from '../../api/evidencias';
 
 // urlOverride: para evidencias que no viven en la tabla `evidencias` (p. ej.
@@ -17,16 +17,22 @@ export default function FilePreviewModal({ evidencia, onClose, urlOverride }) {
   const [geoError, setGeoError] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const nombre = evidencia.nombre_original || evidencia.nombre_archivo || '';
-  const ext = nombre.split('.').pop().toLowerCase();
-  const url = urlOverride || evidenciasApi.obtenerUrlDescarga(evidencia.id);
+  // Una liga externa no tiene "descarga" propia en nuestro backend — su
+  // .url ES el archivo, siempre, sin importar de qué tabla venga
+  // (evidencias o el stream actividad de una tarea), así que urlOverride no
+  // aplica aquí: ignorarlo evita que apunte por error al endpoint de
+  // descarga de un archivo que no existe para este caso.
+  const esLink = evidencia.tipo_medio === 'link' && !!evidencia.url;
+  const nombre = evidencia.titulo || evidencia.nombre_original || evidencia.nombre_archivo || (esLink ? evidencia.url : '');
+  const ext = esLink ? '' : nombre.split('.').pop().toLowerCase();
+  const url = esLink ? evidencia.url : (urlOverride || evidenciasApi.obtenerUrlDescarga(evidencia.id));
 
-  const esPdf = ext === 'pdf';
-  const esImagen = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
-  const esAudio = ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'].includes(ext);
-  const esTexto = ['txt', 'md', 'csv', 'json', 'xml', 'log'].includes(ext);
-  const esKml = ['kml', 'kmz'].includes(ext);
-  const esShp = ext === 'zip' && (evidencia.categoria || '').toLowerCase().includes('capa');
+  const esPdf = !esLink && ext === 'pdf';
+  const esImagen = !esLink && ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
+  const esAudio = !esLink && ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'].includes(ext);
+  const esTexto = !esLink && ['txt', 'md', 'csv', 'json', 'xml', 'log'].includes(ext);
+  const esKml = !esLink && ['kml', 'kmz'].includes(ext);
+  const esShp = !esLink && ext === 'zip' && (evidencia.categoria || '').toLowerCase().includes('capa');
 
   useEffect(() => {
     if (!esKml && !esShp) return;
@@ -85,7 +91,8 @@ export default function FilePreviewModal({ evidencia, onClose, urlOverride }) {
           <div className="flex items-center gap-2">
             <a href={url} target="_blank" rel="noreferrer"
               className="flex items-center gap-1 px-2.5 py-1 text-[10px] bg-[#7B1C3E] text-white rounded hover:bg-[#5a1430]">
-              <Upload size={10} className="rotate-180" /> Descargar
+              {esLink ? <Link2 size={10} /> : <Upload size={10} className="rotate-180" />}
+              {esLink ? 'Abrir enlace' : 'Descargar'}
             </a>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-200">
               <X size={16} />
@@ -94,6 +101,14 @@ export default function FilePreviewModal({ evidencia, onClose, urlOverride }) {
         </div>
         {/* Content */}
         <div className="flex-1 overflow-auto p-1 min-h-0">
+          {esLink && (
+            <div className="flex flex-col h-full min-h-[60vh]">
+              <p className="text-[11px] text-gray-400 px-2 pb-1.5">
+                Vista previa incrustada del sitio de origen — algunos sitios (por ejemplo, Google Drive sin permisos públicos) no permiten mostrarse aquí. Si se ve en blanco, usa "Abrir enlace".
+              </p>
+              <iframe src={url} className="w-full flex-1 rounded border border-gray-100" title={nombre} />
+            </div>
+          )}
           {esPdf && (
             <iframe src={url} className="w-full h-full min-h-[60vh] rounded" title={nombre} />
           )}
@@ -126,7 +141,7 @@ export default function FilePreviewModal({ evidencia, onClose, urlOverride }) {
           {esTexto && (
             <iframe src={url} className="w-full h-full min-h-[60vh] rounded bg-gray-50 font-mono text-sm" title={nombre} />
           )}
-          {!esPdf && !esImagen && !esKml && !esShp && !esAudio && !esTexto && (
+          {!esLink && !esPdf && !esImagen && !esKml && !esShp && !esAudio && !esTexto && (
             <div className="flex flex-col items-center justify-center h-64 gap-3">
               <FileText size={40} className="text-gray-300" />
               <p className="text-sm text-gray-500">Vista previa no disponible para este tipo de archivo.</p>
