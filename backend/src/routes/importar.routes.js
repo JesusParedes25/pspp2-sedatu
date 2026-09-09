@@ -5,6 +5,7 @@
 const { Router } = require('express');
 const multer = require('multer');
 const ctrl = require('../controllers/importar.controller');
+const corregirCodificacionArchivo = require('../middleware/corregirCodificacionArchivo.middleware');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -13,7 +14,7 @@ const upload = multer({
 
 const router = Router();
 
-router.post('/upload', upload.single('archivo'), ctrl.upload);
+router.post('/upload', upload.single('archivo'), corregirCodificacionArchivo, ctrl.upload);
 router.post('/extraer-headers', ctrl.extraerHeaders);
 router.post('/preview', ctrl.preview);
 router.post('/confirmar', ctrl.confirmar);
