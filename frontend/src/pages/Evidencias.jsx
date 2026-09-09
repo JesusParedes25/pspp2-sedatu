@@ -16,16 +16,14 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import {
-  FileText, Search, Filter, X, Download, FolderKanban,
-  Link2, Trash2, Eye, Layers, User, Calendar, HardDrive,
-} from 'lucide-react';
+import { FileText, Search, Filter, X } from 'lucide-react';
 import * as evidenciasApi from '../api/evidencias';
 import * as catalogosApi from '../api/catalogos';
 import * as proyectosApi from '../api/proyectos';
 import EmptyState from '../components/common/EmptyState';
 import FilePreviewModal from '../components/evidencias/FilePreviewModal';
+import EvidenciaListItem from '../components/evidencias/EvidenciaListItem';
+import EvidenciaDetallePanel from '../components/evidencias/EvidenciaDetallePanel';
 import CATEGORIAS_EVIDENCIA from '../components/seguimiento/categoriasEvidencia';
 
 // Antes esta lista y sus íconos vivían duplicados aquí (una tercera copia
@@ -33,12 +31,6 @@ import CATEGORIAS_EVIDENCIA from '../components/seguimiento/categoriasEvidencia'
 // ver categoriasEvidencia.js.
 const CATEGORIAS = CATEGORIAS_EVIDENCIA.map(c => c.value);
 const ICONO_CATEGORIA = Object.fromEntries(CATEGORIAS_EVIDENCIA.map(c => [c.value, c.icon]));
-
-function formatearTamano(bytes) {
-  if (!bytes) return null;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 export default function Evidencias() {
   const [evidencias, setEvidencias] = useState([]);
@@ -225,7 +217,7 @@ export default function Evidencias() {
           ) : (
             <div className="space-y-1.5">
               {evidenciasFiltradas.map(ev => (
-                <FilaEvidencia key={ev.id} evidencia={ev} activa={seleccionada?.id === ev.id} onClick={() => setSeleccionada(ev)} />
+                <EvidenciaListItem key={ev.id} evidencia={ev} activa={seleccionada?.id === ev.id} onClick={() => setSeleccionada(ev)} />
               ))}
             </div>
           )}
@@ -234,7 +226,7 @@ export default function Evidencias() {
         {/* Detalle */}
         <div className="hidden lg:block w-96 flex-shrink-0 border-l border-gray-100 pl-4 overflow-y-auto">
           {seleccionada
-            ? <PanelDetalle evidencia={seleccionada} onPreview={() => setPreview(seleccionada)} onEliminar={() => eliminar(seleccionada)} />
+            ? <EvidenciaDetallePanel evidencia={seleccionada} onPreview={() => setPreview(seleccionada)} onEliminar={() => eliminar(seleccionada)} />
             : (
               <div className="flex flex-col items-center justify-center h-full text-center px-6 text-gray-400">
                 <FileText size={32} className="mb-3 text-gray-200" />
@@ -248,148 +240,4 @@ export default function Evidencias() {
       {preview && <FilePreviewModal evidencia={preview} onClose={() => setPreview(null)} />}
     </div>
   );
-}
-
-// ─── Fila compacta de la lista ─────────────────────────────────
-function FilaEvidencia({ evidencia: ev, activa, onClick }) {
-  const esLink = ev.tipo_medio === 'link';
-  const breadcrumb = [ev.proyecto_nombre, ev.etapa_nombre, ev.accion_nombre].filter(Boolean).join(' › ');
-
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors border ${
-        activa ? 'bg-[#fbf3f6] border-[#7B1C3E]/30' : 'border-gray-100 hover:bg-gray-50'
-      }`}
-    >
-      <div className="w-9 h-9 bg-guinda-50 rounded-lg flex items-center justify-center flex-shrink-0 text-base">
-        {esLink ? <Link2 size={16} className="text-blue-500" /> : (ICONO_CATEGORIA[ev.categoria] || '📎')}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-900 truncate">{ev.titulo || ev.nombre_original || ev.url}</p>
-        <p className="text-xs text-gray-400 truncate mt-0.5">{breadcrumb || 'Sin proyecto asociado'}</p>
-      </div>
-      <div className="flex-shrink-0 text-right">
-        <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded block mb-0.5">{ev.categoria}</span>
-        <span className="text-[10px] text-gray-400">
-          {new Date(ev.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
-        </span>
-      </div>
-    </button>
-  );
-}
-
-// ─── Panel de detalle completo ──────────────────────────────────
-function PanelDetalle({ evidencia: ev, onPreview, onEliminar }) {
-  const esLink = ev.tipo_medio === 'link';
-  const tamano = formatearTamano(ev.tamano_bytes);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-start gap-2">
-        <div className="w-10 h-10 bg-guinda-50 rounded-lg flex items-center justify-center flex-shrink-0 text-lg">
-          {esLink ? <Link2 size={18} className="text-blue-500" /> : (ICONO_CATEGORIA[ev.categoria] || '📎')}
-        </div>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-gray-900 break-words leading-snug">{ev.titulo || ev.nombre_original || ev.url}</p>
-          {esLink ? (
-            <a href={ev.url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline break-words">{ev.url}</a>
-          ) : ev.titulo && ev.nombre_original && ev.titulo !== ev.nombre_original ? (
-            <p className="text-xs text-gray-400 break-words">{ev.nombre_original}</p>
-          ) : null}
-          <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded inline-block mt-1">{ev.categoria}</span>
-        </div>
-      </div>
-
-      {/* Ubicación: proyecto / etapa / acción */}
-      {ev.proyecto_nombre && (
-        <div className="border border-gray-100 rounded-lg p-3 space-y-1.5">
-          <div className="flex items-center gap-1.5 text-xs">
-            <FolderKanban size={12} className="text-guinda-500 flex-shrink-0" />
-            <Link to={`/proyectos/${ev.proyecto_id}`} className="text-guinda-600 hover:underline font-medium truncate">{ev.proyecto_nombre}</Link>
-          </div>
-          {ev.etapa_nombre && (
-            <div className="flex items-center gap-1.5 text-xs text-gray-500 pl-[18px]">
-              <Layers size={11} className="flex-shrink-0" /> <span className="truncate">{ev.etapa_nombre}</span>
-            </div>
-          )}
-          {ev.accion_nombre && (
-            <div className="flex items-center gap-1.5 text-xs text-gray-500 pl-[18px]">
-              <ChevronDot /> <span className="truncate">{ev.accion_nombre}</span>
-            </div>
-          )}
-          {ev.riesgo_titulo && (
-            <div className="flex items-center gap-1.5 text-xs text-gray-500 pl-[18px]">
-              <ChevronDot /> <span className="truncate">Riesgo: {ev.riesgo_titulo}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Metadatos */}
-      <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-        <div className="flex items-center gap-1.5 text-gray-500"><User size={12} /> Subido por</div>
-        <div className="text-gray-800 font-medium truncate">{ev.autor_nombre || '—'}</div>
-
-        <div className="flex items-center gap-1.5 text-gray-500"><Calendar size={12} /> Fecha</div>
-        <div className="text-gray-800 font-medium">
-          {new Date(ev.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
-          {' · '}{new Date(ev.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
-        </div>
-
-        {tamano && (
-          <>
-            <div className="flex items-center gap-1.5 text-gray-500"><HardDrive size={12} /> Tamaño</div>
-            <div className="text-gray-800 font-medium">{tamano}</div>
-          </>
-        )}
-        {ev.dg_siglas && (
-          <>
-            <div className="flex items-center gap-1.5 text-gray-500"><FolderKanban size={12} /> Dirección General</div>
-            <div className="text-gray-800 font-medium">{ev.dg_siglas}</div>
-          </>
-        )}
-      </div>
-
-      {/* Notas */}
-      {ev.notas && (
-        <div className="border-t border-gray-100 pt-3">
-          <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Notas</p>
-          <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-wrap break-words">{ev.notas}</p>
-        </div>
-      )}
-
-      {/* Acciones */}
-      <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
-        {esLink ? (
-          <>
-            <button onClick={onPreview} className="flex items-center gap-1.5 px-3 py-1.5 bg-[#7B1C3E] text-white text-xs rounded-lg hover:bg-[#5a1430]">
-              <Eye size={13} /> Vista previa
-            </button>
-            <a href={ev.url} target="_blank" rel="noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-gray-700 text-xs rounded-lg hover:bg-gray-100">
-              <Link2 size={13} /> Abrir enlace
-            </a>
-          </>
-        ) : (
-          <>
-            <button onClick={onPreview} className="flex items-center gap-1.5 px-3 py-1.5 bg-[#7B1C3E] text-white text-xs rounded-lg hover:bg-[#5a1430]">
-              <Eye size={13} /> Vista previa
-            </button>
-            <a href={evidenciasApi.obtenerUrlDescarga(ev.id)} target="_blank" rel="noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-gray-700 text-xs rounded-lg hover:bg-gray-100">
-              <Download size={13} /> Descargar
-            </a>
-          </>
-        )}
-        <button onClick={onEliminar} className="flex items-center gap-1.5 px-3 py-1.5 text-red-500 text-xs rounded-lg hover:bg-red-50 ml-auto">
-          <Trash2 size={13} /> Eliminar
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function ChevronDot() {
-  return <span className="w-1 h-1 rounded-full bg-gray-300 flex-shrink-0 ml-[1px]" />;
 }
