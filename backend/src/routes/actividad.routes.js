@@ -8,13 +8,14 @@
 const { Router } = require('express');
 const multer = require('multer');
 const actividadController = require('../controllers/actividad.controller');
+const corregirCodificacionArchivo = require('../middleware/corregirCodificacionArchivo.middleware');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
 
 const router = Router();
 
 router.get('/:id/descargar', actividadController.descargar);
-router.post('/', upload.single('archivo'), actividadController.crear);
+router.post('/', upload.single('archivo'), corregirCodificacionArchivo, actividadController.crear);
 router.get('/:tipo_nodo/:id_nodo', actividadController.obtenerPorNodo);
 
 module.exports = router;

@@ -15,6 +15,7 @@
 const { Router } = require('express');
 const multer = require('multer');
 const { verificarToken } = require('../middleware/auth.middleware');
+const corregirCodificacionArchivo = require('../middleware/corregirCodificacionArchivo.middleware');
 
 // Multer en memoria para archivos (max 200MB para shapefiles grandes)
 const upload = multer({
@@ -164,13 +165,13 @@ router.post('/acciones/:id/tareas', exigirEdicionNodo('accion'), tareasControlle
 
 // Evidencias de etapas, acciones, riesgos y subacciones
 router.get('/etapas/:id/evidencias', evidenciasController.listarPorEtapa);
-router.post('/etapas/:id/evidencias', exigirEdicionNodo('etapa'), upload.single('archivo'), evidenciasController.subirParaEtapa);
+router.post('/etapas/:id/evidencias', exigirEdicionNodo('etapa'), upload.single('archivo'), corregirCodificacionArchivo, evidenciasController.subirParaEtapa);
 router.get('/acciones/:id/evidencias', evidenciasController.listarPorAccion);
-router.post('/acciones/:id/evidencias', exigirEdicionNodo('accion'), upload.single('archivo'), evidenciasController.subirParaAccion);
+router.post('/acciones/:id/evidencias', exigirEdicionNodo('accion'), upload.single('archivo'), corregirCodificacionArchivo, evidenciasController.subirParaAccion);
 router.get('/riesgos/:id/evidencias', evidenciasController.listarPorRiesgo);
-router.post('/riesgos/:id/evidencias', exigirEdicionRiesgo(), upload.single('archivo'), evidenciasController.subirParaRiesgo);
+router.post('/riesgos/:id/evidencias', exigirEdicionRiesgo(), upload.single('archivo'), corregirCodificacionArchivo, evidenciasController.subirParaRiesgo);
 router.get('/subacciones/:id/evidencias', evidenciasController.listarPorSubaccion);
-router.post('/subacciones/:id/evidencias', exigirEdicionNodo('accion'), upload.single('archivo'), evidenciasController.subirParaSubaccion);
+router.post('/subacciones/:id/evidencias', exigirEdicionNodo('accion'), upload.single('archivo'), corregirCodificacionArchivo, evidenciasController.subirParaSubaccion);
 router.get('/proyectos/:id/evidencias', evidenciasController.listarPorProyecto);
 
 // Riesgos de un proyecto, etapa, acción, subacción y tarea
