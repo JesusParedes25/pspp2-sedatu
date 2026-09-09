@@ -246,7 +246,14 @@ export default function ActividadStream({ tipo, id, titulo, soloLectura = false 
                     <p className="text-xs text-gray-600 mt-1">{detalle.contenido}</p>
                   )}
 
-                  {archivos.map(a => (
+                  {/* Solo para grupos de VARIOS eventos (p. ej. "Registrar
+                      avance" con más de un documento adjunto) — un grupo de
+                      un solo evento que resulta ser 'archivo' ya lo muestra
+                      el bloque de abajo (soloUnEvento); sin este guard,
+                      `archivos` también incluía a `principal` en ese caso
+                      (es su propio filtro) y el mismo archivo se pintaba
+                      dos veces seguidas. */}
+                  {!soloUnEvento && archivos.map(a => (
                     <button key={a.id} onClick={() => setDetalleItem(a)}
                       className="flex items-center gap-1 text-[11px] text-blue-600 hover:underline mt-0.5 text-left">
                       {a.metadata?.tipo_medio === 'link' ? <ExternalLink size={10} /> : <Paperclip size={10} />} {a.archivo_nombre}
