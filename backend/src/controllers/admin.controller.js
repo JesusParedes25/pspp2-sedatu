@@ -12,11 +12,19 @@ const crypto = require('crypto');
 // ─── CATÁLOGOS ─────────────────────────────────────────────────
 
 // GET /admin/catalogos — Lista todos los tipos con sus valores
+//
+// 'tipo_evidencia' queda fuera a propósito: nunca estuvo conectado a nada
+// — el selector de categoría que el usuario ve al adjuntar un documento
+// (CATEGORIAS_EVIDENCIA en categoriasEvidencia.js, que sí coincide con el
+// CHECK evidencias_categoria_check de la BD) es una lista fija aparte,
+// nunca leyó de este catálogo. Administrar estos valores aquí no cambiaba
+// nada para el usuario — era un control que simulaba existir sin existir.
+// Las filas siguen en la tabla (no se borran), solo se dejan de listar.
 async function listarCatalogos(req, res, next) {
   try {
     const { rows } = await pool.query(
       `SELECT id, tipo, valor, descripcion, orden, extensible, activo
-       FROM catalogos ORDER BY tipo, orden, valor`
+       FROM catalogos WHERE tipo != 'tipo_evidencia' ORDER BY tipo, orden, valor`
     );
     // Agrupar por tipo
     const agrupado = {};

@@ -26,17 +26,13 @@ import * as catalogosApi from '../api/catalogos';
 import * as proyectosApi from '../api/proyectos';
 import EmptyState from '../components/common/EmptyState';
 import FilePreviewModal from '../components/evidencias/FilePreviewModal';
+import CATEGORIAS_EVIDENCIA from '../components/seguimiento/categoriasEvidencia';
 
-const CATEGORIAS = [
-  'Documento', 'Fotografía', 'Capa geográfica', 'Paquete de capas geográficas',
-  'Video', 'Repositorio', 'Audio', 'Otro',
-];
-
-const ICONO_CATEGORIA = {
-  'Documento': '📄', 'Fotografía': '📷', 'Capa geográfica': '🗺️',
-  'Paquete de capas geográficas': '📦', 'Video': '🎬', 'Repositorio': '💻',
-  'Audio': '🎵', 'Otro': '📎',
-};
+// Antes esta lista y sus íconos vivían duplicados aquí (una tercera copia
+// además de categoriasEvidencia.js y del CHECK de la BD) — una sola fuente,
+// ver categoriasEvidencia.js.
+const CATEGORIAS = CATEGORIAS_EVIDENCIA.map(c => c.value);
+const ICONO_CATEGORIA = Object.fromEntries(CATEGORIAS_EVIDENCIA.map(c => [c.value, c.icon]));
 
 function formatearTamano(bytes) {
   if (!bytes) return null;
