@@ -120,6 +120,20 @@ export default function DetalleProyecto() {
   // directamente la pestaña y el nodo correspondiente. Seguimiento/Detalle
   // son el punto de entrada por defecto — es donde se captura día a día.
   const [pestanaActiva, setPestanaActiva] = useState(() => searchParams.get('tab') || 'seguimiento');
+  // Pestañas que ya se visitaron al menos una vez en esta vista del
+  // proyecto — se quedan montadas (solo ocultas con `hidden`, ver más
+  // abajo) para no perder lo que ya cargaron al volver a ellas. Antes cada
+  // una se montaba y desmontaba por completo en cada cambio de pestaña,
+  // perdiendo todo su estado interno y disparando un refetch + esqueleto
+  // de carga cada vez — incluso al volver a una que se acababa de ver
+  // segundos antes. Empieza solo con la pestaña inicial; las otras se
+  // agregan la primera vez que se visitan, no antes (evita montar de
+  // entrada un dashboard con gráficas en un contenedor oculto).
+  const [pestanasVisitadas, setPestanasVisitadas] = useState(() => new Set([pestanaActiva]));
+  function cambiarPestana(idPestana) {
+    setPestanaActiva(idPestana);
+    setPestanasVisitadas(prev => (prev.has(idPestana) ? prev : new Set(prev).add(idPestana)));
+  }
   const [subseccionActiva, setSubseccionActiva] = useState('etapas');
 
   // Encabezado compacto al hacer scroll: un sentinel justo debajo de "Volver
@@ -189,13 +203,13 @@ export default function DetalleProyecto() {
   // ruta), el useState inicial no vuelve a correr — re-sincroniza con la URL.
   useEffect(() => {
     const tab = searchParams.get('tab');
-    if (tab) setPestanaActiva(tab);
+    if (tab) cambiarPestana(tab);
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Deep-link a un nodo específico (etapa/acción/tarea) desde Panorama:
   // cambia de pestaña y setea ?nodo=<id>, que EtapasAvancesMD ya sabe leer.
   function irANodo(nodoId) {
-    setPestanaActiva('seguimiento');
+    cambiarPestana('seguimiento');
     setSubseccionActiva('etapas');
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
@@ -513,7 +527,7 @@ export default function DetalleProyecto() {
           {PESTANAS.map(tab => (
             <button
               key={tab.id}
-              onClick={() => setPestanaActiva(tab.id)}
+              onClick={() => cambiarPestana(tab.id)}
               className={`flex items-center gap-2 px-1 py-3 text-sm font-medium border-b-2 transition-colors ${
                 pestanaActiva === tab.id
                   ? 'border-guinda-500 text-guinda-600'
@@ -528,13 +542,17 @@ export default function DetalleProyecto() {
       </div>
 
       {/* ═══ PESTAÑA PANORAMA DEL PROYECTO ═══ */}
-      {pestanaActiva === 'resumen' && (
-        <PanoramaProyecto proyecto={proyecto} etapas={etapas} proyectoId={id} refreshKey={statsKey} onNavegarNodo={irANodo} />
+      {/* Se queda montada tras la primera visita (oculta con `hidden` al
+          cambiar de pestaña) — ver pestanasVisitadas arriba. */}
+      {pestanasVisitadas.has('resumen') && (
+        <div className={pestanaActiva === 'resumen' ? '' : 'hidden'}>
+          <PanoramaProyecto proyecto={proyecto} etapas={etapas} proyectoId={id} refreshKey={statsKey} onNavegarNodo={irANodo} />
+        </div>
       )}
 
       {/* ═══ PESTAÑA SEGUIMIENTO ═══ */}
-      {pestanaActiva === 'seguimiento' && (
-        <div className="space-y-4">
+      {pestanasVisitadas.has('seguimiento') && (
+        <div className={`space-y-4 ${pestanaActiva === 'seguimiento' ? '' : 'hidden'}`}>
           {/* Subsecciones de seguimiento, fusionadas con Importar/Reporte PDF
               en la misma banda — antes eran dos filas separadas y las
               subsecciones se estiraban a todo el ancho sin necesidad. */}
@@ -628,8 +646,8 @@ export default function DetalleProyecto() {
       )}
 
       {/* ═══ PESTAÑA EVIDENCIAS ═══ */}
-      {pestanaActiva === 'evidencias' && (
-        <div className="space-y-4">
+      {pestanasVisitadas.has('evidencias') && (
+        <div className={`space-y-4 ${pestanaActiva === 'evidencias' ? '' : 'hidden'}`}>
           {/* Filtros de evidencias */}
           {evidencias.length > 0 && (
             <div className="card p-3 flex flex-wrap items-center gap-3">
