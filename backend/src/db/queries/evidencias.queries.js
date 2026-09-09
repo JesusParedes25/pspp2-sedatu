@@ -73,24 +73,38 @@ async function obtenerEvidenciasPorEtapa(etapaId) {
   return resultado.rows;
 }
 
-// Obtiene todas las evidencias de un proyecto (a través de sus acciones)
+// Obtiene todas las evidencias de un proyecto — por acción, subacción,
+// etapa directa (subida desde la etapa sin pasar por una acción) o riesgo
+// (de la etapa/acción o del proyecto mismo). Antes solo cubría acción y
+// subacción, así que una evidencia subida directo a una etapa o a un
+// riesgo no aparecía aquí aunque sí en el módulo global de Documentos
+// (obtenerTodasEvidencias, abajo) — mismo patrón de JOINs, acotado a un
+// solo proyecto.
 async function obtenerEvidenciasPorProyecto(proyectoId) {
   const resultado = await pool.query(`
     SELECT
       ev.*,
       u.nombre_completo AS autor_nombre,
-      COALESCE(a.nombre, sa.nombre) AS accion_nombre,
-      COALESCE(e1.nombre, e2.nombre) AS etapa_nombre
+      COALESCE(acc.nombre, subacc.nombre) AS accion_nombre,
+      COALESCE(et_directa.nombre, et_de_accion.nombre, et_de_subaccion.nombre, et_de_riesgo.nombre) AS etapa_nombre,
+      r.titulo AS riesgo_titulo
     FROM evidencias ev
     LEFT JOIN usuarios u ON u.id = ev.id_autor
-    LEFT JOIN acciones a  ON a.id  = ev.id_accion
-    LEFT JOIN etapas   e1 ON e1.id = a.id_etapa
-    LEFT JOIN acciones sa ON sa.id = ev.id_subaccion
-    LEFT JOIN acciones sa_padre ON sa_padre.id = sa.id_accion_padre
-    LEFT JOIN etapas   e2 ON e2.id = sa_padre.id_etapa
-    WHERE
-      (a.id_proyecto = $1)
-      OR (sa.id_proyecto = $1)
+    LEFT JOIN etapas et_directa ON et_directa.id = ev.id_etapa
+    LEFT JOIN acciones acc ON acc.id = ev.id_accion
+    LEFT JOIN acciones subacc ON subacc.id = ev.id_subaccion
+    LEFT JOIN etapas et_de_accion ON et_de_accion.id = acc.id_etapa
+    LEFT JOIN etapas et_de_subaccion ON et_de_subaccion.id = subacc.id_etapa
+    LEFT JOIN riesgos r ON r.id = ev.id_riesgo
+    LEFT JOIN etapas et_de_riesgo ON r.entidad_tipo = 'Etapa' AND et_de_riesgo.id = r.entidad_id
+    LEFT JOIN acciones ac_de_riesgo ON r.entidad_tipo IN ('Accion','Subaccion') AND ac_de_riesgo.id = r.entidad_id
+    WHERE COALESCE(
+      et_directa.id_proyecto,
+      acc.id_proyecto,
+      subacc.id_proyecto,
+      ac_de_riesgo.id_proyecto,
+      CASE WHEN r.entidad_tipo = 'Proyecto' THEN r.entidad_id END
+    ) = $1
     ORDER BY ev.created_at DESC
   `, [proyectoId]);
 
