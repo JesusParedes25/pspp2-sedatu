@@ -9,10 +9,11 @@
  * links y renderiza el componente correspondiente sin hacer una
  * petición HTTP al servidor. El Layout envuelve todas las rutas
  * protegidas para mantener sidebar y header visibles. La ruta "*"
- * captura URLs no definidas y redirige al inicio.
+ * captura URLs no definidas y muestra NotFound — antes redirigía en
+ * silencio al inicio, sin avisar que el enlace no lleva a ningún lado.
  * ─────────────────────────────────────────────────────────────────
  */
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import Inicio from '../pages/Inicio';
 import ListadoProyectos from '../pages/proyectos/ListadoProyectos';
@@ -26,6 +27,7 @@ import Notificaciones from '../pages/Notificaciones';
 import MapaTerritorial from '../pages/MapaTerritorial';
 import AdminCatalogos from '../pages/AdminCatalogos';
 import ActivarCuenta from '../pages/ActivarCuenta';
+import NotFound from '../pages/NotFound';
 
 export default function AppRouter() {
   return (
@@ -44,7 +46,7 @@ export default function AppRouter() {
         <Route path="evidencias" element={<Evidencias />} />
         <Route path="notificaciones" element={<Notificaciones />} />
         <Route path="admin/catalogos" element={<AdminCatalogos />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
   );
