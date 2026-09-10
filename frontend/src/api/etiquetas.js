@@ -6,7 +6,7 @@
  */
 import client from './client';
 
-export async function buscarEtiquetas(q) {
-  const { data } = await client.get('/catalogos/etiquetas', { params: { q } });
+export async function buscarEtiquetas(q, limite) {
+  const { data } = await client.get('/catalogos/etiquetas', { params: { q, limite } });
   return data;
 }

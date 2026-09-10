@@ -106,14 +106,17 @@ async function agregarValor(req, res, next) {
   }
 }
 
-// GET /catalogos/etiquetas?q=texto — Sugerencias de etiquetas ya usadas,
-// para autocompletar al capturar o filtrar (evita duplicados por variación
-// de palabras: "Vivienda"/"vivienda" quedan como una sola sugerencia).
+// GET /catalogos/etiquetas?q=texto&limite=N — Sugerencias de etiquetas ya
+// usadas, para autocompletar al capturar o filtrar (evita duplicados por
+// variación de palabras: "Vivienda"/"vivienda" quedan como una sola
+// sugerencia). q vacío = listar las más usadas, para el filtro de
+// Proyectos (lista desplegable de varias, no solo autocompletar al
+// escribir) — la query ya soporta esto (ILIKE '%%' no descarta nada).
 async function buscarEtiquetas(req, res, next) {
   try {
     const q = (req.query.q || '').trim();
-    if (!q) return res.json({ datos: [], mensaje: 'Etiquetas obtenidas' });
-    const etiquetas = await catalogosQueries.buscarEtiquetas(q);
+    const limite = Math.min(parseInt(req.query.limite) || 10, 100);
+    const etiquetas = await catalogosQueries.buscarEtiquetas(q, limite);
     res.json({ datos: etiquetas, mensaje: 'Etiquetas obtenidas' });
   } catch (err) {
     next(err);

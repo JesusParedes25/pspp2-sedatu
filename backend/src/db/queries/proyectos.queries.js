@@ -15,7 +15,7 @@ const pool = require('../pool');
 const indicadoresQueries = require('./indicadores.queries');
 
 // Lista proyectos con filtros opcionales, paginación y datos del líder
-async function listarProyectos({ estado, tipo, idDg, busqueda, etiqueta, carteraId, sinCartera, participacion, usuarioId, pagina = 1, limite = 12 }) {
+async function listarProyectos({ estado, tipo, idDg, busqueda, etiquetas, carteraId, sinCartera, participacion, usuarioId, pagina = 1, limite = 12 }) {
   const condiciones = ['p.deleted_at IS NULL'];
   const parametros = [];
   let indice = 1;
@@ -40,11 +40,14 @@ async function listarProyectos({ estado, tipo, idDg, busqueda, etiqueta, cartera
     parametros.push(`%${busqueda}%`);
     indice++;
   }
-  if (etiqueta) {
+  // "Tenga ALGUNA de las etiquetas elegidas" (OR) — EXISTS con ANY() ya
+  // cumple eso solo, basta con que UNA fila de `etiquetas` matchee alguna
+  // del arreglo.
+  if (etiquetas && etiquetas.length > 0) {
     condiciones.push(`EXISTS (
-      SELECT 1 FROM etiquetas et WHERE et.id_proyecto = p.id AND LOWER(et.nombre) = LOWER($${indice})
+      SELECT 1 FROM etiquetas et WHERE et.id_proyecto = p.id AND LOWER(et.nombre) = ANY($${indice}::text[])
     )`);
-    parametros.push(etiqueta);
+    parametros.push(etiquetas.map(e => e.toLowerCase()));
     indice++;
   }
   if (carteraId) {
