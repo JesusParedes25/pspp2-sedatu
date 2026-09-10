@@ -37,7 +37,6 @@ import EvidenciaDetallePanel from '../../components/evidencias/EvidenciaDetalleP
 import FilePreviewModal from '../../components/evidencias/FilePreviewModal';
 import EmptyState from '../../components/common/EmptyState';
 import ModalNuevaEtapa from '../../components/seguimiento/ModalNuevaEtapa';
-import ModalNuevaAccion from '../../components/seguimiento/ModalNuevaAccion';
 import ImportarWizard from '../../components/importar/ImportarWizard';
 import BotonExportar from '../../components/proyectos/BotonExportar';
 import EtapasAvancesMD from '../../components/seguimiento/EtapasAvancesMD';
@@ -53,7 +52,6 @@ import MapaProyecto from '../../components/seguimiento/MapaProyecto';
 import GenerarReporteBtn from '../../components/reportes/GenerarReporteBtn';
 import * as evidenciasApi from '../../api/evidencias';
 import * as etapasApi from '../../api/etapas';
-import * as accionesApi from '../../api/acciones';
 import * as proyectosApi from '../../api/proyectos';
 
 // Pestañas principales: Seguimiento (default), Panorama del proyecto, Evidencias
@@ -223,7 +221,6 @@ export default function DetalleProyecto() {
 
   // Modales
   const [modalEtapa, setModalEtapa] = useState(false);
-  const [modalAccion, setModalAccion] = useState(null); // null = cerrado, 'proyecto' = directa, etapaId = en etapa
   const [modalCSV, setModalCSV] = useState(false);
 
   const navigate = useNavigate();
@@ -312,23 +309,6 @@ export default function DetalleProyecto() {
       incrementarStats();
     } catch (err) {
       mostrarToast(err.response?.data?.mensaje || 'Error al crear etapa', 'error');
-    }
-  }
-
-  async function crearAccionHandler(datos) {
-    try {
-      if (modalAccion === 'proyecto') {
-        await accionesApi.crearAccionEnProyecto(id, datos);
-      } else {
-        await accionesApi.crearAccionEnEtapa(modalAccion, datos);
-      }
-      mostrarToast('Acción creada exitosamente', 'exito');
-      setModalAccion(null);
-      recargarEtapas();
-      cargarAccionesDirectas();
-      incrementarStats();
-    } catch (err) {
-      mostrarToast(err.response?.data?.mensaje || 'Error al crear acción', 'error');
     }
   }
 
@@ -766,15 +746,6 @@ export default function DetalleProyecto() {
           etapas={etapas}
           onGuardar={crearEtapaHandler}
           onCerrar={() => setModalEtapa(false)}
-        />
-      )}
-
-      {modalAccion && (
-        <ModalNuevaAccion
-          proyecto={proyecto}
-          etapaId={modalAccion === 'proyecto' ? null : modalAccion}
-          onGuardar={crearAccionHandler}
-          onCerrar={() => setModalAccion(null)}
         />
       )}
 

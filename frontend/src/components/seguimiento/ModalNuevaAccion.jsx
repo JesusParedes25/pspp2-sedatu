@@ -1,7 +1,9 @@
 /**
  * ARCHIVO: ModalNuevaAccion.jsx
  * PROPÓSITO: Modal para crear una nueva acción, ya sea dentro de una
- *            etapa o directamente en el proyecto.
+ *            etapa o directamente en el proyecto — territorio, indicadores
+ *            y documentos quedan listos desde el momento en que la acción
+ *            nace, en vez de tener que volver después a completarlos.
  *
  * MINI-CLASE: Acciones y su vínculo con indicadores
  * ─────────────────────────────────────────────────────────────────
@@ -16,16 +18,29 @@
  * valor manual o distribución equitativa. La distribución calcula
  * (disponible / 1) porque se crea una acción a la vez. El backend
  * valida que la suma nunca supere meta_global.
+ *
+ * MINI-CLASE: modal autocontenido, no "onGuardar(datos)"
+ * ─────────────────────────────────────────────────────────────────
+ * A diferencia de la versión anterior (que delegaba el POST a quien
+ * abría el modal), este hace la creación completa él mismo —
+ * mismo criterio que ya usa ModalRegistrarAvance: crea la acción,
+ * y si hay documentos pendientes los sube justo después con el id ya
+ * asignado, uno por uno. Quien lo abre solo necesita `onCreado`
+ * (refrescar) y `onCerrar`.
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect } from 'react';
-import { X, BarChart3, Divide, PenLine } from 'lucide-react';
+import { X, BarChart3, Divide, PenLine, MapPin, Paperclip, Plus, Loader2 } from 'lucide-react';
 import * as catalogosApi from '../../api/catalogos';
 import * as etapasApi from '../../api/etapas';
 import * as indicadoresApi from '../../api/indicadores';
+import * as accionesApi from '../../api/acciones';
+import * as evidenciasApi from '../../api/evidencias';
 import { useAuth } from '../../context/AuthContext';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 import CatalogSelector from '../common/CatalogSelector';
+import TerritorioSelector from '../nodos/TerritorioSelector';
+import FilaDocumentoPendiente from '../nodos/FilaDocumentoPendiente';
 
 // ── Componente de tarjeta de indicador reutilizable ─────────────
 // Se usa tanto en ModalNuevaAccion como en DrawerAccion (subacciones)
@@ -128,11 +143,19 @@ export function TarjetaIndicadorCascada({ ind, asociado, resumen, color, onToggl
   );
 }
 
-export default function ModalNuevaAccion({ proyecto, etapaId, onGuardar, onCerrar }) {
+let contadorDocumento = 0;
+const idDocumento = () => `doc${++contadorDocumento}`;
+
+// etapaId: si viene, la acción cuelga de esa etapa (caso normal, "+ Agregar
+// acción" del panel derecho). Si viene null, se crea directo en el
+// proyecto — para eso hace falta proyectoId, usado también para traer los
+// indicadores de nivel proyecto (regla de cascada, ver arriba).
+export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCerrar }) {
   const { usuario } = useAuth();
   const [dgs, setDgs] = useState([]);
   const [direccionesArea, setDireccionesArea] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
+  const [error, setError] = useState('');
 
   const hoy = new Date().toISOString().split('T')[0];
   const enUnMes = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
@@ -152,9 +175,20 @@ export default function ModalNuevaAccion({ proyecto, etapaId, onGuardar, onCerra
     instancia_responsable: '',
     enlace_responsable: '',
     observaciones: '',
+    // Territorio — mismos campos que TerritorioSelector edita en un nodo
+    // ya existente, aquí solo viven en el estado local hasta el submit.
+    cve_ent: null,
+    municipios: [],
+    id_zm: null,
   });
 
+  // Documentos elegidos pero todavía sin subir — se guardan justo después
+  // de crear la acción (necesitan su id). Mismo patrón que
+  // ModalRegistrarAvance/SeccionArchivosNodo.
+  const [documentos, setDocumentos] = useState([]);
+
   const [indicadoresEtapa, setIndicadoresEtapa] = useState([]);
+  const [indicadoresProyecto, setIndicadoresProyecto] = useState([]);
   // Resumen de aportaciones por indicador: { [indicadorId]: { meta_global, total_aportado, disponible } }
   const [resumenes, setResumenes] = useState({});
 
@@ -166,27 +200,26 @@ export default function ModalNuevaAccion({ proyecto, etapaId, onGuardar, onCerra
           catalogosApi.obtenerDireccionesArea(),
           catalogosApi.obtenerUsuarios(),
         ];
-        if (etapaId) {
-          promesas.push(etapasApi.obtenerIndicadoresEtapa(etapaId));
-        }
+        if (etapaId) promesas.push(etapasApi.obtenerIndicadoresEtapa(etapaId));
+        else if (proyectoId) promesas.push(indicadoresApi.obtenerIndicadoresProyecto(proyectoId));
         const resultados = await Promise.all(promesas);
         setDgs(resultados[0].datos || []);
         setDireccionesArea(resultados[1].datos || []);
         setUsuarios(resultados[2].datos || []);
-        if (etapaId && resultados[3]) {
-          setIndicadoresEtapa(resultados[3].datos || []);
+        if (resultados[3]) {
+          if (etapaId) setIndicadoresEtapa(resultados[3].datos || []);
+          else setIndicadoresProyecto(resultados[3].datos || []);
         }
       } catch (err) {
         console.error('Error cargando catálogos:', err);
       }
     }
     cargar();
-  }, [etapaId]);
+  }, [etapaId, proyectoId]);
 
   // Regla de cascada: si hay etapa → solo indicadores de etapa;
   // si es acción directa → solo indicadores del proyecto.
-  const indicadoresProyecto = etapaId ? [] : (proyecto?.indicadores || []);
-  const todosIndicadores = [...indicadoresProyecto, ...indicadoresEtapa];
+  const todosIndicadores = etapaId ? indicadoresEtapa : indicadoresProyecto;
 
   useEffect(() => {
     if (todosIndicadores.length === 0) return;
@@ -242,16 +275,54 @@ export default function ModalNuevaAccion({ proyecto, etapaId, onGuardar, onCerra
     }));
   }
 
+  function agregarArchivos(fileList) {
+    const nuevos = Array.from(fileList).map(archivo => ({
+      id: idDocumento(), modo: 'archivo', archivo, url: '', categoria: 'Otro', notas: '', titulo: archivo.name,
+    }));
+    setDocumentos(prev => [...prev, ...nuevos]);
+  }
+  function agregarLiga() {
+    setDocumentos(prev => [...prev, { id: idDocumento(), modo: 'liga', archivo: null, url: '', categoria: 'Otro', notas: '', titulo: '' }]);
+  }
+  function actualizarDocumento(id, campo, valor) {
+    setDocumentos(prev => prev.map(d => (d.id === id ? { ...d, [campo]: valor } : d)));
+  }
+  function quitarDocumento(id) {
+    setDocumentos(prev => prev.filter(d => d.id !== id));
+  }
+
   // e.preventDefault() vive en manejarSubmit, FUERA del candado — ver
   // useEnvioUnico.js.
   const [guardar, enviando] = useEnvioUnico(async () => {
     if (!datos.nombre.trim() || !datos.fecha_inicio || !datos.fecha_fin) return;
-    await onGuardar({
-      ...datos,
-      id_dg: datos.id_dg || null,
-      id_direccion_area: datos.id_direccion_area || null,
-      id_responsable: datos.id_responsable || null,
-    });
+    setError('');
+    try {
+      const payload = {
+        ...datos,
+        id_dg: datos.id_dg || null,
+        id_direccion_area: datos.id_direccion_area || null,
+        id_responsable: datos.id_responsable || null,
+        cve_ent: datos.cve_ent || null,
+        id_zm: datos.id_zm || null,
+      };
+      const res = etapaId
+        ? await accionesApi.crearAccionEnEtapa(etapaId, payload)
+        : await accionesApi.crearAccionEnProyecto(proyectoId, payload);
+      const accion = res.datos;
+
+      // Secuencial, no Promise.all: son peticiones multipart contra el
+      // mismo nodo recién creado — igual que ModalRegistrarAvance.
+      for (const doc of documentos) {
+        const metadatos = { categoria: doc.categoria, notas: doc.notas, titulo: doc.titulo?.trim() || null };
+        if (doc.modo === 'archivo') await evidenciasApi.subirEvidenciaAccion(accion.id, doc.archivo, metadatos);
+        else if (doc.url.trim()) await evidenciasApi.registrarLinkAccion(accion.id, doc.url.trim(), metadatos);
+      }
+
+      onCreado?.(accion);
+      onCerrar?.();
+    } catch (err) {
+      setError(err.response?.data?.mensaje || 'No se pudo crear la acción');
+    }
   });
 
   function manejarSubmit(e) {
@@ -269,6 +340,8 @@ export default function ModalNuevaAccion({ proyecto, etapaId, onGuardar, onCerra
     if (!datos.id_dg) return true;
     return String(u.id_dg) === String(datos.id_dg);
   });
+
+  const puedeGuardar = enviando || !datos.nombre.trim() || documentos.some(d => d.modo === 'liga' && !d.url.trim());
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -371,9 +444,52 @@ export default function ModalNuevaAccion({ proyecto, etapaId, onGuardar, onCerra
             </div>
           </div>
 
+          {/* ─── Territorio ─── */}
+          <div className="border-t border-gray-100 pt-4">
+            <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+              <MapPin size={12} /> Territorio <span className="normal-case font-normal text-gray-400">(opcional — si no se elige, hereda el de la etapa)</span>
+            </label>
+            <TerritorioSelector
+              data={{ cve_ent: datos.cve_ent, municipios: datos.municipios, id_zm: datos.id_zm }}
+              onGuardar={(campo, valor) => actualizar(campo, valor)}
+              soportarZM
+            />
+          </div>
+
+          {/* ─── Adjuntar documentos ─── */}
+          <div className="border-t border-gray-100 pt-4">
+            <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+              <Paperclip size={12} /> Documentos <span className="normal-case font-normal text-gray-400">(opcional)</span>
+            </label>
+
+            {documentos.length > 0 && (
+              <div className="space-y-1.5 mb-2">
+                {documentos.map(doc => (
+                  <FilaDocumentoPendiente
+                    key={doc.id}
+                    item={doc}
+                    onCambiar={(campo, valor) => actualizarDocumento(doc.id, campo, valor)}
+                    onQuitar={() => quitarDocumento(doc.id)}
+                  />
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center gap-1.5">
+              <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+                <Plus size={13} /> Archivo
+                <input type="file" multiple className="hidden" onChange={e => { agregarArchivos(e.target.files); e.target.value = ''; }} />
+              </label>
+              <button type="button" onClick={agregarLiga}
+                className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
+                <Plus size={13} /> Liga
+              </button>
+            </div>
+          </div>
+
           {/* ── Aporte a indicadores en cascada ── */}
           {todosIndicadores.length > 0 && (
-            <div>
+            <div className="border-t border-gray-100 pt-4">
               <label className="block text-sm font-medium text-gray-700 mb-0.5">Aporte a indicadores</label>
               <p className="text-[11px] text-gray-400 mb-2">
                 Marca los indicadores a los que esta acción contribuye. Si no marcas ninguno, la acción no aporta a ningún indicador.
@@ -395,10 +511,13 @@ export default function ModalNuevaAccion({ proyecto, etapaId, onGuardar, onCerra
             </div>
           )}
 
+          {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded p-2 leading-snug">{error}</p>}
+
           {/* Botones */}
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onCerrar} className="btn-secondary">Cancelar</button>
-            <button type="submit" disabled={enviando || !datos.nombre.trim()} className="btn-primary">
+            <button type="submit" disabled={puedeGuardar} className="btn-primary flex items-center gap-1.5">
+              {enviando && <Loader2 size={14} className="animate-spin" />}
               {enviando ? 'Creando...' : 'Crear acción'}
             </button>
           </div>
