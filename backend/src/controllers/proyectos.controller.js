@@ -41,12 +41,18 @@ async function listar(req, res, next) {
   try {
     const { estado, tipo, dg, busqueda, etiqueta, cartera, sin_cartera, participacion, pagina, limite } = req.query;
 
+    // El frontend manda varias etiquetas como una sola cadena separada por
+    // comas ("vivienda social,PostGIS") — evita la ambigüedad de cómo
+    // axios serializa arreglos en query params (?etiqueta=a&etiqueta=b vs
+    // ?etiqueta[]=a&etiqueta[]=b según el serializador).
+    const etiquetas = etiqueta ? etiqueta.split(',').map(e => e.trim()).filter(Boolean) : undefined;
+
     const resultado = await proyectosQueries.listarProyectos({
       estado,
       tipo,
       idDg: dg,
       busqueda,
-      etiqueta,
+      etiquetas,
       carteraId: cartera,
       sinCartera: sin_cartera === 'true',
       // 'participo' | 'responsable' — acota el listado a los proyectos del
