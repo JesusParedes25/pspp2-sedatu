@@ -30,6 +30,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, BarChart3, Divide, PenLine, MapPin, Paperclip, Plus, Loader2 } from 'lucide-react';
 import * as catalogosApi from '../../api/catalogos';
 import * as etapasApi from '../../api/etapas';
@@ -343,7 +344,13 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCerr
 
   const puedeGuardar = enviando || !datos.nombre.trim() || documentos.some(d => d.modo === 'liga' && !d.url.trim());
 
-  return (
+  // createPortal a document.body: este modal se abre desde el panel
+  // derecho (NodoCard), que en Detalle/Diagrama vive dentro de un rail
+  // posicionado con translate-x — eso lo vuelve el "containing block" de
+  // cualquier hijo con position:fixed, y sin portal el modal quedaba
+  // encajonado dentro de ese panel angosto en vez de cubrir toda la
+  // pantalla (mismo problema ya resuelto así en ModalRegistrarAvance).
+  return createPortal((
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         {/* Header */}
@@ -524,5 +531,5 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCerr
         </form>
       </div>
     </div>
-  );
+  ), document.body);
 }
