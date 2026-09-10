@@ -6,7 +6,7 @@ import {
   Layers, Target, Activity, Search, X, Building2,
 } from 'lucide-react';
 import client from '../api/client';
-import MapaDrillDown, { MEXICO_CENTER, MEXICO_ZOOM } from '../components/mapa/MapaDrillDown';
+import MapaDrillDown, { MEXICO_CENTER, MEXICO_ZOOM, VERDE_MUNICIPIO } from '../components/mapa/MapaDrillDown';
 import EtiquetaFiltroInput from '../components/common/EtiquetaFiltroInput';
 import 'leaflet/dist/leaflet.css';
 
@@ -967,7 +967,7 @@ export default function MapaTerritorial() {
             </div>
             {scale === 'estados' && municipiosGeoJSON && (
               <div className="flex items-center gap-1 mt-1 pt-1 border-t border-gray-100">
-                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: GUINDA, opacity: 0.7 }} />
+                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: VERDE_MUNICIPIO, opacity: 0.7 }} />
                 <span className="text-gray-400">municipio con actividad</span>
               </div>
             )}
