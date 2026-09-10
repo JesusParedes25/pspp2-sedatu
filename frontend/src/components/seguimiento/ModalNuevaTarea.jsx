@@ -19,6 +19,7 @@
  * ModalRegistrarAvance para tipo==='tarea'.
  */
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, MapPin, Paperclip, Plus, Loader2 } from 'lucide-react';
 import * as catalogosApi from '../../api/catalogos';
 import * as tareasApi from '../../api/tareas';
@@ -108,7 +109,10 @@ export default function ModalNuevaTarea({ accionId, onCreado, onCerrar }) {
 
   const puedeGuardar = enviando || !datos.nombre.trim() || documentos.some(d => d.modo === 'liga' && !d.url.trim());
 
-  return (
+  // createPortal a document.body — mismo motivo que ModalNuevaAccion: el
+  // panel derecho vive dentro de un rail con translate-x, que vuelve fixed
+  // relativo a él en vez de a la pantalla completa sin esto.
+  return createPortal((
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
@@ -210,5 +214,5 @@ export default function ModalNuevaTarea({ accionId, onCreado, onCerrar }) {
         </form>
       </div>
     </div>
-  );
+  ), document.body);
 }
