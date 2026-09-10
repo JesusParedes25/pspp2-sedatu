@@ -17,6 +17,7 @@ import * as catalogosApi from '../../api/catalogos';
 import * as proyectosApi from '../../api/proyectos';
 import * as indicadoresApi from '../../api/indicadores';
 import SelectorIndicadorCatalogo from '../indicadores/SelectorIndicadorCatalogo';
+import EtiquetasChipInput from '../common/EtiquetasChipInput';
 import * as etapasApi from '../../api/etapas';
 import * as accionesApi from '../../api/acciones';
 import { usePermisosProyecto } from '../../hooks/usePermisos';
@@ -55,7 +56,6 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
   const [direccionesArea, setDireccionesArea] = useState([]);
   const [cargando, setCargando]             = useState(true);
   const [mostrarCatalogoInd, setMostrarCatalogoInd] = useState(false);
-  const [textoEtiqueta, setTextoEtiqueta]   = useState('');
   const [imagenPortada, setImagenPortada]   = useState(null);
   const [previewPortada, setPreviewPortada] = useState(proyecto.imagen_url || null);
   const [estructuraEtapas, setEstructuraEtapas] = useState([]);
@@ -65,7 +65,6 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
   const [nuevaAccionNombre, setNuevaAccionNombre] = useState({});
   const [creandoEtapa, setCreandoEtapa] = useState(false);
   const [creandoAccion, setCreandoAccion] = useState({});
-  const refEtiqueta = useRef(null);
   const refImagen   = useRef(null);
 
   const [datos, setDatos] = useState({
@@ -619,44 +618,9 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
               </div>
             </Section>
 
-            {/* ── SECCIÓN: Etiquetas ── */}
+            {/* ── SECCIÓN: Etiquetas (con sugerencias) ── */}
             <Section titulo="Etiquetas">
-              <div className="flex flex-wrap gap-1.5 p-2 input-base min-h-[42px] cursor-text"
-                onClick={() => refEtiqueta.current?.focus()}>
-                {datos.etiquetas.map((et, i) => (
-                  <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-guinda-50 text-guinda-700 text-xs rounded-full">
-                    {et}
-                    <button type="button"
-                      onClick={e => { e.stopPropagation(); actualizar('etiquetas', datos.etiquetas.filter((_, j) => j !== i)); }}
-                      className="text-guinda-400 hover:text-guinda-600 text-sm leading-none">&times;</button>
-                  </span>
-                ))}
-                <input ref={refEtiqueta} type="text" value={textoEtiqueta}
-                  onChange={e => setTextoEtiqueta(e.target.value)}
-                  onKeyDown={e => {
-                    if ((e.key === 'Enter' || e.key === ',') && textoEtiqueta.trim()) {
-                      e.preventDefault();
-                      const nueva = textoEtiqueta.trim().replace(/,$/, '');
-                      if (nueva && !datos.etiquetas.includes(nueva))
-                        actualizar('etiquetas', [...datos.etiquetas, nueva]);
-                      setTextoEtiqueta('');
-                    }
-                    if (e.key === 'Backspace' && !textoEtiqueta && datos.etiquetas.length > 0)
-                      actualizar('etiquetas', datos.etiquetas.slice(0, -1));
-                  }}
-                  onBlur={() => {
-                    if (textoEtiqueta.trim()) {
-                      const nueva = textoEtiqueta.trim();
-                      if (!datos.etiquetas.includes(nueva))
-                        actualizar('etiquetas', [...datos.etiquetas, nueva]);
-                      setTextoEtiqueta('');
-                    }
-                  }}
-                  className="flex-1 min-w-[120px] border-none outline-none text-sm bg-transparent p-0"
-                  placeholder={datos.etiquetas.length === 0 ? 'Escribe y presiona Enter…' : ''}
-                />
-              </div>
-              <p className="text-xs text-gray-400">Presiona Enter o coma para agregar</p>
+              <EtiquetasChipInput value={datos.etiquetas} onChange={v => actualizar('etiquetas', v)} />
             </Section>
           </div>
         )}

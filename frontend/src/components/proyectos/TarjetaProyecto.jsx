@@ -88,6 +88,21 @@ export default function TarjetaProyecto({ proyecto }) {
           </div>
         )}
 
+        {/* Etiquetas — hasta 3 visibles, el resto como "+N" para no romper
+            el alto uniforme de la tarjeta con proyectos muy etiquetados. */}
+        {proyecto.etiquetas?.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-2">
+            {proyecto.etiquetas.slice(0, 3).map(et => (
+              <span key={et} className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full truncate max-w-[90px]">
+                {et}
+              </span>
+            ))}
+            {proyecto.etiquetas.length > 3 && (
+              <span className="text-[10px] text-gray-400 px-1">+{proyecto.etiquetas.length - 3}</span>
+            )}
+          </div>
+        )}
+
         {/* Barra de progreso */}
         <BarraProgreso porcentaje={proyecto.porcentaje_calculado} className="mb-3" />
 

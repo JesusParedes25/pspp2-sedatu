@@ -106,4 +106,18 @@ async function agregarValor(req, res, next) {
   }
 }
 
-module.exports = { obtenerDGs, obtenerUsuarios, obtenerProgramas, obtenerDireccionesArea, obtenerValores, agregarValor };
+// GET /catalogos/etiquetas?q=texto — Sugerencias de etiquetas ya usadas,
+// para autocompletar al capturar o filtrar (evita duplicados por variación
+// de palabras: "Vivienda"/"vivienda" quedan como una sola sugerencia).
+async function buscarEtiquetas(req, res, next) {
+  try {
+    const q = (req.query.q || '').trim();
+    if (!q) return res.json({ datos: [], mensaje: 'Etiquetas obtenidas' });
+    const etiquetas = await catalogosQueries.buscarEtiquetas(q);
+    res.json({ datos: etiquetas, mensaje: 'Etiquetas obtenidas' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { obtenerDGs, obtenerUsuarios, obtenerProgramas, obtenerDireccionesArea, obtenerValores, agregarValor, buscarEtiquetas };
