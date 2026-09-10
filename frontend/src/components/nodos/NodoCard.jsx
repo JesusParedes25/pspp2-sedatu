@@ -13,7 +13,7 @@ import { Link } from 'react-router-dom';
 import {
   ChevronDown, ChevronRight, Lock, CheckCircle2, Circle, AlertTriangle,
   MessageSquare, Paperclip, Shield, BarChart3, UserPlus, MapPin, Loader2, X, Send, Copy,
-  TrendingUp, Trash2, Pencil,
+  TrendingUp, Trash2, Pencil, Plus,
 } from 'lucide-react';
 import ModalDuplicarNodo from './ModalDuplicarNodo';
 import ModalRegistrarAvance from './ModalRegistrarAvance';
@@ -37,7 +37,8 @@ import { formatFecha, diasRestantes } from '../../utils/fecha';
 import { useUI } from '../../context/UIContext';
 import { permisosDeNodo } from '../../hooks/usePermisos';
 import { NIVELES } from '../../config/niveles';
-import CrearInline from '../seguimiento/EtapasAvancesMD/CrearInline';
+import ModalNuevaAccion from '../seguimiento/ModalNuevaAccion';
+import ModalNuevaTarea from '../seguimiento/ModalNuevaTarea';
 
 const SEM = { verde: '#22c55e', ambar: '#f59e0b', rojo: '#ef4444', gris: '#9ca3af' };
 const TIPO_LABEL = { etapa: 'Etapa', accion: 'Acción', tarea: 'Tarea' };
@@ -137,6 +138,13 @@ export default function NodoCard({
   const [ejecutarComentario, enviandoComentario] = useCandado();
   const [mostrarModalAvance, setMostrarModalAvance] = useState(false);
   const [mostrarModalRiesgo, setMostrarModalRiesgo] = useState(false);
+  // Modal completo para crear el hijo (Acción bajo Etapa, Tarea bajo
+  // Acción) — reemplaza el antiguo input de solo-nombre en este panel:
+  // aquí sí se puede dejar territorio, documentos e indicador (acción)
+  // listos desde que nace, en vez de tener que volver después a
+  // completarlos. El "+" rápido del árbol/columna central se queda igual,
+  // para captura veloz por nombre.
+  const [mostrarModalNuevoHijo, setMostrarModalNuevoHijo] = useState(false);
   const [riesgoEditando, setRiesgoEditando] = useState(null); // riesgo completo del banner, en edición
 
   const [seccion, setSeccion] = useState(null); // null | 'comentar' | 'adjuntar' | 'riesgos' | 'indicador' | 'invitar' | 'territorio'
@@ -439,11 +447,12 @@ export default function NodoCard({
               </button>
             )}
             {/* Agregar hijo — mismo peso visual que "Registrar avance"/
-                "Reportar riesgo" de arriba. Antes la única forma de crear
-                un hijo era un enlace chico junto al encabezado de la lista
-                (a la izquierda, fuera de este panel), fácil de pasar por
-                alto; esta es la misma acción (CrearInline), solo con más
-                presencia para quien mira este panel primero.
+                "Reportar riesgo" de arriba. Antes creaba con el input de
+                solo-nombre (CrearInline); aquí abre el modal completo
+                (territorio, documentos e indicador para acción) para no
+                tener que volver después a completarlos — el "+" rápido
+                del árbol/columna central se queda con el input simple,
+                para captura veloz.
                 Se muestra aunque el nodo todavía sea hoja (esContenedor
                 falso): una acción sin tareas no es un estado permanente,
                 es solo que no las tiene TODAVÍA — agregar la primera es
@@ -452,14 +461,10 @@ export default function NodoCard({
                 que quitar la condición no le cambia nada; a acción sí la
                 pone al mismo nivel. */}
             {!soloLectura && NIVELES[tipo]?.hijoTipo && (
-              <CrearInline
-                tipo={NIVELES[tipo].hijoTipo}
-                padreId={nodo.id}
-                proyectoId={proyectoId}
-                onCreado={() => onCambiado?.()}
-                etiqueta={`Agregar ${NIVELES[tipo].hijoLabel.toLowerCase()}`}
-                variante="destacado"
-              />
+              <button onClick={() => setMostrarModalNuevoHijo(true)}
+                className="w-full flex items-center justify-center gap-1.5 text-[12px] font-semibold px-3 py-2.5 rounded-lg border-2 border-dashed border-guinda-300 text-guinda-700 hover:bg-guinda-50 hover:border-guinda-400 transition-colors">
+                <Plus size={14} /> Agregar {NIVELES[tipo].hijoLabel.toLowerCase()}
+              </button>
             )}
             {ultimoRegistro && (
               <p className="text-[10px] text-gray-400 text-center">
@@ -494,6 +499,22 @@ export default function NodoCard({
               entidadId={nodo.id}
               onGuardar={guardarRiesgoEditado}
               onCerrar={() => setRiesgoEditando(null)}
+            />
+          )}
+
+          {mostrarModalNuevoHijo && NIVELES[tipo]?.hijoTipo === 'accion' && (
+            <ModalNuevaAccion
+              etapaId={nodo.id}
+              onCreado={() => { onCambiado?.(); mostrarToast('Acción creada', 'exito'); }}
+              onCerrar={() => setMostrarModalNuevoHijo(false)}
+            />
+          )}
+
+          {mostrarModalNuevoHijo && NIVELES[tipo]?.hijoTipo === 'tarea' && (
+            <ModalNuevaTarea
+              accionId={nodo.id}
+              onCreado={() => { onCambiado?.(); mostrarToast('Tarea creada', 'exito'); }}
+              onCerrar={() => setMostrarModalNuevoHijo(false)}
             />
           )}
 

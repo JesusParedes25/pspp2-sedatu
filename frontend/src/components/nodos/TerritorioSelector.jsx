@@ -42,7 +42,16 @@ function Select({ label, valor, opciones, onChange, soloLectura }) {
 // borra lo que ya se eligió en otros estados. Cada chip muestra su estado
 // entre paréntesis para no confundir municipios del mismo nombre.
 function MultiSelectMunicipios({ municipios, opciones, onChange, soloLectura, estadosCatalog = [] }) {
-  const lista = municipios || [];
+  // `municipios` normalmente llega como objetos {cve_mun, nombre} — así
+  // los devuelve el backend tras guardar y recargar un nodo existente. Un
+  // formulario de creación (sin nodo todavía) no tiene ese viaje de ida y
+  // vuelta: guarda directo lo que onChange entrega más abajo, que son
+  // strings sueltos (cvegeo). Se normaliza aquí para que ambos casos
+  // pinten el nombre correcto sin cambiar el contrato de onChange (sigue
+  // mandando strings — así lo esperan crearAccionEnEtapa/crearTarea/PATCH).
+  const lista = (municipios || []).map(m =>
+    typeof m === 'string' ? { cve_mun: m, nombre: opciones.find(o => o.value === m)?.label || m } : m
+  );
   const seleccionados = new Set(lista.map(m => m.cve_mun));
   const [busqueda, setBusqueda] = useState('');
 
