@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import client from '../api/client';
 import MapaDrillDown, { MEXICO_CENTER, MEXICO_ZOOM } from '../components/mapa/MapaDrillDown';
+import EtiquetaFiltroInput from '../components/common/EtiquetaFiltroInput';
 import 'leaflet/dist/leaflet.css';
 
 const GUINDA = '#7B1C3E';
@@ -406,6 +407,7 @@ function Toolbar({
   breadcrumb, mostrarVolver, onVolver,
   scale, onScale,
   proyectos, filtroProyecto, onFiltroProyecto,
+  filtroEtiqueta, onFiltroEtiqueta,
   busqueda, onBusqueda, resultados, onSeleccionarResultado, buscando,
   estadosOpciones, estadoClaveSel, onSeleccionarEstado,
   municipiosOpciones, municipioClaveSel, onSeleccionarMunicipio,
@@ -464,6 +466,11 @@ function Toolbar({
             {zmOpciones.map(z => <option key={z.gid} value={z.gid}>{z.nombre}</option>)}
           </select>
         )}
+
+        <div className="h-4 w-px bg-gray-200" />
+
+        {/* Filtro por etiqueta — acota qué proyectos se ofrecen abajo */}
+        <EtiquetaFiltroInput valor={filtroEtiqueta} onCambio={onFiltroEtiqueta} className="w-36" />
 
         <div className="h-4 w-px bg-gray-200" />
 
@@ -559,6 +566,11 @@ export default function MapaTerritorial() {
 
   const [scale, setScale] = useState('estados');
   const [filtroProyecto, setFiltroProyecto] = useState(null);
+  // Acota los chips de "Filtro de proyecto" a los que tienen esta etiqueta
+  // — filtrado del lado del cliente, sobre la lista de proyectos ya
+  // traída de una vez (limite: 100) para el selector, sin pedir nada
+  // nuevo al servidor.
+  const [filtroEtiqueta, setFiltroEtiqueta] = useState(undefined);
 
   // seleccion.tipo: 'estado' | 'zm' | 'municipio'
   const [seleccion, setSeleccion] = useState(null);
@@ -587,7 +599,7 @@ export default function MapaTerritorial() {
         setGeoJSON(geoRes.data);
         setMapaData(mapaRes.data.datos || []);
         setMapaDataZm(mapaZmRes.data.datos || []);
-        setProyectosDisponibles((proyRes.data.datos?.proyectos || []).map(p => ({ id: p.id, nombre: p.nombre })));
+        setProyectosDisponibles((proyRes.data.datos?.proyectos || []).map(p => ({ id: p.id, nombre: p.nombre, etiquetas: p.etiquetas || [] })));
       })
       .catch(console.error)
       .finally(() => setCargandoMapa(false));
@@ -599,6 +611,16 @@ export default function MapaTerritorial() {
       client.get('/geo/zm/geojson').then(res => setZmGeoJSON(res.data)).catch(console.error);
     }
   }, [scale, zmGeoJSON]);
+
+  // Proyectos que ofrecer como chip en "Filtro de proyecto", acotados por
+  // etiqueta cuando hay una elegida — mismo dato ya traído para el
+  // selector, sin pedir nada nuevo.
+  const proyectosDisponiblesFiltrados = useMemo(() => {
+    if (!filtroEtiqueta) return proyectosDisponibles;
+    return proyectosDisponibles.filter(p =>
+      (p.etiquetas || []).some(et => et.toLowerCase() === filtroEtiqueta.toLowerCase())
+    );
+  }, [proyectosDisponibles, filtroEtiqueta]);
 
   // ─── Datos nacionales filtrados por proyecto (client-side) ────
   const mapaDataFiltrada = useMemo(() => {
@@ -833,9 +855,11 @@ export default function MapaTerritorial() {
         onVolver={volverANacional}
         scale={scale}
         onScale={(s) => { setScale(s); volverANacional(); }}
-        proyectos={proyectosDisponibles}
+        proyectos={proyectosDisponiblesFiltrados}
         filtroProyecto={filtroProyecto}
         onFiltroProyecto={setFiltroProyecto}
+        filtroEtiqueta={filtroEtiqueta}
+        onFiltroEtiqueta={et => { setFiltroEtiqueta(et); setFiltroProyecto(null); }}
         busqueda={busqueda}
         onBusqueda={setBusqueda}
         resultados={resultadosBusqueda}

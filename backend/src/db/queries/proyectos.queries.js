@@ -15,7 +15,7 @@ const pool = require('../pool');
 const indicadoresQueries = require('./indicadores.queries');
 
 // Lista proyectos con filtros opcionales, paginación y datos del líder
-async function listarProyectos({ estado, tipo, idDg, busqueda, carteraId, sinCartera, participacion, usuarioId, pagina = 1, limite = 12 }) {
+async function listarProyectos({ estado, tipo, idDg, busqueda, etiqueta, carteraId, sinCartera, participacion, usuarioId, pagina = 1, limite = 12 }) {
   const condiciones = ['p.deleted_at IS NULL'];
   const parametros = [];
   let indice = 1;
@@ -38,6 +38,13 @@ async function listarProyectos({ estado, tipo, idDg, busqueda, carteraId, sinCar
   if (busqueda) {
     condiciones.push(`(p.nombre ILIKE $${indice} OR p.descripcion ILIKE $${indice})`);
     parametros.push(`%${busqueda}%`);
+    indice++;
+  }
+  if (etiqueta) {
+    condiciones.push(`EXISTS (
+      SELECT 1 FROM etiquetas et WHERE et.id_proyecto = p.id AND LOWER(et.nombre) = LOWER($${indice})
+    )`);
+    parametros.push(etiqueta);
     indice++;
   }
   if (carteraId) {
@@ -135,6 +142,10 @@ async function listarProyectos({ estado, tipo, idDg, busqueda, carteraId, sinCar
       (SELECT COUNT(*) FROM etapas e WHERE e.id_proyecto = p.id) AS total_etapas,
       (SELECT COUNT(*) FROM acciones a WHERE a.id_proyecto = p.id AND a.estado NOT IN ('Completada','Cancelada')) AS acciones_pendientes,
       (SELECT COUNT(*) FROM riesgos r WHERE r.entidad_tipo = 'Proyecto' AND r.entidad_id = p.id AND r.estado IN ('Abierto','En_mitigacion')) AS riesgos_activos,
+      -- Para chips en la tarjeta (ListadoProyectos) y para filtrar la
+      -- lista de proyectos por etiqueta del lado del cliente en Territorio
+      -- (que ya trae "todos los proyectos" de una vez, sin volver a pedir).
+      (SELECT array_agg(et.nombre ORDER BY et.nombre) FROM etiquetas et WHERE et.id_proyecto = p.id) AS etiquetas,
       -- Papel del usuario que consulta EN ESTE proyecto ('responsable',
       -- 'colaborador' o NULL). El frontend lo combina con el rol global
       -- para etiquetar la tarjeta (ver utils/papelProyecto.js): así se ve

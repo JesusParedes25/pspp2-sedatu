@@ -159,7 +159,7 @@ async function eliminarEvidencia(evidenciaId) {
  * (constraint chk_evidencia_pertenencia) — hay que resolver el proyecto,
  * etapa y acción "padre" según cuál de esos 4 esté presente.
  *
- * @param {object} filtros - proyecto_id, categoria, programa_id, id_dg, responsable_id
+ * @param {object} filtros - proyecto_id, categoria, programa_id, id_dg, responsable_id, etiqueta
  * @param {string[]|null} proyectoIds - restricción de acceso: null = sin restricción
  *   (superadmin/ejecutivo), array = solo esos proyectos (colaborador o dirección).
  */
@@ -191,6 +191,12 @@ async function obtenerTodasEvidencias(filtros = {}, proyectoIds = null) {
   if (filtros.responsable_id) {
     condiciones.push(`ev.id_autor = $${idx++}`);
     params.push(filtros.responsable_id);
+  }
+  if (filtros.etiqueta) {
+    condiciones.push(`EXISTS (
+      SELECT 1 FROM etiquetas et2 WHERE et2.id_proyecto = p.id AND LOWER(et2.nombre) = LOWER($${idx++})
+    )`);
+    params.push(filtros.etiqueta);
   }
 
   const where = condiciones.length > 0 ? `WHERE ${condiciones.join(' AND ')}` : '';

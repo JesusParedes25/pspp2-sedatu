@@ -25,6 +25,7 @@ import FilePreviewModal from '../components/evidencias/FilePreviewModal';
 import EvidenciaListItem from '../components/evidencias/EvidenciaListItem';
 import EvidenciaDetallePanel from '../components/evidencias/EvidenciaDetallePanel';
 import CATEGORIAS_EVIDENCIA from '../components/seguimiento/categoriasEvidencia';
+import EtiquetaFiltroInput from '../components/common/EtiquetaFiltroInput';
 
 // Antes esta lista y sus íconos vivían duplicados aquí (una tercera copia
 // además de categoriasEvidencia.js y del CHECK de la BD) — una sola fuente,
@@ -39,7 +40,7 @@ export default function Evidencias() {
   const [seleccionada, setSeleccionada] = useState(null);
   const [preview, setPreview] = useState(null);
 
-  const [filtros, setFiltros] = useState({ proyecto_id: '', categoria: '', programa_id: '', id_dg: '' });
+  const [filtros, setFiltros] = useState({ proyecto_id: '', categoria: '', programa_id: '', id_dg: '', etiqueta: '' });
   const [mostrarFiltros, setMostrarFiltros] = useState(true);
 
   const [proyectos, setProyectos] = useState([]);
@@ -102,7 +103,7 @@ export default function Evidencias() {
   const hayFiltrosActivos = Object.values(filtros).some(v => v) || busqueda;
 
   function limpiarFiltros() {
-    setFiltros({ proyecto_id: '', categoria: '', programa_id: '', id_dg: '' });
+    setFiltros({ proyecto_id: '', categoria: '', programa_id: '', id_dg: '', etiqueta: '' });
     setBusqueda('');
   }
 
@@ -181,6 +182,14 @@ export default function Evidencias() {
                 <option value="">Todas las DGs</option>
                 {dgs.map(d => <option key={d.id} value={d.id}>{d.siglas} — {d.nombre}</option>)}
               </select>
+            </div>
+            <div className="min-w-0">
+              <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1 block">Etiqueta</label>
+              <EtiquetaFiltroInput
+                valor={filtros.etiqueta}
+                onCambio={etiqueta => setFiltros(prev => ({ ...prev, etiqueta: etiqueta || '' }))}
+                className="w-full"
+              />
             </div>
           </div>
 

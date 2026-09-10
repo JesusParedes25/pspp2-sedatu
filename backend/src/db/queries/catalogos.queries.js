@@ -107,9 +107,28 @@ async function obtenerDireccionesArea(idDg) {
   return resultado.rows;
 }
 
+// Sugerencias de etiquetas ya usadas en algún proyecto, para autocompletar
+// mientras se escribe (evita duplicados por variación: "Vivienda" vs
+// "vivienda" vs "VIVIENDA" quedan como una sola sugerencia gracias al
+// DISTINCT + ILIKE insensible a mayúsculas). Solo de proyectos no
+// eliminados — mismo criterio que el resto de la app para excluir Papelera
+// de los agregados.
+async function buscarEtiquetas(q, limite = 10) {
+  const resultado = await pool.query(`
+    SELECT DISTINCT et.nombre
+    FROM etiquetas et
+    JOIN proyectos p ON p.id = et.id_proyecto AND p.deleted_at IS NULL
+    WHERE et.nombre ILIKE $1
+    ORDER BY et.nombre
+    LIMIT $2
+  `, [`%${q}%`, limite]);
+  return resultado.rows.map(r => r.nombre);
+}
+
 module.exports = {
   obtenerDGs,
   obtenerUsuarios,
   obtenerProgramas,
-  obtenerDireccionesArea
+  obtenerDireccionesArea,
+  buscarEtiquetas
 };

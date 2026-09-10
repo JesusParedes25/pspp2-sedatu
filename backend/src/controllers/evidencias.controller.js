@@ -349,6 +349,7 @@ async function listarTodas(req, res, next) {
       programa_id: req.query.programa_id,
       id_dg: req.query.id_dg,
       responsable_id: req.query.responsable_id,
+      etiqueta: req.query.etiqueta,
     };
     const proyectoIds = await resolverProyectoIdsAcceso(req.usuario);
     const evidencias = await evidenciasQueries.obtenerTodasEvidencias(filtros, proyectoIds);

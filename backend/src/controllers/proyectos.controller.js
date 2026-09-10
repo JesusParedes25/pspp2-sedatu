@@ -39,13 +39,14 @@ const BUCKET = process.env.MINIO_BUCKET || 'pspp-evidencias';
 // GET /proyectos — Listar proyectos con filtros y paginación
 async function listar(req, res, next) {
   try {
-    const { estado, tipo, dg, busqueda, cartera, sin_cartera, participacion, pagina, limite } = req.query;
+    const { estado, tipo, dg, busqueda, etiqueta, cartera, sin_cartera, participacion, pagina, limite } = req.query;
 
     const resultado = await proyectosQueries.listarProyectos({
       estado,
       tipo,
       idDg: dg,
       busqueda,
+      etiqueta,
       carteraId: cartera,
       sinCartera: sin_cartera === 'true',
       // 'participo' | 'responsable' — acota el listado a los proyectos del

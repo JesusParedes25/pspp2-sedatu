@@ -12,6 +12,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { Search } from 'lucide-react';
+import EtiquetaFiltroInput from '../common/EtiquetaFiltroInput';
 
 const estados = [
   { valor: 'Pendiente',   etiqueta: 'Pendiente' },
@@ -96,6 +97,13 @@ export default function FiltrosProyectos({ filtros, onCambio, carteras }) {
             </select>
           </>
         )}
+
+        <span className="text-xs text-gray-500 ml-2">Etiqueta:</span>
+        <EtiquetaFiltroInput
+          valor={filtros.etiqueta}
+          onCambio={etiqueta => onCambio({ etiqueta, pagina: 1 })}
+          className="w-40"
+        />
       </div>
     </div>
   );

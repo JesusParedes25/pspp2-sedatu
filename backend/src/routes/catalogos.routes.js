@@ -27,5 +27,6 @@ router.get('/municipios-por-clave', geografiaController.obtenerMunicipiosPorClav
 router.get('/zonas-metropolitanas', geografiaController.obtenerZonasMetropolitanas);
 router.get('/valores', catalogosController.obtenerValores);
 router.post('/valores', catalogosController.agregarValor);
+router.get('/etiquetas', catalogosController.buscarEtiquetas);
 
 module.exports = router;
