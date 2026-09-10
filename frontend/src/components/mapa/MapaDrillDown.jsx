@@ -16,9 +16,18 @@ export const GUINDA_DARK = '#611232';
 export const MEXICO_CENTER = [23.6345, -102.5528];
 export const MEXICO_ZOOM = 5;
 
+// Municipio con actividad: antes usaba el mismo guinda que el degradado de
+// "proyectos por estado" (solo con otra opacidad), por lo que a simple
+// vista se confundían — los usuarios lo reportaron. Se usa el verde
+// institucional de SEDATU (segundo color de la paleta, ver
+// tailwind.config.cjs) para que sea un color realmente distinto, no un
+// tono más del mismo degradado.
+export const VERDE_MUNICIPIO = '#235b4e';
+export const VERDE_MUNICIPIO_DARK = '#1c4a3f';
+
 const ESTADO_BASE = { color: '#D1D5DB', weight: 0.5, fillColor: '#F3F4F6', fillOpacity: 0.25 };
 const MUNI_BASE = { color: '#e5e5e5', weight: 0.5, fillColor: '#f0f0f0', fillOpacity: 0.5 };
-const MUNI_ACTIVO = { color: '#611232', weight: 1, fillColor: '#7B1C3E', fillOpacity: 0.7 };
+const MUNI_ACTIVO = { color: VERDE_MUNICIPIO_DARK, weight: 1, fillColor: VERDE_MUNICIPIO, fillOpacity: 0.7 };
 
 function FlyController({ bounds }) {
   const map = useMap();

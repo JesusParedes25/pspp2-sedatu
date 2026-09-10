@@ -364,7 +364,7 @@ export default function CarteraDetalle() {
 
       {/* Mapa */}
       {pestanaActiva === 'mapa' && (
-        <MapaCartera proyectoIds={proyectos.map(p => p.id)} />
+        <MapaCartera carteraId={id} />
       )}
 
       {/* Actividad */}

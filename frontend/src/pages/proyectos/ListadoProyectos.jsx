@@ -178,7 +178,10 @@ function VistaAgrupada() {
 
 // ─── Vista "Todos los proyectos": grid plano con filtros y paginación ─
 function VistaTodos() {
-  const { proyectos, total, cargando, filtros, actualizarFiltros } = useProyectos();
+  // Por defecto "Donde participo" — de decenas de proyectos, lo más útil
+  // al entrar es ver primero lo propio; "Todos" sigue disponible como
+  // último chip para quien de verdad quiere ver el universo completo.
+  const { proyectos, total, cargando, filtros, actualizarFiltros } = useProyectos({ participacion: 'participo' });
   const { carteras } = useCarteras();
 
   const totalPaginas = Math.ceil(total / (filtros.limite || 12));
@@ -193,9 +196,9 @@ function VistaTodos() {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
           {[
-            { valor: undefined, etiqueta: 'Todos' },
             { valor: 'participo', etiqueta: 'Donde participo' },
             { valor: 'responsable', etiqueta: 'Donde soy responsable' },
+            { valor: undefined, etiqueta: 'Todos' },
           ].map(op => {
             const activo = (filtros.participacion || undefined) === op.valor;
             return (

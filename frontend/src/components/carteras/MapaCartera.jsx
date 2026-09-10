@@ -1,11 +1,13 @@
 /**
  * ARCHIVO: MapaCartera.jsx
- * PROPÓSITO: Mapa territorial de una cartera — coropletas nacionales
- *            filtradas a los proyectos de esta cartera, reutilizando
- *            /inicio/mapa (mismos datos que Territorio y el mapa de
- *            Inicio) filtrado del lado del cliente por proyecto_id.
- *            Versión simplificada de MapaTerritorial.jsx: sin escala ZM
- *            ni drill-down a municipio, solo estado → lista de
+ * PROPÓSITO: Mapa territorial de una cartera — coropletas nacionales de
+ *            los proyectos de esta cartera, vía GET /carteras/:id/mapa
+ *            (incidencia territorial ya acotada a los proyectos de la
+ *            cartera en el propio backend — a diferencia de /inicio/mapa,
+ *            que solo devuelve "mis proyectos" y por eso el mapa salía
+ *            vacío para cualquier cartera con proyectos ajenos al usuario
+ *            en sesión). Versión simplificada de MapaTerritorial.jsx: sin
+ *            escala ZM ni drill-down a municipio, solo estado → lista de
  *            proyectos de la cartera activos ahí.
  */
 import { useState, useEffect, useMemo } from 'react';
@@ -17,9 +19,9 @@ import 'leaflet/dist/leaflet.css';
 
 const GUINDA = '#7B1C3E';
 
-export default function MapaCartera({ proyectoIds = [] }) {
+export default function MapaCartera({ carteraId }) {
   const [geoJSON, setGeoJSON] = useState(null);
-  const [mapaData, setMapaData] = useState([]);
+  const [mapaDataFiltrada, setMapaDataFiltrada] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [estadoSeleccionado, setEstadoSeleccionado] = useState(null);
   const [hovered, setHovered] = useState(null);
@@ -28,24 +30,15 @@ export default function MapaCartera({ proyectoIds = [] }) {
     setCargando(true);
     Promise.all([
       client.get('/geo/estados/geojson'),
-      client.get('/inicio/mapa'),
+      client.get(`/carteras/${carteraId}/mapa`),
     ])
       .then(([geoRes, mapaRes]) => {
         setGeoJSON(geoRes.data);
-        setMapaData(mapaRes.data.datos || []);
+        setMapaDataFiltrada(mapaRes.data.datos || []);
       })
       .catch(console.error)
       .finally(() => setCargando(false));
-  }, []);
-
-  const idsSet = useMemo(() => new Set(proyectoIds), [proyectoIds]);
-
-  // Filtra los datos nacionales a solo los proyectos de esta cartera
-  const mapaDataFiltrada = useMemo(() => {
-    return mapaData
-      .map(e => ({ ...e, proyectos: e.proyectos.filter(p => idsSet.has(p.id)) }))
-      .filter(e => e.proyectos.length > 0);
-  }, [mapaData, idsSet]);
+  }, [carteraId]);
 
   const estadosMap = useMemo(
     () => Object.fromEntries(mapaDataFiltrada.map(e => [e.cve_ent, e])),

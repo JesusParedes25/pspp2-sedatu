@@ -7,6 +7,7 @@
  * igual que hoy puede ver cualquier proyecto en /proyectos.
  */
 const carterasQueries = require('../db/queries/carteras.queries');
+const geografiaQueries = require('../db/queries/geografia.queries');
 
 // GET /carteras?busqueda=
 async function listar(req, res, next) {
@@ -80,6 +81,17 @@ async function resumen(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// GET /carteras/:id/mapa — incidencia territorial de los proyectos de la
+// cartera, sin acotar a "mis proyectos" (a diferencia de /inicio/mapa):
+// la visibilidad de carteras es total, igual que /carteras/:id/resumen.
+async function mapa(req, res, next) {
+  try {
+    const proyectos = await carterasQueries.listarProyectosDeCartera(req.params.id);
+    const datos = await geografiaQueries.obtenerMapaIncidenciaGeo(proyectos.map(p => p.id));
+    res.json({ datos });
+  } catch (err) { next(err); }
+}
+
 // GET /carteras/:id/actividad
 async function actividad(req, res, next) {
   try {
@@ -121,6 +133,7 @@ module.exports = {
   confirmarEliminar,
   listarProyectos,
   resumen,
+  mapa,
   actividad,
   agregarProyectos,
   quitarProyecto,

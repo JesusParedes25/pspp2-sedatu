@@ -21,7 +21,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import L from 'leaflet';
 import { MapPin, Layers, X, ChevronRight, ChevronLeft, Building2 } from 'lucide-react';
 import client from '../../api/client';
-import MapaDrillDown from '../mapa/MapaDrillDown';
+import MapaDrillDown, { VERDE_MUNICIPIO } from '../mapa/MapaDrillDown';
 import 'leaflet/dist/leaflet.css';
 
 const GUINDA = '#7B1C3E';
@@ -382,7 +382,7 @@ export default function MapaProyecto({ proyectoId, onNavegarEtapas }) {
           </div>
           {municipiosGeoJSON && !enZM && (
             <div className="flex items-center gap-1 mt-1 pt-1 border-t border-gray-100">
-              <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: GUINDA, opacity: 0.7 }} />
+              <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: VERDE_MUNICIPIO, opacity: 0.7 }} />
               <span className="text-gray-400">municipio con actividad</span>
             </div>
           )}
