@@ -17,6 +17,8 @@ import MapaTerritorialInicio from '../components/inicio/MapaTerritorialInicio';
 import TarjetaIndicador, { ETIQUETA_TIPO_INDICADOR } from '../components/indicadores/TarjetaIndicador';
 import ListaEstatusCualitativo, { TituloEstatusCualitativo } from '../components/indicadores/ListaEstatusCualitativo';
 import { breadcrumbInternoEstatusCualitativo } from '../utils/estatusCualitativo';
+import AgrupadoPorProyecto from '../components/common/AgrupadoPorProyecto';
+import NodoBreadcrumb from '../components/common/NodoBreadcrumb';
 
 const GUINDA = '#7B1C3E';
 const SEM = { verde: '#22c55e', ambar: '#f59e0b', rojo: '#ef4444', gris: '#9ca3af' };
@@ -37,8 +39,8 @@ export default function Inicio() {
     return (
       <div className="space-y-6">
         <div className="h-8 bg-gray-200 rounded w-1/3 animate-pulse" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map(i => <div key={i} className="card p-6 animate-pulse h-24" />)}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map(i => <div key={i} className="card p-6 animate-pulse h-40" />)}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="card p-6 animate-pulse h-64" />
@@ -65,14 +67,6 @@ export default function Inicio() {
         <Link to="/mapa" className="btn-secondary text-xs flex items-center gap-1">
           <MapPin size={14} /> Territorio
         </Link>
-      </div>
-
-      {/* ═══ MÉTRICAS RESUMEN ═══ */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricaCard icono={FolderKanban} titulo="Mis proyectos" valor={proyectos.length} color="bg-guinda-50 text-guinda-600" />
-        <MetricaCard icono={AlertTriangle} titulo="Acciones vencidas" valor={vencidos.length} color="bg-red-50 text-red-600" />
-        <MetricaCard icono={Clock} titulo="Por vencer (14d)" valor={por_vencer.length} color="bg-yellow-50 text-yellow-600" />
-        <MetricaCard icono={Shield} titulo="Riesgos abiertos" valor={riesgos.length} color="bg-orange-50 text-orange-600" />
       </div>
 
       {/* ═══ MIS PROYECTOS ═══ */}
@@ -126,80 +120,91 @@ export default function Inicio() {
         )}
       </div>
 
-      {/* ═══ VENCIDOS + POR VENCER (mitad de ancho cada uno; el que falte, el otro ocupa todo) ═══ */}
-      {(vencidos.length > 0 || por_vencer.length > 0) && (
-        <div className={`grid grid-cols-1 gap-6 ${vencidos.length > 0 && por_vencer.length > 0 ? 'lg:grid-cols-2' : ''}`}>
+      {/* ═══ ACCIONES VENCIDAS + RIESGOS ABIERTOS (misma fila, una columna
+          cada una) — son las dos listas que de verdad piden acción ya;
+          "Por vencer" es alerta temprana y va aparte, debajo. ═══ */}
+      {(vencidos.length > 0 || riesgos.length > 0) && (
+        <div className={`grid grid-cols-1 gap-6 ${vencidos.length > 0 && riesgos.length > 0 ? 'lg:grid-cols-2' : ''}`}>
           {vencidos.length > 0 && (
             <div className="card p-5">
               <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
                 <AlertTriangle size={14} className="text-red-500" /> Acciones vencidas
               </h2>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {vencidos.map(a => (
-                  <Link
-                    key={a.id}
-                    to={`/proyectos/${a.proyecto_id}?tab=seguimiento&nodo=${a.id}`}
-                    className="flex items-start gap-2 p-2 rounded hover:bg-red-50 border border-transparent hover:border-red-100 transition"
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5 flex-shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs text-gray-800 truncate font-medium">{a.nombre}</p>
-                      <p className="text-[10px] text-gray-500">{a.proyecto_nombre}{a.etapa_nombre ? ` › ${a.etapa_nombre}` : ''} · -{a.dias_atraso}d</p>
-                    </div>
-                  </Link>
-                ))}
+              <div className="max-h-72 overflow-y-auto pr-1">
+                <AgrupadoPorProyecto
+                  items={vencidos}
+                  vacio="Sin acciones vencidas."
+                  renderItem={a => (
+                    <Link
+                      key={a.id}
+                      to={`/proyectos/${a.proyecto_id}?tab=seguimiento&nodo=${a.id}`}
+                      className="block p-1.5 -ml-1.5 rounded hover:bg-red-50 transition"
+                    >
+                      <NodoBreadcrumb item={a} />
+                      <p className="text-xs text-gray-800 font-medium mt-0.5">{a.accion_nombre}</p>
+                      <p className="text-[10px] text-red-500 font-medium">-{a.dias_atraso}d de atraso</p>
+                    </Link>
+                  )}
+                />
               </div>
             </div>
           )}
-          {por_vencer.length > 0 && (
+          {riesgos.length > 0 && (
             <div className="card p-5">
               <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
-                <Clock size={14} className="text-yellow-600" /> Por vencer (14 días)
+                <Shield size={14} className="text-orange-500" /> Riesgos abiertos
               </h2>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {por_vencer.map(a => (
-                  <Link
-                    key={a.id}
-                    to={`/proyectos/${a.proyecto_id}?tab=seguimiento&nodo=${a.id}`}
-                    className="flex items-start gap-2 p-2 rounded hover:bg-yellow-50 border border-transparent hover:border-yellow-100 transition"
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 mt-1.5 flex-shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs text-gray-800 truncate font-medium">{a.nombre}</p>
-                      <p className="text-[10px] text-gray-500">{a.proyecto_nombre}{a.etapa_nombre ? ` › ${a.etapa_nombre}` : ''} · {a.dias_restantes}d restantes</p>
-                    </div>
-                  </Link>
-                ))}
+              <div className="max-h-72 overflow-y-auto pr-1">
+                <AgrupadoPorProyecto
+                  items={riesgos}
+                  vacio="Sin riesgos abiertos."
+                  renderItem={r => (
+                    <Link
+                      key={r.id}
+                      to={`/proyectos/${r.proyecto_id}?tab=seguimiento&nodo=${r.entidad_id}`}
+                      className="block p-1.5 -ml-1.5 rounded hover:bg-orange-50 transition"
+                    >
+                      {r.tipo_nodo !== 'proyecto' && <NodoBreadcrumb item={r} />}
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                          r.nivel === 'Critico' ? 'bg-red-600' :
+                          r.nivel === 'Alto' ? 'bg-orange-500' :
+                          r.nivel === 'Medio' ? 'bg-yellow-500' : 'bg-gray-400'
+                        }`} />
+                        <p className="text-xs text-gray-800 truncate">{r.titulo}</p>
+                        <span className="text-[10px] text-gray-400 flex-shrink-0">· {r.nivel}</span>
+                      </div>
+                    </Link>
+                  )}
+                />
               </div>
             </div>
           )}
         </div>
       )}
 
-      {/* ═══ RIESGOS ABIERTOS ═══ */}
-      {riesgos.length > 0 && (
+      {/* ═══ POR VENCER ═══ */}
+      {por_vencer.length > 0 && (
         <div className="card p-5">
           <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
-            <Shield size={14} className="text-orange-500" /> Riesgos abiertos
+            <Clock size={14} className="text-yellow-600" /> Por vencer (14 días)
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {riesgos.map(r => (
-              <Link
-                key={r.id}
-                to={`/proyectos/${r.proyecto_id}?tab=seguimiento&nodo=${r.entidad_id}`}
-                className="flex items-center gap-2 p-2 rounded hover:bg-orange-50 border border-gray-100 hover:border-orange-200 transition"
-              >
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                  r.nivel === 'Critico' ? 'bg-red-600' :
-                  r.nivel === 'Alto' ? 'bg-orange-500' :
-                  r.nivel === 'Medio' ? 'bg-yellow-500' : 'bg-gray-400'
-                }`} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs text-gray-800 truncate">{r.titulo}</p>
-                  <p className="text-[10px] text-gray-500">{r.proyecto_nombre} · {r.nivel}</p>
-                </div>
-              </Link>
-            ))}
+          <div className="max-h-64 overflow-y-auto pr-1">
+            <AgrupadoPorProyecto
+              items={por_vencer}
+              vacio="Nada por vencer en los próximos 14 días."
+              renderItem={a => (
+                <Link
+                  key={a.id}
+                  to={`/proyectos/${a.proyecto_id}?tab=seguimiento&nodo=${a.id}`}
+                  className="block p-1.5 -ml-1.5 rounded hover:bg-yellow-50 transition"
+                >
+                  <NodoBreadcrumb item={a} />
+                  <p className="text-xs text-gray-800 font-medium mt-0.5">{a.accion_nombre}</p>
+                  <p className="text-[10px] text-yellow-600 font-medium">{a.dias_restantes}d restantes</p>
+                </Link>
+              )}
+            />
           </div>
         </div>
       )}
@@ -210,34 +215,37 @@ export default function Inicio() {
           <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
             <Activity size={14} className="text-purple-500" /> Actividad reciente
           </h2>
-          <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
-            {actividad.map((ev) => {
-              const { bg, text, icon: IconComp } = actividadConfig(ev.tipo);
-              return (
-                <Link
-                  key={ev.id}
-                  to={`/proyectos/${ev.proyecto_id}?tab=seguimiento&nodo=${ev.entidad_id}`}
-                  className="flex items-start gap-2.5 p-1.5 -m-1.5 rounded hover:bg-gray-50 transition-colors"
-                >
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${bg} ${text}`}>
-                    <IconComp size={11} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs text-gray-800 leading-relaxed">
-                      {ev.actor && <span className="font-medium">{ev.actor} — </span>}
-                      <span className="text-gray-700">{ev.titulo}</span>
-                    </p>
-                    {ev.descripcion && (
-                      <p className="text-[11px] text-gray-500 truncate">{ev.descripcion.slice(0, 80)}</p>
-                    )}
-                    <p className="text-[10px] text-gray-400 mt-0.5">
-                      <span className="hover:text-guinda-600">{ev.proyecto_nombre}</span>
-                      {' · '}{rel(ev.created_at)}
-                    </p>
-                  </div>
-                </Link>
-              );
-            })}
+          <div className="max-h-96 overflow-y-auto pr-1">
+            <AgrupadoPorProyecto
+              items={actividad}
+              vacio="Sin actividad reciente."
+              className="space-y-4"
+              renderItem={ev => {
+                const { bg, text, icon: IconComp } = actividadConfig(ev.tipo);
+                return (
+                  <Link
+                    key={ev.id}
+                    to={`/proyectos/${ev.proyecto_id}?tab=seguimiento&nodo=${ev.entidad_id}`}
+                    className="flex items-start gap-2.5 p-1.5 -ml-1.5 rounded hover:bg-gray-50 transition-colors"
+                  >
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${bg} ${text}`}>
+                      <IconComp size={11} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      {ev.tipo_nodo && <div className="mb-0.5"><NodoBreadcrumb item={ev} /></div>}
+                      <p className="text-xs text-gray-800 leading-relaxed">
+                        {ev.actor && <span className="font-medium">{ev.actor} — </span>}
+                        <span className="text-gray-700">{ev.titulo}</span>
+                      </p>
+                      {ev.descripcion && (
+                        <p className="text-[11px] text-gray-500 truncate">{ev.descripcion.slice(0, 80)}</p>
+                      )}
+                      <p className="text-[10px] text-gray-400 mt-0.5">{rel(ev.created_at)}</p>
+                    </div>
+                  </Link>
+                );
+              }}
+            />
           </div>
         </div>
       )}
@@ -296,7 +304,7 @@ function ProyectoCard({ proyecto }) {
     timeoutRef.current = setTimeout(() => {
       client.get(`/proyectos/${proyecto.id}/panorama-rapido`)
         .then(res => { cacheRef.current = res.data.datos; setPopover(p => p ? { ...p, cargando: false, datos: res.data.datos } : p); })
-        .catch(() => setPopover(p => p ? { ...p, cargando: false, datos: { etapas: [], estatus_cualitativo: [], actividad: [] } } : p));
+        .catch(() => setPopover(p => p ? { ...p, cargando: false, datos: { etapas: [], estatus_cualitativo: [], actividad: [], indicadores: [] } } : p));
     }, 250);
   }
   function ocultarPopover() {
@@ -307,128 +315,146 @@ function ProyectoCard({ proyecto }) {
   return (
     <Link
       to={`/proyectos/${proyecto.id}`}
-      className="card p-4 hover:shadow-md hover:border-guinda-200 transition group relative"
+      className="card overflow-hidden hover:shadow-md hover:border-guinda-200 transition group relative block"
       onMouseEnter={mostrarPopover}
       onMouseLeave={ocultarPopover}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-guinda-700 transition">
-            {proyecto.nombre}
-          </p>
-          <p className="text-[11px] text-gray-500 mt-0.5">
-            {proyecto.dg_siglas || 'Sin DG'} · {proyecto.estado?.replace('_', ' ')}
-          </p>
+      {proyecto.imagen_url && (
+        <div className="h-20 -mx-px -mt-px mb-3">
+          <img src={proyecto.imagen_url} alt="" className="w-full h-full object-cover" />
         </div>
-        <ChevronRight size={14} className="text-gray-300 group-hover:text-guinda-400 transition mt-1" />
-      </div>
-      <div className="mt-3">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-[10px] text-gray-500">Avance</span>
-          <span className="text-xs font-bold" style={{ color: getColor(pct) }}>{pct.toFixed(0)}%</span>
+      )}
+      <div className={proyecto.imagen_url ? 'px-4 pb-4' : 'p-4'}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2 group-hover:text-guinda-700 transition">
+              {proyecto.nombre}
+            </p>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              {proyecto.dg_siglas || 'Sin DG'} · {proyecto.estado?.replace('_', ' ')}
+            </p>
+          </div>
+          <ChevronRight size={14} className="text-gray-300 group-hover:text-guinda-400 transition mt-1 flex-shrink-0" />
         </div>
-        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: getColor(pct) }} />
+        <div className="mt-3">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] text-gray-500">Avance</span>
+            <span className="text-xs font-bold" style={{ color: getColor(pct) }}>{pct.toFixed(0)}%</span>
+          </div>
+          <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: getColor(pct) }} />
+          </div>
         </div>
-      </div>
-      <div className="flex items-center gap-3 mt-2 text-[10px] text-gray-400">
-        {proyecto.acciones_pendientes > 0 && <span>{proyecto.acciones_pendientes} pendientes</span>}
-        {proyecto.riesgos_activos > 0 && <span className="text-orange-500">{proyecto.riesgos_activos} riesgos</span>}
-        {proyecto.es_prioritario && <span className="text-guinda-600 font-bold">★ Prioritario</span>}
+        <div className="flex items-center gap-3 mt-2 text-[10px] text-gray-400">
+          {proyecto.acciones_pendientes > 0 && <span>{proyecto.acciones_pendientes} pendientes</span>}
+          {proyecto.riesgos_activos > 0 && <span className="text-orange-500">{proyecto.riesgos_activos} riesgos</span>}
+          {proyecto.es_prioritario && <span className="text-guinda-600 font-bold">★ Prioritario</span>}
+        </div>
       </div>
 
       {popover && (
         <div
-          className="fixed z-[9999] bg-white border border-gray-200 rounded-lg shadow-xl p-3 w-80 pointer-events-none"
-          style={{ left: Math.min(popover.x, window.innerWidth - 336), top: popover.above ? undefined : popover.y, bottom: popover.above ? window.innerHeight - popover.y : undefined }}
+          className="fixed z-[9999] bg-white border border-gray-200 rounded-lg shadow-xl p-3.5 w-[520px] max-w-[92vw] pointer-events-none"
+          style={{ left: Math.min(popover.x, window.innerWidth - 536), top: popover.above ? undefined : popover.y, bottom: popover.above ? window.innerHeight - popover.y : undefined }}
         >
           {popover.cargando ? (
             <div className="flex items-center gap-2 text-xs text-gray-400 py-2">
               <div className="animate-spin w-3.5 h-3.5 border-2 border-[#7B1C3E] border-t-transparent rounded-full" /> Cargando panorama…
             </div>
           ) : (
-            <>
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <Layers size={11} className="text-indigo-500" />
-                <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Estructura</p>
-              </div>
-              {popover.datos.etapas.length === 0 ? (
-                <p className="text-[11px] text-gray-400 italic mb-2">Sin etapas registradas.</p>
-              ) : (
-                <ul className="space-y-1 max-h-32 overflow-y-auto mb-2">
-                  {popover.datos.etapas.slice(0, 6).map(et => (
-                    <li key={et.id} className="text-[11px]">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: SEM[et.semaforo || 'gris'] }} />
-                        <span className="truncate text-gray-700 flex-1">{et.nombre}</span>
-                        <span className="text-gray-400 flex-shrink-0">{et.acciones_completadas}/{et.total_acciones}</span>
-                        <span className="text-gray-400 tabular-nums flex-shrink-0 w-8 text-right">{Math.round(et.avance)}%</span>
-                      </div>
-                    </li>
-                  ))}
-                  {popover.datos.etapas.length > 6 && (
-                    <li className="text-[10px] text-gray-400 text-center">+{popover.datos.etapas.length - 6} etapas más…</li>
-                  )}
-                </ul>
-              )}
+            <div className="grid grid-cols-2 gap-x-4">
+              {/* Columna izquierda: estructura + estatus cualitativo */}
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Layers size={11} className="text-indigo-500" />
+                  <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Estructura</p>
+                </div>
+                {popover.datos.etapas.length === 0 ? (
+                  <p className="text-[11px] text-gray-400 italic mb-2">Sin etapas registradas.</p>
+                ) : (
+                  <ul className="space-y-1 max-h-40 overflow-y-auto mb-2 pr-1">
+                    {popover.datos.etapas.map(et => (
+                      <li key={et.id} className="text-[11px]">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: SEM[et.semaforo || 'gris'] }} />
+                          <span className="truncate text-gray-700 flex-1">{et.nombre}</span>
+                          <span className="text-gray-400 flex-shrink-0">{et.acciones_completadas}/{et.total_acciones}</span>
+                          <span className="text-gray-400 tabular-nums flex-shrink-0 w-8 text-right">{Math.round(et.avance)}%</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
 
-              <div className="flex items-center gap-1.5 mb-1.5 pt-1.5 border-t border-gray-100">
-                <MessageSquare size={11} className="text-teal-600" />
-                <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Estatus cualitativo</p>
+                <div className="flex items-center gap-1.5 mb-1.5 pt-1.5 border-t border-gray-100">
+                  <MessageSquare size={11} className="text-teal-600" />
+                  <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Estatus cualitativo</p>
+                </div>
+                {popover.datos.estatus_cualitativo.length === 0 ? (
+                  <p className="text-[11px] text-gray-400 italic">Sin estatus cualitativo capturado.</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {popover.datos.estatus_cualitativo.slice(0, 4).map(item => (
+                      <li key={item.id} className="text-[11px] leading-snug">
+                        <span className="text-gray-400">{breadcrumbInternoEstatusCualitativo(item)}: </span>
+                        <span className="text-gray-700 italic truncate">"{item.estatus_cualitativo}"</span>
+                      </li>
+                    ))}
+                    {popover.datos.estatus_cualitativo.length > 4 && (
+                      <li className="text-[10px] text-gray-400 text-center">+{popover.datos.estatus_cualitativo.length - 4} más…</li>
+                    )}
+                  </ul>
+                )}
               </div>
-              {popover.datos.estatus_cualitativo.length === 0 ? (
-                <p className="text-[11px] text-gray-400 italic mb-2">Sin estatus cualitativo capturado.</p>
-              ) : (
-                <ul className="space-y-1 mb-2">
-                  {popover.datos.estatus_cualitativo.slice(0, 4).map(item => (
-                    <li key={item.id} className="text-[11px] leading-snug">
-                      <span className="text-gray-400">{breadcrumbInternoEstatusCualitativo(item)}: </span>
-                      <span className="text-gray-700 italic truncate">"{item.estatus_cualitativo}"</span>
-                    </li>
-                  ))}
-                  {popover.datos.estatus_cualitativo.length > 4 && (
-                    <li className="text-[10px] text-gray-400 text-center">+{popover.datos.estatus_cualitativo.length - 4} más…</li>
-                  )}
-                </ul>
-              )}
 
-              <div className="flex items-center gap-1.5 mb-1.5 pt-1.5 border-t border-gray-100">
-                <Activity size={11} className="text-purple-500" />
-                <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Última actividad</p>
+              {/* Columna derecha: indicadores + última actividad */}
+              <div className="min-w-0 border-l border-gray-100 pl-4">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Target size={11} className="text-blue-500" />
+                  <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Indicadores</p>
+                </div>
+                {!popover.datos.indicadores || popover.datos.indicadores.length === 0 ? (
+                  <p className="text-[11px] text-gray-400 italic mb-2">Sin indicadores capturados.</p>
+                ) : (
+                  <ul className="space-y-1.5 max-h-28 overflow-y-auto mb-2 pr-1">
+                    {popover.datos.indicadores.slice(0, 5).map(ind => (
+                      <li key={ind.id} className="text-[11px]">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-gray-700 flex-1">{ind.nombre}</span>
+                          {ind.pct_avance != null ? (
+                            <span className="text-gray-400 tabular-nums flex-shrink-0">{ind.pct_avance}%</span>
+                          ) : (
+                            <span className="text-gray-300 flex-shrink-0">s/meta</span>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <div className="flex items-center gap-1.5 mb-1.5 pt-1.5 border-t border-gray-100">
+                  <Activity size={11} className="text-purple-500" />
+                  <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Última actividad</p>
+                </div>
+                {popover.datos.actividad.length === 0 ? (
+                  <p className="text-[11px] text-gray-400 italic">Sin actividad reciente.</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {popover.datos.actividad.map(ev => (
+                      <li key={ev.id} className="text-[11px] text-gray-700 leading-snug">
+                        {ev.actor && <span className="font-medium">{ev.actor.split(' ')[0]} — </span>}
+                        <span className="text-gray-600">{ev.titulo}</span>
+                        <span className="text-gray-400"> · {rel(ev.created_at)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
-              {popover.datos.actividad.length === 0 ? (
-                <p className="text-[11px] text-gray-400 italic">Sin actividad reciente.</p>
-              ) : (
-                <ul className="space-y-1">
-                  {popover.datos.actividad.map(ev => (
-                    <li key={ev.id} className="text-[11px] text-gray-700 leading-snug">
-                      {ev.actor && <span className="font-medium">{ev.actor.split(' ')[0]} — </span>}
-                      <span className="text-gray-600">{ev.titulo}</span>
-                      <span className="text-gray-400"> · {rel(ev.created_at)}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
+            </div>
           )}
         </div>
       )}
     </Link>
-  );
-}
-
-// ─── Métricas Card ────────────────────────────────────────────
-function MetricaCard({ icono: Icono, titulo, valor, color }) {
-  return (
-    <div className="card p-4 flex items-center gap-4">
-      <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${color}`}>
-        <Icono size={22} />
-      </div>
-      <div>
-        <p className="text-2xl font-bold text-gray-900">{valor}</p>
-        <p className="text-xs text-gray-500">{titulo}</p>
-      </div>
-    </div>
   );
 }
 

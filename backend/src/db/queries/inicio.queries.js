@@ -17,7 +17,7 @@ async function obtenerProyectosUsuario(proyectoIds) {
 
   const { rows } = await pool.query(`
     SELECT
-      p.id, p.nombre, p.estado, p.tipo, p.porcentaje_calculado,
+      p.id, p.nombre, p.estado, p.tipo, p.porcentaje_calculado, p.imagen_url,
       p.fecha_inicio, p.fecha_limite, p.es_prioritario,
       dg.siglas AS dg_siglas, dg.nombre AS dg_nombre,
       (SELECT COUNT(*) FROM acciones a WHERE a.id_proyecto = p.id AND a.id_accion_padre IS NULL AND a.estado NOT IN ('Completada','Cancelada'))::int AS acciones_pendientes,
@@ -38,13 +38,16 @@ async function obtenerVencidos(proyectoIds) {
   if (!proyectoIds || proyectoIds.length === 0) return [];
   const { rows } = await pool.query(`
     SELECT
-      a.id, a.nombre, a.estado, a.fecha_fin, a.id_accion_padre,
+      a.id, a.nombre AS accion_nombre, a.estado, a.fecha_fin, a.id_accion_padre,
+      'accion' AS tipo_nodo,
       EXTRACT(DAY FROM NOW() - a.fecha_fin)::int AS dias_atraso,
-      p.id AS proyecto_id, p.nombre AS proyecto_nombre,
-      e.nombre AS etapa_nombre
+      p.id AS proyecto_id, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas,
+      e.nombre AS etapa_nombre, padre.nombre AS accion_padre_nombre
     FROM acciones a
     JOIN proyectos p ON p.id = a.id_proyecto
+    LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
     LEFT JOIN etapas e ON e.id = a.id_etapa
+    LEFT JOIN acciones padre ON padre.id = a.id_accion_padre
     WHERE a.id_proyecto = ANY($1)
       AND a.fecha_fin < NOW()
       AND a.estado NOT IN ('Completada', 'Cancelada')
@@ -61,13 +64,16 @@ async function obtenerPorVencer(proyectoIds) {
   if (!proyectoIds || proyectoIds.length === 0) return [];
   const { rows } = await pool.query(`
     SELECT
-      a.id, a.nombre, a.estado, a.fecha_fin, a.id_accion_padre,
+      a.id, a.nombre AS accion_nombre, a.estado, a.fecha_fin, a.id_accion_padre,
+      'accion' AS tipo_nodo,
       EXTRACT(DAY FROM a.fecha_fin - NOW())::int AS dias_restantes,
-      p.id AS proyecto_id, p.nombre AS proyecto_nombre,
-      e.nombre AS etapa_nombre
+      p.id AS proyecto_id, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas,
+      e.nombre AS etapa_nombre, padre.nombre AS accion_padre_nombre
     FROM acciones a
     JOIN proyectos p ON p.id = a.id_proyecto
+    LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
     LEFT JOIN etapas e ON e.id = a.id_etapa
+    LEFT JOIN acciones padre ON padre.id = a.id_accion_padre
     WHERE a.id_proyecto = ANY($1)
       AND a.fecha_fin >= NOW()
       AND a.fecha_fin <= NOW() + INTERVAL '14 days'
@@ -86,27 +92,52 @@ async function obtenerRiesgosAbiertos(proyectoIds) {
   const { rows } = await pool.query(`
     SELECT
       r.id, r.titulo, r.nivel, r.estado AS estado_riesgo, r.entidad_tipo, r.entidad_id, r.created_at,
-      p.id AS proyecto_id, p.nombre AS proyecto_nombre
+      'proyecto' AS tipo_nodo, NULL::text AS etapa_nombre, NULL::text AS accion_nombre,
+      NULL::text AS accion_padre_nombre, NULL::text AS tarea_nombre,
+      p.id AS proyecto_id, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas
     FROM riesgos r
     JOIN proyectos p ON r.entidad_tipo = 'Proyecto' AND r.entidad_id = p.id
+    LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
     WHERE r.estado IN ('Abierto','En_mitigacion')
       AND p.id = ANY($1) AND p.deleted_at IS NULL
     UNION ALL
     SELECT
       r.id, r.titulo, r.nivel, r.estado AS estado_riesgo, r.entidad_tipo, r.entidad_id, r.created_at,
-      p.id AS proyecto_id, p.nombre AS proyecto_nombre
+      'etapa' AS tipo_nodo, et.nombre AS etapa_nombre, NULL::text AS accion_nombre,
+      NULL::text AS accion_padre_nombre, NULL::text AS tarea_nombre,
+      p.id AS proyecto_id, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas
     FROM riesgos r
     JOIN etapas et ON r.entidad_tipo = 'Etapa' AND r.entidad_id = et.id
     JOIN proyectos p ON p.id = et.id_proyecto
+    LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
     WHERE r.estado IN ('Abierto','En_mitigacion')
       AND p.id = ANY($1) AND p.deleted_at IS NULL
     UNION ALL
     SELECT
       r.id, r.titulo, r.nivel, r.estado AS estado_riesgo, r.entidad_tipo, r.entidad_id, r.created_at,
-      p.id AS proyecto_id, p.nombre AS proyecto_nombre
+      'accion' AS tipo_nodo, et.nombre AS etapa_nombre, ac.nombre AS accion_nombre,
+      padre.nombre AS accion_padre_nombre, NULL::text AS tarea_nombre,
+      p.id AS proyecto_id, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas
     FROM riesgos r
     JOIN acciones ac ON r.entidad_tipo IN ('Accion','Subaccion') AND r.entidad_id = ac.id
     JOIN proyectos p ON p.id = ac.id_proyecto
+    LEFT JOIN etapas et ON et.id = ac.id_etapa
+    LEFT JOIN acciones padre ON padre.id = ac.id_accion_padre
+    LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
+    WHERE r.estado IN ('Abierto','En_mitigacion')
+      AND p.id = ANY($1) AND p.deleted_at IS NULL
+    UNION ALL
+    SELECT
+      r.id, r.titulo, r.nivel, r.estado AS estado_riesgo, r.entidad_tipo, r.entidad_id, r.created_at,
+      'tarea' AS tipo_nodo, et.nombre AS etapa_nombre, ac.nombre AS accion_nombre,
+      NULL::text AS accion_padre_nombre, t.nombre AS tarea_nombre,
+      p.id AS proyecto_id, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas
+    FROM riesgos r
+    JOIN tareas t ON r.entidad_tipo = 'Tarea' AND r.entidad_id = t.id
+    JOIN acciones ac ON ac.id = t.id_accion
+    JOIN proyectos p ON p.id = ac.id_proyecto
+    LEFT JOIN etapas et ON et.id = ac.id_etapa
+    LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
     WHERE r.estado IN ('Abierto','En_mitigacion')
       AND p.id = ANY($1) AND p.deleted_at IS NULL
     ORDER BY nivel, created_at DESC
@@ -166,6 +197,13 @@ async function obtenerIndicadoresAgregados(proyectoIds) {
 /**
  * Actividad reciente de los proyectos del usuario (últimos 30 eventos).
  */
+// Resuelve el nodo (etapa/acción/tarea) al que apunta entidad_tipo+entidad_id
+// para poder pintar el mismo árbol Etapa › Acción › Tarea que ya usa
+// estatus cualitativo (breadcrumbInternoEstatusCualitativo) — antes
+// actividad_log solo traía el nombre del proyecto, sin ubicar el evento
+// dentro de su jerarquía. Cada LEFT JOIN solo puede coincidir para el
+// entidad_tipo que le corresponde, así que en cualquier fila a lo más una
+// rama de cada nivel tiene datos; el resto queda NULL.
 async function obtenerActividadReciente(proyectoIds) {
   if (!proyectoIds || proyectoIds.length === 0) return [];
   const { rows } = await pool.query(`
@@ -180,11 +218,31 @@ async function obtenerActividadReciente(proyectoIds) {
       al.created_at,
       al.id_proyecto AS proyecto_id,
       p.nombre AS proyecto_nombre,
+      dg.siglas AS dg_siglas,
       u.nombre_completo AS actor,
-      u.id AS actor_id
+      u.id AS actor_id,
+      CASE al.entidad_tipo
+        WHEN 'Etapa' THEN 'etapa'
+        WHEN 'Accion' THEN 'accion'
+        WHEN 'Subaccion' THEN 'accion'
+        WHEN 'Tarea' THEN 'tarea'
+        ELSE NULL
+      END AS tipo_nodo,
+      COALESCE(et_directa.nombre, et_via_accion.nombre, et_via_tarea.nombre) AS etapa_nombre,
+      COALESCE(ac_directa.nombre, ac_via_tarea.nombre) AS accion_nombre,
+      ac_padre.nombre AS accion_padre_nombre,
+      t_directa.nombre AS tarea_nombre
     FROM actividad_log al
     JOIN proyectos p ON p.id = al.id_proyecto
+    LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
     LEFT JOIN usuarios u ON u.id = al.id_usuario
+    LEFT JOIN etapas et_directa ON al.entidad_tipo = 'Etapa' AND et_directa.id = al.entidad_id
+    LEFT JOIN acciones ac_directa ON al.entidad_tipo IN ('Accion','Subaccion') AND ac_directa.id = al.entidad_id
+    LEFT JOIN etapas et_via_accion ON et_via_accion.id = ac_directa.id_etapa
+    LEFT JOIN acciones ac_padre ON ac_padre.id = ac_directa.id_accion_padre
+    LEFT JOIN tareas t_directa ON al.entidad_tipo = 'Tarea' AND t_directa.id = al.entidad_id
+    LEFT JOIN acciones ac_via_tarea ON ac_via_tarea.id = t_directa.id_accion
+    LEFT JOIN etapas et_via_tarea ON et_via_tarea.id = ac_via_tarea.id_etapa
     WHERE al.id_proyecto = ANY($1)
     ORDER BY al.created_at DESC
     LIMIT 50
