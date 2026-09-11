@@ -38,7 +38,16 @@ async function obtenerInicio(req, res, next) {
     }
 
     const [proyectos, vencidos, porVencer, riesgos, mapaIncidencia, indicadores, actividad, estatusCualitativo] = await Promise.all([
-      inicioQueries.obtenerProyectosUsuario(proyectoIds),
+      inicioQueries.obtenerProyectosUsuario(proyectoIds).then(rows => {
+        // Convertir path de MinIO a URL proxy del backend — mismo criterio
+        // que proyectos.controller.js (listar/obtenerPorId): la columna
+        // guarda la ruta de MinIO, no una URL que el navegador pueda pedir
+        // directo.
+        for (const p of rows) {
+          if (p.imagen_url) p.imagen_url = `/api/v1/proyectos/${p.id}/imagen`;
+        }
+        return rows;
+      }),
       inicioQueries.obtenerVencidos(proyectoIds),
       inicioQueries.obtenerPorVencer(proyectoIds),
       inicioQueries.obtenerRiesgosAbiertos(proyectoIds),

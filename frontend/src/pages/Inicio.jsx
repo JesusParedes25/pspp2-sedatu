@@ -17,8 +17,7 @@ import MapaTerritorialInicio from '../components/inicio/MapaTerritorialInicio';
 import TarjetaIndicador, { ETIQUETA_TIPO_INDICADOR } from '../components/indicadores/TarjetaIndicador';
 import ListaEstatusCualitativo, { TituloEstatusCualitativo } from '../components/indicadores/ListaEstatusCualitativo';
 import { breadcrumbInternoEstatusCualitativo } from '../utils/estatusCualitativo';
-import AgrupadoPorProyecto from '../components/common/AgrupadoPorProyecto';
-import NodoBreadcrumb from '../components/common/NodoBreadcrumb';
+import ArbolPorProyecto from '../components/common/ArbolPorProyecto';
 
 const GUINDA = '#7B1C3E';
 const SEM = { verde: '#22c55e', ambar: '#f59e0b', rojo: '#ef4444', gris: '#9ca3af' };
@@ -131,17 +130,15 @@ export default function Inicio() {
                 <AlertTriangle size={14} className="text-red-500" /> Acciones vencidas
               </h2>
               <div className="max-h-72 overflow-y-auto pr-1">
-                <AgrupadoPorProyecto
+                <ArbolPorProyecto
                   items={vencidos}
                   vacio="Sin acciones vencidas."
                   renderItem={a => (
                     <Link
                       key={a.id}
                       to={`/proyectos/${a.proyecto_id}?tab=seguimiento&nodo=${a.id}`}
-                      className="block p-1.5 -ml-1.5 rounded hover:bg-red-50 transition"
+                      className="block py-1 px-1.5 -ml-1.5 rounded hover:bg-red-50 transition"
                     >
-                      <NodoBreadcrumb item={a} />
-                      <p className="text-xs text-gray-800 font-medium mt-0.5">{a.accion_nombre}</p>
                       <p className="text-[10px] text-red-500 font-medium">-{a.dias_atraso}d de atraso</p>
                     </Link>
                   )}
@@ -155,25 +152,22 @@ export default function Inicio() {
                 <Shield size={14} className="text-orange-500" /> Riesgos abiertos
               </h2>
               <div className="max-h-72 overflow-y-auto pr-1">
-                <AgrupadoPorProyecto
+                <ArbolPorProyecto
                   items={riesgos}
                   vacio="Sin riesgos abiertos."
                   renderItem={r => (
                     <Link
                       key={r.id}
                       to={`/proyectos/${r.proyecto_id}?tab=seguimiento&nodo=${r.entidad_id}`}
-                      className="block p-1.5 -ml-1.5 rounded hover:bg-orange-50 transition"
+                      className="flex items-center gap-1.5 py-1 px-1.5 -ml-1.5 rounded hover:bg-orange-50 transition"
                     >
-                      {r.tipo_nodo !== 'proyecto' && <NodoBreadcrumb item={r} />}
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                          r.nivel === 'Critico' ? 'bg-red-600' :
-                          r.nivel === 'Alto' ? 'bg-orange-500' :
-                          r.nivel === 'Medio' ? 'bg-yellow-500' : 'bg-gray-400'
-                        }`} />
-                        <p className="text-xs text-gray-800 truncate">{r.titulo}</p>
-                        <span className="text-[10px] text-gray-400 flex-shrink-0">· {r.nivel}</span>
-                      </div>
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                        r.nivel === 'Critico' ? 'bg-red-600' :
+                        r.nivel === 'Alto' ? 'bg-orange-500' :
+                        r.nivel === 'Medio' ? 'bg-yellow-500' : 'bg-gray-400'
+                      }`} />
+                      <p className="text-xs text-gray-800 truncate">{r.titulo}</p>
+                      <span className="text-[10px] text-gray-400 flex-shrink-0">· {r.nivel}</span>
                     </Link>
                   )}
                 />
@@ -190,17 +184,15 @@ export default function Inicio() {
             <Clock size={14} className="text-yellow-600" /> Por vencer (14 días)
           </h2>
           <div className="max-h-64 overflow-y-auto pr-1">
-            <AgrupadoPorProyecto
+            <ArbolPorProyecto
               items={por_vencer}
               vacio="Nada por vencer en los próximos 14 días."
               renderItem={a => (
                 <Link
                   key={a.id}
                   to={`/proyectos/${a.proyecto_id}?tab=seguimiento&nodo=${a.id}`}
-                  className="block p-1.5 -ml-1.5 rounded hover:bg-yellow-50 transition"
+                  className="block py-1 px-1.5 -ml-1.5 rounded hover:bg-yellow-50 transition"
                 >
-                  <NodoBreadcrumb item={a} />
-                  <p className="text-xs text-gray-800 font-medium mt-0.5">{a.accion_nombre}</p>
                   <p className="text-[10px] text-yellow-600 font-medium">{a.dias_restantes}d restantes</p>
                 </Link>
               )}
@@ -216,23 +208,21 @@ export default function Inicio() {
             <Activity size={14} className="text-purple-500" /> Actividad reciente
           </h2>
           <div className="max-h-96 overflow-y-auto pr-1">
-            <AgrupadoPorProyecto
+            <ArbolPorProyecto
               items={actividad}
               vacio="Sin actividad reciente."
-              className="space-y-4"
               renderItem={ev => {
                 const { bg, text, icon: IconComp } = actividadConfig(ev.tipo);
                 return (
                   <Link
                     key={ev.id}
                     to={`/proyectos/${ev.proyecto_id}?tab=seguimiento&nodo=${ev.entidad_id}`}
-                    className="flex items-start gap-2.5 p-1.5 -ml-1.5 rounded hover:bg-gray-50 transition-colors"
+                    className="flex items-start gap-2.5 py-1 px-1.5 -ml-1.5 rounded hover:bg-gray-50 transition-colors"
                   >
                     <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${bg} ${text}`}>
                       <IconComp size={11} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      {ev.tipo_nodo && <div className="mb-0.5"><NodoBreadcrumb item={ev} /></div>}
                       <p className="text-xs text-gray-800 leading-relaxed">
                         {ev.actor && <span className="font-medium">{ev.actor} — </span>}
                         <span className="text-gray-700">{ev.titulo}</span>
