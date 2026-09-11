@@ -17,17 +17,17 @@
  * `dentroDeProyecto` decide si se escribe el nombre del proyecto: en
  * el Panorama ya se sabe cuál es y repetirlo en cada línea es ruido;
  * en Tablero y Cartera es justo lo que ubica la nota — por eso, cuando es
- * false, además se agrupa por proyecto (AgrupadoPorProyecto) y cada nota
- * lleva sus chips de Etapa › Acción › Tarea (NodoBreadcrumb) en vez de
- * solo un breadcrumb de texto — con varios proyectos mezclados hacía
- * falta algo más visual para ubicar rápido de cuál se está hablando.
+ * false, además se agrupa por proyecto y se arma un árbol real de
+ * Etapa › Acción › Tarea (ArbolPorProyecto, mismo lenguaje visual que el
+ * árbol izquierdo de Seguimiento › Detalle) en vez de un breadcrumb de
+ * texto — con varios proyectos mezclados hacía falta algo más visual
+ * para ubicar rápido de cuál se está hablando y en qué nivel.
  * ─────────────────────────────────────────────────────────────────
  */
 import { Link } from 'react-router-dom';
 import { MessageSquare } from 'lucide-react';
 import { breadcrumbInternoEstatusCualitativo } from '../../utils/estatusCualitativo';
-import AgrupadoPorProyecto from '../common/AgrupadoPorProyecto';
-import NodoBreadcrumb from '../common/NodoBreadcrumb';
+import ArbolPorProyecto from '../common/ArbolPorProyecto';
 
 function fechaCorta(valor) {
   if (!valor) return null;
@@ -72,27 +72,25 @@ export default function ListaEstatusCualitativo({
   }
 
   // Varios proyectos mezclados (Tablero, Resumen de cartera): agrupado por
-  // proyecto, con chips de jerarquía en vez de un breadcrumb de texto.
+  // proyecto, con un árbol de jerarquía en vez de un breadcrumb de texto.
   return (
     <div className={`${maxAltura} overflow-y-auto pr-1`}>
-      <AgrupadoPorProyecto
+      <ArbolPorProyecto
         items={items}
         getProyectoId={e => e.id_proyecto}
         vacio={vacio}
-        className="space-y-4"
         renderItem={e => {
           const fecha = fechaCorta(e.estatus_cualitativo_fecha);
           return (
             <Link
               key={e.id}
               to={`/proyectos/${e.id_proyecto}?tab=seguimiento&nodo=${e.id}`}
-              className="block p-2 rounded-lg hover:bg-teal-50 border border-transparent hover:border-teal-100 transition"
+              className="block py-1 px-1.5 -ml-1.5 rounded hover:bg-teal-50 transition"
             >
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <NodoBreadcrumb item={e} />
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-xs text-gray-800 italic">"{e.estatus_cualitativo}"</p>
                 {fecha && <span className="text-[10px] text-gray-400 flex-shrink-0">{fecha}</span>}
               </div>
-              <p className="text-xs text-gray-800 italic">"{e.estatus_cualitativo}"</p>
             </Link>
           );
         }}
