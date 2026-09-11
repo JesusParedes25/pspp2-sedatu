@@ -213,11 +213,10 @@ async function obtenerTodosParticipantes(proyectoId) {
 async function obtenerPanoramaRapido(req, res, next) {
   try {
     const proyectoId = req.params.id;
-    const [etapas, estatusCualitativo, actividad, indicadores] = await Promise.all([
+    const [etapas, estatusCualitativo, actividad] = await Promise.all([
       etapasQueries.obtenerEtapasPorProyecto(proyectoId),
       inicioQueries.obtenerEstatusCualitativo([proyectoId]),
       inicioQueries.obtenerActividadReciente([proyectoId]),
-      inicioQueries.obtenerIndicadoresAgregados([proyectoId]),
     ]);
 
     res.json({
@@ -230,7 +229,6 @@ async function obtenerPanoramaRapido(req, res, next) {
         })),
         estatus_cualitativo: estatusCualitativo,
         actividad: actividad.slice(0, 6),
-        indicadores,
       },
     });
   } catch (err) { next(err); }

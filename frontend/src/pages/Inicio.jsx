@@ -283,9 +283,17 @@ function ProyectoCard({ proyecto }) {
   const pct = parseFloat(proyecto.porcentaje_calculado) || 0;
   const cacheRef = useRef(null);
   const timeoutRef = useRef(null);
+  // Retraso antes de cerrar el popover — sin esto, el hueco entre la
+  // tarjeta y el popover (posicionado unos px abajo/arriba) queda fuera
+  // del área de la tarjeta, y bajar el mouse hacia el popover dispara
+  // mouseLeave antes de llegar. Cualquier mouseEnter (tarjeta o popover)
+  // cancela el cierre pendiente; solo se cierra si el mouse no vuelve a
+  // entrar a ninguno de los dos dentro del margen.
+  const cerrarTimeoutRef = useRef(null);
   const [popover, setPopover] = useState(null); // { x, y, above, cargando, datos }
 
   function mostrarPopover(e) {
+    clearTimeout(cerrarTimeoutRef.current);
     const rect = e.currentTarget.getBoundingClientRect();
     const arriba = rect.top > window.innerHeight / 2;
     const pos = { x: rect.left, y: arriba ? rect.top - 8 : rect.bottom + 8, above: arriba };
@@ -294,12 +302,15 @@ function ProyectoCard({ proyecto }) {
     timeoutRef.current = setTimeout(() => {
       client.get(`/proyectos/${proyecto.id}/panorama-rapido`)
         .then(res => { cacheRef.current = res.data.datos; setPopover(p => p ? { ...p, cargando: false, datos: res.data.datos } : p); })
-        .catch(() => setPopover(p => p ? { ...p, cargando: false, datos: { etapas: [], estatus_cualitativo: [], actividad: [], indicadores: [] } } : p));
+        .catch(() => setPopover(p => p ? { ...p, cargando: false, datos: { etapas: [], estatus_cualitativo: [], actividad: [] } } : p));
     }, 250);
   }
-  function ocultarPopover() {
+  function cancelarCierre() {
+    clearTimeout(cerrarTimeoutRef.current);
+  }
+  function programarCierre() {
     clearTimeout(timeoutRef.current);
-    setPopover(null);
+    cerrarTimeoutRef.current = setTimeout(() => setPopover(null), 200);
   }
 
   return (
@@ -307,7 +318,7 @@ function ProyectoCard({ proyecto }) {
       to={`/proyectos/${proyecto.id}`}
       className="card overflow-hidden hover:shadow-md hover:border-guinda-200 transition group relative block"
       onMouseEnter={mostrarPopover}
-      onMouseLeave={ocultarPopover}
+      onMouseLeave={programarCierre}
     >
       {proyecto.imagen_url && (
         <div className="h-20 -mx-px -mt-px mb-3">
@@ -344,8 +355,10 @@ function ProyectoCard({ proyecto }) {
 
       {popover && (
         <div
-          className="fixed z-[9999] bg-white border border-gray-200 rounded-lg shadow-xl p-3.5 w-[520px] max-w-[92vw] pointer-events-none"
-          style={{ left: Math.min(popover.x, window.innerWidth - 536), top: popover.above ? undefined : popover.y, bottom: popover.above ? window.innerHeight - popover.y : undefined }}
+          onMouseEnter={cancelarCierre}
+          onMouseLeave={programarCierre}
+          className="fixed z-[9999] bg-white border border-gray-200 rounded-lg shadow-xl p-3.5 w-[460px] max-w-[92vw]"
+          style={{ left: Math.min(popover.x, window.innerWidth - 476), top: popover.above ? undefined : popover.y, bottom: popover.above ? window.innerHeight - popover.y : undefined }}
         >
           {popover.cargando ? (
             <div className="flex items-center gap-2 text-xs text-gray-400 py-2">
@@ -353,16 +366,16 @@ function ProyectoCard({ proyecto }) {
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-x-4">
-              {/* Columna izquierda: estructura + estatus cualitativo */}
+              {/* Columna izquierda: estructura (etapas) */}
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 mb-1.5">
                   <Layers size={11} className="text-indigo-500" />
                   <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Estructura</p>
                 </div>
                 {popover.datos.etapas.length === 0 ? (
-                  <p className="text-[11px] text-gray-400 italic mb-2">Sin etapas registradas.</p>
+                  <p className="text-[11px] text-gray-400 italic">Sin etapas registradas.</p>
                 ) : (
-                  <ul className="space-y-1 max-h-40 overflow-y-auto mb-2 pr-1">
+                  <ul className="space-y-1 max-h-56 overflow-y-auto pr-1">
                     {popover.datos.etapas.map(et => (
                       <li key={et.id} className="text-[11px]">
                         <div className="flex items-center gap-1.5">
@@ -375,50 +388,27 @@ function ProyectoCard({ proyecto }) {
                     ))}
                   </ul>
                 )}
+              </div>
 
-                <div className="flex items-center gap-1.5 mb-1.5 pt-1.5 border-t border-gray-100">
+              {/* Columna derecha: estatus cualitativo + última actividad */}
+              <div className="min-w-0 border-l border-gray-100 pl-4">
+                <div className="flex items-center gap-1.5 mb-1.5">
                   <MessageSquare size={11} className="text-teal-600" />
                   <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Estatus cualitativo</p>
                 </div>
                 {popover.datos.estatus_cualitativo.length === 0 ? (
-                  <p className="text-[11px] text-gray-400 italic">Sin estatus cualitativo capturado.</p>
+                  <p className="text-[11px] text-gray-400 italic mb-2">Sin estatus cualitativo capturado.</p>
                 ) : (
-                  <ul className="space-y-1">
+                  <ul className="space-y-1.5 max-h-32 overflow-y-auto mb-2 pr-1">
                     {popover.datos.estatus_cualitativo.slice(0, 4).map(item => (
                       <li key={item.id} className="text-[11px] leading-snug">
-                        <span className="text-gray-400">{breadcrumbInternoEstatusCualitativo(item)}: </span>
-                        <span className="text-gray-700 italic truncate">"{item.estatus_cualitativo}"</span>
+                        <p className="text-gray-400 truncate">{breadcrumbInternoEstatusCualitativo(item)}</p>
+                        <p className="text-gray-700 italic line-clamp-2">"{item.estatus_cualitativo}"</p>
                       </li>
                     ))}
                     {popover.datos.estatus_cualitativo.length > 4 && (
-                      <li className="text-[10px] text-gray-400 text-center">+{popover.datos.estatus_cualitativo.length - 4} más…</li>
+                      <li className="text-[10px] text-gray-400">+{popover.datos.estatus_cualitativo.length - 4} más…</li>
                     )}
-                  </ul>
-                )}
-              </div>
-
-              {/* Columna derecha: indicadores + última actividad */}
-              <div className="min-w-0 border-l border-gray-100 pl-4">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <Target size={11} className="text-blue-500" />
-                  <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Indicadores</p>
-                </div>
-                {!popover.datos.indicadores || popover.datos.indicadores.length === 0 ? (
-                  <p className="text-[11px] text-gray-400 italic mb-2">Sin indicadores capturados.</p>
-                ) : (
-                  <ul className="space-y-1.5 max-h-28 overflow-y-auto mb-2 pr-1">
-                    {popover.datos.indicadores.slice(0, 5).map(ind => (
-                      <li key={ind.id} className="text-[11px]">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="truncate text-gray-700 flex-1">{ind.nombre}</span>
-                          {ind.pct_avance != null ? (
-                            <span className="text-gray-400 tabular-nums flex-shrink-0">{ind.pct_avance}%</span>
-                          ) : (
-                            <span className="text-gray-300 flex-shrink-0">s/meta</span>
-                          )}
-                        </div>
-                      </li>
-                    ))}
                   </ul>
                 )}
 
@@ -429,7 +419,7 @@ function ProyectoCard({ proyecto }) {
                 {popover.datos.actividad.length === 0 ? (
                   <p className="text-[11px] text-gray-400 italic">Sin actividad reciente.</p>
                 ) : (
-                  <ul className="space-y-1">
+                  <ul className="space-y-1 max-h-28 overflow-y-auto pr-1">
                     {popover.datos.actividad.map(ev => (
                       <li key={ev.id} className="text-[11px] text-gray-700 leading-snug">
                         {ev.actor && <span className="font-medium">{ev.actor.split(' ')[0]} — </span>}
