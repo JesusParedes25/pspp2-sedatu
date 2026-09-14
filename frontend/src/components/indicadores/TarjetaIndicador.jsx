@@ -18,6 +18,9 @@
  * ─────────────────────────────────────────────────────────────────
  */
 
+import { useState } from 'react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+
 const GUINDA = '#7B1C3E';
 
 // Los agrupadores mostraban el valor crudo de la columna ("Avance_fisico",
@@ -119,4 +122,132 @@ export default function TarjetaIndicador({ indicador, contexto = null, variante 
       {children}
     </div>
   );
+}
+
+// ─── Agrupar por indicador del catálogo ─────────────────────────
+// Dos proyectos que eligen el mismo indicador del catálogo (mismo
+// id_catalogo) miden lo mismo — mostrarlos como dos tarjetas sueltas
+// obliga a sumarlas a mano. `agruparPorCatalogo` junta las filas que
+// comparten id_catalogo; las que no están ligadas al catálogo (o son la
+// única en su grupo) se quedan como venían, una tarjeta por fila.
+export function agruparPorCatalogo(indicadores) {
+  const grupos = {};
+  const orden = [];
+  for (const ind of indicadores) {
+    const clave = ind.id_catalogo || `solo-${ind.id}`;
+    if (!grupos[clave]) { grupos[clave] = []; orden.push(clave); }
+    grupos[clave].push(ind);
+  }
+  return orden.map(clave => grupos[clave]);
+}
+
+// Tarjeta combinada para un grupo de 2+ proyectos sobre el mismo
+// indicador del catálogo. Sumar tiene sentido para conteos y montos
+// (10 solicitudes + 5 solicitudes = 15); para porcentajes no (40% + 60%
+// no son "100%" de nada real), así que ahí se omite el número combinado
+// y solo se ofrece el desglose por proyecto.
+function TarjetaIndicadorGrupo({ grupo, variante = 'normal' }) {
+  const [abierto, setAbierto] = useState(false);
+  const compacto = variante === 'compacto';
+  const esPorcentaje = grupo[0].unidad === 'Porcentaje';
+  const unidad = unidadDe(grupo[0]);
+  const totalValor = grupo.reduce((s, i) => s + (parseFloat(i.valor_actual) || 0), 0);
+  const totalMeta = grupo.reduce((s, i) => s + (parseFloat(i.meta_global) || 0), 0);
+  const tieneMeta = !esPorcentaje && totalMeta > 0;
+  const pct = tieneMeta ? Math.min(100, (totalValor / totalMeta) * 100) : null;
+
+  return (
+    <div className={`rounded-lg border border-gray-200 bg-white ${compacto ? 'p-2.5' : 'p-3'} hover:border-gray-300 transition-colors`}>
+      <div className="flex items-start justify-between gap-2">
+        <p className={`${compacto ? 'text-xs' : 'text-sm'} font-medium text-gray-800 leading-snug break-words min-w-0`}>
+          {grupo[0].nombre}
+        </p>
+        <span className="shrink-0 text-[10px] font-medium text-guinda-700 bg-guinda-50 border border-guinda-100 px-1.5 py-0.5 rounded-full">
+          {grupo.length} proyectos
+        </span>
+      </div>
+
+      {esPorcentaje ? (
+        <p className={`${compacto ? 'mt-1.5' : 'mt-2'} text-[11px] text-gray-500`}>
+          Es un porcentaje — se mide por proyecto, no se combina en un solo dato.
+        </p>
+      ) : (
+        <>
+          <div className="mt-2 flex items-end justify-between gap-3">
+            <div className="min-w-0">
+              <span
+                className={`${compacto ? 'text-lg' : 'text-2xl'} font-bold tabular-nums leading-none`}
+                style={{ color: GUINDA }}
+                title={totalValor.toLocaleString('es-MX')}
+              >
+                {formatoCorto(totalValor)}
+              </span>
+              {tieneMeta ? (
+                <span className={`${compacto ? 'text-[10px]' : 'text-xs'} text-gray-500 ml-1.5`}>
+                  de {formatoCorto(totalMeta)}{unidad ? ` ${unidad}` : ''}
+                </span>
+              ) : (
+                unidad && <span className={`${compacto ? 'text-[10px]' : 'text-xs'} text-gray-500 ml-1.5`}>{unidad}</span>
+              )}
+            </div>
+            {tieneMeta && (
+              <span
+                className={`${compacto ? 'text-xs' : 'text-sm'} font-semibold tabular-nums flex-shrink-0 px-1.5 py-0.5 rounded`}
+                style={{ color: GUINDA, backgroundColor: 'rgba(123,28,62,0.07)' }}
+              >
+                {pct.toFixed(0)}%
+              </span>
+            )}
+          </div>
+          {tieneMeta && (
+            <div className={`${compacto ? 'mt-1.5 h-1.5' : 'mt-2 h-2'} bg-gray-100 rounded-full overflow-hidden`}>
+              <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: GUINDA }} />
+            </div>
+          )}
+        </>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setAbierto(v => !v)}
+        className="mt-2 flex items-center gap-1 text-[10px] font-medium text-gray-500 hover:text-guinda-600"
+      >
+        {abierto ? <ChevronUp size={11} /> : <ChevronDown size={11} />} Ver por proyecto
+      </button>
+      {abierto && (
+        <div className="mt-1.5 pt-1.5 border-t border-gray-100 space-y-1">
+          {grupo.map(ind => {
+            const v = parseFloat(ind.valor_actual) || 0;
+            const m = parseFloat(ind.meta_global) || 0;
+            return (
+              <div key={ind.id} className="flex items-center justify-between gap-2 text-[11px]">
+                <span className="text-gray-600 truncate">{[ind.proyecto_nombre, ind.dg_siglas].filter(Boolean).join(' · ')}</span>
+                <span className="text-gray-500 tabular-nums flex-shrink-0">
+                  {formatoCorto(v)}{m > 0 ? ` / ${formatoCorto(m)}` : ''}{unidad ? ` ${unidad}` : ''}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Envoltorio que decide, fila por fila, si hay que pintar la tarjeta
+// normal (un solo proyecto) o la agrupada (2+ proyectos con el mismo
+// id_catalogo) — lo que antes hacía cada vista (Tablero, Resumen de
+// cartera) mapeando TarjetaIndicador directamente.
+export function TarjetaIndicadorOAgrupada({ grupo, variante = 'normal' }) {
+  if (grupo.length === 1) {
+    const ind = grupo[0];
+    return (
+      <TarjetaIndicador
+        indicador={ind}
+        variante={variante}
+        contexto={[ind.proyecto_nombre, ind.dg_siglas].filter(Boolean).join(' · ')}
+      />
+    );
+  }
+  return <TarjetaIndicadorGrupo grupo={grupo} variante={variante} />;
 }
