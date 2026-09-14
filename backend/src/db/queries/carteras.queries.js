@@ -305,6 +305,29 @@ async function resumenCartera(carteraId) {
     ORDER BY estatus_cualitativo_fecha DESC NULLS LAST
   `, [carteraId]);
 
+  // Etapas de todos los proyectos de la cartera — alimenta la vista "Por
+  // etapa" del Resumen: varios proyectos de una misma cartera suelen
+  // compartir la misma metodología (mismos nombres de etapa), así que
+  // agrupar por nombre en el frontend deja ver, por ejemplo, "la etapa de
+  // Solicitudes de todos mis proyectos, para ver a quién le falta" sin
+  // entrar proyecto por proyecto.
+  const { rows: etapas } = await pool.query(`
+    SELECT e.id, e.nombre, e.estado, e.porcentaje_calculado,
+      e.fecha_fin, e.fecha_limite,
+      p.id AS id_proyecto, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas,
+      (
+        COALESCE(e.fecha_limite, e.fecha_fin) IS NOT NULL
+        AND COALESCE(e.fecha_limite, e.fecha_fin) < CURRENT_DATE
+        AND e.estado NOT IN ('Completada','Cancelada')
+      ) AS vencida
+    FROM cartera_proyecto cp
+    JOIN etapas e ON e.id_proyecto = cp.proyecto_id
+    JOIN proyectos p ON p.id = e.id_proyecto AND p.deleted_at IS NULL
+    LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
+    WHERE cp.cartera_id = $1
+    ORDER BY p.nombre, e.orden
+  `, [carteraId]);
+
   return {
     total_proyectos: proyectos.length,
     distribucion,
@@ -317,6 +340,7 @@ async function resumenCartera(carteraId) {
     vencidos,
     por_vencer: porVencer,
     indicadores,
+    etapas,
   };
 }
 

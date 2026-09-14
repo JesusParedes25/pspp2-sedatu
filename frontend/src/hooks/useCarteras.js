@@ -38,7 +38,7 @@ export function useCarteras(filtrosIniciales = {}) {
 // properties of undefined (reading 'length')". Normalizar aquí hace que un
 // desajuste de versiones se vea como secciones vacías (degradado) en vez de
 // una pantalla en blanco.
-const LISTAS_RESUMEN = ['vencidos', 'por_vencer', 'riesgos', 'indicadores', 'estatus_cualitativo'];
+const LISTAS_RESUMEN = ['vencidos', 'por_vencer', 'riesgos', 'indicadores', 'estatus_cualitativo', 'etapas'];
 
 function normalizarResumen(datos) {
   if (!datos) return datos;
