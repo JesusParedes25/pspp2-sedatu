@@ -14,7 +14,7 @@ import { useAuth } from '../context/AuthContext';
 import { obtenerInicio } from '../api/inicio';
 import client from '../api/client';
 import MapaTerritorialInicio from '../components/inicio/MapaTerritorialInicio';
-import TarjetaIndicador, { ETIQUETA_TIPO_INDICADOR } from '../components/indicadores/TarjetaIndicador';
+import { ETIQUETA_TIPO_INDICADOR, agruparPorCatalogo, TarjetaIndicadorOAgrupada } from '../components/indicadores/TarjetaIndicador';
 import ListaEstatusCualitativo, { TituloEstatusCualitativo } from '../components/indicadores/ListaEstatusCualitativo';
 import { breadcrumbInternoEstatusCualitativo } from '../utils/estatusCualitativo';
 import ArbolPorProyecto from '../components/common/ArbolPorProyecto';
@@ -456,13 +456,8 @@ function IndicadoresResumen({ indicadores }) {
         <div key={tipo}>
           <p className="text-xs font-medium text-gray-700 mb-2">{ETIQUETA_TIPO_INDICADOR[tipo] || tipo}</p>
           <div className="space-y-2">
-            {inds.slice(0, 6).map(ind => (
-              <TarjetaIndicador
-                key={ind.id}
-                indicador={ind}
-                variante="compacto"
-                contexto={[ind.proyecto_nombre, ind.dg_siglas].filter(Boolean).join(' \u00b7 ')}
-              />
+            {agruparPorCatalogo(inds).slice(0, 6).map(grupo => (
+              <TarjetaIndicadorOAgrupada key={grupo[0].id_catalogo || grupo[0].id} grupo={grupo} variante="compacto" />
             ))}
           </div>
         </div>

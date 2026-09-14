@@ -59,6 +59,10 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
   const nivel = NIVELES[tipo];
   const esContenedor = tipo === 'etapa' || data.es_hoja === false;
   const [editandoFicha, setEditandoFicha] = useState(false);
+  // Si la Ficha tiene cambios sin guardar, cerrar con la X de arriba pide
+  // confirmar en vez de descartarlos en silencio — mismo criterio que el
+  // backdrop de ModalRegistrarAvance.
+  const [fichaSucia, setFichaSucia] = useState(false);
   const fichaRef = useRef(null);
   const { actualizar } = useJerarquiaProyecto(proyectoId);
 
@@ -80,6 +84,12 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
   // algo con qué actuar ahí.
   function irAFicha() {
     fichaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function toggleEditarFicha() {
+    if (editandoFicha && fichaSucia && !window.confirm('Hay cambios sin guardar en la Ficha. ¿Cerrar de todas formas?')) return;
+    setFichaSucia(false);
+    setEditandoFicha(v => !v);
   }
 
   return (
@@ -122,7 +132,7 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
             <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">Ficha</span>
             {!permisos.esSoloLectura && (
               <button
-                onClick={() => setEditandoFicha(v => !v)}
+                onClick={toggleEditarFicha}
                 className="flex items-center gap-1 text-[11px] font-medium text-guinda-700 hover:text-guinda-800"
               >
                 {editandoFicha ? <><X size={11} /> Cerrar</> : <><Pencil size={11} /> Editar</>}
@@ -182,6 +192,9 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
               permisos={permisosProyecto}
               onActualizado={onActualizado}
               mostrarToast={mostrarToast}
+              onDirtyChange={setFichaSucia}
+              onGuardado={() => { setFichaSucia(false); setEditandoFicha(false); }}
+              onCancelar={() => { setFichaSucia(false); setEditandoFicha(false); }}
             />
           ) : (
             <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">

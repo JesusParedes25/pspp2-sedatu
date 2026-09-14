@@ -236,7 +236,7 @@ async function resumenCartera(carteraId) {
   // Indicadores de los proyectos de la cartera — mismo criterio que
   // obtenerIndicadoresAgregados en inicio.queries.js.
   const { rows: indicadoresCrudos } = await pool.query(`
-    SELECT i.id, i.nombre, i.tipo, i.unidad, i.unidad_personalizada,
+    SELECT i.id, i.nombre, i.tipo, i.unidad, i.unidad_personalizada, i.id_catalogo,
       i.meta_global, i.valor_actual,
       p.id AS proyecto_id, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas
     FROM cartera_proyecto cp

@@ -25,7 +25,7 @@ import ModalAgregarProyectos from '../../components/carteras/ModalAgregarProyect
 import CronogramaCartera from '../../components/carteras/CronogramaCartera';
 import MapaCartera from '../../components/carteras/MapaCartera';
 import ActividadCartera from '../../components/carteras/ActividadCartera';
-import TarjetaIndicador, { ETIQUETA_TIPO_INDICADOR } from '../../components/indicadores/TarjetaIndicador';
+import { ETIQUETA_TIPO_INDICADOR, agruparPorCatalogo, TarjetaIndicadorOAgrupada } from '../../components/indicadores/TarjetaIndicador';
 import ListaEstatusCualitativo, { TituloEstatusCualitativo } from '../../components/indicadores/ListaEstatusCualitativo';
 
 const PESTANAS = [
@@ -74,13 +74,8 @@ function IndicadoresResumen({ indicadores }) {
         <div key={tipo}>
           <p className="text-xs font-medium text-gray-700 mb-2">{ETIQUETA_TIPO_INDICADOR[tipo] || tipo}</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {inds.map(ind => (
-              <TarjetaIndicador
-                key={ind.id}
-                indicador={ind}
-                variante="compacto"
-                contexto={[ind.proyecto_nombre, ind.dg_siglas].filter(Boolean).join(' \u00b7 ')}
-              />
+            {agruparPorCatalogo(inds).map(grupo => (
+              <TarjetaIndicadorOAgrupada key={grupo[0].id_catalogo || grupo[0].id} grupo={grupo} variante="compacto" />
             ))}
           </div>
         </div>

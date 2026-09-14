@@ -30,12 +30,16 @@ export function useJerarquiaProyecto(proyectoId) {
     return tareasApi.crearTarea(padreId, datos);
   }
 
-  // Actualizar un solo campo (PATCH) — mismo despacho que ya hacía
-  // guardarCampo en PanelDetalle.
+  // Actualizar uno o varios campos (PATCH) — mismo despacho que ya hacía
+  // guardarCampo en PanelDetalle. Se puede llamar con un solo campo
+  // (campo, valor) o con un objeto de varios campos a la vez (campo,
+  // undefined) — así un formulario con "Guardar cambios" manda todo en
+  // una sola petición en vez de una por campo.
   async function actualizar(tipo, id, campo, valor) {
-    if (tipo === 'etapa') return etapasApi.patchEtapa(id, { [campo]: valor });
-    if (tipo === 'tarea') return tareasApi.patchTarea(id, { [campo]: valor });
-    return accionesApi.patchAccion(id, { [campo]: valor });
+    const datos = typeof campo === 'object' ? campo : { [campo]: valor };
+    if (tipo === 'etapa') return etapasApi.patchEtapa(id, datos);
+    if (tipo === 'tarea') return tareasApi.patchTarea(id, datos);
+    return accionesApi.patchAccion(id, datos);
   }
 
   // Registrar avance — mismo despacho que ya hacía AvanceInlineArbol

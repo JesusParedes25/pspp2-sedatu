@@ -25,6 +25,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import { useJerarquiaProyecto } from '../../hooks/useJerarquiaProyecto';
 import client from '../../api/client';
 import CampoFecha from '../common/CampoFecha';
@@ -33,12 +34,64 @@ import { CampoSelect, CampoSemaforo } from './EtapasAvancesMD/Campos';
 import { PRIORIDADES } from './EtapasAvancesMD/utils';
 import { permisosDeNodo } from '../../hooks/usePermisos';
 
-export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, onActualizado, mostrarToast }) {
+// Campos que vive este formulario (fuera de Nombre/Estatus, que se
+// guardan solos en FichaNodo) — de aquí sale tanto el valor inicial como
+// el diff contra lo que el usuario va cambiando.
+const CAMPOS_FORM = ['semaforo', 'prioridad', 'fecha_inicio', 'fecha_limite', 'instrumento', 'escala_territorial'];
+function valoresDe(data) {
+  const v = {};
+  for (const c of CAMPOS_FORM) v[c] = data[c] ?? null;
+  if (v.fecha_inicio) v.fecha_inicio = v.fecha_inicio.substring(0, 10);
+  if (v.fecha_limite) v.fecha_limite = v.fecha_limite.substring(0, 10);
+  return v;
+}
+
+// `nodo`, `permisos` y `onActualizado` siguen siendo los únicos datos que
+// necesita para funcionar — `onGuardado`/`onCancelar` son opcionales,
+// para que quien lo monte con un toggle "Editar/Cerrar" (FichaNodo) pueda
+// cerrarlo también desde aquí tras guardar o cancelar.
+export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, onActualizado, mostrarToast, onGuardado, onCancelar, onDirtyChange }) {
   const { tipo, id, data } = nodo;
   // Quien fue invitado solo a una etapa captura en ella y en lo que cuelga
   // de ella, no en el resto del proyecto.
   const permisos = permisosDeNodo(permisosProyecto, tipo, id);
   const { actualizar } = useJerarquiaProyecto();
+
+  // Los campos se editan en este estado local y solo se mandan al
+  // servidor al presionar "Guardar cambios" — antes cada campo guardaba
+  // solo en cuanto se cambiaba, sin ningún botón que confirmara que ya
+  // se había aplicado. Si se cambia de nodo (id distinto) se reinicia
+  // desde los datos frescos de ese nodo, descartando cualquier edición
+  // sin guardar del nodo anterior.
+  const [valores, setValores] = useState(() => valoresDe(data));
+  const [guardando, setGuardando] = useState(false);
+  useEffect(() => { setValores(valoresDe(data)); }, [tipo, id]);
+
+  const cambios = {};
+  for (const c of CAMPOS_FORM) if (valores[c] !== valoresDe(data)[c]) cambios[c] = valores[c];
+  const hayCambios = Object.keys(cambios).length > 0;
+  useEffect(() => { onDirtyChange?.(hayCambios); }, [hayCambios]);
+
+  function set(campo, valor) { setValores(v => ({ ...v, [campo]: valor })); }
+
+  async function guardarCambios() {
+    setGuardando(true);
+    try {
+      await actualizar(tipo, id, cambios);
+      mostrarToast?.('Cambios guardados', 'exito');
+      onActualizado?.();
+      onGuardado?.();
+    } catch (err) {
+      mostrarToast?.(err.response?.data?.mensaje || 'Error al guardar', 'error');
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  function cancelarCambios() {
+    setValores(valoresDe(data));
+    onCancelar?.();
+  }
 
   const [catalogs, setCatalogs] = useState({ escalas: [], instrumentos: [], usuarios: [] });
 
@@ -76,16 +129,6 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
       : [];
   const subItemLabel = tipo === 'etapa' ? 'Acciones' : 'Tareas';
 
-  async function guardarCampo(campo, valor) {
-    try {
-      await actualizar(tipo, id, campo, valor);
-      mostrarToast?.('Actualizado', 'exito');
-      onActualizado?.();
-    } catch (err) {
-      mostrarToast?.(err.response?.data?.mensaje || 'Error al actualizar', 'error');
-    }
-  }
-
   // "Fecha límite" cambia de nombre y de ayuda según el nivel — en una
   // etapa es un compromiso agregado que puede no coincidir con ninguna
   // fecha de sus acciones; en acción/tarea es simplemente su vencimiento.
@@ -97,7 +140,7 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
   // Si no hay fecha límite propia, sugerir la más tardía entre los hijos
   // (mismo criterio fecha_limite || fecha_fin que usa el resto de la app)
   // en vez de dejar el campo vacío sin explicación.
-  const fechaSugerida = !data.fecha_limite && hijos.length > 0
+  const fechaSugerida = !valores.fecha_limite && hijos.length > 0
     ? hijos.reduce((max, h) => {
         const f = h.nodo.fecha_limite || h.nodo.fecha_fin || null;
         return f && (!max || f > max) ? f : max;
@@ -112,13 +155,13 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
       <div className="flex items-center gap-1.5 flex-wrap mb-3">
         <CampoSemaforo
           variante="chip"
-          valor={data.semaforo} override={data.semaforo_override} efectivo={sem}
-          onChange={v => guardarCampo('semaforo', v)} soloLectura={permisos.esSoloLectura}
+          valor={valores.semaforo} override={data.semaforo_override} efectivo={sem}
+          onChange={v => set('semaforo', v)} soloLectura={permisos.esSoloLectura}
         />
         <CampoSelect
           label="Prioridad" variante="chip"
-          valor={data.prioridad || ''} opciones={PRIORIDADES}
-          onChange={v => guardarCampo('prioridad', v)} soloLectura={permisos.esSoloLectura}
+          valor={valores.prioridad || ''} opciones={PRIORIDADES}
+          onChange={v => set('prioridad', v)} soloLectura={permisos.esSoloLectura}
         />
       </div>
 
@@ -129,27 +172,27 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
         {!esContenedor && (
           <CampoFecha
             label="Fecha inicio"
-            valor={data.fecha_inicio ? data.fecha_inicio.substring(0, 10) : ''}
-            onChange={v => guardarCampo('fecha_inicio', v || null)}
+            valor={valores.fecha_inicio || ''}
+            onChange={v => set('fecha_inicio', v || null)}
             soloLectura={permisos.esSoloLectura}
           />
         )}
         <div>
           <span className="text-[10px] text-gray-400 block mb-0.5">{labelFechaLimite}</span>
           <CampoFecha
-            valor={data.fecha_limite ? data.fecha_limite.substring(0, 10) : ''}
-            onChange={v => guardarCampo('fecha_limite', v || null)}
+            valor={valores.fecha_limite || ''}
+            onChange={v => set('fecha_limite', v || null)}
             soloLectura={permisos.esSoloLectura}
           />
         </div>
       </div>
       {ayudaFechaLimite && <p className="text-[10px] text-gray-400 leading-snug -mt-2 mb-2.5">{ayudaFechaLimite}</p>}
-      {!data.fecha_limite && fechaSugerida && (
+      {!valores.fecha_limite && fechaSugerida && (
         <div className="flex items-center gap-1 text-[10px] text-gray-500 -mt-2 mb-2.5">
           <span>Sugerido según {subItemLabel.toLowerCase()}: {formatFecha(fechaSugerida)}</span>
           {!permisos.esSoloLectura && (
             <button
-              onClick={() => guardarCampo('fecha_limite', fechaSugerida)}
+              onClick={() => set('fecha_limite', fechaSugerida)}
               className="text-[#7B1C3E] hover:text-[#5a1430] font-medium underline underline-offset-2"
             >
               Usar esta fecha
@@ -162,15 +205,15 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
       {tipo !== 'tarea' && (
         <div className="grid grid-cols-2 gap-2.5 mb-3">
           <CampoSelect
-            label="Instrumento principal" valor={data.instrumento || ''}
+            label="Instrumento principal" valor={valores.instrumento || ''}
             opciones={catalogs.instrumentos}
-            onChange={v => guardarCampo('instrumento', v || null)}
+            onChange={v => set('instrumento', v || null)}
             soloLectura={permisos.esSoloLectura}
           />
           <CampoSelect
-            label="Escala territorial" valor={data.escala_territorial || ''}
+            label="Escala territorial" valor={valores.escala_territorial || ''}
             opciones={catalogs.escalas}
-            onChange={v => guardarCampo('escala_territorial', v || null)}
+            onChange={v => set('escala_territorial', v || null)}
             soloLectura={permisos.esSoloLectura}
           />
         </div>
@@ -197,6 +240,32 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
           {data.updated_at ? new Date(data.updated_at).toLocaleString('es-MX') : '—'}
         </span>
       </div>
+
+      {/* Guardar/Cancelar — los campos de arriba ya no guardan solos al
+          cambiarlos: se editan aquí y se mandan juntos en una sola
+          petición al confirmar, para que quede claro cuándo ya se
+          aplicaron los cambios (antes cada campo disparaba su propio
+          guardado silencioso, sin ningún botón que lo confirmara). */}
+      {!permisos.esSoloLectura && (
+        <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={cancelarCambios}
+            disabled={guardando}
+            className="btn-secondary text-xs px-3 py-1.5 disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={guardarCambios}
+            disabled={!hayCambios || guardando}
+            className="btn-primary text-xs px-3 py-1.5 flex items-center gap-1.5 disabled:opacity-40"
+          >
+            {guardando ? <><Loader2 size={12} className="animate-spin" /> Guardando...</> : 'Guardar cambios'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
