@@ -10,17 +10,17 @@
  * (para no sumarlo dos veces si aparece en más de una).
  */
 const pool = require('../pool');
+const { condicionRiesgoDeProyecto } = require('../../utils/condicion-riesgo');
 
 // Un riesgo puede vivir en cualquier nivel del proyecto — Proyecto, Etapa,
-// Acción o Subacción (ver riesgos.controller.js) — casi nunca se crea al
-// nivel "Proyecto" directamente, la UI real los crea desde NodoCard en
-// etapas/acciones. Filtrar solo por entidad_tipo='Proyecto' (como hacía
-// antes esta consulta) dejaba fuera casi todos los riesgos reales.
-const COND_RIESGO_DE_PROYECTO = `(
-  (r.entidad_tipo = 'Proyecto' AND r.entidad_id = p.id)
-  OR (r.entidad_tipo = 'Etapa' AND r.entidad_id IN (SELECT id FROM etapas WHERE id_proyecto = p.id))
-  OR (r.entidad_tipo = 'Accion' AND r.entidad_id IN (SELECT id FROM acciones WHERE id_proyecto = p.id))
-)`;
+// Acción, Subacción o Tarea (migración 061) — casi nunca se crea al nivel
+// "Proyecto" directamente, la UI real los crea desde NodoCard en
+// etapas/acciones/tareas. Antes esta condición se mantenía a mano aquí y
+// se quedó desactualizada (le faltaban Subacción y Tarea) — ahora usa la
+// misma fuente única que el resto del backend (condicion-riesgo.js), para
+// que el conteo de riesgos de un proyecto sea siempre el mismo número sin
+// importar desde qué pantalla se consulte.
+const COND_RIESGO_DE_PROYECTO = condicionRiesgoDeProyecto('p.id');
 
 // El campo proyectos.fecha_limite es una meta general del proyecto y en la
 // práctica muchos proyectos lo dejan vacío — el vencimiento real del día a
