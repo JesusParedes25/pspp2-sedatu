@@ -11,6 +11,7 @@
  */
 const pool = require('../pool');
 const { condicionRiesgoDeProyecto } = require('../../utils/condicion-riesgo');
+const { semaforoEfectivo } = require('../../utils/avance-semaforo');
 
 // Un riesgo puede vivir en cualquier nivel del proyecto — Proyecto, Etapa,
 // Acción, Subacción o Tarea (migración 061) — casi nunca se crea al nivel
@@ -325,9 +326,9 @@ async function resumenCartera(carteraId) {
   // agrupar por nombre en el frontend deja ver, por ejemplo, "la etapa de
   // Solicitudes de todos mis proyectos, para ver a quién le falta" sin
   // entrar proyecto por proyecto.
-  const { rows: etapas } = await pool.query(`
+  const { rows: etapasCrudas } = await pool.query(`
     SELECT e.id, e.nombre, e.estado, e.porcentaje_calculado,
-      e.fecha_fin, e.fecha_limite,
+      e.fecha_fin, e.fecha_limite, e.semaforo, e.semaforo_override, e.prioridad,
       p.id AS id_proyecto, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas,
       ur.nombre_completo AS responsable_nombre,
       (
@@ -343,6 +344,11 @@ async function resumenCartera(carteraId) {
     WHERE cp.cartera_id = $1
     ORDER BY p.nombre, e.orden
   `, [carteraId]);
+  // Mismo cálculo que usa el árbol de Seguimiento (avance-semaforo.js) para
+  // que el color de "Por etapa" nunca contradiga el que ya se ve en el
+  // resto de la plataforma para esa misma etapa — antes esta vista
+  // calculaba su propio semáforo aparte, con otro criterio.
+  const etapas = etapasCrudas.map(e => ({ ...e, semaforo_efectivo: semaforoEfectivo(e) }));
 
   return {
     total_proyectos: proyectos.length,
