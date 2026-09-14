@@ -22,10 +22,10 @@ import L from 'leaflet';
 import { MapPin, Layers, X, ChevronRight, ChevronLeft, Building2 } from 'lucide-react';
 import client from '../../api/client';
 import MapaDrillDown, { VERDE_MUNICIPIO } from '../mapa/MapaDrillDown';
+import { COLORES_SEMAFORO } from '../common/SemaforoDot';
 import 'leaflet/dist/leaflet.css';
 
 const GUINDA = '#7B1C3E';
-const SEM_COLORS = { verde: '#22c55e', ambar: '#f59e0b', rojo: '#ef4444', gris: '#9ca3af' };
 const TIPO_LABEL = { etapa: 'Etapa', accion: 'Acción', tarea: 'Tarea' };
 const TIPO_COLOR = { etapa: 'text-indigo-500 bg-indigo-50', accion: 'text-blue-500 bg-blue-50', tarea: 'text-teal-600 bg-teal-50' };
 
@@ -45,7 +45,7 @@ function ListaNodos({ nodos, onNavegarEtapas }) {
       {nodos.map(n => (
         <button key={n.id} onClick={onNavegarEtapas}
           className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-[#fbf3f6] transition-colors text-left group">
-          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: SEM_COLORS[n.semaforo || 'gris'] }} />
+          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO[n.semaforo_efectivo || n.semaforo || 'gris'] }} />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <TipoBadge tipo={n.tipo} />
@@ -329,7 +329,7 @@ export default function MapaProyecto({ proyectoId, onNavegarEtapas }) {
               <ul className="space-y-1.5 max-h-40 overflow-y-auto">
                 {hovered.nodos.slice(0, 8).map(n => (
                   <li key={n.id} className="flex items-start gap-1.5 text-[11px]">
-                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1" style={{ backgroundColor: SEM_COLORS[n.semaforo || 'gris'] }} />
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1" style={{ backgroundColor: COLORES_SEMAFORO[n.semaforo_efectivo || n.semaforo || 'gris'] }} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1">
                         <TipoBadge tipo={n.tipo} />
@@ -356,7 +356,7 @@ export default function MapaProyecto({ proyectoId, onNavegarEtapas }) {
             <ul className="space-y-1.5 max-h-32 overflow-y-auto">
               {hoveredMuni.nodos.slice(0, 5).map(n => (
                 <li key={n.id} className="flex items-start gap-1.5 text-[11px]">
-                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1" style={{ backgroundColor: SEM_COLORS[n.semaforo || 'gris'] }} />
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1" style={{ backgroundColor: COLORES_SEMAFORO[n.semaforo_efectivo || n.semaforo || 'gris'] }} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1">
                       <TipoBadge tipo={n.tipo} />
@@ -471,7 +471,7 @@ export default function MapaProyecto({ proyectoId, onNavegarEtapas }) {
                 <div className="flex flex-wrap gap-1">
                   {z.nodos.slice(0, 3).map(n => (
                     <span key={n.id} className="flex items-center gap-0.5 text-[10px] bg-gray-50 px-1.5 py-0.5 rounded-full" title={n.nombre}>
-                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: SEM_COLORS[n.semaforo || 'gris'] }} />
+                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO[n.semaforo_efectivo || n.semaforo || 'gris'] }} />
                       <span className="truncate max-w-[90px]">{n.nombre}</span>
                     </span>
                   ))}
@@ -504,7 +504,7 @@ export default function MapaProyecto({ proyectoId, onNavegarEtapas }) {
                 <div className="flex flex-wrap gap-1">
                   {est.nodos.slice(0, 3).map(n => (
                     <span key={n.id} className="flex items-center gap-0.5 text-[10px] bg-gray-50 px-1.5 py-0.5 rounded-full" title={n.nombre}>
-                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: SEM_COLORS[n.semaforo || 'gris'] }} />
+                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO[n.semaforo_efectivo || n.semaforo || 'gris'] }} />
                       <span className="truncate max-w-[90px]">{n.nombre}</span>
                     </span>
                   ))}

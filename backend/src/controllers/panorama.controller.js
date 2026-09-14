@@ -7,6 +7,7 @@ const miembrosQueries = require('../db/queries/miembros.queries');
 const statsQueries = require('../db/queries/proyectos.stats.queries');
 const etapasQueries = require('../db/queries/etapas.queries');
 const inicioQueries = require('../db/queries/inicio.queries');
+const { semaforoEfectivo } = require('../utils/avance-semaforo');
 
 // GET /proyectos/:id/panorama
 async function obtenerPanorama(req, res, next) {
@@ -223,6 +224,11 @@ async function obtenerPanoramaRapido(req, res, next) {
       datos: {
         etapas: etapas.map(e => ({
           id: e.id, nombre: e.nombre, estado: e.estado, semaforo: e.semaforo,
+          // Mismo cálculo que ya usa el árbol de Seguimiento — el campo
+          // crudo `semaforo` solo tiene valor si alguien lo fijó a mano;
+          // sin override casi siempre está vacío y este popover se veía
+          // todo gris aunque las etapas tuvieran un semáforo real.
+          semaforo_efectivo: semaforoEfectivo(e),
           avance: e.avance_actual ?? Number(e.porcentaje_calculado) ?? 0,
           total_acciones: Number(e.total_acciones) || 0,
           acciones_completadas: Number(e.acciones_completadas) || 0,

@@ -12,10 +12,10 @@ import { Link } from 'react-router-dom';
 import { MapPin, X, ChevronRight, ChevronLeft } from 'lucide-react';
 import client from '../../api/client';
 import MapaDrillDown from '../mapa/MapaDrillDown';
+import { COLORES_SEMAFORO } from '../common/SemaforoDot';
 import 'leaflet/dist/leaflet.css';
 
 const GUINDA = '#7B1C3E';
-const SEM = { verde: '#22c55e', ambar: '#f59e0b', rojo: '#ef4444', gris: '#9ca3af' };
 const TIPO_LABEL = { etapa: 'Etapa', accion: 'Acción', tarea: 'Tarea' };
 const TIPO_COLOR = { etapa: 'text-indigo-500 bg-indigo-50', accion: 'text-blue-500 bg-blue-50', tarea: 'text-teal-600 bg-teal-50' };
 
@@ -152,7 +152,7 @@ export default function MapaTerritorialInicio() {
             <ul className="space-y-1.5 max-h-32 overflow-y-auto">
               {hoveredMuni.etapas.slice(0, 5).map((et, i) => (
                 <li key={i} className="flex items-start gap-1.5 text-[11px]">
-                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1" style={{ backgroundColor: SEM[et.semaforo || 'gris'] }} />
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1" style={{ backgroundColor: COLORES_SEMAFORO[et.semaforo_efectivo || et.semaforo || 'gris'] }} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1">
                       <TipoBadge tipo={et.tipo} />
@@ -195,7 +195,7 @@ export default function MapaTerritorialInicio() {
           <div className="space-y-1">
             {municipioActivo.etapas.map((et, i) => (
               <Link key={i} to={`/proyectos/${et.id_proyecto}`} className="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-[#fbf3f6] transition-colors group">
-                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: SEM[et.semaforo || 'gris'] }} />
+                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO[et.semaforo_efectivo || et.semaforo || 'gris'] }} />
                 <TipoBadge tipo={et.tipo} />
                 <span className="text-[11px] text-gray-700 group-hover:text-[#7B1C3E] truncate flex-1">{et.nombre}</span>
                 <span className="text-[10px] text-gray-400 tabular-nums flex-shrink-0">{et.avance}%</span>
@@ -213,7 +213,7 @@ export default function MapaTerritorialInicio() {
             <div className="space-y-1">
               {detalleEstado.etapas.slice(0, 6).map((et, i) => (
                 <Link key={i} to={`/proyectos/${et.id_proyecto}`} className="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-[#fbf3f6] transition-colors group">
-                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: SEM[et.semaforo || 'gris'] }} />
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO[et.semaforo_efectivo || et.semaforo || 'gris'] }} />
                   <TipoBadge tipo={et.tipo} />
                   <span className="text-[11px] text-gray-700 group-hover:text-[#7B1C3E] truncate flex-1">{et.nombre}</span>
                   <span className="text-[10px] text-gray-400 tabular-nums flex-shrink-0">{et.avance}%</span>
