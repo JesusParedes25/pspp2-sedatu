@@ -455,7 +455,16 @@ function FilaProyectoCartera({ proyecto, carteraId, onCambio }) {
     }
   }
 
-  const punto = puntoEstado(proyecto);
+  const completo = proyecto.estado === 'Concluido';
+  const cancelado = proyecto.estado === 'Cancelado';
+  const fechaMostrada = proyecto.fecha_fin_efectiva || proyecto.fecha_limite;
+  const punto = puntoEstado({
+    estado: proyecto.estado,
+    vencido: proyecto.fecha_limite_vencida,
+    tieneAccionVencida: proyecto.tiene_accion_vencida,
+    completo, cancelado,
+  });
+  const colorBarra = colorAvanceSemaforo({ vencido: proyecto.fecha_limite_vencida, completo, fecha: fechaMostrada });
   const avance = Math.round(parseFloat(proyecto.porcentaje_calculado) || 0);
 
   return (
@@ -483,7 +492,11 @@ function FilaProyectoCartera({ proyecto, carteraId, onCambio }) {
         )}
       </td>
       <td className="py-2.5 pr-3">
-        <span className="flex items-center gap-1.5 text-xs text-gray-700 whitespace-nowrap">
+        <span
+          className="flex items-center gap-1.5 text-xs text-gray-700 whitespace-nowrap"
+          title={proyecto.tiene_accion_vencida && !proyecto.fecha_limite_vencida
+            ? 'Alguna acción dentro del proyecto ya venció, aunque su fecha límite general todavía no.' : undefined}
+        >
           <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${punto.color}`} />
           {punto.texto}
         </span>
@@ -491,13 +504,13 @@ function FilaProyectoCartera({ proyecto, carteraId, onCambio }) {
       <td className="py-2.5 pr-3">
         <div className="flex items-center gap-2">
           <span className="w-16 h-1.5 rounded-full bg-gray-100 overflow-hidden inline-block flex-shrink-0">
-            <span className={`block h-full rounded-full ${punto.color}`} style={{ width: `${avance}%` }} />
+            <span className={`block h-full rounded-full ${colorBarra}`} style={{ width: `${avance}%` }} />
           </span>
           <span className="text-xs font-semibold text-gray-700 tabular-nums">{avance}%</span>
         </div>
       </td>
       <td className="py-2.5 pr-3 text-xs text-gray-600 whitespace-nowrap">{proyecto.creador_nombre || '—'}</td>
-      <td className="py-2.5 pr-3 text-xs text-gray-600 whitespace-nowrap">{(proyecto.fecha_fin_efectiva || proyecto.fecha_limite)?.slice(0, 10) || '—'}</td>
+      <td className="py-2.5 pr-3 text-xs text-gray-600 whitespace-nowrap">{fechaMostrada?.slice(0, 10) || '—'}</td>
       <td className="py-2.5 text-right whitespace-nowrap">
         {!proyecto.es_principal && (
           <button onClick={marcarPrincipal} disabled={procesando} className="text-[11px] text-gray-400 hover:text-guinda-600 disabled:opacity-40 mr-2">
@@ -567,6 +580,7 @@ function VistaPorEtapa({ etapas, proyectos }) {
               <th className="pb-2.5 pr-3">Proyecto</th>
               <th className="pb-2.5 pr-3">Estatus</th>
               <th className="pb-2.5 pr-3 w-40">Avance</th>
+              <th className="pb-2.5 pr-3">Responsable</th>
               <th className="pb-2.5 pr-3">Fecha límite</th>
             </tr>
           </thead>
@@ -586,9 +600,14 @@ function VistaPorEtapa({ etapas, proyectos }) {
 }
 
 function FilaEtapaCartera({ etapa }) {
-  const punto = puntoEstado({ vencido: etapa.vencida, estado: etapa.estado });
+  const completo = etapa.estado === 'Completada';
+  const cancelado = etapa.estado === 'Cancelada';
+  const bloqueada = etapa.estado === 'Bloqueada';
+  const punto = puntoEstado({ estado: etapa.estado, vencido: etapa.vencida, completo, cancelado, bloqueada });
+  const fechaCruda = etapa.fecha_limite || etapa.fecha_fin;
+  const colorBarra = colorAvanceSemaforo({ vencido: etapa.vencida, completo, fecha: fechaCruda });
   const avance = Math.round(parseFloat(etapa.porcentaje_calculado) || 0);
-  const fecha = (etapa.fecha_limite || etapa.fecha_fin)?.slice(0, 10);
+  const fecha = fechaCruda?.slice(0, 10);
 
   return (
     <tr className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
@@ -607,26 +626,57 @@ function FilaEtapaCartera({ etapa }) {
       <td className="py-2.5 pr-3">
         <div className="flex items-center gap-2">
           <span className="w-16 h-1.5 rounded-full bg-gray-100 overflow-hidden inline-block flex-shrink-0">
-            <span className={`block h-full rounded-full ${punto.color}`} style={{ width: `${avance}%` }} />
+            <span className={`block h-full rounded-full ${colorBarra}`} style={{ width: `${avance}%` }} />
           </span>
           <span className="text-xs font-semibold text-gray-700 tabular-nums">{avance}%</span>
         </div>
       </td>
+      <td className="py-2.5 pr-3 text-xs text-gray-600 whitespace-nowrap">{etapa.responsable_nombre || '—'}</td>
       <td className="py-2.5 pr-3 text-xs text-gray-600 whitespace-nowrap">{fecha || '—'}</td>
     </tr>
   );
 }
 
-// Punto de color + etiqueta de estatus para la tabla de proyectos — igual
-// criterio que el resto de la plataforma (vencido pesa más que el estado
-// crudo), pero en el formato compacto punto+texto del mockup.
-function puntoEstado(p) {
-  if (p.vencido) return { color: 'bg-red-500', texto: 'Vencido' };
-  if (p.estado === 'Completada') return { color: 'bg-green-500', texto: 'Concluido' };
-  if (p.estado === 'En_proceso') return { color: 'bg-blue-500', texto: 'En proceso' };
-  if (p.estado === 'Bloqueada') return { color: 'bg-red-500', texto: 'Bloqueada' };
-  if (p.estado === 'Cancelada') return { color: 'bg-gray-400', texto: 'Cancelada' };
+// Punto de color + etiqueta de estatus — sirve tanto para filas de
+// Proyecto (estado: Programado/En_proceso/Pausado/Concluido/Cancelado)
+// como de Etapa (Pendiente/En_proceso/Bloqueada/Completada/Cancelada):
+// dos vocabularios de estado distintos, por eso recibe banderas ya
+// normalizadas (completo/cancelado/bloqueada) en vez de comparar el
+// string crudo contra un solo valor fijo — antes comparaba siempre
+// contra 'Completada', así que una fila de Proyecto Concluido nunca
+// hacía match y cine caía en "Pendiente" gris.
+//
+// "vencido" y "tieneAccionVencida" son señales distintas a propósito:
+// antes una sola bandera "vencido" mezclaba "la fecha límite general ya
+// pasó" con "alguna acción interna está vencida", y la tabla podía
+// mostrar "Vencido" junto a una fecha límite todavía en el futuro (la
+// causa real era la segunda, no la primera). Con las dos separadas, la
+// etiqueta nunca contradice la fecha que se ve en la misma fila.
+function puntoEstado({ estado, vencido, tieneAccionVencida, completo, cancelado, bloqueada }) {
+  if (vencido) return { color: 'bg-red-500', texto: 'Vencido' };
+  if (tieneAccionVencida) return { color: 'bg-red-500', texto: 'Con acciones vencidas' };
+  if (completo) return { color: 'bg-green-500', texto: 'Concluido' };
+  if (bloqueada) return { color: 'bg-red-500', texto: 'Bloqueada' };
+  if (cancelado) return { color: 'bg-gray-400', texto: 'Cancelada' };
+  if (estado === 'En_proceso') return { color: 'bg-blue-500', texto: 'En proceso' };
   return { color: 'bg-gray-300', texto: 'Pendiente' };
+}
+
+// Color de la barra de avance — semáforo por cercanía a la fecha límite,
+// no solo "terminado o no": antes reusaba el mismo color que el punto de
+// estatus (rojo/verde nada más), así un proyecto al 96% se veía
+// visualmente igual de "mal" que uno al 0%. Ámbar cuando falta poco para
+// la fecha (mismo umbral de 30 días que ya usa el resto de la plataforma
+// para "Por vencer"), rojo solo si ya venció, verde en cualquier otro
+// caso (a tiempo o terminado).
+function colorAvanceSemaforo({ vencido, completo, fecha }) {
+  if (vencido) return 'bg-red-500';
+  if (completo) return 'bg-green-500';
+  if (fecha) {
+    const diasRestantes = (new Date(fecha) - new Date()) / 86400000;
+    if (diasRestantes <= 30) return 'bg-amber-500';
+  }
+  return 'bg-green-500';
 }
 
 function ModalEliminarCartera({ cartera, onCerrar, onEliminada }) {

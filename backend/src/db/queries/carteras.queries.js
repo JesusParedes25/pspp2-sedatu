@@ -131,33 +131,47 @@ async function contarPrincipalesQueQuedanSinCartera(carteraId) {
 
 async function listarProyectosDeCartera(carteraId) {
   const { rows } = await pool.query(`
-    SELECT p.id, p.nombre, p.estado, p.porcentaje_calculado, p.fecha_inicio, p.fecha_limite, p.id_creador,
-      cp.es_principal,
-      dg.siglas AS dg_siglas,
-      u.nombre_completo AS creador_nombre,
-      (SELECT COUNT(*) FROM riesgos r WHERE ${COND_RIESGO_DE_PROYECTO} AND r.estado IN ('Abierto','En_mitigacion')) AS riesgos_abiertos,
-      ${COND_PROYECTO_VENCIDO} AS vencido,
-      -- proyectos.fecha_inicio/fecha_limite son campos manuales opcionales
-      -- del formulario de creación y casi siempre quedan vacíos. La fecha
-      -- real y confiable vive en etapas.fecha_inicio/fecha_fin, que se
-      -- recalcula automáticamente desde acciones/tareas (ver
-      -- utils/recalculos.js y migración 043) — se usa como fuente
-      -- principal para el Cronograma, con el campo del proyecto de
-      -- respaldo si la etapa no tiene fechas.
-      COALESCE(
-        (SELECT MIN(e.fecha_inicio) FROM etapas e WHERE e.id_proyecto = p.id AND e.fecha_inicio IS NOT NULL),
-        p.fecha_inicio
-      ) AS fecha_inicio_efectiva,
-      COALESCE(
-        (SELECT MAX(e.fecha_fin) FROM etapas e WHERE e.id_proyecto = p.id AND e.fecha_fin IS NOT NULL),
-        p.fecha_limite
-      ) AS fecha_fin_efectiva
-    FROM cartera_proyecto cp
-    JOIN proyectos p ON p.id = cp.proyecto_id AND p.deleted_at IS NULL
-    LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
-    LEFT JOIN usuarios u ON u.id = p.id_creador
-    WHERE cp.cartera_id = $1
-    ORDER BY cp.es_principal DESC, p.nombre
+    WITH base AS (
+      SELECT p.id, p.nombre, p.estado, p.porcentaje_calculado, p.fecha_inicio, p.fecha_limite, p.id_creador,
+        cp.es_principal,
+        dg.siglas AS dg_siglas,
+        u.nombre_completo AS creador_nombre,
+        (SELECT COUNT(*) FROM riesgos r WHERE ${COND_RIESGO_DE_PROYECTO} AND r.estado IN ('Abierto','En_mitigacion')) AS riesgos_abiertos,
+        ${COND_PROYECTO_VENCIDO} AS vencido,
+        ${COND_PROYECTO_TIENE_ACCION_VENCIDA} AS tiene_accion_vencida,
+        -- proyectos.fecha_inicio/fecha_limite son campos manuales opcionales
+        -- del formulario de creación y casi siempre quedan vacíos. La fecha
+        -- real y confiable vive en etapas.fecha_inicio/fecha_fin, que se
+        -- recalcula automáticamente desde acciones/tareas (ver
+        -- utils/recalculos.js y migración 043) — se usa como fuente
+        -- principal para el Cronograma, con el campo del proyecto de
+        -- respaldo si la etapa no tiene fechas.
+        COALESCE(
+          (SELECT MIN(e.fecha_inicio) FROM etapas e WHERE e.id_proyecto = p.id AND e.fecha_inicio IS NOT NULL),
+          p.fecha_inicio
+        ) AS fecha_inicio_efectiva,
+        COALESCE(
+          (SELECT MAX(e.fecha_fin) FROM etapas e WHERE e.id_proyecto = p.id AND e.fecha_fin IS NOT NULL),
+          p.fecha_limite
+        ) AS fecha_fin_efectiva
+      FROM cartera_proyecto cp
+      JOIN proyectos p ON p.id = cp.proyecto_id AND p.deleted_at IS NULL
+      LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
+      LEFT JOIN usuarios u ON u.id = p.id_creador
+      WHERE cp.cartera_id = $1
+    )
+    -- "vencido" (arriba) mezclaba dos causas distintas bajo una sola
+    -- etiqueta: la fecha_limite propia del proyecto, y que alguna acción
+    -- interna esté vencida — con eso la tabla podía mostrar "Vencido"
+    -- junto a una fecha_fin_efectiva todavía en el futuro (la causa real
+    -- era una acción vencida, no la fecha que se ve en esa misma fila).
+    -- fecha_limite_vencida se calcula aquí contra la MISMA fecha que se
+    -- muestra (fecha_fin_efectiva), para que la etiqueta nunca contradiga
+    -- la fecha de al lado.
+    SELECT *,
+      (fecha_fin_efectiva IS NOT NULL AND fecha_fin_efectiva < CURRENT_DATE AND estado NOT IN ('Concluido','Cancelado')) AS fecha_limite_vencida
+    FROM base
+    ORDER BY es_principal DESC, nombre
   `, [carteraId]);
   return rows;
 }
@@ -315,6 +329,7 @@ async function resumenCartera(carteraId) {
     SELECT e.id, e.nombre, e.estado, e.porcentaje_calculado,
       e.fecha_fin, e.fecha_limite,
       p.id AS id_proyecto, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas,
+      ur.nombre_completo AS responsable_nombre,
       (
         COALESCE(e.fecha_limite, e.fecha_fin) IS NOT NULL
         AND COALESCE(e.fecha_limite, e.fecha_fin) < CURRENT_DATE
@@ -324,6 +339,7 @@ async function resumenCartera(carteraId) {
     JOIN etapas e ON e.id_proyecto = cp.proyecto_id
     JOIN proyectos p ON p.id = e.id_proyecto AND p.deleted_at IS NULL
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
+    LEFT JOIN usuarios ur ON ur.id = e.id_responsable
     WHERE cp.cartera_id = $1
     ORDER BY p.nombre, e.orden
   `, [carteraId]);
