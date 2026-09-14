@@ -14,7 +14,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Briefcase, Pencil, Trash2, AlertTriangle, Clock,
   LayoutDashboard, FolderKanban, Plus, Star, X, Loader2, Building2,
-  Calendar, Map, Activity, Shield, Target, MessageSquare,
+  Calendar, Map, Activity, Shield, Target, MessageSquare, Layers,
 } from 'lucide-react';
 import { useCartera } from '../../hooks/useCarteras';
 import { useUI } from '../../context/UIContext';
@@ -93,6 +93,12 @@ export default function CarteraDetalle() {
   const [mostrarEditar, setMostrarEditar] = useState(false);
   const [mostrarAgregar, setMostrarAgregar] = useState(false);
   const [mostrarEliminar, setMostrarEliminar] = useState(false);
+  // "Proyectos de esta cartera" se puede leer de dos formas: la tabla de
+  // siempre (un proyecto por fila) o pivoteada por etapa — pedido
+  // explícito de una usuaria que administra ~13 proyectos con la misma
+  // metodología y quería ver "la etapa de Solicitudes de todos mis
+  // proyectos, para ver a quién le falta" sin entrar uno por uno.
+  const [vistaProyectos, setVistaProyectos] = useState('proyecto');
 
   if (cargando) {
     return (
@@ -191,7 +197,7 @@ export default function CarteraDetalle() {
               en la columna Estatus de la tabla, sin necesitar un bloque de
               distribución aparte. */}
           <section>
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
               <h2 className="text-sm font-semibold flex items-center gap-1.5 text-guinda-700">
                 <FolderKanban size={14} /> Proyectos de esta cartera
               </h2>
@@ -214,26 +220,49 @@ export default function CarteraDetalle() {
                 onAccion={() => setMostrarAgregar(true)}
               />
             ) : (
-              <div className="card p-5 overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="text-left text-[10px] uppercase tracking-wide text-gray-400 font-semibold border-b border-gray-200">
-                      <th className="pb-2.5 pr-3">Proyecto</th>
-                      <th className="pb-2.5 pr-3">Dependencia</th>
-                      <th className="pb-2.5 pr-3">Estatus</th>
-                      <th className="pb-2.5 pr-3 w-40">Avance</th>
-                      <th className="pb-2.5 pr-3">Responsable</th>
-                      <th className="pb-2.5 pr-3">Fecha límite</th>
-                      <th className="pb-2.5"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {proyectos.map(p => (
-                      <FilaProyectoCartera key={p.id} proyecto={p} carteraId={id} onCambio={recargar} />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                <div className="flex items-center gap-1 mb-3 bg-gray-100 rounded-lg p-0.5 w-fit">
+                  {[
+                    { id: 'proyecto', etiqueta: 'Por proyecto', icono: FolderKanban },
+                    { id: 'etapa', etiqueta: 'Por etapa', icono: Layers },
+                  ].map(v => (
+                    <button
+                      key={v.id}
+                      onClick={() => setVistaProyectos(v.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                        vistaProyectos === v.id ? 'bg-white text-guinda-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      <v.icono size={13} /> {v.etiqueta}
+                    </button>
+                  ))}
+                </div>
+
+                {vistaProyectos === 'proyecto' ? (
+                  <div className="card p-5 overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="text-left text-[10px] uppercase tracking-wide text-gray-400 font-semibold border-b border-gray-200">
+                          <th className="pb-2.5 pr-3">Proyecto</th>
+                          <th className="pb-2.5 pr-3">Dependencia</th>
+                          <th className="pb-2.5 pr-3">Estatus</th>
+                          <th className="pb-2.5 pr-3 w-40">Avance</th>
+                          <th className="pb-2.5 pr-3">Responsable</th>
+                          <th className="pb-2.5 pr-3">Fecha límite</th>
+                          <th className="pb-2.5"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {proyectos.map(p => (
+                          <FilaProyectoCartera key={p.id} proyecto={p} carteraId={id} onCambio={recargar} />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <VistaPorEtapa etapas={resumen.etapas} proyectos={proyectos} />
+                )}
+              </>
             )}
           </section>
 
@@ -479,6 +508,111 @@ function FilaProyectoCartera({ proyecto, carteraId, onCambio }) {
           <X size={14} />
         </button>
       </td>
+    </tr>
+  );
+}
+
+// ─── Vista "Por etapa" ────────────────────────────────────────
+// Pivotea las etapas de todos los proyectos de la cartera: en vez de
+// Proyecto → sus etapas, se elige UNA etapa (por nombre) y se ve qué tan
+// avanzado va cada proyecto en ella — útil cuando varios proyectos de la
+// cartera comparten la misma metodología (mismos nombres de etapa).
+function VistaPorEtapa({ etapas, proyectos }) {
+  const [seleccion, setSeleccion] = useState('');
+
+  const grupos = {};
+  for (const e of etapas) {
+    const clave = e.nombre.trim().toLowerCase();
+    if (!grupos[clave]) grupos[clave] = { clave, nombre: e.nombre.trim(), items: [] };
+    grupos[clave].items.push(e);
+  }
+  const listaGrupos = Object.values(grupos).sort((a, b) => b.items.length - a.items.length || a.nombre.localeCompare(b.nombre));
+
+  useEffect(() => {
+    if (listaGrupos.length > 0 && !grupos[seleccion]) setSeleccion(listaGrupos[0].clave);
+  }, [etapas, seleccion]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (listaGrupos.length === 0) {
+    return <p className="text-xs text-gray-400 italic py-6 text-center">Ningún proyecto de esta cartera tiene etapas capturadas todavía.</p>;
+  }
+
+  const grupo = grupos[seleccion] || listaGrupos[0];
+  const ordenados = [...grupo.items].sort((a, b) => (parseFloat(a.porcentaje_calculado) || 0) - (parseFloat(b.porcentaje_calculado) || 0));
+  const promedio = Math.round(grupo.items.reduce((s, e) => s + (parseFloat(e.porcentaje_calculado) || 0), 0) / grupo.items.length);
+  const idsConEtapa = new Set(grupo.items.map(e => e.id_proyecto));
+  const sinEtapa = proyectos.filter(p => !idsConEtapa.has(p.id));
+
+  return (
+    <div>
+      <div className="flex items-center gap-2.5 flex-wrap mb-3">
+        <label className="text-xs text-gray-500 flex-shrink-0">Etapa:</label>
+        <select
+          value={grupo.clave}
+          onChange={e => setSeleccion(e.target.value)}
+          className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:border-guinda-400 outline-none"
+        >
+          {listaGrupos.map(g => (
+            <option key={g.clave} value={g.clave}>{g.nombre} ({g.items.length} proyecto{g.items.length !== 1 ? 's' : ''})</option>
+          ))}
+        </select>
+        <span className="text-[11px] text-gray-400">
+          {grupo.items.length} de {proyectos.length} proyectos de la cartera · avance promedio {promedio}%
+        </span>
+      </div>
+
+      <div className="card p-5 overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="text-left text-[10px] uppercase tracking-wide text-gray-400 font-semibold border-b border-gray-200">
+              <th className="pb-2.5 pr-3">Proyecto</th>
+              <th className="pb-2.5 pr-3">Estatus</th>
+              <th className="pb-2.5 pr-3 w-40">Avance</th>
+              <th className="pb-2.5 pr-3">Fecha límite</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ordenados.map(e => <FilaEtapaCartera key={e.id} etapa={e} />)}
+          </tbody>
+        </table>
+      </div>
+
+      {sinEtapa.length > 0 && (
+        <p className="text-[11px] text-gray-400 mt-2">
+          {sinEtapa.length} proyecto{sinEtapa.length !== 1 ? 's' : ''} de esta cartera no {sinEtapa.length !== 1 ? 'tienen' : 'tiene'} una etapa llamada "{grupo.nombre}": {sinEtapa.map(p => p.nombre).join(', ')}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function FilaEtapaCartera({ etapa }) {
+  const punto = puntoEstado({ vencido: etapa.vencida, estado: etapa.estado });
+  const avance = Math.round(parseFloat(etapa.porcentaje_calculado) || 0);
+  const fecha = (etapa.fecha_limite || etapa.fecha_fin)?.slice(0, 10);
+
+  return (
+    <tr className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
+      <td className="py-2.5 pr-3">
+        <Link to={`/proyectos/${etapa.id_proyecto}?tab=seguimiento&nodo=${etapa.id}`} className="text-xs font-medium text-gray-800 hover:text-guinda-600">
+          {etapa.proyecto_nombre}
+        </Link>
+        {etapa.dg_siglas && <span className="text-[10px] text-gray-400 ml-1.5">{etapa.dg_siglas}</span>}
+      </td>
+      <td className="py-2.5 pr-3">
+        <span className="inline-flex items-center gap-1.5 text-xs text-gray-600 whitespace-nowrap">
+          <span className={`w-1.5 h-1.5 rounded-full ${punto.color}`} />
+          {punto.texto}
+        </span>
+      </td>
+      <td className="py-2.5 pr-3">
+        <div className="flex items-center gap-2">
+          <span className="w-16 h-1.5 rounded-full bg-gray-100 overflow-hidden inline-block flex-shrink-0">
+            <span className={`block h-full rounded-full ${punto.color}`} style={{ width: `${avance}%` }} />
+          </span>
+          <span className="text-xs font-semibold text-gray-700 tabular-nums">{avance}%</span>
+        </div>
+      </td>
+      <td className="py-2.5 pr-3 text-xs text-gray-600 whitespace-nowrap">{fecha || '—'}</td>
     </tr>
   );
 }
