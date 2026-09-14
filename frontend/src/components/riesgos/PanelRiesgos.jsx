@@ -16,6 +16,7 @@ import { Plus, Shield, AlertTriangle } from 'lucide-react';
 import RiesgoCard from './RiesgoCard';
 import ModalRiesgo from './ModalRiesgo';
 import * as riesgosApi from '../../api/riesgos';
+import { useUI } from '../../context/UIContext';
 
 const CARGADORES = {
   Proyecto:  (id) => riesgosApi.obtenerRiesgosProyecto(id),
@@ -32,6 +33,7 @@ const CARGADORES = {
  * @param {boolean} compacto     - Usa RiesgoCard en modo compacto
  */
 export default function PanelRiesgos({ entidadTipo, entidadId, soloLectura = false, compacto = false, onStatsChange }) {
+  const { mostrarToast } = useUI();
   const [riesgos, setRiesgos] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [modal, setModal] = useState(null); // null | 'crear' | riesgoObj
@@ -52,7 +54,8 @@ export default function PanelRiesgos({ entidadTipo, entidadId, soloLectura = fal
   useEffect(() => { cargar(); }, [cargar]);
 
   async function handleGuardar(datos) {
-    if (modal && modal !== 'crear') {
+    const esEdicion = modal && modal !== 'crear';
+    if (esEdicion) {
       await riesgosApi.actualizarRiesgo(modal.id, datos);
     } else {
       await riesgosApi.crearRiesgo(datos);
@@ -60,6 +63,7 @@ export default function PanelRiesgos({ entidadTipo, entidadId, soloLectura = fal
     setModal(null);
     await cargar();
     onStatsChange && onStatsChange();
+    mostrarToast(esEdicion ? 'Riesgo actualizado' : 'Riesgo reportado', 'exito');
   }
 
   async function handleEliminar(riesgoId) {
@@ -68,8 +72,9 @@ export default function PanelRiesgos({ entidadTipo, entidadId, soloLectura = fal
       await riesgosApi.eliminarRiesgo(riesgoId);
       await cargar();
       onStatsChange && onStatsChange();
+      mostrarToast('Riesgo eliminado', 'exito');
     } catch (err) {
-      alert(err.response?.data?.mensaje || 'Error al eliminar');
+      mostrarToast(err.response?.data?.mensaje || 'Error al eliminar', 'error');
     }
   }
 

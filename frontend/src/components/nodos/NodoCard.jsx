@@ -229,10 +229,11 @@ export default function NodoCard({
       if (tipo === 'etapa') await etapasApi.patchEtapa(nodo.id, datos);
       else if (tipo === 'accion') await accionesApi.patchAccion(nodo.id, datos);
       else await tareasApi.patchTarea(nodo.id, datos);
+      mostrarToast('Actualizado', 'exito');
       onCambiado?.();
     } catch (err) {
       console.error('Error actualizando nodo:', err);
-      alert(err.response?.data?.mensaje || 'Error al actualizar');
+      mostrarToast(err.response?.data?.mensaje || 'Error al actualizar', 'error');
     } finally {
       setGuardando(false);
     }
@@ -318,7 +319,7 @@ export default function NodoCard({
       const { datos } = await obtenerRiesgo(riesgoId);
       setRiesgoEditando(datos);
     } catch (err) {
-      alert(err.response?.data?.mensaje || 'No se pudo abrir el riesgo');
+      mostrarToast(err.response?.data?.mensaje || 'No se pudo abrir el riesgo', 'error');
     }
   }
 
@@ -337,7 +338,7 @@ export default function NodoCard({
         setComentarioTexto('');
         cargarActividad();
       } catch (err) {
-        alert(err.response?.data?.mensaje || 'Error al comentar');
+        mostrarToast(err.response?.data?.mensaje || 'Error al comentar', 'error');
       }
     });
   }

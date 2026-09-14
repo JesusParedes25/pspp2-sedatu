@@ -111,6 +111,7 @@ export default function TabIndicadores({ tipo, nodoId, proyectoId, soloLectura }
     try {
       await indicadoresApi.actualizarAportacion(apId, { [campo]: valor });
       await cargar();
+      mostrarToast('Aportación actualizada', 'exito');
     } catch (e) {
       mostrarToast(e.response?.data?.mensaje || 'Error al actualizar', 'error');
     } finally {
@@ -204,6 +205,18 @@ export default function TabIndicadores({ tipo, nodoId, proyectoId, soloLectura }
 // ─── Tarjeta de indicador ──────────────────────────────────────
 function IndicadorCard({ ind, ap, soloLectura, guardando, onToggleVincular, onActualizar }) {
   const [expandido, setExpandido] = useState(true);
+  // El valor se edita en un input local y solo se manda al servidor al
+  // salir del campo (mismo patrón que CampoEditable en Campos.jsx) — antes
+  // guardaba en cada tecleo, lo que además de no dar feedback claro de
+  // "guardado" bloqueaba el input en cada dígito mientras esperaba la
+  // respuesta del servidor.
+  const [valorLocal, setValorLocal] = useState(ap?.aportacion ?? '');
+  useEffect(() => { setValorLocal(ap?.aportacion ?? ''); }, [ap?.aportacion, ap?.id]);
+
+  function confirmarValor() {
+    const val = valorLocal === '' ? 0 : parseFloat(valorLocal);
+    if (val !== (parseFloat(ap.aportacion) || 0)) onActualizar(ap.id, 'valor_aportacion', val);
+  }
 
   const meta     = parseFloat(ind.meta_global) || 0;
   const realiz   = parseFloat(ind.valor_actual) || 0;
@@ -281,11 +294,10 @@ function IndicadorCard({ ind, ap, soloLectura, guardando, onToggleVincular, onAc
                   <span className="text-[10px] text-gray-500">Valor:</span>
                   <input
                     type="number" step="any" min="0"
-                    value={ap.aportacion ?? ''}
-                    onChange={e => {
-                      const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                      onActualizar(ap.id, 'valor_aportacion', val);
-                    }}
+                    value={valorLocal}
+                    onChange={e => setValorLocal(e.target.value)}
+                    onBlur={confirmarValor}
+                    onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }}
                     disabled={soloLectura || guardando === ap.id}
                     className="w-20 text-xs border border-gray-300 rounded px-1.5 py-0.5 text-right focus:border-guinda-500 focus:ring-1 focus:ring-guinda-500/20 outline-none disabled:opacity-60"
                   />

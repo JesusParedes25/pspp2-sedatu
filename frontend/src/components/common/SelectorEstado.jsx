@@ -17,6 +17,7 @@ import { createPortal } from 'react-dom';
 import EstadoChip from './EstadoChip';
 import ModalBloqueo from './ModalBloqueo';
 import * as estadoApi from '../../api/estado';
+import { useUI } from '../../context/UIContext';
 
 const ESTADOS = ['Pendiente', 'En_proceso', 'Bloqueada', 'Completada', 'Cancelada'];
 
@@ -61,6 +62,7 @@ export default function SelectorEstado({
   soloLectura = false,
   className = ''
 }) {
+  const { mostrarToast } = useUI();
   const [abierto, setAbierto] = useState(false);
   const [posicion, setPosicion] = useState({ top: 0, left: 0 });
   const [cargando, setCargando] = useState(false);
@@ -112,7 +114,7 @@ export default function SelectorEstado({
       await estadoApi.cambiarEstado(entidadTipo, entidadId, nuevoEstado, opciones);
       onCambio && onCambio();
     } catch (err) {
-      alert(err.response?.data?.mensaje || err.message || 'Error al cambiar estado');
+      mostrarToast(err.response?.data?.mensaje || err.message || 'Error al cambiar estado', 'error');
     } finally {
       setCargando(false);
       setAbierto(false);
@@ -169,7 +171,7 @@ export default function SelectorEstado({
       await estadoApi.restaurarEstadoAutomatico(entidadTipo, entidadId);
       onCambio && onCambio();
     } catch (err) {
-      alert(err.response?.data?.mensaje || err.message || 'Error al volver al estatus automático');
+      mostrarToast(err.response?.data?.mensaje || err.message || 'Error al volver al estatus automático', 'error');
     } finally {
       setCargando(false);
     }
