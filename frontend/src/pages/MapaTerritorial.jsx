@@ -8,10 +8,10 @@ import {
 import client from '../api/client';
 import MapaDrillDown, { MEXICO_CENTER, MEXICO_ZOOM, VERDE_MUNICIPIO } from '../components/mapa/MapaDrillDown';
 import EtiquetaFiltroInput from '../components/common/EtiquetaFiltroInput';
+import { COLORES_SEMAFORO } from '../components/common/SemaforoDot';
 import 'leaflet/dist/leaflet.css';
 
 const GUINDA = '#7B1C3E';
-const SEM = { verde: '#22c55e', ambar: '#f59e0b', rojo: '#ef4444', gris: '#9ca3af' };
 const TIPO_LABEL = { etapa: 'Etapa', accion: 'Acción', tarea: 'Tarea' };
 const TIPO_COLOR = { etapa: 'text-indigo-500 bg-indigo-50', accion: 'text-blue-500 bg-blue-50', tarea: 'text-teal-600 bg-teal-50' };
 
@@ -141,7 +141,7 @@ function FilaNodo({ item, subtitulo }) {
   return (
     <Link to={`/proyectos/${item.id_proyecto}?tab=seguimiento&nodo=${item.id}`}
       className="flex items-center gap-2 py-1 hover:bg-gray-50 rounded px-1 -mx-1 transition-colors">
-      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: SEM[item.semaforo || 'gris'] }} />
+      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO[item.semaforo_efectivo || item.semaforo || 'gris'] }} />
       <TipoBadge tipo={item.tipo} />
       <div className="flex-1 min-w-0">
         <p className="text-xs text-gray-800 truncate">{item.nombre}</p>
@@ -938,7 +938,7 @@ export default function MapaTerritorial() {
                     <ul className="space-y-1.5">
                       {etapas.slice(0, 5).map((et, i) => (
                         <li key={i} className="flex items-start gap-1.5 text-[11px]">
-                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1" style={{ backgroundColor: SEM[et.semaforo || 'gris'] }} />
+                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1" style={{ backgroundColor: COLORES_SEMAFORO[et.semaforo_efectivo || et.semaforo || 'gris'] }} />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1">
                               <TipoBadge tipo={et.tipo} />

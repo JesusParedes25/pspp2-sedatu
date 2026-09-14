@@ -39,8 +39,8 @@ import { permisosDeNodo } from '../../hooks/usePermisos';
 import { NIVELES } from '../../config/niveles';
 import ModalNuevaAccion from '../seguimiento/ModalNuevaAccion';
 import ModalNuevaTarea from '../seguimiento/ModalNuevaTarea';
+import { COLORES_SEMAFORO } from '../common/SemaforoDot';
 
-const SEM = { verde: '#22c55e', ambar: '#f59e0b', rojo: '#ef4444', gris: '#9ca3af' };
 const TIPO_LABEL = { etapa: 'Etapa', accion: 'Acción', tarea: 'Tarea' };
 // comentarios son del modelo viejo (entidad_tipo genérico) y siguen sin
 // soportar 'Tarea' — sus comentarios se leen del stream `actividad`, no
@@ -370,7 +370,7 @@ export default function NodoCard({
             ? <CheckCircle2 size={18} className="text-green-500" />
             : <Circle size={18} className={esContenedor ? 'text-gray-200' : 'text-gray-300 hover:text-guinda-400'} />}
         </button>
-        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: SEM[nodo.semaforo || 'gris'] }} />
+        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO[nodo.semaforo_efectivo || nodo.semaforo || 'gris'] }} />
 
         <button onClick={toggleAbierto} className="flex-1 min-w-0 flex items-center gap-2 text-left">
           <span className="text-[9px] font-semibold uppercase text-gray-400 flex-shrink-0">{TIPO_LABEL[tipo]}</span>

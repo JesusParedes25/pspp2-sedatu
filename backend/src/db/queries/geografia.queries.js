@@ -3,6 +3,7 @@
  * PROPÓSITO: Queries para catálogo geográfico y cobertura.
  */
 const pool = require('../pool');
+const { semaforoEfectivo } = require('../../utils/avance-semaforo');
 
 // ─── Catálogo ─────────────────────────────────────────────────
 
@@ -386,7 +387,9 @@ async function obtenerMapaTerritorialProyecto(proyectoId) {
   const { rows } = await pool.query(`
     WITH nodos AS (
       SELECT 'etapa'::text AS tipo, e.id::text, e.nombre, NULL::text AS nombre_padre,
-             e.estado, e.semaforo, COALESCE(e.avance_actual, e.porcentaje_calculado::int, 0) AS avance,
+             e.estado, e.semaforo, e.semaforo_override, e.prioridad,
+             e.fecha_limite, e.fecha_fin,
+             COALESCE(e.avance_actual, e.porcentaje_calculado::int, 0) AS avance,
              e.cve_ent, e.id_zm,
              COALESCE((SELECT array_agg(em.cve_mun) FROM etapa_municipios em WHERE em.etapa_id = e.id), '{}') AS cvegeos
       FROM etapas e
@@ -394,7 +397,9 @@ async function obtenerMapaTerritorialProyecto(proyectoId) {
       UNION ALL
       SELECT CASE WHEN a.id_accion_padre IS NOT NULL THEN 'tarea' ELSE 'accion' END,
              a.id::text, a.nombre, COALESCE(padre.nombre, et.nombre),
-             a.estado, a.semaforo, COALESCE(a.avance_actual, 0) AS avance,
+             a.estado, a.semaforo, a.semaforo_override, a.prioridad,
+             a.fecha_limite, a.fecha_fin,
+             COALESCE(a.avance_actual, 0) AS avance,
              a.cve_ent, a.id_zm,
              COALESCE((SELECT array_agg(am.cve_mun) FROM accion_municipios am WHERE am.accion_id = a.id), '{}') AS cvegeos
       FROM acciones a
@@ -402,7 +407,9 @@ async function obtenerMapaTerritorialProyecto(proyectoId) {
       LEFT JOIN etapas et ON et.id = a.id_etapa
       WHERE a.id_proyecto = $1 AND (a.cve_ent IS NOT NULL OR a.id_zm IS NOT NULL)
     )
-    SELECT n.tipo, n.id, n.nombre, n.nombre_padre, n.estado, n.semaforo, n.avance, n.cve_ent, n.id_zm, n.cvegeos,
+    SELECT n.tipo, n.id, n.nombre, n.nombre_padre, n.estado, n.semaforo,
+           n.semaforo_override, n.prioridad, n.fecha_limite, n.fecha_fin,
+           n.avance, n.cve_ent, n.id_zm, n.cvegeos,
            gs.nombre AS nombre_estado, gz.nombre AS nombre_zm, gz.cve_met
     FROM nodos n
     LEFT JOIN geo_estados gs ON gs.cve_ent = n.cve_ent
@@ -418,6 +425,12 @@ async function obtenerMapaTerritorialProyecto(proyectoId) {
     const nodo = {
       tipo: r.tipo, id: r.id, nombre: r.nombre, nombre_padre: r.nombre_padre,
       estado: r.estado, semaforo: r.semaforo,
+      // Mismo cálculo que ya gobierna los puntos de color del árbol de
+      // Seguimiento (avance-semaforo.js) — antes este mapa mostraba el
+      // campo crudo `semaforo`, que solo tiene valor cuando alguien lo
+      // fijó a mano; sin override, casi siempre estaba vacío y el punto
+      // se veía gris aunque el nodo tuviera un semáforo calculado real.
+      semaforo_efectivo: semaforoEfectivo(r),
       avance: parseFloat(r.avance) || 0, cvegeos,
     };
     if (r.cve_ent) {
@@ -545,7 +558,7 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
     SELECT 'etapa'::text AS tipo, e.id::text, e.nombre, NULL::text AS nombre_padre,
            NULL::text AS id_padre,
            e.id::text AS id_etapa, e.nombre AS etapa_nombre,
-           e.estado, e.semaforo,
+           e.estado, e.semaforo, e.semaforo_override, e.prioridad,
            COALESCE(e.avance_actual, 0)::int AS avance,
            e.fecha_fin AS fecha_limite,
            p.id::text AS id_proyecto, p.nombre AS nombre_proyecto
@@ -558,7 +571,7 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
     SELECT 'accion'::text, a.id::text, a.nombre, COALESCE(padre.nombre, et.nombre),
            a.id_accion_padre::text,
            a.id_etapa::text, et.nombre,
-           a.estado, a.semaforo,
+           a.estado, a.semaforo, a.semaforo_override, a.prioridad,
            COALESCE(a.avance_actual, 0)::int,
            COALESCE(a.fecha_limite, a.fecha_fin),
            p.id::text, p.nombre
@@ -573,7 +586,7 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
     SELECT 'tarea'::text, t.id::text, t.nombre, a.nombre,
            a.id::text,
            a.id_etapa::text, et.nombre,
-           t.estado, t.semaforo,
+           t.estado, t.semaforo, t.semaforo_override, t.prioridad,
            COALESCE(t.avance_actual, 0)::int,
            t.fecha_limite,
            p.id::text, p.nombre
@@ -717,6 +730,10 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
       id_etapa: n.id_etapa, etapa_nombre: n.etapa_nombre,
       id_proyecto: n.id_proyecto, nombre_proyecto: n.nombre_proyecto,
       estatus: n.estado, avance: Number(n.avance), semaforo: n.semaforo,
+      semaforo_efectivo: semaforoEfectivo({
+        estado: n.estado, semaforo: n.semaforo, semaforo_override: n.semaforo_override,
+        prioridad: n.prioridad, fecha_limite: n.fecha_limite, fecha_fin: n.fecha_limite,
+      }),
     })),
     riesgos: riesgos.map(r => ({
       titulo: r.titulo,
@@ -749,7 +766,9 @@ async function obtenerMunicipiosActividadEstado(cveEnt, proyectoIds) {
 
   const { rows } = await pool.query(`
     SELECT em.cve_mun AS cvegeo, e.id::text, e.nombre,
-           e.estado, e.semaforo, COALESCE(e.avance_actual, 0)::int AS avance,
+           e.estado, e.semaforo, e.semaforo_override, e.prioridad,
+           e.fecha_limite, e.fecha_fin,
+           COALESCE(e.avance_actual, 0)::int AS avance,
            'etapa'::text AS tipo, NULL::text AS nombre_padre,
            NULL::text AS id_padre,
            e.id::text AS id_etapa, e.nombre AS etapa_nombre,
@@ -760,7 +779,9 @@ async function obtenerMunicipiosActividadEstado(cveEnt, proyectoIds) {
     WHERE LEFT(em.cve_mun, 2) = $1 ${filtroProyecto}
     UNION ALL
     SELECT am.cve_mun, a.id::text, a.nombre,
-           a.estado, a.semaforo, COALESCE(a.avance_actual, 0)::int,
+           a.estado, a.semaforo, a.semaforo_override, a.prioridad,
+           a.fecha_limite, a.fecha_fin,
+           COALESCE(a.avance_actual, 0)::int,
            'accion'::text,
            COALESCE(padre.nombre, et.nombre),
            a.id_accion_padre::text,
@@ -774,7 +795,9 @@ async function obtenerMunicipiosActividadEstado(cveEnt, proyectoIds) {
     WHERE LEFT(am.cve_mun, 2) = $1 ${filtroProyecto}
     UNION ALL
     SELECT tm.cve_mun, t.id::text, t.nombre,
-           t.estado, t.semaforo, COALESCE(t.avance_actual, 0)::int,
+           t.estado, t.semaforo, t.semaforo_override, t.prioridad,
+           t.fecha_limite, NULL::date AS fecha_fin,
+           COALESCE(t.avance_actual, 0)::int,
            'tarea'::text,
            a.nombre,
            a.id::text,
@@ -801,7 +824,7 @@ async function obtenerMunicipiosActividadEstado(cveEnt, proyectoIds) {
       id: r.id, tipo: r.tipo, nombre: r.nombre, nombre_padre: r.nombre_padre,
       id_padre: r.id_padre,
       id_etapa: r.id_etapa, etapa_nombre: r.etapa_nombre,
-      estatus: r.estado, semaforo: r.semaforo, avance: Number(r.avance),
+      estatus: r.estado, semaforo: r.semaforo, semaforo_efectivo: semaforoEfectivo(r), avance: Number(r.avance),
       id_proyecto: r.id_proyecto, nombre_proyecto: r.nombre_proyecto,
     });
   }
@@ -830,7 +853,8 @@ async function obtenerDetalleZM(gidZm, proyectoIds) {
     SELECT 'etapa'::text AS tipo, e.id::text, e.nombre, NULL::text AS nombre_padre,
            NULL::text AS id_padre,
            e.id::text AS id_etapa, e.nombre AS etapa_nombre,
-           e.estado, e.semaforo, COALESCE(e.avance_actual, 0)::int AS avance,
+           e.estado, e.semaforo, e.semaforo_override, e.prioridad,
+           COALESCE(e.avance_actual, 0)::int AS avance,
            e.fecha_fin AS fecha_limite,
            p.id::text AS id_proyecto, p.nombre AS nombre_proyecto
     FROM etapas e
@@ -841,7 +865,8 @@ async function obtenerDetalleZM(gidZm, proyectoIds) {
            a.id::text, a.nombre, COALESCE(padre.nombre, et.nombre),
            a.id_accion_padre::text,
            a.id_etapa::text, et.nombre,
-           a.estado, a.semaforo, COALESCE(a.avance_actual, 0)::int,
+           a.estado, a.semaforo, a.semaforo_override, a.prioridad,
+           COALESCE(a.avance_actual, 0)::int,
            COALESCE(a.fecha_limite, a.fecha_fin),
            p.id::text, p.nombre
     FROM acciones a
@@ -964,6 +989,10 @@ async function obtenerDetalleZM(gidZm, proyectoIds) {
       id_etapa: n.id_etapa, etapa_nombre: n.etapa_nombre,
       id_proyecto: n.id_proyecto, nombre_proyecto: n.nombre_proyecto,
       estatus: n.estado, avance: Number(n.avance), semaforo: n.semaforo,
+      semaforo_efectivo: semaforoEfectivo({
+        estado: n.estado, semaforo: n.semaforo, semaforo_override: n.semaforo_override,
+        prioridad: n.prioridad, fecha_limite: n.fecha_limite, fecha_fin: n.fecha_limite,
+      }),
     })),
     riesgos: riesgos.map(r => ({
       titulo: r.titulo, descripcion: r.descripcion, nivel: r.nivel,

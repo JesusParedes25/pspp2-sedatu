@@ -50,7 +50,12 @@ function aplanarArbol(nodos) {
       else if (nodo.tareas !== undefined || nodo.subacciones !== undefined) tipo = 'accion';
       else tipo = 'accion';
     }
-    resultado.push({ ...nodo, tipo, profundidad });
+    // semaforo_efectivo ya viene calculado desde obtenerSubarbol (backend) —
+    // el campo crudo `semaforo` solo tiene valor si alguien lo fijó a mano,
+    // así que sin normalizarlo aquí el reporte mostraba casi todo "Sin
+    // datos" (gris) en vez del semáforo real de cada nodo. Un solo punto de
+    // normalización porque todo lo demás en este archivo lee de aquí.
+    resultado.push({ ...nodo, tipo, profundidad, semaforo: nodo.semaforo_efectivo || nodo.semaforo });
     const hijos = nodo.acciones || nodo.subacciones || nodo.hijos || [];
     hijos.forEach(h => recorrer(h, profundidad + 1));
     (nodo.tareas || []).forEach(t => recorrer({ ...t, tipo: 'tarea' }, profundidad + 2));

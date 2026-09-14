@@ -18,9 +18,9 @@ import { ETIQUETA_TIPO_INDICADOR, agruparPorCatalogo, TarjetaIndicadorOAgrupada 
 import ListaEstatusCualitativo, { TituloEstatusCualitativo } from '../components/indicadores/ListaEstatusCualitativo';
 import { breadcrumbInternoEstatusCualitativo } from '../utils/estatusCualitativo';
 import ArbolPorProyecto from '../components/common/ArbolPorProyecto';
+import { COLORES_SEMAFORO } from '../components/common/SemaforoDot';
 
 const GUINDA = '#7B1C3E';
-const SEM = { verde: '#22c55e', ambar: '#f59e0b', rojo: '#ef4444', gris: '#9ca3af' };
 
 export default function Inicio() {
   const { usuario } = useAuth();
@@ -379,7 +379,7 @@ function ProyectoCard({ proyecto }) {
                     {popover.datos.etapas.map(et => (
                       <li key={et.id} className="text-[11px]">
                         <div className="flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: SEM[et.semaforo || 'gris'] }} />
+                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO[et.semaforo_efectivo || et.semaforo || 'gris'] }} />
                           <span className="truncate text-gray-700 flex-1">{et.nombre}</span>
                           <span className="text-gray-400 flex-shrink-0">{et.acciones_completadas}/{et.total_acciones}</span>
                           <span className="text-gray-400 tabular-nums flex-shrink-0 w-8 text-right">{Math.round(et.avance)}%</span>
