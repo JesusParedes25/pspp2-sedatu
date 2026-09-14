@@ -12,6 +12,7 @@ import {
 import { NIVELES } from '../../config/niveles';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useAuth } from '../../context/AuthContext';
+import { useUI } from '../../context/UIContext';
 import { usePermisosProyecto } from '../../hooks/usePermisos';
 import { obtenerPanorama, crearInvitacion, agregarMiembro, eliminarMiembro, cancelarInvitacion } from '../../api/miembros';
 import { agregarMiembroNodo, actualizarRolNodo, eliminarMiembroNodo } from '../../api/nodo-miembros';
@@ -59,6 +60,7 @@ function SeccionCard({ titulo, icono: Icono, children, className = '' }) {
 // ─── Componente principal ─────────────────────────────────────
 export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refreshKey, onNavegarNodo }) {
   const { usuario } = useAuth();
+  const { mostrarToast } = useUI();
   const permisos = usePermisosProyecto(proyecto);
   const [datos, setDatos] = useState(null);
   const [cargando, setCargando] = useState(true);
@@ -447,8 +449,9 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
       }
       const nuevosDatos = await obtenerPanorama(proyectoId);
       setDatos(nuevosDatos);
+      mostrarToast(esUnoMismo ? 'Saliste del proyecto' : `${m.nombre_completo} fue removido`, 'exito');
     } catch (e) {
-      alert(e.response?.data?.mensaje || (esUnoMismo ? 'Error al salir del proyecto' : 'Error al quitar al usuario'));
+      mostrarToast(e.response?.data?.mensaje || (esUnoMismo ? 'Error al salir del proyecto' : 'Error al quitar al usuario'), 'error');
     }
   }
 
@@ -466,8 +469,9 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
       }
       const nuevosDatos = await obtenerPanorama(proyectoId);
       setDatos(nuevosDatos);
+      mostrarToast('Función actualizada', 'exito');
     } catch (e) {
-      alert(e.response?.data?.mensaje || 'Error al cambiar la función');
+      mostrarToast(e.response?.data?.mensaje || 'Error al cambiar la función', 'error');
     }
   }
 
@@ -483,8 +487,9 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
       await crearInvitacion(proyectoId, m.id_usuario, m.rol);
       const nuevosDatos = await obtenerPanorama(proyectoId);
       setDatos(nuevosDatos);
+      mostrarToast('Invitación enviada', 'exito');
     } catch (e) {
-      alert(e.response?.data?.mensaje || 'Error al invitar al usuario');
+      mostrarToast(e.response?.data?.mensaje || 'Error al invitar al usuario', 'error');
     }
   }
 }

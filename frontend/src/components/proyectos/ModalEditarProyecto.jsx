@@ -22,6 +22,7 @@ import * as etapasApi from '../../api/etapas';
 import * as accionesApi from '../../api/acciones';
 import { usePermisosProyecto } from '../../hooks/usePermisos';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
+import { useUI } from '../../context/UIContext';
 
 const TIPOS_INDICADOR = [
   { valor: 'Avance_fisico', etiqueta: 'Avance físico' },
@@ -50,6 +51,7 @@ const INDICADOR_NUEVO = () => ({
 });
 
 export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) {
+  const { mostrarToast } = useUI();
   const permisos = usePermisosProyecto(proyecto);
   const [dgs, setDgs]                       = useState([]);
   const [programas, setProgramas]           = useState([]);
@@ -312,7 +314,7 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
       onGuardado && onGuardado();
       onCerrar();
     } catch (err) {
-      alert(err.response?.data?.mensaje || 'Error al guardar el proyecto');
+      mostrarToast(err.response?.data?.mensaje || 'Error al guardar el proyecto', 'error');
     }
   });
 
