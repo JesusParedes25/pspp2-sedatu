@@ -10,6 +10,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const pool = require('../pool');
+const { condicionRiesgoDeProyecto } = require('../../utils/condicion-riesgo');
 
 /**
  * Obtiene conteo de acciones por estado para un proyecto.
@@ -73,13 +74,9 @@ async function contarRiesgosActivos(proyectoId) {
     SELECT
       COUNT(*)::int AS total,
       COUNT(*) FILTER (WHERE nivel IN ('Alto','Critico'))::int AS criticos
-    FROM riesgos
-    WHERE estado IN ('Abierto','En_mitigacion')
-      AND (
-        (entidad_tipo = 'Proyecto'  AND entidad_id = $1)
-        OR (entidad_tipo = 'Etapa'     AND entidad_id IN (SELECT id FROM etapas WHERE id_proyecto = $1))
-        OR (entidad_tipo = 'Accion'    AND entidad_id IN (SELECT id FROM acciones WHERE id_proyecto = $1))
-      )
+    FROM riesgos r
+    WHERE r.estado IN ('Abierto','En_mitigacion')
+      AND ${condicionRiesgoDeProyecto('$1')}
   `, [proyectoId]);
   return resultado.rows[0] || { total: 0, criticos: 0 };
 }
@@ -334,23 +331,16 @@ async function obtenerRiesgosDetalle(proyectoId) {
       CASE
         WHEN r.entidad_tipo = 'Proyecto'  THEN p.nombre
         WHEN r.entidad_tipo = 'Etapa'     THEN et.nombre
-        WHEN r.entidad_tipo = 'Accion'    THEN ac.nombre
+        WHEN r.entidad_tipo IN ('Accion','Subaccion') THEN ac.nombre
         WHEN r.entidad_tipo = 'Tarea'     THEN ta.nombre
       END AS etiqueta
     FROM riesgos r
     LEFT JOIN proyectos p  ON r.entidad_tipo = 'Proyecto'  AND p.id  = r.entidad_id
     LEFT JOIN etapas    et ON r.entidad_tipo = 'Etapa'     AND et.id = r.entidad_id
-    LEFT JOIN acciones  ac ON r.entidad_tipo = 'Accion'    AND ac.id = r.entidad_id
+    LEFT JOIN acciones  ac ON r.entidad_tipo IN ('Accion','Subaccion') AND ac.id = r.entidad_id
     LEFT JOIN tareas    ta ON r.entidad_tipo = 'Tarea'     AND ta.id = r.entidad_id
     WHERE r.estado IN ('Abierto','En_mitigacion')
-      AND (
-        (r.entidad_tipo = 'Proyecto'  AND r.entidad_id = $1)
-        OR (r.entidad_tipo = 'Etapa'     AND r.entidad_id IN (SELECT id FROM etapas WHERE id_proyecto = $1))
-        OR (r.entidad_tipo = 'Accion'    AND r.entidad_id IN (SELECT id FROM acciones WHERE id_proyecto = $1))
-        OR (r.entidad_tipo = 'Tarea'     AND r.entidad_id IN (
-              SELECT t.id FROM tareas t JOIN acciones a ON a.id = t.id_accion WHERE a.id_proyecto = $1
-            ))
-      )
+      AND ${condicionRiesgoDeProyecto('$1')}
     ORDER BY
       CASE r.nivel
         WHEN 'Critico' THEN 1

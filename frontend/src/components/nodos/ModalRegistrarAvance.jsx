@@ -205,15 +205,36 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
   const puedeGuardar = estatus.trim().length > 0 && !guardando
     && evidencias.every(ev => ev.modo === 'archivo' || ev.url.trim().length > 0);
 
+  // Antes, un clic fuera del modal (fácil de hacer sin querer al volver de
+  // otra pestaña — ej. copiar una liga y regresar) lo cerraba sin avisar,
+  // y con eso se perdía todo lo capturado. Un clic en el fondo, que casi
+  // siempre es accidental, ahora se ignora mientras haya algo sin guardar;
+  // cerrar a propósito (X o Cancelar) sigue funcionando, solo pide
+  // confirmar cuando de verdad hay algo que se perdería.
+  const hayCambiosSinGuardar = estatus.trim().length > 0
+    || detalle.trim().length > 0
+    || evidencias.length > 0
+    || (puedeCapturarAvance && concluir !== (estadoActual === 'Completada'))
+    || (puedeCapturarAvance && !concluir && avance !== Math.min(avanceActual, 99));
+
+  function cerrarPorFondo() {
+    if (hayCambiosSinGuardar) return;
+    onCerrar?.();
+  }
+  function cerrarConConfirmacion() {
+    if (hayCambiosSinGuardar && !window.confirm('Tienes cambios sin guardar. ¿Deseas cerrar sin guardar?')) return;
+    onCerrar?.();
+  }
+
   return createPortal((
-    <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4" onClick={onCerrar}>
+    <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4" onClick={cerrarPorFondo}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-start justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <div>
             <h3 className="text-base font-semibold text-gray-900">Registrar avance</h3>
             <p className="text-xs text-gray-400 mt-0.5">{nivel.label} · {nodo.nombre}</p>
           </div>
-          <button onClick={onCerrar} className="p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-100 flex-shrink-0"><X size={18} /></button>
+          <button onClick={cerrarConConfirmacion} className="p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-100 flex-shrink-0"><X size={18} /></button>
         </div>
 
         <div className="px-5 py-4 space-y-4 overflow-y-auto">
@@ -354,7 +375,7 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
         </div>
 
         <div className="flex justify-end gap-2 px-5 py-3.5 border-t border-gray-100 flex-shrink-0">
-          <button onClick={onCerrar} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
+          <button onClick={cerrarConConfirmacion} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
           <button
             onClick={guardar}
             disabled={!puedeGuardar}

@@ -4,6 +4,7 @@
  * Todas las consultas se filtran por los proyectos donde el usuario participa.
  */
 const pool = require('../pool');
+const { condicionRiesgoDeProyecto } = require('../../utils/condicion-riesgo');
 
 /**
  * Obtiene los proyectos del usuario (donde es miembro o creador).
@@ -21,7 +22,7 @@ async function obtenerProyectosUsuario(proyectoIds) {
       p.fecha_inicio, p.fecha_limite, p.es_prioritario,
       dg.siglas AS dg_siglas, dg.nombre AS dg_nombre,
       (SELECT COUNT(*) FROM acciones a WHERE a.id_proyecto = p.id AND a.id_accion_padre IS NULL AND a.estado NOT IN ('Completada','Cancelada'))::int AS acciones_pendientes,
-      (SELECT COUNT(*) FROM riesgos r WHERE r.entidad_tipo = 'Proyecto' AND r.entidad_id = p.id AND r.estado IN ('Abierto','En_mitigacion'))::int AS riesgos_activos
+      (SELECT COUNT(*) FROM riesgos r WHERE ${condicionRiesgoDeProyecto('p.id')} AND r.estado IN ('Abierto','En_mitigacion'))::int AS riesgos_activos
     FROM proyectos p
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
     WHERE p.deleted_at IS NULL AND p.estado != 'Cancelado' ${filtro}
