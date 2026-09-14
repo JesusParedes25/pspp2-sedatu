@@ -27,6 +27,8 @@ import MapaCartera from '../../components/carteras/MapaCartera';
 import ActividadCartera from '../../components/carteras/ActividadCartera';
 import { ETIQUETA_TIPO_INDICADOR, agruparPorCatalogo, TarjetaIndicadorOAgrupada } from '../../components/indicadores/TarjetaIndicador';
 import ListaEstatusCualitativo, { TituloEstatusCualitativo } from '../../components/indicadores/ListaEstatusCualitativo';
+import { calcularColorSemaforo } from '../../utils/semaforoColor';
+import { COLORES_SEMAFORO } from '../../components/common/SemaforoDot';
 
 const PESTANAS = [
   { id: 'resumen', etiqueta: 'Resumen', icono: LayoutDashboard },
@@ -464,7 +466,12 @@ function FilaProyectoCartera({ proyecto, carteraId, onCambio }) {
     tieneAccionVencida: proyecto.tiene_accion_vencida,
     completo, cancelado,
   });
-  const colorBarra = colorAvanceSemaforo({ vencido: proyecto.fecha_limite_vencida, completo, fecha: fechaMostrada });
+  // Mismo cálculo que ya usa Panorama del proyecto para su anillo de
+  // avance (% vs. tiempo transcurrido entre fecha inicio y fecha límite)
+  // — antes esta barra tenía su propio criterio aparte (solo verde/rojo
+  // según venció o no), así que un proyecto podía verse "sano" aquí y
+  // "en riesgo" en Panorama, o viceversa.
+  const { color: colorBarra } = calcularColorSemaforo(proyecto.porcentaje_calculado, proyecto.fecha_inicio_efectiva, proyecto.fecha_fin_efectiva);
   const avance = Math.round(parseFloat(proyecto.porcentaje_calculado) || 0);
 
   return (
@@ -504,7 +511,7 @@ function FilaProyectoCartera({ proyecto, carteraId, onCambio }) {
       <td className="py-2.5 pr-3">
         <div className="flex items-center gap-2">
           <span className="w-16 h-1.5 rounded-full bg-gray-100 overflow-hidden inline-block flex-shrink-0">
-            <span className={`block h-full rounded-full ${colorBarra}`} style={{ width: `${avance}%` }} />
+            <span className="block h-full rounded-full" style={{ width: `${avance}%`, backgroundColor: colorBarra }} />
           </span>
           <span className="text-xs font-semibold text-gray-700 tabular-nums">{avance}%</span>
         </div>
@@ -605,7 +612,10 @@ function FilaEtapaCartera({ etapa }) {
   const bloqueada = etapa.estado === 'Bloqueada';
   const punto = puntoEstado({ estado: etapa.estado, vencido: etapa.vencida, completo, cancelado, bloqueada });
   const fechaCruda = etapa.fecha_limite || etapa.fecha_fin;
-  const colorBarra = colorAvanceSemaforo({ vencido: etapa.vencida, completo, fecha: fechaCruda });
+  // semaforo_efectivo ya viene calculado del backend con la misma fórmula
+  // que usa el árbol de Seguimiento (avance-semaforo.js) — no un criterio
+  // aparte, para que esta etapa se vea del mismo color aquí y allá.
+  const colorBarra = COLORES_SEMAFORO[etapa.semaforo_efectivo] || COLORES_SEMAFORO.gris;
   const avance = Math.round(parseFloat(etapa.porcentaje_calculado) || 0);
   const fecha = fechaCruda?.slice(0, 10);
 
@@ -626,7 +636,7 @@ function FilaEtapaCartera({ etapa }) {
       <td className="py-2.5 pr-3">
         <div className="flex items-center gap-2">
           <span className="w-16 h-1.5 rounded-full bg-gray-100 overflow-hidden inline-block flex-shrink-0">
-            <span className={`block h-full rounded-full ${colorBarra}`} style={{ width: `${avance}%` }} />
+            <span className="block h-full rounded-full" style={{ width: `${avance}%`, backgroundColor: colorBarra }} />
           </span>
           <span className="text-xs font-semibold text-gray-700 tabular-nums">{avance}%</span>
         </div>
@@ -660,23 +670,6 @@ function puntoEstado({ estado, vencido, tieneAccionVencida, completo, cancelado,
   if (cancelado) return { color: 'bg-gray-400', texto: 'Cancelada' };
   if (estado === 'En_proceso') return { color: 'bg-blue-500', texto: 'En proceso' };
   return { color: 'bg-gray-300', texto: 'Pendiente' };
-}
-
-// Color de la barra de avance — semáforo por cercanía a la fecha límite,
-// no solo "terminado o no": antes reusaba el mismo color que el punto de
-// estatus (rojo/verde nada más), así un proyecto al 96% se veía
-// visualmente igual de "mal" que uno al 0%. Ámbar cuando falta poco para
-// la fecha (mismo umbral de 30 días que ya usa el resto de la plataforma
-// para "Por vencer"), rojo solo si ya venció, verde en cualquier otro
-// caso (a tiempo o terminado).
-function colorAvanceSemaforo({ vencido, completo, fecha }) {
-  if (vencido) return 'bg-red-500';
-  if (completo) return 'bg-green-500';
-  if (fecha) {
-    const diasRestantes = (new Date(fecha) - new Date()) / 86400000;
-    if (diasRestantes <= 30) return 'bg-amber-500';
-  }
-  return 'bg-green-500';
 }
 
 function ModalEliminarCartera({ cartera, onCerrar, onEliminada }) {
