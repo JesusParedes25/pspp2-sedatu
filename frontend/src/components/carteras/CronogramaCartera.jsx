@@ -15,16 +15,15 @@
 import { Link } from 'react-router-dom';
 import { Calendar } from 'lucide-react';
 import { parseFechaLocal } from '../../utils/fecha';
+import { calcularColorSemaforo } from '../../utils/semaforoColor';
 
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
+// Mismo motor que ya usa "Por proyecto" en CarteraDetalle.jsx — los
+// proyectos no tienen columna semaforo (solo etapas/acciones/tareas), así
+// que se colorean por avance real vs tiempo transcurrido, no por estado.
 function colorBarra(p) {
-  if (p.vencido) return 'bg-red-500';
-  if (p.estado === 'Completada') return 'bg-green-500';
-  if (p.estado === 'En_proceso') return 'bg-blue-500';
-  if (p.estado === 'Bloqueada') return 'bg-red-400';
-  if (p.estado === 'Cancelada') return 'bg-gray-400';
-  return 'bg-gray-300';
+  return calcularColorSemaforo(p.porcentaje_calculado, p.fecha_inicio_efectiva, p.fecha_fin_efectiva).color;
 }
 
 export default function CronogramaCartera({ proyectos = [] }) {
@@ -91,8 +90,8 @@ export default function CronogramaCartera({ proyectos = [] }) {
                       <div className="absolute top-0 bottom-0 w-px bg-guinda-400 opacity-60" style={{ left: `${hoyPct}%` }} />
                     )}
                     <div
-                      className={`absolute top-0.5 h-4 rounded-full flex items-center px-2 text-white text-[9px] font-bold overflow-hidden whitespace-nowrap ${colorBarra(p)}`}
-                      style={{ left: `${izq}%`, width: `${ancho}%` }}
+                      className="absolute top-0.5 h-4 rounded-full flex items-center px-2 text-white text-[9px] font-bold overflow-hidden whitespace-nowrap"
+                      style={{ left: `${izq}%`, width: `${ancho}%`, backgroundColor: colorBarra(p) }}
                       title={`${p.nombre}: ${p.fecha_inicio_efectiva?.slice(0, 10)} a ${p.fecha_fin_efectiva?.slice(0, 10)} — ${avance}%`}
                     >
                       {avance}%
