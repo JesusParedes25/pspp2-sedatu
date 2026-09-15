@@ -20,11 +20,14 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useMemo } from 'react';
-import { ListChecks, CalendarDays, AlertTriangle, Clock, TrendingUp, CheckCircle2, X, MessageSquare, ChevronDown } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ListChecks, CalendarDays, AlertTriangle, Clock, TrendingUp, CheckCircle2, X, MessageSquare, ChevronDown, Layers } from 'lucide-react';
 import * as accionesApi from '../api/acciones';
 import NodoCard from '../components/nodos/NodoCard';
 import ActividadStream from '../components/nodos/ActividadStream';
 import ArbolPorProyecto from '../components/common/ArbolPorProyecto';
+import { COLORES_SEMAFORO } from '../components/common/SemaforoDot';
+import { formatFecha } from '../utils/fecha';
 import Agenda from './Agenda';
 
 const PERIODOS = [
@@ -236,28 +239,33 @@ export default function MisActividades() {
 
           {/* Lista — agrupada por proyecto, colapsable, mismo componente que
               ya usa Tablero (ArbolPorProyecto: un árbol real Etapa › Acción
-              › Tarea dentro de cada proyecto, en vez de una lista plana
-              donde había que acordarse a mano de qué proyecto era cada
-              fila). Cada grupo de proyecto es un solo <div> raíz (ver
-              ArbolPorProyecto), así que pasándole un className de grid en
-              vez del space-y-1 de siempre, cada proyecto cae solo en su
-              propia celda — sin tocar el componente, ya soporta esto. Dos
-              columnas desde lg: antes quedaba una sola columna angosta
-              (max-w-2xl) con todo el lado derecho del panel vacío. */}
+              › Tarea dentro de cada proyecto). Grid de ancho automático
+              (auto-fit): cada tarjeta pide entre 380 y 480px, y el navegador
+              acomoda tantas columnas como quepan — ni una sola columna
+              angosta con medio panel vacío (pantalla ancha, pocas
+              columnas fijas) ni tarjetas estiradas sin necesidad (pantalla
+              angosta, columnas de más). Sin límite de ancho manual que
+              adivinar. */}
           {cargando ? (
-            <div className="max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-4 animate-pulse">{[1, 2, 3, 4].map(i => <div key={i} className="h-14 bg-gray-200 rounded-lg" />)}</div>
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(380px,480px))] gap-4 animate-pulse">{[1, 2, 3, 4].map(i => <div key={i} className="h-14 bg-gray-200 rounded-lg" />)}</div>
           ) : filtrados.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-gray-400">
               <ListChecks size={32} className="mb-2 text-gray-200" />
               <p className="text-sm">Sin actividades con los filtros seleccionados.</p>
             </div>
           ) : (
-            <div className="max-w-6xl">
-              <ArbolPorProyecto
-                items={filtrados}
-                vacio="Sin actividades con los filtros seleccionados."
-                className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-4 items-start"
-                renderItem={it => {
+            <ArbolPorProyecto
+              items={filtrados}
+              vacio="Sin actividades con los filtros seleccionados."
+              className="grid grid-cols-[repeat(auto-fit,minmax(380px,480px))] gap-x-6 gap-y-4 items-start"
+              // Una etapa siempre es contenedor — su avance se calcula de
+              // sus acciones, nunca se registra directo — así que no tiene
+              // sentido mostrarla como si fuera una tarjeta accionable más
+              // (checkbox, "Registrar avance"...). Se muestra como una fila
+              // compacta de solo información, pegada al encabezado que ya
+              // la nombra, no como una tarjeta duplicada aparte.
+              renderPropio={it => <FilaEtapaResumen key={it.id} it={it} />}
+              renderItem={it => {
                   const key = `${it.tipo}-${it.id}`;
                   const mostrarActividad = actividadAbierta.has(key);
                   return (
@@ -265,14 +273,11 @@ export default function MisActividades() {
                       <NodoCard
                         tipo={it.tipo}
                         nodo={it}
-                        // Etapa siempre es contenedor — antes se trataba toda
-                        // fila como hoja, así que una etapa pendiente ofrecía
-                        // "marcar completada"/"reportar riesgo" directo, que
-                        // no aplica a un nodo cuyo avance se calcula de sus
-                        // partes. Acción/tarea pueden ser contenedor si tienen
-                        // hijos, pero esta consulta de agenda (6 ramas UNION)
-                        // no trae es_hoja — se deja como caso de borde aparte.
-                        esContenedor={it.tipo === 'etapa'}
+                        // Acción/tarea son siempre hoja en esta lista de
+                        // agenda (no trae es_hoja) — solo la etapa es
+                        // contenedor, y esa ya no pasa por aquí (ver
+                        // renderPropio arriba).
+                        esContenedor={false}
                         proyectoId={it.proyecto_id}
                         permisos={PERMISOS_PROPIOS}
                         // El proyecto/etapa/acción ya se ve en los
@@ -310,12 +315,36 @@ export default function MisActividades() {
                   );
                 }}
               />
-            </div>
           )}
         </div>
       ) : (
         <Agenda />
       )}
+    </div>
+  );
+}
+
+// ─── Fila compacta de etapa (solo información, sin acción directa) ────
+// Una etapa siempre es contenedor: su avance/estado se calculan de sus
+// acciones, nunca se registran a mano — mostrarla con las mismas
+// afordancias que una tarjeta accionable (checkbox, "Registrar avance")
+// insinuaba algo que no se puede hacer. Aquí es solo lectura: semáforo +
+// fecha + responsable, con un enlace para ir a verla/gestionarla en el
+// proyecto.
+function FilaEtapaResumen({ it }) {
+  const fecha = it.fecha_limite || it.fecha_fin;
+  return (
+    <div className="flex items-center gap-2 py-1 text-[11px] text-gray-500">
+      <Layers size={11} className="flex-shrink-0" style={{ color: '#7B1C3E' }} />
+      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO[it.semaforo_efectivo || it.semaforo || 'gris'] }} />
+      {fecha && <span className="flex-shrink-0">Vence {formatFecha(fecha)}</span>}
+      {it.responsable_nombre && <span className="truncate">· {it.responsable_nombre}</span>}
+      <Link
+        to={`/proyectos/${it.proyecto_id}?tab=seguimiento&nodo=${it.id}`}
+        className="ml-auto flex-shrink-0 text-guinda-600 hover:underline font-medium"
+      >
+        Ver etapa
+      </Link>
     </div>
   );
 }

@@ -17,7 +17,7 @@ import { ChevronRight, ChevronDown, FolderKanban } from 'lucide-react';
 import { NIVELES } from '../../config/niveles';
 import { construirArbol } from '../../utils/arbolPorNodo';
 
-function NodoRama({ nodo, profundidad, renderItem }) {
+function NodoRama({ nodo, profundidad, renderItem, renderPropio }) {
   const info = NIVELES[nodo.tipo];
   const Icono = info.icono;
   return (
@@ -26,19 +26,29 @@ function NodoRama({ nodo, profundidad, renderItem }) {
         <Icono size={11} style={{ color: info.color }} className="flex-shrink-0" aria-hidden="true" />
         <span className="text-[11px] font-semibold text-gray-600 truncate">{nodo.nombre}</span>
       </div>
+      {/* nodo.propio: el item ES este tramo de ruta (p. ej. una etapa que
+          también aparece como item de su propia lista) — se renderiza
+          pegado a su encabezado, con renderPropio si se dio uno (para
+          distinguirlo visualmente de sus hijos reales), nunca como fila
+          suelta aparte. */}
+      {nodo.propio && (
+        <div style={{ paddingLeft: `${profundidad * 14}px` }}>
+          {(renderPropio || renderItem)(nodo.propio)}
+        </div>
+      )}
       {nodo.items.map(item => (
         <div key={item.id} style={{ paddingLeft: `${(profundidad + 1) * 14}px` }}>
           {renderItem(item)}
         </div>
       ))}
       {nodo.hijos.map(hijo => (
-        <NodoRama key={`${hijo.tipo}:${hijo.nombre}`} nodo={hijo} profundidad={profundidad + 1} renderItem={renderItem} />
+        <NodoRama key={`${hijo.tipo}:${hijo.nombre}`} nodo={hijo} profundidad={profundidad + 1} renderItem={renderItem} renderPropio={renderPropio} />
       ))}
     </div>
   );
 }
 
-function GrupoProyecto({ nombre, dgSiglas, items, getProyectoId: _omit, renderItem, abiertoInicial }) {
+function GrupoProyecto({ nombre, dgSiglas, items, getProyectoId: _omit, renderItem, renderPropio, abiertoInicial }) {
   const [abierto, setAbierto] = useState(abiertoInicial);
   const { raiz, sueltos } = construirArbol(items);
 
@@ -58,7 +68,7 @@ function GrupoProyecto({ nombre, dgSiglas, items, getProyectoId: _omit, renderIt
         <div className="pl-2.5 border-l-2 border-gray-100 ml-1">
           {sueltos.map(item => <div key={item.id}>{renderItem(item)}</div>)}
           {raiz.map(nodo => (
-            <NodoRama key={`${nodo.tipo}:${nodo.nombre}`} nodo={nodo} profundidad={0} renderItem={renderItem} />
+            <NodoRama key={`${nodo.tipo}:${nodo.nombre}`} nodo={nodo} profundidad={0} renderItem={renderItem} renderPropio={renderPropio} />
           ))}
         </div>
       )}
@@ -70,6 +80,12 @@ export default function ArbolPorProyecto({
   items = [],
   getProyectoId = item => item.proyecto_id ?? item.id_proyecto,
   renderItem,
+  // Opcional: cómo renderizar el item que ES el propio nodo de un tramo de
+  // ruta (ver construirArbol/nodo.propio) — p. ej. una etapa que además de
+  // encabezar a sus acciones aparece ella misma en la lista. Sin esta prop
+  // se usa renderItem igual que cualquier otro item (comportamiento previo,
+  // sin cambios para quien no la pase).
+  renderPropio,
   vacio = 'Nada que mostrar.',
   className = 'space-y-1',
 }) {
@@ -91,7 +107,7 @@ export default function ArbolPorProyecto({
   return (
     <div className={className}>
       {grupos.map(g => (
-        <GrupoProyecto key={g.id} nombre={g.nombre} dgSiglas={g.dgSiglas} items={g.items} renderItem={renderItem} abiertoInicial={grupos.length <= 3} />
+        <GrupoProyecto key={g.id} nombre={g.nombre} dgSiglas={g.dgSiglas} items={g.items} renderItem={renderItem} renderPropio={renderPropio} abiertoInicial={grupos.length <= 3} />
       ))}
     </div>
   );
