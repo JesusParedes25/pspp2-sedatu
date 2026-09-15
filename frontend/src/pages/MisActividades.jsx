@@ -24,6 +24,7 @@ import { ListChecks, CalendarDays, AlertTriangle, Clock, TrendingUp, CheckCircle
 import * as accionesApi from '../api/acciones';
 import NodoCard from '../components/nodos/NodoCard';
 import ActividadStream from '../components/nodos/ActividadStream';
+import ArbolPorProyecto from '../components/common/ArbolPorProyecto';
 import Agenda from './Agenda';
 
 const PERIODOS = [
@@ -233,65 +234,78 @@ export default function MisActividades() {
             )}
           </div>
 
-          {/* Lista */}
+          {/* Lista — agrupada por proyecto, colapsable, mismo componente que
+              ya usa Tablero (ArbolPorProyecto: un árbol real Etapa › Acción
+              › Tarea dentro de cada proyecto, en vez de una lista plana
+              donde había que acordarse a mano de qué proyecto era cada
+              fila). Ancho acotado (max-w-2xl): NodoCard es una fila
+              compacta (ícono + nombre + chips a la derecha) que en el
+              ancho completo del panel dejaba un vacío enorme en medio. */}
           {cargando ? (
-            <div className="space-y-2 animate-pulse">{[1, 2, 3].map(i => <div key={i} className="h-14 bg-gray-200 rounded-lg" />)}</div>
+            <div className="max-w-2xl space-y-2 animate-pulse">{[1, 2, 3].map(i => <div key={i} className="h-14 bg-gray-200 rounded-lg" />)}</div>
           ) : filtrados.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-gray-400">
               <ListChecks size={32} className="mb-2 text-gray-200" />
               <p className="text-sm">Sin actividades con los filtros seleccionados.</p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {filtrados.map(it => {
-                const breadcrumb = [it.proyecto_nombre, it.etapa_nombre, it.accion_nombre].filter(Boolean).join(' › ');
-                const key = `${it.tipo}-${it.id}`;
-                const mostrarActividad = actividadAbierta.has(key);
-                return (
-                  <div key={key}>
-                    <NodoCard
-                      tipo={it.tipo}
-                      nodo={it}
-                      // Etapa siempre es contenedor — antes se trataba toda
-                      // fila como hoja, así que una etapa pendiente ofrecía
-                      // "marcar completada"/"reportar riesgo" directo, que
-                      // no aplica a un nodo cuyo avance se calcula de sus
-                      // partes. Acción/tarea pueden ser contenedor si tienen
-                      // hijos, pero esta consulta de agenda (6 ramas UNION)
-                      // no trae es_hoja — se deja como caso de borde aparte.
-                      esContenedor={it.tipo === 'etapa'}
-                      proyectoId={it.proyecto_id}
-                      permisos={PERMISOS_PROPIOS}
-                      breadcrumb={breadcrumb}
-                      onProyectoClick={`/proyectos/${it.proyecto_id}?tab=seguimiento&nodo=${it.id}`}
-                      onCambiado={cargar}
-                      // Homologado con el rail de Seguimiento/Detalle y el
-                      // drawer de Diagrama (FichaNodo.jsx): Comentar/
-                      // Evidencia/Riesgos se sacan del grid de botones —
-                      // se recuperan abajo, bajo demanda, vía Actividad.
-                      agrupado
-                      onToggleAbierto={abierto => marcarAbierto(key, abierto)}
-                    />
-                    {abiertos.has(key) && (
-                      <div className="mt-1 ml-1">
-                        <button
-                          onClick={() => toggleActividad(key)}
-                          className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 hover:text-guinda-600 transition-colors"
-                        >
-                          <MessageSquare size={12} />
-                          Comentarios, evidencia y riesgos
-                          <ChevronDown size={11} className={`transition-transform ${mostrarActividad ? 'rotate-180' : ''}`} />
-                        </button>
-                        {mostrarActividad && (
-                          <div className="card p-3.5 mt-1.5">
-                            <ActividadStream tipo={it.tipo} id={it.id} titulo={it.nombre} />
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+            <div className="max-w-2xl">
+              <ArbolPorProyecto
+                items={filtrados}
+                vacio="Sin actividades con los filtros seleccionados."
+                renderItem={it => {
+                  const key = `${it.tipo}-${it.id}`;
+                  const mostrarActividad = actividadAbierta.has(key);
+                  return (
+                    <div className="py-0.5">
+                      <NodoCard
+                        tipo={it.tipo}
+                        nodo={it}
+                        // Etapa siempre es contenedor — antes se trataba toda
+                        // fila como hoja, así que una etapa pendiente ofrecía
+                        // "marcar completada"/"reportar riesgo" directo, que
+                        // no aplica a un nodo cuyo avance se calcula de sus
+                        // partes. Acción/tarea pueden ser contenedor si tienen
+                        // hijos, pero esta consulta de agenda (6 ramas UNION)
+                        // no trae es_hoja — se deja como caso de borde aparte.
+                        esContenedor={it.tipo === 'etapa'}
+                        proyectoId={it.proyecto_id}
+                        permisos={PERMISOS_PROPIOS}
+                        // El proyecto/etapa/acción ya se ve en los
+                        // encabezados del árbol que envuelve esta tarjeta —
+                        // repetir la ruta completa aquí era redundante. El
+                        // enlace se conserva, solo con texto corto.
+                        breadcrumb="Ver en proyecto"
+                        onProyectoClick={`/proyectos/${it.proyecto_id}?tab=seguimiento&nodo=${it.id}`}
+                        onCambiado={cargar}
+                        // Homologado con el rail de Seguimiento/Detalle y el
+                        // drawer de Diagrama (FichaNodo.jsx): Comentar/
+                        // Evidencia/Riesgos se sacan del grid de botones —
+                        // se recuperan abajo, bajo demanda, vía Actividad.
+                        agrupado
+                        onToggleAbierto={abierto => marcarAbierto(key, abierto)}
+                      />
+                      {abiertos.has(key) && (
+                        <div className="mt-1 ml-1">
+                          <button
+                            onClick={() => toggleActividad(key)}
+                            className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 hover:text-guinda-600 transition-colors"
+                          >
+                            <MessageSquare size={12} />
+                            Comentarios, evidencia y riesgos
+                            <ChevronDown size={11} className={`transition-transform ${mostrarActividad ? 'rotate-180' : ''}`} />
+                          </button>
+                          {mostrarActividad && (
+                            <div className="card p-3.5 mt-1.5">
+                              <ActividadStream tipo={it.tipo} id={it.id} titulo={it.nombre} />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }}
+              />
             </div>
           )}
         </div>
