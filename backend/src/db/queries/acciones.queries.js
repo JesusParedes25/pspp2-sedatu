@@ -408,7 +408,8 @@ async function obtenerAccionesAgenda(usuarioId) {
         p.id::text AS proyecto_id, p.nombre AS proyecto_nombre,
         NULL::text AS etapa_id, NULL::text AS etapa_nombre,
         NULL::text AS accion_id, NULL::text AS accion_nombre,
-        'responsable'::text AS mi_rol, e.prioridad, e.estatus_cualitativo
+        'responsable'::text AS mi_rol, e.prioridad, e.estatus_cualitativo,
+        NULL::boolean AS es_hoja
       FROM etapas e
       JOIN proyectos p ON p.id = e.id_proyecto AND p.deleted_at IS NULL
       LEFT JOIN usuarios u ON u.id = e.id_responsable
@@ -423,7 +424,8 @@ async function obtenerAccionesAgenda(usuarioId) {
         COALESCE(e.fecha_limite, e.fecha_fin),
         e.fecha_inicio,
         e.id_responsable::text, u.nombre_completo,
-        p.id::text, p.nombre, NULL, NULL, NULL, NULL, nm.rol, e.prioridad, e.estatus_cualitativo
+        p.id::text, p.nombre, NULL, NULL, NULL, NULL, nm.rol, e.prioridad, e.estatus_cualitativo,
+        NULL::boolean
       FROM etapas e
       JOIN proyectos p ON p.id = e.id_proyecto AND p.deleted_at IS NULL
       LEFT JOIN usuarios u ON u.id = e.id_responsable
@@ -439,7 +441,9 @@ async function obtenerAccionesAgenda(usuarioId) {
         COALESCE(a.fecha_limite, a.fecha_fin),
         a.fecha_inicio,
         a.id_responsable::text, u.nombre_completo,
-        p.id::text, p.nombre, e.id::text, e.nombre, NULL, NULL, 'responsable', a.prioridad, a.estatus_cualitativo
+        p.id::text, p.nombre, e.id::text, e.nombre, NULL, NULL, 'responsable', a.prioridad, a.estatus_cualitativo,
+        NOT EXISTS (SELECT 1 FROM acciones sub WHERE sub.id_accion_padre = a.id)
+          AND NOT EXISTS (SELECT 1 FROM tareas tt WHERE tt.id_accion = a.id)
       FROM acciones a
       JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
       LEFT JOIN etapas e ON e.id = a.id_etapa
@@ -455,7 +459,9 @@ async function obtenerAccionesAgenda(usuarioId) {
         COALESCE(a.fecha_limite, a.fecha_fin),
         a.fecha_inicio,
         a.id_responsable::text, u.nombre_completo,
-        p.id::text, p.nombre, e.id::text, e.nombre, NULL, NULL, nm.rol, a.prioridad, a.estatus_cualitativo
+        p.id::text, p.nombre, e.id::text, e.nombre, NULL, NULL, nm.rol, a.prioridad, a.estatus_cualitativo,
+        NOT EXISTS (SELECT 1 FROM acciones sub WHERE sub.id_accion_padre = a.id)
+          AND NOT EXISTS (SELECT 1 FROM tareas tt WHERE tt.id_accion = a.id)
       FROM acciones a
       JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
       LEFT JOIN etapas e ON e.id = a.id_etapa
@@ -472,7 +478,8 @@ async function obtenerAccionesAgenda(usuarioId) {
         t.fecha_limite,
         t.fecha_inicio,
         t.id_responsable::text, u.nombre_completo,
-        p.id::text, p.nombre, e.id::text, e.nombre, a.id::text, a.nombre, 'responsable', t.prioridad, t.estatus_cualitativo
+        p.id::text, p.nombre, e.id::text, e.nombre, a.id::text, a.nombre, 'responsable', t.prioridad, t.estatus_cualitativo,
+        true
       FROM tareas t
       JOIN acciones a ON a.id = t.id_accion
       JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
@@ -489,7 +496,8 @@ async function obtenerAccionesAgenda(usuarioId) {
         COALESCE(e.fecha_limite, e.fecha_fin),
         e.fecha_inicio,
         e.id_responsable::text, u.nombre_completo,
-        p.id::text, p.nombre, NULL, NULL, NULL, NULL, 'coordinador', e.prioridad, e.estatus_cualitativo
+        p.id::text, p.nombre, NULL, NULL, NULL, NULL, 'coordinador', e.prioridad, e.estatus_cualitativo,
+        NULL::boolean
       FROM etapas e
       JOIN proyectos p ON p.id = e.id_proyecto AND p.deleted_at IS NULL
       LEFT JOIN usuarios u ON u.id = e.id_responsable
@@ -512,7 +520,9 @@ async function obtenerAccionesAgenda(usuarioId) {
         COALESCE(a.fecha_limite, a.fecha_fin),
         a.fecha_inicio,
         a.id_responsable::text, u.nombre_completo,
-        p.id::text, p.nombre, e.id::text, e.nombre, NULL, NULL, 'coordinador', a.prioridad, a.estatus_cualitativo
+        p.id::text, p.nombre, e.id::text, e.nombre, NULL, NULL, 'coordinador', a.prioridad, a.estatus_cualitativo,
+        NOT EXISTS (SELECT 1 FROM acciones sub WHERE sub.id_accion_padre = a.id)
+          AND NOT EXISTS (SELECT 1 FROM tareas tt WHERE tt.id_accion = a.id)
       FROM acciones a
       JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
       LEFT JOIN etapas e ON e.id = a.id_etapa
@@ -536,7 +546,8 @@ async function obtenerAccionesAgenda(usuarioId) {
         t.fecha_limite,
         t.fecha_inicio,
         t.id_responsable::text, u.nombre_completo,
-        p.id::text, p.nombre, e.id::text, e.nombre, a.id::text, a.nombre, 'coordinador', t.prioridad, t.estatus_cualitativo
+        p.id::text, p.nombre, e.id::text, e.nombre, a.id::text, a.nombre, 'coordinador', t.prioridad, t.estatus_cualitativo,
+        true
       FROM tareas t
       JOIN acciones a ON a.id = t.id_accion
       JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL

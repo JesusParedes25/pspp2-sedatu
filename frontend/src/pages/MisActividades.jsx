@@ -21,13 +21,14 @@
  */
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { ListChecks, CalendarDays, AlertTriangle, Clock, TrendingUp, CheckCircle2, X, MessageSquare, ChevronDown, Layers } from 'lucide-react';
+import { ListChecks, CalendarDays, AlertTriangle, Clock, TrendingUp, CheckCircle2, X, MessageSquare, ChevronDown } from 'lucide-react';
 import * as accionesApi from '../api/acciones';
 import NodoCard from '../components/nodos/NodoCard';
 import ActividadStream from '../components/nodos/ActividadStream';
 import ArbolPorProyecto from '../components/common/ArbolPorProyecto';
 import { COLORES_SEMAFORO } from '../components/common/SemaforoDot';
 import { formatFecha } from '../utils/fecha';
+import { NIVELES } from '../config/niveles';
 import Agenda from './Agenda';
 
 const PERIODOS = [
@@ -259,13 +260,15 @@ export default function MisActividades() {
               vacio="Sin actividades con los filtros seleccionados."
               className="grid grid-cols-[repeat(auto-fit,minmax(380px,480px))] gap-x-6 gap-y-4 items-start"
               variante="destacado"
-              // Una etapa siempre es contenedor — su avance se calcula de
-              // sus acciones, nunca se registra directo — así que no tiene
-              // sentido mostrarla como si fuera una tarjeta accionable más
-              // (checkbox, "Registrar avance"...). Se muestra como una fila
-              // compacta de solo información, pegada al encabezado que ya
-              // la nombra, no como una tarjeta duplicada aparte.
-              renderPropio={it => <FilaEtapaResumen key={it.id} it={it} />}
+              // Una etapa siempre es contenedor (su avance se calcula de
+              // sus acciones) y una acción lo es cuando tiene subacciones o
+              // tareas propias (es_hoja=false) — en ambos casos, mostrarla
+              // como si fuera una tarjeta accionable más (checkbox,
+              // "Registrar avance"...) insinúa algo que no se puede hacer.
+              // Se muestra como una fila compacta de solo información,
+              // pegada al encabezado que ya la nombra, no como una tarjeta
+              // duplicada aparte (ver es_hoja en construirArbol).
+              renderPropio={it => <FilaNodoResumen key={it.id} it={it} />}
               renderItem={it => {
                   const key = `${it.tipo}-${it.id}`;
                   const mostrarActividad = actividadAbierta.has(key);
@@ -274,10 +277,10 @@ export default function MisActividades() {
                       <NodoCard
                         tipo={it.tipo}
                         nodo={it}
-                        // Acción/tarea son siempre hoja en esta lista de
-                        // agenda (no trae es_hoja) — solo la etapa es
-                        // contenedor, y esa ya no pasa por aquí (ver
-                        // renderPropio arriba).
+                        // Todo lo que llega aquí (no a renderPropio) ya es
+                        // hoja real: etapa nunca llega, y una acción con
+                        // es_hoja=false tampoco (ver construirArbol) — solo
+                        // queda esContenedor=false para lo que sí llega.
                         esContenedor={false}
                         proyectoId={it.proyecto_id}
                         permisos={PERMISOS_PROPIOS}
@@ -325,18 +328,23 @@ export default function MisActividades() {
   );
 }
 
-// ─── Fila compacta de etapa (solo información, sin acción directa) ────
-// Una etapa siempre es contenedor: su avance/estado se calculan de sus
-// acciones, nunca se registran a mano — mostrarla con las mismas
-// afordancias que una tarjeta accionable (checkbox, "Registrar avance")
-// insinuaba algo que no se puede hacer. Aquí es solo lectura: semáforo +
-// fecha + responsable, con un enlace para ir a verla/gestionarla en el
-// proyecto.
-function FilaEtapaResumen({ it }) {
+// ─── Fila compacta de nodo contenedor (solo información, sin acción
+// directa) ──────────────────────────────────────────────────────────
+// Una etapa siempre es contenedor; una acción lo es cuando tiene
+// subacciones o tareas propias (es_hoja=false) — en ambos casos su
+// avance/estado se calculan de sus hijos, nunca se registran a mano.
+// Mostrarla con las mismas afordancias que una tarjeta accionable
+// (checkbox, "Registrar avance") insinuaba algo que no se puede hacer.
+// Aquí es solo lectura: ícono+color del nivel (mismo criterio que el
+// resto del árbol) + semáforo + fecha + responsable, con un enlace para
+// ir a verla/gestionarla en el proyecto.
+function FilaNodoResumen({ it }) {
+  const info = NIVELES[it.tipo];
+  const Icono = info.icono;
   const fecha = it.fecha_limite || it.fecha_fin;
   return (
     <div className="flex items-center gap-2 py-1 text-[11px] text-gray-500">
-      <Layers size={11} className="flex-shrink-0" style={{ color: '#7B1C3E' }} />
+      <Icono size={11} className="flex-shrink-0" style={{ color: info.color }} />
       <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO[it.semaforo_efectivo || it.semaforo || 'gris'] }} />
       {fecha && <span className="flex-shrink-0">Vence {formatFecha(fecha)}</span>}
       {it.responsable_nombre && <span className="truncate">· {it.responsable_nombre}</span>}
@@ -344,7 +352,7 @@ function FilaEtapaResumen({ it }) {
         to={`/proyectos/${it.proyecto_id}?tab=seguimiento&nodo=${it.id}`}
         className="ml-auto flex-shrink-0 text-guinda-600 hover:underline font-medium"
       >
-        Ver etapa
+        Ver {info.label.toLowerCase()}
       </Link>
     </div>
   );

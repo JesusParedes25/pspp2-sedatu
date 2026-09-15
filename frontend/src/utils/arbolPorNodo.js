@@ -14,12 +14,21 @@
  * el mismo nombre de etapa una y otra vez.
  *
  * Caso especial — un item que es EL PROPIO nodo de un tramo de ruta (una
- * etapa en una lista de "mis actividades", donde etapa y acción conviven
- * como items del mismo nivel): sin este caso, una etapa caía en `sueltos`
- * (fila suelta, sin conexión visual con sus acciones) Y ADEMÁS su nombre
- * generaba un encabezado de árbol aparte para esas mismas acciones — la
- * etapa terminaba apareciendo dos veces. Aquí se fusiona con su propio
- * nodo del árbol como `nodo.propio`, nunca como fila suelta.
+ * etapa, o una acción con hijos propios, en una lista de "mis
+ * actividades" donde etapa/acción/tarea conviven como items del mismo
+ * nivel): sin este caso, ese item caía en `sueltos` (fila suelta, sin
+ * conexión visual con sus hijos) Y ADEMÁS su nombre generaba un
+ * encabezado de árbol aparte para esos mismos hijos — el nodo terminaba
+ * apareciendo dos veces, una como tarjeta editable (como si se pudiera
+ * registrar su avance a mano) y otra como encabezado. Aquí se fusiona con
+ * su propio nodo del árbol como `nodo.propio`, nunca como fila suelta ni
+ * como tarjeta editable.
+ *
+ * Una etapa SIEMPRE cuenta como caso especial (su avance siempre se
+ * calcula de sus acciones). Una acción cuenta solo cuando el llamador
+ * marcó `es_hoja: false` (tiene subacciones o tareas reales) — sin ese
+ * dato (callers que no lo traen, como los widgets de Tablero) una acción
+ * se sigue tratando como cualquier otro item de hoja, igual que siempre.
  */
 export function construirArbol(items) {
   const raiz = [];
@@ -31,7 +40,8 @@ export function construirArbol(items) {
     // Una etapa nunca tiene su propio nombre en etapa_nombre/accion_nombre
     // (esos campos describen a SU contenedor, no a ella misma) — así se
     // detecta sin depender de nada más que ya no traiga el item.
-    if (item.tipo === 'etapa') {
+    const esCasoEspecial = item.tipo === 'etapa' || (item.tipo === 'accion' && item.es_hoja === false);
+    if (esCasoEspecial) {
       propios.push(item);
       continue;
     }
@@ -63,18 +73,31 @@ export function construirArbol(items) {
     });
   }
 
-  // Segunda pasada: cada etapa "propia" se adjunta a su nodo del árbol
-  // (creándolo, vacío de hijos, si esta etapa no tiene ninguna acción en
-  // esta lista) — así una etapa SIEMPRE aparece en su lugar del árbol,
-  // nunca como fila suelta desconectada.
+  // Segunda pasada: cada item "propio" se adjunta a su nodo del árbol
+  // (creándolo, vacío de hijos, si no tiene ningún hijo en esta lista) —
+  // así SIEMPRE aparece en su lugar del árbol, nunca como fila suelta
+  // desconectada. La ruta se arma igual que arriba, terminando en su
+  // propio tipo+nombre (una etapa no tiene tramo previo; una acción sí,
+  // si está bajo una etapa).
   for (const item of propios) {
-    const ruta = `/etapa:${item.nombre}`;
-    let nodo = indice.get(ruta);
-    if (!nodo) {
-      nodo = { tipo: 'etapa', nombre: item.nombre, hijos: [], items: [] };
-      indice.set(ruta, nodo);
-      raiz.push(nodo);
-    }
+    const pasos = [];
+    if (item.etapa_nombre) pasos.push({ tipo: 'etapa', nombre: item.etapa_nombre });
+    if (item.accion_padre_nombre) pasos.push({ tipo: 'accion', nombre: item.accion_padre_nombre });
+    pasos.push({ tipo: item.tipo, nombre: item.nombre });
+
+    let nivel = raiz;
+    let ruta = '';
+    let nodo = null;
+    pasos.forEach(paso => {
+      ruta += `/${paso.tipo}:${paso.nombre}`;
+      nodo = indice.get(ruta);
+      if (!nodo) {
+        nodo = { tipo: paso.tipo, nombre: paso.nombre, hijos: [], items: [] };
+        indice.set(ruta, nodo);
+        nivel.push(nodo);
+      }
+      nivel = nodo.hijos;
+    });
     nodo.propio = item;
   }
 
