@@ -399,7 +399,7 @@ async function obtenerAccionesAgenda(usuarioId) {
 
       -- 1. Etapas donde el usuario es responsable directo
       SELECT 'etapa'::text AS tipo,
-        e.id::text AS id, e.nombre, e.estado, e.semaforo,
+        e.id::text AS id, e.nombre, e.estado, e.semaforo, e.semaforo_override,
         COALESCE(e.avance_actual, 0) AS avance_actual,
         COALESCE(e.fecha_limite, e.fecha_fin) AS fecha_fin,
         e.fecha_inicio AS fecha_inicio,
@@ -418,7 +418,7 @@ async function obtenerAccionesAgenda(usuarioId) {
       UNION ALL
 
       -- 2. Etapas donde el usuario es miembro de nodo (colaborador/invitado)
-      SELECT 'etapa', e.id::text, e.nombre, e.estado, e.semaforo,
+      SELECT 'etapa', e.id::text, e.nombre, e.estado, e.semaforo, e.semaforo_override,
         COALESCE(e.avance_actual, 0),
         COALESCE(e.fecha_limite, e.fecha_fin),
         e.fecha_inicio,
@@ -434,7 +434,7 @@ async function obtenerAccionesAgenda(usuarioId) {
       UNION ALL
 
       -- 3. Acciones donde el usuario es responsable directo
-      SELECT 'accion', a.id::text, a.nombre, a.estado, a.semaforo,
+      SELECT 'accion', a.id::text, a.nombre, a.estado, a.semaforo, a.semaforo_override,
         COALESCE(a.avance_actual, 0),
         COALESCE(a.fecha_limite, a.fecha_fin),
         a.fecha_inicio,
@@ -450,7 +450,7 @@ async function obtenerAccionesAgenda(usuarioId) {
       UNION ALL
 
       -- 4. Acciones donde el usuario es miembro de nodo
-      SELECT 'accion', a.id::text, a.nombre, a.estado, a.semaforo,
+      SELECT 'accion', a.id::text, a.nombre, a.estado, a.semaforo, a.semaforo_override,
         COALESCE(a.avance_actual, 0),
         COALESCE(a.fecha_limite, a.fecha_fin),
         a.fecha_inicio,
@@ -467,7 +467,7 @@ async function obtenerAccionesAgenda(usuarioId) {
       UNION ALL
 
       -- 5. Tareas donde el usuario es responsable directo
-      SELECT 'tarea', t.id::text, t.nombre, t.estado, t.semaforo,
+      SELECT 'tarea', t.id::text, t.nombre, t.estado, t.semaforo, t.semaforo_override,
         COALESCE(t.avance_actual, 0),
         t.fecha_limite,
         t.fecha_inicio,
@@ -484,7 +484,7 @@ async function obtenerAccionesAgenda(usuarioId) {
       UNION ALL
 
       -- 6. ETAPAS de proyectos donde el usuario es admin/creador (muestra responsable de cada etapa)
-      SELECT 'etapa', e.id::text, e.nombre, e.estado, e.semaforo,
+      SELECT 'etapa', e.id::text, e.nombre, e.estado, e.semaforo, e.semaforo_override,
         COALESCE(e.avance_actual, 0),
         COALESCE(e.fecha_limite, e.fecha_fin),
         e.fecha_inicio,
@@ -507,7 +507,7 @@ async function obtenerAccionesAgenda(usuarioId) {
       UNION ALL
 
       -- 7. ACCIONES de proyectos donde el usuario es admin/creador
-      SELECT 'accion', a.id::text, a.nombre, a.estado, a.semaforo,
+      SELECT 'accion', a.id::text, a.nombre, a.estado, a.semaforo, a.semaforo_override,
         COALESCE(a.avance_actual, 0),
         COALESCE(a.fecha_limite, a.fecha_fin),
         a.fecha_inicio,
@@ -531,7 +531,7 @@ async function obtenerAccionesAgenda(usuarioId) {
       UNION ALL
 
       -- 8. TAREAS de proyectos donde el usuario es admin/creador
-      SELECT 'tarea', t.id::text, t.nombre, t.estado, t.semaforo,
+      SELECT 'tarea', t.id::text, t.nombre, t.estado, t.semaforo, t.semaforo_override,
         COALESCE(t.avance_actual, 0),
         t.fecha_limite,
         t.fecha_inicio,
