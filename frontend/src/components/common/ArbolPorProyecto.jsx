@@ -48,9 +48,42 @@ function NodoRama({ nodo, profundidad, renderItem, renderPropio }) {
   );
 }
 
-function GrupoProyecto({ nombre, dgSiglas, items, getProyectoId: _omit, renderItem, renderPropio, abiertoInicial }) {
+// "compacto" (default, el de siempre): pensado para los widgets angostos
+// de Tablero — texto chico, sin fondo. "destacado": para una página
+// completa (Mis actividades) donde ese mismo encabezado chico se perdía
+// entre las tarjetas de abajo y no se leía como algo clicable — una barra
+// real con fondo, borde e ícono más grande, que cambia al pasar el mouse.
+function GrupoProyecto({ nombre, dgSiglas, items, getProyectoId: _omit, renderItem, renderPropio, abiertoInicial, variante = 'compacto' }) {
   const [abierto, setAbierto] = useState(abiertoInicial);
   const { raiz, sueltos } = construirArbol(items);
+
+  if (variante === 'destacado') {
+    return (
+      <div>
+        <button
+          type="button"
+          onClick={() => setAbierto(a => !a)}
+          className="flex items-center gap-2 w-full text-left px-3 py-2.5 rounded-lg bg-white border border-gray-200 hover:border-guinda-300 hover:bg-guinda-50/50 shadow-sm transition-colors group"
+        >
+          <span className="w-6 h-6 rounded-md bg-guinda-50 text-guinda-600 flex items-center justify-center flex-shrink-0 group-hover:bg-guinda-100">
+            <FolderKanban size={13} />
+          </span>
+          <span className="text-sm font-bold text-gray-800 truncate flex-1">{nombre}</span>
+          {dgSiglas && <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded flex-shrink-0">{dgSiglas}</span>}
+          <span className="text-[11px] font-medium text-gray-400 flex-shrink-0">{items.length}</span>
+          {abierto ? <ChevronDown size={16} className="text-gray-400 flex-shrink-0" /> : <ChevronRight size={16} className="text-gray-400 flex-shrink-0" />}
+        </button>
+        {abierto && (
+          <div className="pl-3 border-l-2 border-gray-100 ml-4 mt-2">
+            {sueltos.map(item => <div key={item.id}>{renderItem(item)}</div>)}
+            {raiz.map(nodo => (
+              <NodoRama key={`${nodo.tipo}:${nodo.nombre}`} nodo={nodo} profundidad={0} renderItem={renderItem} renderPropio={renderPropio} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -88,6 +121,10 @@ export default function ArbolPorProyecto({
   renderPropio,
   vacio = 'Nada que mostrar.',
   className = 'space-y-1',
+  // 'compacto' (default): el de siempre, para los widgets de Tablero.
+  // 'destacado': encabezado de proyecto con más peso visual — para
+  // páginas completas donde el compacto se pierde entre las tarjetas.
+  variante = 'compacto',
 }) {
   if (items.length === 0) {
     return <p className="text-xs text-gray-400 italic">{vacio}</p>;
@@ -107,7 +144,7 @@ export default function ArbolPorProyecto({
   return (
     <div className={className}>
       {grupos.map(g => (
-        <GrupoProyecto key={g.id} nombre={g.nombre} dgSiglas={g.dgSiglas} items={g.items} renderItem={renderItem} renderPropio={renderPropio} abiertoInicial={grupos.length <= 3} />
+        <GrupoProyecto key={g.id} nombre={g.nombre} dgSiglas={g.dgSiglas} items={g.items} renderItem={renderItem} renderPropio={renderPropio} abiertoInicial={grupos.length <= 3} variante={variante} />
       ))}
     </div>
   );
