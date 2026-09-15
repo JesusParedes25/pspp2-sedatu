@@ -238,21 +238,25 @@ export default function MisActividades() {
               ya usa Tablero (ArbolPorProyecto: un árbol real Etapa › Acción
               › Tarea dentro de cada proyecto, en vez de una lista plana
               donde había que acordarse a mano de qué proyecto era cada
-              fila). Ancho acotado (max-w-2xl): NodoCard es una fila
-              compacta (ícono + nombre + chips a la derecha) que en el
-              ancho completo del panel dejaba un vacío enorme en medio. */}
+              fila). Cada grupo de proyecto es un solo <div> raíz (ver
+              ArbolPorProyecto), así que pasándole un className de grid en
+              vez del space-y-1 de siempre, cada proyecto cae solo en su
+              propia celda — sin tocar el componente, ya soporta esto. Dos
+              columnas desde lg: antes quedaba una sola columna angosta
+              (max-w-2xl) con todo el lado derecho del panel vacío. */}
           {cargando ? (
-            <div className="max-w-2xl space-y-2 animate-pulse">{[1, 2, 3].map(i => <div key={i} className="h-14 bg-gray-200 rounded-lg" />)}</div>
+            <div className="max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-4 animate-pulse">{[1, 2, 3, 4].map(i => <div key={i} className="h-14 bg-gray-200 rounded-lg" />)}</div>
           ) : filtrados.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-gray-400">
               <ListChecks size={32} className="mb-2 text-gray-200" />
               <p className="text-sm">Sin actividades con los filtros seleccionados.</p>
             </div>
           ) : (
-            <div className="max-w-2xl">
+            <div className="max-w-6xl">
               <ArbolPorProyecto
                 items={filtrados}
                 vacio="Sin actividades con los filtros seleccionados."
+                className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-4 items-start"
                 renderItem={it => {
                   const key = `${it.tipo}-${it.id}`;
                   const mostrarActividad = actividadAbierta.has(key);
