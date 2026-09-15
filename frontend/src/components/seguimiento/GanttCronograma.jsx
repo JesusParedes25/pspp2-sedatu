@@ -22,14 +22,7 @@ import { ChevronDown, ChevronRight, Milestone, Layers, CheckSquare } from 'lucid
 import * as accionesApi from '../../api/acciones';
 import * as tareasApi from '../../api/tareas';
 import { parseFechaLocal, formatFecha } from '../../utils/fecha';
-
-const COLORES = {
-  Completada:  { barra: 'bg-emerald-500', fondo: 'bg-emerald-100', texto: 'text-emerald-700' },
-  En_proceso:  { barra: 'bg-blue-500',    fondo: 'bg-blue-100',    texto: 'text-blue-700'    },
-  Pendiente:   { barra: 'bg-slate-400',   fondo: 'bg-slate-100',   texto: 'text-slate-600'   },
-  Bloqueada:   { barra: 'bg-red-400',     fondo: 'bg-red-100',     texto: 'text-red-700'     },
-  Cancelada:   { barra: 'bg-gray-300',    fondo: 'bg-gray-100',    texto: 'text-gray-500'    },
-};
+import { COLORES_SEMAFORO, CHIP_BG, LEYENDA_SEMAFORO } from '../common/SemaforoDot';
 
 const ANCHO_NOMBRES = 'w-72';
 
@@ -167,9 +160,11 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
   const fmtFecha = (f) => formatFecha(f) || '—';
 
   // ─── Componente de fila de barra ─────────────────────────────
-  function FilaGantt({ nombre, fechaInicio, fechaFin, estado, porcentaje, nivel, tieneHijos, estaExpandida, onToggle, esHito, esTarea }) {
+  function FilaGantt({ nombre, fechaInicio, fechaFin, estado, semaforo, porcentaje, nivel, tieneHijos, estaExpandida, onToggle, esHito, esTarea }) {
     const barra = calcularBarra(fechaInicio, fechaFin);
-    const colores = COLORES[estado] || COLORES.Pendiente;
+    const sem = semaforo || 'gris';
+    const colorBarra = COLORES_SEMAFORO[sem];
+    const colorFondo = CHIP_BG[sem];
     const pct = parseFloat(porcentaje || 0);
 
     const paddingLeft = nivel === 0 ? 'pl-3' : nivel === 1 ? 'pl-9' : 'pl-14';
@@ -201,7 +196,10 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
           </span>
 
           {/* Chip porcentaje pequeño */}
-          <span className={`ml-auto text-[10px] font-bold flex-shrink-0 px-1.5 py-0.5 rounded-full ${colores.fondo} ${colores.texto}`}>
+          <span
+            className="ml-auto text-[10px] font-bold flex-shrink-0 px-1.5 py-0.5 rounded-full"
+            style={{ backgroundColor: colorFondo, color: colorBarra }}
+          >
             {pct.toFixed(0)}%
           </span>
         </div>
@@ -233,9 +231,9 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
               onMouseLeave={() => setTooltip(null)}
             >
               {/* Fondo */}
-              <div className={`absolute inset-0 ${colores.fondo} opacity-60`} />
+              <div className="absolute inset-0 opacity-60" style={{ backgroundColor: colorFondo }} />
               {/* Progreso */}
-              <div className={`absolute inset-y-0 left-0 ${colores.barra} transition-all duration-300`} style={{ width: `${Math.min(pct, 100)}%` }} />
+              <div className="absolute inset-y-0 left-0 transition-all duration-300" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: colorBarra }} />
               {/* Texto */}
               {nivel === 0 && (
                 <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white mix-blend-difference">
@@ -298,6 +296,7 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
                 fechaInicio={etapa.fecha_inicio}
                 fechaFin={etapa.fecha_fin}
                 estado={etapa.estado}
+                semaforo={etapa.semaforo_efectivo}
                 porcentaje={etapa.avance_efectivo ?? etapa.porcentaje_calculado}
                 nivel={0}
                 tieneHijos={tieneAcciones}
@@ -324,6 +323,7 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
                       fechaInicio={accion.fecha_inicio_efectiva || accion.fecha_inicio}
                       fechaFin={accion.fecha_fin_efectiva || accion.fecha_fin}
                       estado={accion.estado}
+                      semaforo={accion.semaforo_efectivo}
                       porcentaje={accion.avance_efectivo ?? accion.porcentaje_avance}
                       nivel={1}
                       tieneHijos={tieneHijosAccion}
@@ -342,6 +342,7 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
                         fechaInicio={sub.fecha_inicio_efectiva || sub.fecha_inicio}
                         fechaFin={sub.fecha_fin_efectiva || sub.fecha_fin}
                         estado={sub.estado}
+                        semaforo={sub.semaforo_efectivo}
                         porcentaje={sub.avance_efectivo ?? sub.porcentaje_avance}
                         nivel={2}
                         tieneHijos={false}
@@ -363,10 +364,10 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
 
       {/* Leyenda */}
       <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-200 flex items-center gap-5 text-[11px] text-gray-500 flex-wrap">
-        {Object.entries(COLORES).filter(([k]) => k !== 'Cancelada').map(([estado, c]) => (
-          <span key={estado} className="flex items-center gap-1.5">
-            <span className={`w-4 h-2.5 rounded-sm ${c.barra}`} />
-            {estado.replace(/_/g, ' ')}
+        {Object.entries(LEYENDA_SEMAFORO).map(([sem, texto]) => (
+          <span key={sem} className="flex items-center gap-1.5">
+            <span className="w-4 h-2.5 rounded-sm" style={{ backgroundColor: COLORES_SEMAFORO[sem] }} />
+            {texto}
           </span>
         ))}
         {hoyPos && (
