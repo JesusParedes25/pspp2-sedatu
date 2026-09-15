@@ -258,6 +258,7 @@ export default function MisActividades() {
               items={filtrados}
               vacio="Sin actividades con los filtros seleccionados."
               className="grid grid-cols-[repeat(auto-fit,minmax(380px,480px))] gap-x-6 gap-y-4 items-start"
+              variante="destacado"
               // Una etapa siempre es contenedor — su avance se calcula de
               // sus acciones, nunca se registra directo — así que no tiene
               // sentido mostrarla como si fuera una tarjeta accionable más
