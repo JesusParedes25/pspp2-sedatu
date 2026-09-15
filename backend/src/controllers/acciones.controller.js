@@ -250,7 +250,11 @@ async function importarCSV(req, res, next) {
 async function agenda(req, res, next) {
   try {
     const items = await accionesQueries.obtenerAccionesAgenda(req.usuario.id);
-    res.json({ datos: items, mensaje: 'Agenda obtenida' });
+    // Mismo cálculo que ya usa el árbol de Seguimiento — antes la Agenda
+    // decidía el color de cada punto solo por días-hasta-vencer, sin mirar
+    // prioridad ni respetar un semáforo fijado a mano (semaforo_override).
+    const datos = items.map(i => ({ ...i, semaforo_efectivo: avanceSemaforo.semaforoEfectivo(i) }));
+    res.json({ datos, mensaje: 'Agenda obtenida' });
   } catch (err) {
     next(err);
   }

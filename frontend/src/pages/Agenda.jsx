@@ -35,14 +35,21 @@ const ROL={
   invitado:   'bg-gray-100 text-gray-600 border border-gray-200',
   coordinador:'bg-purple-50 text-purple-700 border border-purple-200',
 };
-const DOT={rojo:'bg-red-500',naranja:'bg-orange-500',ambar:'bg-amber-400',azul:'bg-blue-400',gris:'bg-gray-300'};
+const DOT={rojo:'bg-red-500',naranja:'bg-orange-500',ambar:'bg-amber-400',verde:'bg-green-500',gris:'bg-gray-300'};
 function norm(s){if(!s)return null;return String(s).slice(0,10);}
 function pFecha(s){if(!s)return null;const str=norm(s);const[y,m,d]=str.split('-').map(Number);if(!y||!m||!d)return null;return new Date(y,m-1,d);}
 function diff(s){if(!s)return null;const h=new Date();h.setHours(0,0,0,0);const t=pFecha(s);if(!t)return null;return Math.ceil((t-h)/86400000);}
 function fmt(s){if(!s)return '--';const d=pFecha(s);return d?d.toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}):'-';}
+// Mismo semáforo que ya usa el resto de la plataforma (semaforo_efectivo,
+// calculado en el backend por avance-semaforo.js — respeta estado,
+// prioridad y un semáforo fijado a mano) — antes la Agenda decidía su
+// propio color solo por días-hasta-vencer, sin mirar nada de eso. "Vence
+// hoy" (naranja) es el único matiz que sigue siendo propio de la vista de
+// calendario, para que el día de hoy salte a la vista.
 function ukey(it){
   if(it.estado==='Completada'||it.estado==='Cancelada')return'gris';
-  const d=diff(it.fecha_fin);return d===null?'gris':d<0?'rojo':d===0?'naranja':d<=7?'ambar':'azul';
+  if(diff(it.fecha_fin)===0)return'naranja';
+  return it.semaforo_efectivo||'gris';
 }
 // true si el día "str" (YYYY-MM-DD) es el día de inicio O el de fin de la
 // actividad — solo esos dos días muestran punto en el calendario (no todos
@@ -163,7 +170,7 @@ function Item({it}){
           {it.accion_nombre&&<><span>&#x203A;</span><span className="truncate max-w-[110px]">{it.accion_nombre}</span></>}
         </div>
         <div className="flex items-center gap-2 mt-2">
-          <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden"><div style={{width:`${it.avance_actual||0}%`}} className={`h-full rounded-full ${it.estado==='Completada'?'bg-green-500':it.semaforo==='rojo'?'bg-red-400':it.semaforo==='ambar'?'bg-amber-400':'bg-guinda-400'}`}/></div>
+          <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden"><div style={{width:`${it.avance_actual||0}%`}} className={`h-full rounded-full ${it.estado==='Completada'?'bg-green-500':it.semaforo_efectivo==='rojo'?'bg-red-400':it.semaforo_efectivo==='ambar'?'bg-amber-400':'bg-guinda-400'}`}/></div>
           <span className="text-xs text-gray-500 w-8 text-right">{it.avance_actual||0}%</span>
         </div>
         <BarraRango it={it}/>
