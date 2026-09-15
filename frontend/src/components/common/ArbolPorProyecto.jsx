@@ -17,33 +17,60 @@ import { ChevronRight, ChevronDown, FolderKanban } from 'lucide-react';
 import { NIVELES } from '../../config/niveles';
 import { construirArbol } from '../../utils/arbolPorNodo';
 
-function NodoRama({ nodo, profundidad, renderItem, renderPropio }) {
+// conGuias (solo variante 'destacado'): en vez de indentar cada nivel a
+// puro padding-left (el de siempre, sin nada que conecte visualmente un
+// nivel con el siguiente), cada nodo envuelve a SUS hijos en su propia
+// caja con borde izquierdo — el mismo patrón que ya usa GrupoProyecto
+// para "esto pertenece a este proyecto", aplicado ahora también dentro
+// del árbol para "esto pertenece a esta etapa/acción". Anidar cajas así
+// genera solo la línea del padre más cercano en el true visual — no hace
+// falta acarrear profundidad para calcular un padding.
+function NodoRama({ nodo, profundidad, renderItem, renderPropio, conGuias }) {
   const info = NIVELES[nodo.tipo];
   const Icono = info.icono;
-  return (
-    <div>
-      <div className="flex items-center gap-1.5 py-1" style={{ paddingLeft: `${profundidad * 14}px` }}>
-        <Icono size={11} style={{ color: info.color }} className="flex-shrink-0" aria-hidden="true" />
-        <span className="text-[11px] font-semibold text-gray-600 truncate">{nodo.nombre}</span>
-      </div>
+
+  const hijos = (
+    <>
       {/* nodo.propio: el item ES este tramo de ruta (p. ej. una etapa que
           también aparece como item de su propia lista) — se renderiza
           pegado a su encabezado, con renderPropio si se dio uno (para
           distinguirlo visualmente de sus hijos reales), nunca como fila
           suelta aparte. */}
       {nodo.propio && (
-        <div style={{ paddingLeft: `${profundidad * 14}px` }}>
+        <div style={conGuias ? undefined : { paddingLeft: `${profundidad * 14}px` }}>
           {(renderPropio || renderItem)(nodo.propio)}
         </div>
       )}
       {nodo.items.map(item => (
-        <div key={item.id} style={{ paddingLeft: `${(profundidad + 1) * 14}px` }}>
+        <div key={item.id} style={conGuias ? undefined : { paddingLeft: `${(profundidad + 1) * 14}px` }}>
           {renderItem(item)}
         </div>
       ))}
       {nodo.hijos.map(hijo => (
-        <NodoRama key={`${hijo.tipo}:${hijo.nombre}`} nodo={hijo} profundidad={profundidad + 1} renderItem={renderItem} renderPropio={renderPropio} />
+        <NodoRama key={`${hijo.tipo}:${hijo.nombre}`} nodo={hijo} profundidad={profundidad + 1} renderItem={renderItem} renderPropio={renderPropio} conGuias={conGuias} />
       ))}
+    </>
+  );
+
+  if (conGuias) {
+    return (
+      <div>
+        <div className="flex items-center gap-1.5 py-1">
+          <Icono size={11} style={{ color: info.color }} className="flex-shrink-0" aria-hidden="true" />
+          <span className="text-[11px] font-semibold text-gray-600 truncate">{nodo.nombre}</span>
+        </div>
+        <div className="ml-[5px] pl-3 border-l-2 border-gray-200">{hijos}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 py-1" style={{ paddingLeft: `${profundidad * 14}px` }}>
+        <Icono size={11} style={{ color: info.color }} className="flex-shrink-0" aria-hidden="true" />
+        <span className="text-[11px] font-semibold text-gray-600 truncate">{nodo.nombre}</span>
+      </div>
+      {hijos}
     </div>
   );
 }
@@ -77,7 +104,7 @@ function GrupoProyecto({ nombre, dgSiglas, items, getProyectoId: _omit, renderIt
           <div className="pl-3 border-l-2 border-gray-100 ml-4 mt-2">
             {sueltos.map(item => <div key={item.id}>{renderItem(item)}</div>)}
             {raiz.map(nodo => (
-              <NodoRama key={`${nodo.tipo}:${nodo.nombre}`} nodo={nodo} profundidad={0} renderItem={renderItem} renderPropio={renderPropio} />
+              <NodoRama key={`${nodo.tipo}:${nodo.nombre}`} nodo={nodo} profundidad={0} renderItem={renderItem} renderPropio={renderPropio} conGuias />
             ))}
           </div>
         )}
