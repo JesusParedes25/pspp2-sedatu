@@ -392,7 +392,13 @@ async function eliminarAccion(accionId) {
 // Obtiene todas las actividades con fecha para la Agenda del usuario:
 // - Etapas/acciones/tareas donde es responsable directo
 // - Etapas/acciones donde es miembro via nodo_miembros (colaborador/invitado)
-// - Todas las actividades de proyectos donde es admin/creador (con su responsable)
+// - Todas las actividades de proyectos donde puede gestionar el proyecto
+//   completo (con su responsable) — mismo criterio que puedeGestionarProyecto
+//   en autorizacion.js: id_creador, o proyecto_usuarios.rol = 'responsable'.
+//   ('admin' NUNCA es un valor real de esa columna — su CHECK solo permite
+//   'responsable'/'colaborador' — usarlo aquí dejaba a cualquier Responsable
+//   de proyecto que no fuera también su creador sin ver, en su Agenda, las
+//   tareas sin responsable asignado de ese proyecto.)
 async function obtenerAccionesAgenda(usuarioId) {
   const resultado = await pool.query(`
     WITH todas AS (
@@ -490,7 +496,7 @@ async function obtenerAccionesAgenda(usuarioId) {
 
       UNION ALL
 
-      -- 6. ETAPAS de proyectos donde el usuario es admin/creador (muestra responsable de cada etapa)
+      -- 6. ETAPAS de proyectos donde el usuario es responsable del proyecto o su creador (muestra responsable de cada etapa)
       SELECT 'etapa', e.id::text, e.nombre, e.estado, e.semaforo, e.semaforo_override,
         COALESCE(e.avance_actual, 0),
         COALESCE(e.fecha_limite, e.fecha_fin),
@@ -504,7 +510,7 @@ async function obtenerAccionesAgenda(usuarioId) {
       WHERE COALESCE(e.fecha_limite, e.fecha_fin) IS NOT NULL
         AND (p.id_creador = $1 OR EXISTS (
           SELECT 1 FROM proyecto_usuarios pu
-          WHERE pu.id_proyecto = p.id AND pu.id_usuario = $1 AND pu.rol = 'admin'
+          WHERE pu.id_proyecto = p.id AND pu.id_usuario = $1 AND pu.rol = 'responsable'
         ))
         AND (e.id_responsable IS NULL OR e.id_responsable != $1)
         AND NOT EXISTS (
@@ -514,7 +520,7 @@ async function obtenerAccionesAgenda(usuarioId) {
 
       UNION ALL
 
-      -- 7. ACCIONES de proyectos donde el usuario es admin/creador
+      -- 7. ACCIONES de proyectos donde el usuario es responsable del proyecto o su creador
       SELECT 'accion', a.id::text, a.nombre, a.estado, a.semaforo, a.semaforo_override,
         COALESCE(a.avance_actual, 0),
         COALESCE(a.fecha_limite, a.fecha_fin),
@@ -530,7 +536,7 @@ async function obtenerAccionesAgenda(usuarioId) {
       WHERE COALESCE(a.fecha_limite, a.fecha_fin) IS NOT NULL
         AND (p.id_creador = $1 OR EXISTS (
           SELECT 1 FROM proyecto_usuarios pu
-          WHERE pu.id_proyecto = p.id AND pu.id_usuario = $1 AND pu.rol = 'admin'
+          WHERE pu.id_proyecto = p.id AND pu.id_usuario = $1 AND pu.rol = 'responsable'
         ))
         AND (a.id_responsable IS NULL OR a.id_responsable != $1)
         AND NOT EXISTS (
@@ -540,7 +546,7 @@ async function obtenerAccionesAgenda(usuarioId) {
 
       UNION ALL
 
-      -- 8. TAREAS de proyectos donde el usuario es admin/creador
+      -- 8. TAREAS de proyectos donde el usuario es responsable del proyecto o su creador
       SELECT 'tarea', t.id::text, t.nombre, t.estado, t.semaforo, t.semaforo_override,
         COALESCE(t.avance_actual, 0),
         t.fecha_limite,
@@ -556,7 +562,7 @@ async function obtenerAccionesAgenda(usuarioId) {
       WHERE t.fecha_limite IS NOT NULL
         AND (p.id_creador = $1 OR EXISTS (
           SELECT 1 FROM proyecto_usuarios pu
-          WHERE pu.id_proyecto = p.id AND pu.id_usuario = $1 AND pu.rol = 'admin'
+          WHERE pu.id_proyecto = p.id AND pu.id_usuario = $1 AND pu.rol = 'responsable'
         ))
         AND (t.id_responsable IS NULL OR t.id_responsable != $1)
 
