@@ -71,6 +71,10 @@ export default function MisActividades() {
   const [cargando, setCargando] = useState(true);
   const [periodo, setPeriodo] = useState('mes');
   const [filtrosEstado, setFiltrosEstado] = useState(() => new Set());
+  // Manual, no automático — arranca siempre en 'completa' (nada cambia
+  // por default), la usuaria decide si le sirve compactar cuando la
+  // lista crece.
+  const [densidad, setDensidad] = useState('completa');
 
   async function cargar() {
     setCargando(true);
@@ -209,6 +213,14 @@ export default function MisActividades() {
             {filtrosEstado.size === 0 && (
               <span className="text-xs text-gray-400 px-1">{filtrados.length} resultado{filtrados.length !== 1 ? 's' : ''}</span>
             )}
+            {filtrados.length > 5 && (
+              <button
+                onClick={() => setDensidad(d => d === 'completa' ? 'compacta' : 'completa')}
+                className="ml-auto text-xs font-medium px-3 py-1.5 rounded-full text-guinda-600 border border-guinda-200 hover:bg-guinda-50"
+              >
+                {densidad === 'completa' ? 'Ver compacto' : 'Ver completo'}
+              </button>
+            )}
           </div>
 
           {/* Lista — ArbolActividadesProyecto: agrupada por proyecto,
@@ -225,6 +237,7 @@ export default function MisActividades() {
             <ArbolActividadesProyecto
               items={filtrados}
               onCambiado={cargar}
+              densidad={densidad}
               vacio="Sin actividades con los filtros seleccionados."
             />
           )}
