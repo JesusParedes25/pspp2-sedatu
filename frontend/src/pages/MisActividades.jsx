@@ -6,8 +6,11 @@
  *
  * MINI-CLASE: filtro de rango vs. filtro de estado
  * ─────────────────────────────────────────────────────────────────
- * Los botones Semana/Mes/Trimestre/Año filtran por CUÁNDO vence algo
- * (una ventana de días alrededor de hoy). Las tarjetas Vencidas/
+ * Los botones Semana/Mes/Trimestre/Año filtran por CUÁNDO vence algo,
+ * pero solo hacia el FUTURO — qué tan lejos quiero ver lo que todavía no
+ * pasa. Lo ya vencido nunca se recorta por periodo, sin importar hace
+ * cuánto: un periodo corto no es "ignora lo viejo", es "no me
+ * adelantes tanto lo que aún no llega". Las tarjetas Vencidas/
  * Próximas/En proceso/Completadas filtran por QUÉ ESTADO tiene. Ambos
  * filtros se combinan con AND, y los dos parten de la MISMA base ya
  * recortada por periodo (disponiblesPeriodo): primero se recorta al
@@ -130,17 +133,25 @@ export default function MisActividades() {
   // Base: nunca se muestran Canceladas (no hay tarjeta/filtro para eso).
   const disponibles = useMemo(() => items.filter(it => it.estado !== 'Cancelada'), [items]);
 
-  // Base recortada por periodo — ventana simétrica alrededor de hoy, así
-  // Semana ⊆ Mes ⊆ Trimestre ⊆ Año. Tanto los conteos de las tarjetas
-  // como la lista parten de esta misma base, para que sea imposible que
-  // se desincronicen entre sí (antes los conteos se calculaban sobre
-  // `disponibles` sin recortar, y la lista sí lo recortaba — una
-  // tarjeta podía marcar "30" con la lista mostrando 3, o vacía).
+  // Base recortada por periodo — "qué tan lejos en el FUTURO quiero ver"
+  // (Semana ⊆ Mes ⊆ Trimestre ⊆ Año), nunca "qué tan viejo puede ser lo
+  // que ya venció": un item ya vencido (d < 0) siempre se incluye, sin
+  // importar el periodo elegido. Antes la ventana era simétrica
+  // (d >= -dias && d <= dias), así que una tarea vencida hace más de 30
+  // días desaparecía por completo del periodo "Mes" — incluso con el
+  // chip "Vencidas" activo, que se filtra DESPUÉS de este recorte (ver
+  // porEstado) y por lo tanto heredaba el mismo hueco: literalmente lo
+  // contrario de lo que se espera al pedir ver las vencidas. Tanto los
+  // conteos de las tarjetas como la lista parten de esta misma base,
+  // para que sea imposible que se desincronicen entre sí (antes los
+  // conteos se calculaban sobre `disponibles` sin recortar, y la lista
+  // sí lo recortaba — una tarjeta podía marcar "30" con la lista
+  // mostrando 3, o vacía).
   const disponiblesPeriodo = useMemo(() => {
     const dias = PERIODOS.find(p => p.id === periodo)?.dias ?? 30;
     return disponibles.filter(it => {
       const d = diasRestantes(it.fecha_fin);
-      return d === null || (d >= -dias && d <= dias);
+      return d === null || d < 0 || d <= dias;
     });
   }, [disponibles, periodo]);
 
