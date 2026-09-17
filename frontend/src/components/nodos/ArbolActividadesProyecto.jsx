@@ -19,6 +19,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { MessageSquare, ChevronDown } from 'lucide-react';
 import NodoCard from './NodoCard';
+import FilaCompacta from './FilaCompacta';
 import ActividadStream from './ActividadStream';
 import ArbolPorProyecto from '../common/ArbolPorProyecto';
 import { COLORES_SEMAFORO } from '../common/SemaforoDot';
@@ -59,7 +60,7 @@ function FilaNodoResumen({ it }) {
   );
 }
 
-export default function ArbolActividadesProyecto({ items, onCambiado, vacio = 'Nada que mostrar.', className }) {
+export default function ArbolActividadesProyecto({ items, onCambiado, vacio = 'Nada que mostrar.', className, densidad = 'completa' }) {
   // Tarjetas expandidas ahora mismo (NodoCard avisa vía onToggleAbierto) —
   // solo mientras una tarjeta está abierta se ofrece el acceso a su
   // Actividad (Comentarios/Evidencia/Riesgos), para no abultar la lista
@@ -70,6 +71,12 @@ export default function ArbolActividadesProyecto({ items, onCambiado, vacio = 'N
   // hay que pedirlo explícitamente (mismo criterio que la pestaña
   // "Actividad" del drawer de Diagrama).
   const [actividadAbierta, setActividadAbierta] = useState(() => new Set());
+  // En modo 'compacta', cada item arranca como FilaCompacta (una línea) y
+  // pasa a NodoCard completa solo cuando se pide expandirla — para listas
+  // largas (p. ej. "Vencidas" con 200+) donde una tarjeta completa por
+  // item de entrada es demasiado peso visual. 'completa' (default) no
+  // cambia nada para quien no pase este prop.
+  const [expandidos, setExpandidos] = useState(() => new Set());
 
   function marcarAbierto(key, abierto) {
     setAbiertos(prev => {
@@ -109,6 +116,15 @@ export default function ArbolActividadesProyecto({ items, onCambiado, vacio = 'N
       renderItem={it => {
         const key = `${it.tipo}-${it.id}`;
         const mostrarActividad = actividadAbierta.has(key);
+        if (densidad === 'compacta' && !expandidos.has(key)) {
+          return (
+            <FilaCompacta
+              key={key}
+              it={it}
+              onExpandir={() => setExpandidos(prev => new Set(prev).add(key))}
+            />
+          );
+        }
         return (
           <div className="py-0.5">
             <NodoCard
