@@ -15,12 +15,13 @@
  * El calendario se muestra por defecto.
  * â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
  */
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { CalendarDays, List, ChevronLeft, ChevronRight, X, AlertCircle, Clock, CheckCircle2, Search, Layers, Target, CheckSquare, User, ChevronDown } from 'lucide-react';
 import * as accionesApi from '../api/acciones';
 import EstadoChip from '../components/common/EstadoChip';
 import EmptyState from '../components/common/EmptyState';
+import ArbolActividadesProyecto from '../components/nodos/ArbolActividadesProyecto';
 
 const DIAS=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 const MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -75,9 +76,13 @@ export default function Agenda(){
   const[festado,setFestado]=useState('todos');
   const[q,setQ]=useState('');
 
-  useEffect(()=>{
+  // cargar() se expone (no solo un efecto de una sola vez) para poder
+  // refrescar la lista después de registrar avance/riesgo desde el panel
+  // de un día — mismo patrón que MisActividades.jsx.
+  const cargar=useCallback(()=>{
     accionesApi.obtenerAgenda().then(r=>setItems((r.datos||[]).map(i=>({...i,fecha_fin:norm(i.fecha_fin),fecha_inicio:norm(i.fecha_inicio)})))).catch(console.error).finally(()=>setLoad(false));
   },[]);
+  useEffect(()=>{ cargar(); },[cargar]);
 
   const filtrados=useMemo(()=>items.filter(it=>{
     if(ftipo!=='todos'&&it.tipo!==ftipo)return false;
@@ -125,7 +130,7 @@ export default function Agenda(){
     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"><div><h1 className="text-2xl font-bold text-gray-900">Agenda</h1><p className="text-sm text-gray-500 mt-0.5">Actividades con fecha — responsable, colaborador o coordinador de proyecto</p></div><div className="flex gap-1 bg-gray-100 rounded-lg p-1 flex-shrink-0">{[{id:'lista',lbl:'Lista',I:List},{id:'calendario',lbl:'Calendario',I:CalendarDays}].map(({id,lbl,I})=>(<button key={id} onClick={()=>{setVista(id);setDia(null);}} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${vista===id?'bg-white text-guinda-600 shadow-sm':'text-gray-500 hover:text-gray-700'}`}><I size={13}/>{lbl}</button>))}</div></div>
     {items.length>0&&(<div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{[{lbl:'Total',val:stats.total,cls:'text-gray-800',bg:'bg-white border-gray-200'},{lbl:'Vencidas',val:stats.venc,cls:stats.venc>0?'text-red-600 font-bold':'text-gray-800',bg:stats.venc>0?'bg-red-50 border-red-200':'bg-white border-gray-200'},{lbl:'Hoy',val:stats.hoy,cls:stats.hoy>0?'text-orange-600 font-bold':'text-gray-800',bg:stats.hoy>0?'bg-orange-50 border-orange-200':'bg-white border-gray-200'},{lbl:'Esta semana',val:stats.sem,cls:'text-gray-800',bg:'bg-white border-gray-200'}].map(s=>(<div key={s.lbl} className={`card p-3.5 border ${s.bg}`}><div className={`text-2xl font-bold ${s.cls}`}>{s.val}</div><div className="text-xs text-gray-500 mt-0.5">{s.lbl}</div></div>))}</div>)}
     <div className="flex flex-wrap gap-2 items-center"><div className="relative min-w-44 max-w-56 flex-1"><Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"/><input type="text" value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar actividades..." className="w-full pl-7 pr-7 py-1.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-guinda-300"/>{q&&<button onClick={()=>setQ('')} className="absolute right-2 top-1/2 -translate-y-1/2"><X size={12} className="text-gray-400"/></button>}</div><div className="flex gap-0.5 bg-white border border-gray-200 rounded-lg p-0.5">{[['todos','Todos'],['etapa','Etapas'],['accion','Acciones'],['tarea','Tareas']].map(([v,l])=>(<button key={v} onClick={()=>setFtipo(v)} className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${ftipo===v?'bg-guinda-500 text-white':'text-gray-500 hover:bg-gray-50'}`}>{l}</button>))}</div><select value={festado} onChange={e=>setFestado(e.target.value)} className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-guinda-300"><option value="todos">Todos los estados</option><option value="Pendiente">Pendiente</option><option value="En_proceso">En proceso</option><option value="Bloqueada">Bloqueada</option><option value="Completada">Completada</option><option value="Cancelada">Cancelada</option></select>{hasFiltros&&<button onClick={()=>{setFtipo('todos');setFestado('todos');setQ('');}} className="text-xs text-guinda-600 hover:text-guinda-800 font-medium flex items-center gap-1"><X size={12}/>Limpiar</button>}</div>
-    {filtrados.length===0?(<EmptyState icono={CalendarDays} titulo={items.length===0?'Sin actividades programadas':'Sin resultados'} subtitulo={items.length===0?'No tienes actividades con fecha asignada.':'Ajusta los filtros para ver mas actividades.'}/>):vista==='lista'?(<VistaLista grupos={grupos}/>):(<VistaCalendario diasCal={diasCal} mes={mes} setMes={setMes} dia={dia} setDia={setDia} itemsDia={itemsDia}/>)}
+    {filtrados.length===0?(<EmptyState icono={CalendarDays} titulo={items.length===0?'Sin actividades programadas':'Sin resultados'} subtitulo={items.length===0?'No tienes actividades con fecha asignada.':'Ajusta los filtros para ver mas actividades.'}/>):vista==='lista'?(<VistaLista grupos={grupos}/>):(<VistaCalendario diasCal={diasCal} mes={mes} setMes={setMes} dia={dia} setDia={setDia} itemsDia={itemsDia} onCambiado={cargar}/>)}
   </div>);
 }
 // Barra compacta de rango (estilo Google Calendar) — solo si la actividad
@@ -213,7 +218,7 @@ function Grupo({g,agruparPorProyecto}){
   ))}</div>);
 }
 function VistaLista({grupos}){return <div className="space-y-6">{grupos.map(g=><Grupo key={g.id} g={g} agruparPorProyecto={g.id==='venc'}/>)}</div>;}
-function VistaCalendario({diasCal,mes,setMes,dia,setDia,itemsDia}){
+function VistaCalendario({diasCal,mes,setMes,dia,setDia,itemsDia,onCambiado}){
   function prev(){setMes(p=>new Date(p.getFullYear(),p.getMonth()-1,1));setDia(null);}
   function next(){setMes(p=>new Date(p.getFullYear(),p.getMonth()+1,1));setDia(null);}
   function irHoy(){const h=new Date();setMes(new Date(h.getFullYear(),h.getMonth(),1));setDia(null);}
@@ -241,6 +246,12 @@ function VistaCalendario({diasCal,mes,setMes,dia,setDia,itemsDia}){
     </div>
     <div className="flex flex-wrap items-center gap-4 mt-3 text-[11px] text-gray-400">{[['bg-red-500','Vencida'],['bg-orange-500','Hoy'],['bg-amber-400','Esta semana'],['bg-blue-400','Próxima'],['bg-gray-300','Finalizada']].map(([c,l])=><span key={l} className="flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${c}`}/>{l}</span>)}</div>
   </div>
-  {dia&&itemsDia.length>0&&<div ref={panelRef} className="card p-4"><div className="flex items-center justify-between mb-3"><h3 className="text-sm font-semibold text-gray-700">{(()=>{const[y,m,d]=dia.split('-').map(Number);return new Date(y,m-1,d);})().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}<span className="ml-2 text-xs font-normal text-gray-400">({itemsDia.length} actividad{itemsDia.length!==1?'es':''})</span></h3><button onClick={()=>setDia(null)} className="p-1 rounded hover:bg-gray-100"><X size={14} className="text-gray-400"/></button></div><div className="space-y-2">{itemsDia.map(it=><Item key={`${it.tipo}-${it.id}`} it={it}/>)}</div></div>}
+  {/* Panel del día — mismo componente que "Mis actividades > Pendientes"
+      (ArbolActividadesProyecto: agrupado por proyecto, árbol real Etapa ›
+      Acción › Tarea, tarjetas con Registrar avance/Reportar riesgo/etc.)
+      en vez de la lista plana de solo lectura que había antes — una sola
+      presentación para "lista de mis actividades" en toda la app, y
+      desde aquí se puede actuar igual que desde Pendientes. */}
+  {dia&&itemsDia.length>0&&<div ref={panelRef} className="card p-4"><div className="flex items-center justify-between mb-3"><h3 className="text-sm font-semibold text-gray-700">{(()=>{const[y,m,d]=dia.split('-').map(Number);return new Date(y,m-1,d);})().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}<span className="ml-2 text-xs font-normal text-gray-400">({itemsDia.length} actividad{itemsDia.length!==1?'es':''})</span></h3><button onClick={()=>setDia(null)} className="p-1 rounded hover:bg-gray-100"><X size={14} className="text-gray-400"/></button></div><ArbolActividadesProyecto items={itemsDia} onCambiado={onCambiado} vacio="Sin actividades para este día."/></div>}
   </div>);
 }
