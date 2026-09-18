@@ -232,9 +232,6 @@ export default function Agenda(){
 // organizador principal que se pidió conservar.
 function BucketLista({g,onCambiado}){
   const[open,setOpen]=useState(g.id!=='fin');
-  // Manual, no automático: arranca en 'completa', la usuaria decide si
-  // compactar esta sección le sirve — nunca cambia sin que lo pida.
-  const[densidad,setDensidad]=useState('completa');
   return(<div>
     <div className="flex items-center gap-2 mb-3">
       <button onClick={()=>setOpen(v=>!v)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
@@ -243,13 +240,8 @@ function BucketLista({g,onCambiado}){
         <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{g.items.length}</span>
         <ChevronDown size={13} className={`text-gray-400 ml-1 transition-transform ${open?'':'rotate-180'}`}/>
       </button>
-      {open&&g.items.length>5&&(
-        <button onClick={()=>setDensidad(d=>d==='completa'?'compacta':'completa')} className="flex-shrink-0 text-[11px] font-medium text-guinda-600 hover:text-guinda-800 border border-guinda-200 rounded-full px-2 py-0.5">
-          {densidad==='completa'?'Ver compacto':'Ver completo'}
-        </button>
-      )}
     </div>
-    {open&&<ArbolActividadesProyecto items={g.items} onCambiado={onCambiado} densidad={densidad} vacio="Sin actividades."/>}
+    {open&&<ArbolActividadesProyecto items={g.items} onCambiado={onCambiado} vacio="Sin actividades."/>}
   </div>);
 }
 function VistaLista({grupos,onCambiado}){
@@ -295,12 +287,6 @@ function VistaCalendario({modoCal,setModoCal,diasCal,diasSemana,ancla,setAncla,d
     if(dia&&itemsDia.length>0)panelRef.current?.scrollIntoView({behavior:'smooth',block:'nearest'});
   },[dia,itemsDia.length]);
 
-  const[densidadDia,setDensidadDia]=useState('completa');
-  const[densidadAncla,setDensidadAncla]=useState('completa');
-  // Se reinicia el modo compacto de "Día" cada vez que cambia el día
-  // ancla — evita que quede compacto un día distinto al que se está viendo.
-  useEffect(()=>{ setDensidadAncla('completa'); },[ancla]);
-
   const etiqueta=modoCal==='mes'
     ? `${MESES[ancla.getMonth()]} ${ancla.getFullYear()}`
     : modoCal==='semana'
@@ -343,23 +329,23 @@ function VistaCalendario({modoCal,setModoCal,diasCal,diasSemana,ancla,setAncla,d
 
       {modoCal==='semana'&&(<>
         <div className="grid grid-cols-7 gap-2">
-          {diasSemana.map((dc,i)=>{const esHoy=dc.str===HOY;const sel=dc.str===dia;return(
-            <div key={i} className={`rounded-lg border p-2 min-h-[180px] flex flex-col gap-1 ${esHoy?'border-guinda-200 bg-guinda-50/30':'border-gray-100 bg-white'}`}>
-              <button onClick={()=>{const next=sel?null:dc.str;setDia(next);if(next)setAncla(dc.fecha);}} className={`flex items-center justify-between mb-1 -mx-1 px-1 py-0.5 rounded ${sel?'bg-guinda-100':'hover:bg-gray-50'}`}>
+          {diasSemana.map((dc,i)=>{const esHoy=dc.str===HOY;const sel=dc.str===dia;const tiene=dc.items.length>0;return(
+            <button key={i} type="button" onClick={()=>{if(tiene)seleccionarDiaSemana(dc);}} className={`rounded-lg border p-2 min-h-[180px] flex flex-col gap-1 text-left transition-colors ${esHoy?'border-guinda-200 bg-guinda-50/30':'border-gray-100 bg-white'} ${tiene?'hover:bg-guinda-50/30 cursor-pointer':'cursor-default'} ${sel?'ring-2 ring-guinda-400 ring-inset':''}`}>
+              <div className="flex items-center justify-between mb-1 -mx-1 px-1 py-0.5">
                 <span className="text-[10px] font-semibold text-gray-400 uppercase">{DIAS[i]}</span>
                 <span className={`text-xs font-semibold w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0 ${esHoy?'bg-guinda-500 text-white':'text-gray-700'}`}>{dc.fecha.getDate()}</span>
-              </button>
+              </div>
               <div className="space-y-0.5 overflow-y-auto flex-1">
                 {dc.items.length===0
                   ? <p className="text-[10px] text-gray-300 italic px-1">Sin actividades</p>
                   : dc.items.map(it=>(
-                    <button key={`${it.tipo}-${it.id}`} type="button" onClick={()=>seleccionarDiaSemana(dc)} className="w-full flex items-center gap-1 px-1 py-0.5 rounded text-left hover:bg-guinda-50/30 cursor-pointer transition-colors">
+                    <div key={`${it.tipo}-${it.id}`} className="flex items-center gap-1 px-1 py-0.5">
                       <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{backgroundColor:COLOR_PUNTO[ukey(it)]}}/>
                       <span className="text-[10px] text-gray-600 truncate" title={it.nombre}>{it.nombre}</span>
-                    </button>
+                    </div>
                   ))}
               </div>
-            </div>
+            </button>
           );})}
         </div>
         <LeyendaSemaforo/>
@@ -371,13 +357,8 @@ function VistaCalendario({modoCal,setModoCal,diasCal,diasSemana,ancla,setAncla,d
     {modoCal==='dia'&&(<div className="space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-xs text-gray-400">{itemsAncla.length} actividad{itemsAncla.length!==1?'es':''}</span>
-        {itemsAncla.length>5&&(
-          <button onClick={()=>setDensidadAncla(d=>d==='completa'?'compacta':'completa')} className="text-[11px] font-medium text-guinda-600 hover:text-guinda-800 border border-guinda-200 rounded-full px-2 py-0.5">
-            {densidadAncla==='completa'?'Ver compacto':'Ver completo'}
-          </button>
-        )}
       </div>
-      <ArbolActividadesProyecto items={itemsAncla} onCambiado={onCambiado} densidad={densidadAncla} vacio="Sin actividades para este día."/>
+      <ArbolActividadesProyecto items={itemsAncla} onCambiado={onCambiado} vacio="Sin actividades para este día."/>
     </div>)}
 
     {/* Panel del día seleccionado (Mes/Semana) — mismo componente que
@@ -389,15 +370,10 @@ function VistaCalendario({modoCal,setModoCal,diasCal,diasSemana,ancla,setAncla,d
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-gray-700">{(()=>{const[y,m,d]=dia.split('-').map(Number);return new Date(y,m-1,d);})().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}<span className="ml-2 text-xs font-normal text-gray-400">({itemsDia.length} actividad{itemsDia.length!==1?'es':''})</span></h3>
           <div className="flex items-center gap-2">
-            {itemsDia.length>5&&(
-              <button onClick={()=>setDensidadDia(d=>d==='completa'?'compacta':'completa')} className="text-[11px] font-medium text-guinda-600 hover:text-guinda-800 border border-guinda-200 rounded-full px-2 py-0.5">
-                {densidadDia==='completa'?'Ver compacto':'Ver completo'}
-              </button>
-            )}
             <button onClick={()=>setDia(null)} className="p-1 rounded hover:bg-gray-100"><X size={14} className="text-gray-400"/></button>
           </div>
         </div>
-        <ArbolActividadesProyecto items={itemsDia} onCambiado={onCambiado} densidad={densidadDia} vacio="Sin actividades para este día."/>
+        <ArbolActividadesProyecto items={itemsDia} onCambiado={onCambiado} vacio="Sin actividades para este día."/>
       </div>
     )}
   </div>);
