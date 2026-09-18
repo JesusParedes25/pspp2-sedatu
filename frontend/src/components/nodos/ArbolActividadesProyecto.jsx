@@ -62,7 +62,7 @@ function FilaNodoResumen({ it }) {
   );
 }
 
-export default function ArbolActividadesProyecto({ items, onCambiado, vacio = 'Nada que mostrar.', className, densidad = 'completa' }) {
+export default function ArbolActividadesProyecto({ items, onCambiado, vacio = 'Nada que mostrar.', className }) {
   // Tarjetas expandidas ahora mismo (NodoCard avisa vía onToggleAbierto) —
   // solo mientras una tarjeta está abierta se ofrece el acceso a su
   // Actividad (Comentarios/Evidencia/Riesgos), para no abultar la lista
@@ -73,11 +73,10 @@ export default function ArbolActividadesProyecto({ items, onCambiado, vacio = 'N
   // hay que pedirlo explícitamente (mismo criterio que la pestaña
   // "Actividad" del drawer de Diagrama).
   const [actividadAbierta, setActividadAbierta] = useState(() => new Set());
-  // En modo 'compacta', cada item arranca como FilaCompacta (una línea) y
-  // pasa a NodoCard completa solo cuando se pide expandirla — para listas
-  // largas (p. ej. "Vencidas" con 200+) donde una tarjeta completa por
-  // item de entrada es demasiado peso visual. 'completa' (default) no
-  // cambia nada para quien no pase este prop.
+  // Cada item arranca como FilaCompacta (una línea) y pasa a NodoCard
+  // completa solo cuando se pide expandirla — único comportamiento, sin
+  // opción de mostrar todo como tarjeta desde el inicio (antes existía un
+  // modo "completo" alternable, se quitó a pedido del usuario).
   const [expandidos, setExpandidos] = useState(() => new Set());
 
   function marcarAbierto(key, abierto) {
@@ -118,7 +117,7 @@ export default function ArbolActividadesProyecto({ items, onCambiado, vacio = 'N
       renderItem={it => {
         const key = `${it.tipo}-${it.id}`;
         const mostrarActividad = actividadAbierta.has(key);
-        if (densidad === 'compacta' && !expandidos.has(key)) {
+        if (!expandidos.has(key)) {
           return (
             <FilaCompacta
               key={key}
