@@ -130,6 +130,21 @@ async function contarPrincipalesQueQuedanSinCartera(carteraId) {
   return rows[0].total;
 }
 
+// Solo los ids de los proyectos activos de una cartera — para el filtro
+// de Tablero (inicio.controller.js), que intersecta esto con el alcance
+// real del usuario. A diferencia de listarProyectosDeCartera, no trae
+// columnas calculadas: el Tablero ya recalcula todo lo que necesita a
+// partir de un arreglo de ids, igual que con cualquier otro filtro.
+async function obtenerProyectoIdsDeCartera(carteraId) {
+  const { rows } = await pool.query(`
+    SELECT cp.proyecto_id AS id
+    FROM cartera_proyecto cp
+    JOIN proyectos p ON p.id = cp.proyecto_id AND p.deleted_at IS NULL
+    WHERE cp.cartera_id = $1
+  `, [carteraId]);
+  return rows.map(r => r.id);
+}
+
 async function listarProyectosDeCartera(carteraId) {
   const { rows } = await pool.query(`
     WITH base AS (
@@ -452,6 +467,7 @@ module.exports = {
   actualizarCartera,
   eliminarCartera,
   contarPrincipalesQueQuedanSinCartera,
+  obtenerProyectoIdsDeCartera,
   listarProyectosDeCartera,
   resumenCartera,
   agregarProyectos,

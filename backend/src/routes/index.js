@@ -243,6 +243,8 @@ router.get('/dashboard', dashboardController.obtenerDashboard);
 router.get('/inicio', inicioController.obtenerInicio);
 router.get('/inicio/mapa', geoController.obtenerMapaInicio);
 router.get('/inicio/mapa/zm', geoController.obtenerMapaZmInicio);
+router.get('/inicio/filtros/proyectos', inicioController.obtenerProyectosFiltro);
+router.get('/inicio/filtros/carteras', inicioController.obtenerCarterasFiltro);
 
 // Panorama del proyecto (tab Panorama)
 router.get('/proyectos/:id/panorama', panoramaController.obtenerPanorama);

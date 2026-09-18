@@ -27,7 +27,11 @@ function TipoBadge({ tipo }) {
   );
 }
 
-export default function MapaTerritorialInicio() {
+// filtro: { proyectoIds?: string[], carteraId?: string } — el mismo
+// filtro de Tablero que ya acota "Mis proyectos" y el resto de los
+// widgets de Inicio.jsx; "Incidencia territorial" es uno más de esos
+// widgets, así que se re-consulta cuando cambia.
+export default function MapaTerritorialInicio({ filtro }) {
   const [geoJSON, setGeoJSON] = useState(null);
   const [mapaData, setMapaData] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -42,12 +46,16 @@ export default function MapaTerritorialInicio() {
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
 
   useEffect(() => {
+    const params = {};
+    if (filtro?.carteraId) params.cartera_id = filtro.carteraId;
+    else if (filtro?.proyectoIds?.length) params.proyecto_ids = filtro.proyectoIds.join(',');
     setCargando(true);
-    Promise.all([client.get('/geo/estados/geojson'), client.get('/inicio/mapa')])
+    setEstadoActivo(null);
+    Promise.all([client.get('/geo/estados/geojson'), client.get('/inicio/mapa', { params })])
       .then(([geoRes, mapaRes]) => { setGeoJSON(geoRes.data); setMapaData(mapaRes.data.datos || []); })
       .catch(console.error)
       .finally(() => setCargando(false));
-  }, []);
+  }, [filtro?.carteraId, filtro?.proyectoIds?.join(',')]);
 
   const estadosMap = useMemo(() => Object.fromEntries(mapaData.map(e => [e.cve_ent, e])), [mapaData]);
   const maxProy = useMemo(() => Math.max(1, ...mapaData.map(e => e.proyectos?.length || 0)), [mapaData]);
