@@ -23,6 +23,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ListChecks, CalendarDays, AlertTriangle, Clock, TrendingUp, CheckCircle2, X } from 'lucide-react';
 import * as accionesApi from '../api/acciones';
 import ArbolActividadesProyecto from '../components/nodos/ArbolActividadesProyecto';
@@ -66,7 +67,12 @@ function categoriasDe(it) {
 }
 
 export default function MisActividades() {
-  const [tab, setTab] = useState('pendientes');
+  // Respaldado en la URL (?tab=) para que el sidebar pueda enlazar
+  // directo a cada pestaña y resaltar cuál está activa — mismo criterio
+  // que ya usa ListadoProyectos.jsx con ?vista=.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get('tab') || 'pendientes';
+  const setTab = (id) => setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('tab', id); return next; });
   const [items, setItems] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [periodo, setPeriodo] = useState('mes');

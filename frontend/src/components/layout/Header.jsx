@@ -25,6 +25,10 @@ const nombresRutas = {
   'mapa': 'Territorio',
   'agenda': 'Agenda',
   'notificaciones': 'Notificaciones',
+  'mis-actividades': 'Mis actividades',
+  'evidencias': 'Documentos',
+  'admin': 'Administración',
+  'catalogos': 'Catálogos',
 };
 
 export default function Header({ pendientes = 0 }) {
