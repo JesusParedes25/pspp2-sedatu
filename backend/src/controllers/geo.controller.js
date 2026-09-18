@@ -3,9 +3,26 @@
  * PROPÓSITO: Endpoints para datos geográficos (geo_estados, geo_municipios, geo_zm).
  *            Sirve tanto selectores (JSON plano) como capas GeoJSON simplificadas.
  */
-const pool = require('../db/pool');
 const geoQueries = require('../db/queries/geografia.queries');
 const miembrosQueries = require('../db/queries/miembros.queries');
+const carterasQueries = require('../db/queries/carteras.queries');
+const { alcanceProyectosUsuario } = require('../utils/alcanceProyectos');
+
+// Mismo filtro opcional que ya soporta GET /inicio (proyecto_ids= o
+// cartera_id=, mutuamente excluyentes) — "Incidencia territorial" es
+// parte del Tablero y debe acotarse igual que el resto de sus widgets.
+async function aplicarFiltroTablero(proyectoIds, query) {
+  const { proyecto_ids: proyectoIdsQuery, cartera_id: carteraIdQuery } = query;
+  if (carteraIdQuery) {
+    const idsCartera = new Set(await carterasQueries.obtenerProyectoIdsDeCartera(carteraIdQuery));
+    return proyectoIds.filter(id => idsCartera.has(id));
+  }
+  if (proyectoIdsQuery) {
+    const pedidos = new Set(String(proyectoIdsQuery).split(',').map(s => s.trim()).filter(Boolean));
+    return proyectoIds.filter(id => pedidos.has(id));
+  }
+  return proyectoIds;
+}
 
 // GET /geo/estados
 async function obtenerEstados(req, res, next) {
@@ -66,41 +83,22 @@ async function obtenerMapaTerritorial(req, res, next) {
   } catch (err) { next(err); }
 }
 
-// GET /inicio/mapa
+// GET /inicio/mapa?proyecto_ids=&cartera_id=
 async function obtenerMapaInicio(req, res, next) {
   try {
-    const usuario = req.usuario;
-    let proyectoIds;
-    if (usuario.rol === 'superadmin' || usuario.rol === 'ejecutivo') {
-      const { rows } = await pool.query(
-        "SELECT id FROM proyectos WHERE deleted_at IS NULL AND estado != 'Cancelado'"
-      );
-      proyectoIds = rows.map(r => r.id);
-    } else {
-      proyectoIds = await miembrosQueries.obtenerProyectosUsuario(usuario.id);
-    }
-
-    const datos = await geoQueries.obtenerMapaIncidenciaGeo(proyectoIds || []);
+    const proyectoIds = await aplicarFiltroTablero(await alcanceProyectosUsuario(req.usuario), req.query);
+    const datos = await geoQueries.obtenerMapaIncidenciaGeo(proyectoIds);
     res.json({ datos });
   } catch (err) { next(err); }
 }
 
-// GET /inicio/mapa/zm — mismo resumen que /inicio/mapa pero por Zona
-// Metropolitana, para el hover del mapa en modo ZM.
+// GET /inicio/mapa/zm?proyecto_ids=&cartera_id= — mismo resumen que
+// /inicio/mapa pero por Zona Metropolitana, para el hover del mapa en
+// modo ZM.
 async function obtenerMapaZmInicio(req, res, next) {
   try {
-    const usuario = req.usuario;
-    let proyectoIds;
-    if (usuario.rol === 'superadmin' || usuario.rol === 'ejecutivo') {
-      const { rows } = await pool.query(
-        "SELECT id FROM proyectos WHERE deleted_at IS NULL AND estado != 'Cancelado'"
-      );
-      proyectoIds = rows.map(r => r.id);
-    } else {
-      proyectoIds = await miembrosQueries.obtenerProyectosUsuario(usuario.id);
-    }
-
-    const datos = await geoQueries.obtenerMapaIncidenciaGeoZM(proyectoIds || []);
+    const proyectoIds = await aplicarFiltroTablero(await alcanceProyectosUsuario(req.usuario), req.query);
+    const datos = await geoQueries.obtenerMapaIncidenciaGeoZM(proyectoIds);
     res.json({ datos });
   } catch (err) { next(err); }
 }

@@ -4,16 +4,17 @@
  *            acciones vencidas/por vencer, riesgos, indicadores y actividad.
  */
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   FolderKanban, Activity, AlertTriangle, TrendingUp,
   MapPin, ChevronRight, Clock, Target, Shield, Calendar, Layers, MessageSquare
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../context/AuthContext';
-import { obtenerInicio } from '../api/inicio';
+import { obtenerInicio, obtenerProyectosFiltroInicio, obtenerCarterasFiltroInicio } from '../api/inicio';
 import client from '../api/client';
 import MapaTerritorialInicio from '../components/inicio/MapaTerritorialInicio';
+import FiltroTablero from '../components/inicio/FiltroTablero';
 import { ETIQUETA_TIPO_INDICADOR, agruparPorCatalogo, TarjetaIndicadorOAgrupada } from '../components/indicadores/TarjetaIndicador';
 import ListaEstatusCualitativo, { TituloEstatusCualitativo } from '../components/indicadores/ListaEstatusCualitativo';
 import { breadcrumbInternoEstatusCualitativo } from '../utils/estatusCualitativo';
@@ -27,12 +28,45 @@ export default function Inicio() {
   const [data, setData] = useState(null);
   const [cargando, setCargando] = useState(true);
 
+  // Filtro del Tablero (por proyecto(s) o por cartera) — respaldado en
+  // la URL para que se pueda compartir/recargar sin perderlo, mismo
+  // criterio que el resto de la app (?tab=, ?vista=).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const carteraIdUrl = searchParams.get('cartera_id');
+  const proyectoIdsUrl = searchParams.get('proyecto_ids');
+  const filtro = {
+    carteraId: carteraIdUrl || null,
+    proyectoIds: carteraIdUrl ? [] : (proyectoIdsUrl ? proyectoIdsUrl.split(',').filter(Boolean) : []),
+  };
+  function setFiltro(next) {
+    setSearchParams(prev => {
+      const params = new URLSearchParams(prev);
+      params.delete('cartera_id');
+      params.delete('proyecto_ids');
+      if (next.carteraId) params.set('cartera_id', next.carteraId);
+      else if (next.proyectoIds?.length) params.set('proyecto_ids', next.proyectoIds.join(','));
+      return params;
+    });
+  }
+
+  const [opcionesProyectos, setOpcionesProyectos] = useState([]);
+  const [opcionesCarteras, setOpcionesCarteras] = useState([]);
+  const [cargandoOpciones, setCargandoOpciones] = useState(true);
+
   useEffect(() => {
-    obtenerInicio()
+    Promise.all([obtenerProyectosFiltroInicio(), obtenerCarterasFiltroInicio()])
+      .then(([proys, carts]) => { setOpcionesProyectos(proys); setOpcionesCarteras(carts); })
+      .catch(console.error)
+      .finally(() => setCargandoOpciones(false));
+  }, []);
+
+  useEffect(() => {
+    setCargando(true);
+    obtenerInicio(filtro)
       .then(setData)
       .catch(console.error)
       .finally(() => setCargando(false));
-  }, []);
+  }, [filtro.carteraId, filtro.proyectoIds.join(',')]);
 
   if (cargando) {
     return (
@@ -63,9 +97,18 @@ export default function Inicio() {
             {new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
         </div>
-        <Link to="/mapa" className="btn-secondary text-xs flex items-center gap-1">
-          <MapPin size={14} /> Territorio
-        </Link>
+        <div className="flex items-center gap-2">
+          <FiltroTablero
+            filtro={filtro}
+            onCambiar={setFiltro}
+            proyectos={opcionesProyectos}
+            carteras={opcionesCarteras}
+            cargando={cargandoOpciones}
+          />
+          <Link to="/mapa" className="btn-secondary text-xs flex items-center gap-1">
+            <MapPin size={14} /> Territorio
+          </Link>
+        </div>
       </div>
 
       {/* ═══ MIS PROYECTOS ═══ */}
@@ -89,7 +132,7 @@ export default function Inicio() {
             <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
               <MapPin size={14} /> Incidencia territorial
             </h2>
-            <MapaTerritorialInicio />
+            <MapaTerritorialInicio filtro={filtro} />
           </div>
 
           {/* ═══ ESTATUS CUALITATIVO ═══
