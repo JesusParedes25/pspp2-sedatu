@@ -91,7 +91,6 @@ export default function Agenda(){
   // lectura arriba, ahora también funcionan como este filtro.
   const[furg,setFurg]=useState('todos'); // 'todos'|'venc'|'hoy'|'sem'
   const[fproy,setFproy]=useState('todos');
-  const[frol,setFrol]=useState('todos');
   const[q,setQ]=useState('');
 
   // cargar() se expone (no solo un efecto de una sola vez) para poder
@@ -108,7 +107,7 @@ export default function Agenda(){
     return[...m.entries()].sort((a,b)=>(a[1]||'').localeCompare(b[1]||''));
   },[items]);
 
-  // Filtros de búsqueda/tipo/estado/proyecto/rol, SIN el filtro rápido de
+  // Filtros de búsqueda/tipo/estado/proyecto, SIN el filtro rápido de
   // urgencia (furg) — es la base sobre la que se calculan los números de
   // las propias tarjetas KPI. Si los KPIs se calcularan ya con furg
   // aplicado, al hacer clic en "Vencidas" las 4 tarjetas colapsarían al
@@ -119,10 +118,9 @@ export default function Agenda(){
     if(ftipo!=='todos'&&it.tipo!==ftipo)return false;
     if(festado!=='todos'&&it.estado!==festado)return false;
     if(fproy!=='todos'&&String(it.proyecto_id)!==fproy)return false;
-    if(frol!=='todos'&&it.mi_rol!==frol)return false;
     if(q){const sq=q.toLowerCase();if(!((it.nombre||'').toLowerCase().includes(sq)||(it.proyecto_nombre||'').toLowerCase().includes(sq)))return false;}
     return true;
-  }),[items,ftipo,festado,fproy,frol,q]);
+  }),[items,ftipo,festado,fproy,q]);
 
   // `filtrados` sí incluye furg — es lo que alimenta Lista/Calendario,
   // donde hacer clic en un KPI debe acotar lo que se ve abajo.
@@ -186,8 +184,8 @@ export default function Agenda(){
   const itemsDia=useMemo(()=>dia?filtrados.filter(i=>esInicioOFin(i,dia)):[],[dia,filtrados]);
   const itemsAncla=useMemo(()=>filtrados.filter(i=>esInicioOFin(i,strDeFecha(ancla))),[ancla,filtrados]);
 
-  const hasFiltros=ftipo!=='todos'||festado!=='todos'||fproy!=='todos'||frol!=='todos'||furg!=='todos'||!!q;
-  function limpiarFiltros(){setFtipo('todos');setFestado('todos');setFproy('todos');setFrol('todos');setFurg('todos');setQ('');}
+  const hasFiltros=ftipo!=='todos'||festado!=='todos'||fproy!=='todos'||furg!=='todos'||!!q;
+  function limpiarFiltros(){setFtipo('todos');setFestado('todos');setFproy('todos');setFurg('todos');setQ('');}
 
   if(load)return(<div className="space-y-4 animate-pulse"><div className="h-8 bg-gray-200 rounded w-1/3"/>{[1,2,3].map(i=><div key={i} className="h-14 bg-gray-200 rounded"/>)}</div>);
   return(<div className="space-y-5">
@@ -217,7 +215,6 @@ export default function Agenda(){
       <div className="flex gap-0.5 bg-white border border-gray-200 rounded-lg p-0.5">{[['todos','Todos'],['etapa','Etapas'],['accion','Acciones'],['tarea','Tareas']].map(([v,l])=>(<button key={v} onClick={()=>setFtipo(v)} className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${ftipo===v?'bg-guinda-500 text-white':'text-gray-500 hover:bg-gray-50'}`}>{l}</button>))}</div>
       <select value={festado} onChange={e=>setFestado(e.target.value)} className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-guinda-300"><option value="todos">Todos los estados</option><option value="Pendiente">Pendiente</option><option value="En_proceso">En proceso</option><option value="Bloqueada">Bloqueada</option><option value="Completada">Completada</option><option value="Cancelada">Cancelada</option></select>
       <select value={fproy} onChange={e=>setFproy(e.target.value)} className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-guinda-300 max-w-[180px]"><option value="todos">Todos los proyectos</option>{proyectos.map(([id,nombre])=><option key={id} value={id}>{nombre}</option>)}</select>
-      <select value={frol} onChange={e=>setFrol(e.target.value)} className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-guinda-300"><option value="todos">Cualquier rol</option><option value="responsable">Responsable</option><option value="colaborador">Colaborador</option><option value="invitado">Invitado</option><option value="coordinador">Coordinando</option></select>
       {hasFiltros&&<button onClick={limpiarFiltros} className="text-xs text-guinda-600 hover:text-guinda-800 font-medium flex items-center gap-1"><X size={12}/>Limpiar</button>}
     </div>
 
@@ -283,6 +280,11 @@ function VistaCalendario({modoCal,setModoCal,diasCal,diasSemana,ancla,setAncla,d
   function prev(){setAncla(a=>modoCal==='mes'?addMeses(a,-1):modoCal==='semana'?addDias(a,-7):addDias(a,-1));setDia(null);}
   function next(){setAncla(a=>modoCal==='mes'?addMeses(a,1):modoCal==='semana'?addDias(a,7):addDias(a,1));setDia(null);}
   function irHoy(){setAncla(new Date());setDia(null);}
+  // A diferencia del encabezado del día (que es un interruptor — un
+  // segundo clic cierra el panel), un clic en una actividad visible
+  // siempre selecciona ese día, nunca lo cierra: ver una actividad y que
+  // el panel se cierre por el mismo clic sería contraintuitivo.
+  function seleccionarDiaSemana(dc){ setDia(dc.str); setAncla(dc.fecha); }
 
   // El panel de detalle se monta debajo del calendario y a menudo queda
   // fuera del viewport sin que el usuario note que apareció — se lleva
@@ -351,10 +353,10 @@ function VistaCalendario({modoCal,setModoCal,diasCal,diasSemana,ancla,setAncla,d
                 {dc.items.length===0
                   ? <p className="text-[10px] text-gray-300 italic px-1">Sin actividades</p>
                   : dc.items.map(it=>(
-                    <div key={`${it.tipo}-${it.id}`} className="flex items-center gap-1 px-1">
+                    <button key={`${it.tipo}-${it.id}`} type="button" onClick={()=>seleccionarDiaSemana(dc)} className="w-full flex items-center gap-1 px-1 py-0.5 rounded text-left hover:bg-guinda-50/30 cursor-pointer transition-colors">
                       <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{backgroundColor:COLOR_PUNTO[ukey(it)]}}/>
                       <span className="text-[10px] text-gray-600 truncate" title={it.nombre}>{it.nombre}</span>
-                    </div>
+                    </button>
                   ))}
               </div>
             </div>

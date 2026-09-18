@@ -22,7 +22,7 @@ import NodoCard from './NodoCard';
 import FilaCompacta from './FilaCompacta';
 import ActividadStream from './ActividadStream';
 import ArbolPorProyecto from '../common/ArbolPorProyecto';
-import { COLORES_SEMAFORO } from '../common/SemaforoDot';
+import SemaforoDot from '../common/SemaforoDot';
 import { formatFecha } from '../../utils/fecha';
 import { NIVELES } from '../../config/niveles';
 
@@ -37,19 +37,21 @@ const CLASE_GRID_DEFAULT = 'grid grid-cols-[repeat(auto-fit,minmax(380px,480px))
 // avance/estado se calculan de sus hijos, nunca se registran a mano.
 // Mostrarla con las mismas afordancias que una tarjeta accionable
 // (checkbox, "Registrar avance") insinuaba algo que no se puede hacer.
-// Aquí es solo lectura: ícono+color del nivel (mismo criterio que el
-// resto del árbol) + semáforo + fecha + responsable, con un enlace para
-// ir a verla/gestionarla en el proyecto.
+// Aquí es solo lectura: metadata subordinada al encabezado de la etapa/
+// acción justo arriba (semáforo + fecha + responsable), con un enlace
+// para ir a verla/gestionarla en el proyecto. Deliberadamente SIN el
+// ícono de tipo (Layers/Target) que ya muestra ese encabezado — antes
+// esta fila lo repetía, y al tener la misma forma "ícono + texto" que
+// cualquier nodo real del árbol, se leía como si fuera otra etapa/acción
+// más en la lista en vez de metadata de la de arriba.
 function FilaNodoResumen({ it }) {
   const info = NIVELES[it.tipo];
-  const Icono = info.icono;
   const fecha = it.fecha_limite || it.fecha_fin;
   return (
-    <div className="flex items-center gap-2 py-1 text-[11px] text-gray-500">
-      <Icono size={11} className="flex-shrink-0" style={{ color: info.color }} />
-      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO[it.semaforo_efectivo || it.semaforo || 'gris'] }} />
-      {fecha && <span className="flex-shrink-0">Vence {formatFecha(fecha)}</span>}
-      {it.responsable_nombre && <span className="truncate">· {it.responsable_nombre}</span>}
+    <div className="flex items-center gap-3 py-1 text-[11px] text-gray-400">
+      <SemaforoDot semaforo={it.semaforo_efectivo || it.semaforo} estado={it.estado} size={7} className="flex-shrink-0" />
+      {fecha && <span className="flex-shrink-0">Vence: <strong className="text-gray-500">{formatFecha(fecha)}</strong></span>}
+      {it.responsable_nombre && <span className="truncate">Responsable: <strong className="text-gray-500">{it.responsable_nombre}</strong></span>}
       <Link
         to={`/proyectos/${it.proyecto_id}?tab=seguimiento&nodo=${it.id}`}
         className="ml-auto flex-shrink-0 text-guinda-600 hover:underline font-medium"
