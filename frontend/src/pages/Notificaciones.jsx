@@ -31,7 +31,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import {
   Bell, CheckCheck, Clock, AlertTriangle, MessageSquare, FileText,
   UserPlus, MailCheck, Ban, MailQuestion, Shield, TrendingUp, Inbox, History, UserMinus,
@@ -106,7 +106,14 @@ export default function Notificaciones() {
   const [solicitudes, setSolicitudes] = useState([]);
   const [resueltas, setResueltas] = useState([]);
   const [asignacionesRiesgo, setAsignacionesRiesgo] = useState([]);
-  const [tab, setTab] = useState('pendientes');
+  // Respaldado en la URL (?tab=) para que el sidebar pueda enlazar
+  // directo a Pendientes/Historial — mismo criterio que MisActividades.jsx.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [tab, setTabState] = useState(() => searchParams.get('tab') || 'pendientes');
+  const setTab = (id) => {
+    setTabState(id);
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('tab', id); return next; });
+  };
   const [categoriaFiltro, setCategoriaFiltro] = useState('Todas');
   const [proyectoFiltro, setProyectoFiltro] = useState('');
   const [visibles, setVisibles] = useState(PAGINA);
@@ -137,8 +144,10 @@ export default function Notificaciones() {
   // en esa pestaña vacía — se arranca directo en Historial. Solo se decide
   // una vez (tabElegida): después de eso manda lo que la persona haya
   // clicado, aunque un pendiente nuevo llegue por polling mientras mira
-  // Historial.
-  const [tabElegida, setTabElegida] = useState(false);
+  // Historial. Si se llegó con un ?tab= explícito (enlace del sidebar u
+  // otro), ese deep-link ya cuenta como "elegido" — no lo pisa este auto-
+  // selector data-dependiente.
+  const [tabElegida, setTabElegida] = useState(() => !!searchParams.get('tab'));
   useEffect(() => {
     if (!cargando && !tabElegida) {
       setTab(pendientesTotal > 0 ? 'pendientes' : 'historial');

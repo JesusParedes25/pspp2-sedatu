@@ -4,6 +4,7 @@
  * Tabs: Catálogos | Usuarios | Áreas | Configuración
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Plus, Pencil, Trash2, RotateCcw, AlertTriangle, Shield, ChevronDown, ChevronRight,
   Loader2, Save, X, Users, Building2, Settings, Mail, ToggleLeft, ToggleRight,
@@ -858,7 +859,13 @@ function TabPapelera() {
 }
 
 export default function AdminCatalogos() {
-  const [tab, setTab] = useState('catalogos');
+  // Respaldado en la URL (?tab=) para que el sidebar principal pueda
+  // enlazar directo a cada subpágina y resaltarla — el nav agrupado
+  // propio de este panel (GRUPOS_NAV, abajo) sigue igual, ahora lee/
+  // escribe el mismo query param en vez de duplicar el estado.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get('tab') || 'catalogos';
+  const setTab = (id) => setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('tab', id); return next; });
   const [dgs, setDgs] = useState([]);
   const [das, setDas] = useState([]);
 
