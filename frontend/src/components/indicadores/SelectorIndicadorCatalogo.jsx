@@ -18,9 +18,10 @@
  * administrador pueda curar después.
  * ─────────────────────────────────────────────────────────────────
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Loader2, Search, Plus, BarChart3, BookOpen } from 'lucide-react';
 import * as catalogoApi from '../../api/catalogo-indicadores';
+import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
 
 const TIPOS = [
   { valor: 'Avance_fisico', etiqueta: 'Avance físico' },
@@ -50,10 +51,11 @@ export default function SelectorIndicadorCatalogo({ onElegir, onCerrar, yaUsados
   const [modoAlta, setModoAlta] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState(null);
-  const [nuevo, setNuevo] = useState({
+  const valoresInicialesNuevo = useRef({
     nombre: '', tipo: 'Avance_fisico', unidad: 'Numero',
     unidad_personalizada: '', definicion: '', fuente: '',
-  });
+  }).current;
+  const [nuevo, setNuevo] = useState(valoresInicialesNuevo);
 
   useEffect(() => {
     let vivo = true;
@@ -94,8 +96,11 @@ export default function SelectorIndicadorCatalogo({ onElegir, onCerrar, yaUsados
 
   const usados = new Set(yaUsados.filter(Boolean));
 
+  const hayCambiosSinGuardar = modoAlta && JSON.stringify(nuevo) !== JSON.stringify(valoresInicialesNuevo);
+  const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(hayCambiosSinGuardar, onCerrar);
+
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onCerrar}>
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={cerrarPorFondo}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-2">
@@ -104,7 +109,7 @@ export default function SelectorIndicadorCatalogo({ onElegir, onCerrar, yaUsados
               {modoAlta ? 'Agregar un indicador al catálogo' : 'Elegir indicador del catálogo'}
             </h3>
           </div>
-          <button onClick={onCerrar} className="p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-100">
+          <button onClick={cerrarConConfirmacion} className="p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-100">
             <X size={16} />
           </button>
         </div>
@@ -269,7 +274,7 @@ export default function SelectorIndicadorCatalogo({ onElegir, onCerrar, yaUsados
             </button>
           ) : <span />}
           <div className="flex items-center gap-2">
-            <button onClick={onCerrar} className="btn-secondary text-sm">Cancelar</button>
+            <button onClick={cerrarConConfirmacion} className="btn-secondary text-sm">Cancelar</button>
             {modoAlta && (
               <button
                 onClick={crearYElegir}

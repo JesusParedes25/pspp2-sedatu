@@ -19,6 +19,7 @@ import { X, Loader2, Copy, Search, Calendar, MapPin, BarChart3, Users, Paperclip
 import * as proyectosApi from '../../api/proyectos';
 import * as etapasApi from '../../api/etapas';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
+import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
 
 const OPCIONES = [
   { clave: 'fechas', icono: Calendar, etiqueta: 'Fechas',
@@ -113,15 +114,20 @@ export default function ModalDuplicarProyecto({ proyectoOrigen = null, onCerrar,
 
   const total = estructura ? estructura.etapas + estructura.acciones + estructura.tareas : 0;
 
+  // "Hay algo que perder" en cuanto se elige un origen — la búsqueda y
+  // selección entre candidatos (y el nombre/opciones que se ajustan
+  // después) es el esfuerzo real, no solo texto en un campo.
+  const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(origen !== null, onCerrar);
+
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onCerrar}>
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={cerrarPorFondo}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-2">
             <Copy size={16} className="text-guinda-600" />
             <h3 className="text-sm font-semibold text-gray-900">Duplicar un proyecto</h3>
           </div>
-          <button onClick={onCerrar} className="p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-100">
+          <button onClick={cerrarConConfirmacion} className="p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-100">
             <X size={16} />
           </button>
         </div>
@@ -247,7 +253,7 @@ export default function ModalDuplicarProyecto({ proyectoOrigen = null, onCerrar,
         </div>
 
         <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-100 flex-shrink-0">
-          <button onClick={onCerrar} className="btn-secondary text-sm">Cancelar</button>
+          <button onClick={cerrarConConfirmacion} className="btn-secondary text-sm">Cancelar</button>
           <button
             onClick={confirmar}
             disabled={!origen || !nombre.trim() || duplicando}

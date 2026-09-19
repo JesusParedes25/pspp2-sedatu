@@ -9,6 +9,7 @@ import { X, Loader2, Search, Briefcase } from 'lucide-react';
 import * as proyectosApi from '../../api/proyectos';
 import * as carterasApi from '../../api/carteras';
 import { useUI } from '../../context/UIContext';
+import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
 
 export default function ModalAgregarProyectos({ carteraId, idsExcluidos = [], onCerrar, onAgregados }) {
   const { mostrarToast } = useUI();
@@ -48,15 +49,17 @@ export default function ModalAgregarProyectos({ carteraId, idsExcluidos = [], on
     }
   }
 
+  const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(seleccionados.length > 0, onCerrar);
+
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={onCerrar}>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={cerrarPorFondo}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-2">
             <Briefcase size={17} className="text-guinda-500" />
             <h2 className="text-sm font-bold text-gray-900">Agregar proyectos a la cartera</h2>
           </div>
-          <button onClick={onCerrar} className="p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-100">
+          <button onClick={cerrarConConfirmacion} className="p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-100">
             <X size={16} />
           </button>
         </div>
@@ -98,7 +101,7 @@ export default function ModalAgregarProyectos({ carteraId, idsExcluidos = [], on
         <div className="flex items-center justify-between gap-2 px-5 py-3.5 border-t border-gray-100 bg-gray-50 rounded-b-xl flex-shrink-0">
           <span className="text-xs text-gray-500">{seleccionados.length} seleccionado(s)</span>
           <div className="flex gap-2">
-            <button onClick={onCerrar} className="px-3.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded-lg">
+            <button onClick={cerrarConConfirmacion} className="px-3.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded-lg">
               Cancelar
             </button>
             <button onClick={agregar} disabled={guardando || !seleccionados.length}

@@ -35,6 +35,8 @@ import { NIVELES } from '../../config/niveles';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 import { agruparParaLinea } from './ActividadStream';
 import FilaDocumentoPendiente from './FilaDocumentoPendiente';
+import { useUI } from '../../context/UIContext';
+import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
 
 // comentarios/evidencias del modelo viejo NUNCA soportaron 'Tarea' — para
 // tarea todo cae al stream unificado `actividad` (mismo criterio que ya usa
@@ -88,6 +90,7 @@ let contadorEvidencia = 0;
 const idEvidencia = () => `ev${++contadorEvidencia}`;
 
 export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false, onGuardado, onCerrar }) {
+  const { mostrarToast } = useUI();
   const nivel = NIVELES[tipo];
   const avanceActual = Math.round(nodo.avance_actual ?? nodo.avance_efectivo ?? 0);
   const estadoActual = nodo.estado || 'Pendiente';
@@ -196,6 +199,7 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
       }
 
       await onGuardado?.();
+      mostrarToast('Avance guardado', 'exito');
       onCerrar?.();
     } catch (err) {
       setError(err.response?.data?.mensaje || 'No se pudo guardar el avance');
@@ -207,24 +211,17 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
 
   // Antes, un clic fuera del modal (fácil de hacer sin querer al volver de
   // otra pestaña — ej. copiar una liga y regresar) lo cerraba sin avisar,
-  // y con eso se perdía todo lo capturado. Un clic en el fondo, que casi
-  // siempre es accidental, ahora se ignora mientras haya algo sin guardar;
-  // cerrar a propósito (X o Cancelar) sigue funcionando, solo pide
-  // confirmar cuando de verdad hay algo que se perdería.
+  // y con eso se perdía todo lo capturado. useCierreConDatosSinGuardar
+  // ignora ese clic mientras haya algo sin guardar; cerrar a propósito (X
+  // o Cancelar) sigue funcionando, solo pide confirmar cuando de verdad
+  // hay algo que se perdería.
   const hayCambiosSinGuardar = estatus.trim().length > 0
     || detalle.trim().length > 0
     || evidencias.length > 0
     || (puedeCapturarAvance && concluir !== (estadoActual === 'Completada'))
     || (puedeCapturarAvance && !concluir && avance !== Math.min(avanceActual, 99));
 
-  function cerrarPorFondo() {
-    if (hayCambiosSinGuardar) return;
-    onCerrar?.();
-  }
-  function cerrarConConfirmacion() {
-    if (hayCambiosSinGuardar && !window.confirm('Tienes cambios sin guardar. ¿Deseas cerrar sin guardar?')) return;
-    onCerrar?.();
-  }
+  const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(hayCambiosSinGuardar, onCerrar);
 
   return createPortal((
     <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4" onClick={cerrarPorFondo}>

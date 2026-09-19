@@ -18,9 +18,10 @@
  * la plataforma externa consumirá el avance.
  * ─────────────────────────────────────────────────────────────────
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader2, Search, Pencil, EyeOff, Eye, X, ChevronRight, ExternalLink } from 'lucide-react';
 import * as catalogoApi from '../../api/catalogo-indicadores';
+import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
 
 const TIPOS = [
   { valor: 'Avance_fisico', etiqueta: 'Avance físico' },
@@ -89,6 +90,12 @@ export default function TabIndicadores() {
   const [expandido, setExpandido] = useState(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
+  const editandoInicialRef = useRef(null);
+
+  function abrirEdicion(ind) {
+    editandoInicialRef.current = { ...ind };
+    setEditando(editandoInicialRef.current);
+  }
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -129,6 +136,9 @@ export default function TabIndicadores() {
       setError(err.response?.data?.mensaje || 'No se pudo cambiar el estado.');
     }
   }
+
+  const hayCambiosSinGuardar = !!editando && JSON.stringify(editando) !== JSON.stringify(editandoInicialRef.current);
+  const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(hayCambiosSinGuardar, () => setEditando(null));
 
   return (
     <div className="space-y-4">
@@ -199,7 +209,7 @@ export default function TabIndicadores() {
                   )}
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  <button onClick={() => setEditando({ ...ind })} title="Editar"
+                  <button onClick={() => abrirEdicion(ind)} title="Editar"
                     className="p-1.5 text-gray-400 hover:text-blue-600 rounded hover:bg-gray-100"><Pencil size={13} /></button>
                   <button onClick={() => alternarActivo(ind)} title={ind.activo ? 'Retirar del catálogo' : 'Reactivar'}
                     className="p-1.5 text-gray-400 hover:text-amber-600 rounded hover:bg-gray-100">
@@ -215,11 +225,11 @@ export default function TabIndicadores() {
 
       {/* ─── Edición ─── */}
       {editando && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setEditando(null)}>
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={cerrarPorFondo}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
               <h3 className="text-sm font-semibold text-gray-900">Editar indicador</h3>
-              <button onClick={() => setEditando(null)} className="p-1 text-gray-400 hover:text-gray-700"><X size={16} /></button>
+              <button onClick={cerrarConConfirmacion} className="p-1 text-gray-400 hover:text-gray-700"><X size={16} /></button>
             </div>
             <div className="px-5 py-4 space-y-3 overflow-y-auto">
               <div>
@@ -269,7 +279,7 @@ export default function TabIndicadores() {
               )}
             </div>
             <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-100">
-              <button onClick={() => setEditando(null)} className="btn-secondary text-sm">Cancelar</button>
+              <button onClick={cerrarConConfirmacion} className="btn-secondary text-sm">Cancelar</button>
               <button onClick={guardar} disabled={guardando || !editando.nombre?.trim()}
                 className="btn-primary text-sm disabled:opacity-40">
                 {guardando ? 'Guardando...' : 'Guardar'}
