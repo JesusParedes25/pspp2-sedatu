@@ -4,26 +4,28 @@
  *            proyectos. Mismo componente para ambos casos: si recibe
  *            `cartera` (prop), edita; si no, crea.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Loader2, Briefcase } from 'lucide-react';
 import * as carterasApi from '../../api/carteras';
 import * as catalogosApi from '../../api/catalogos';
 import { useUI } from '../../context/UIContext';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
+import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
 
 export default function ModalCartera({ cartera, onCerrar, onGuardada }) {
   const { mostrarToast } = useUI();
   const esEdicion = !!cartera;
   const [dgs, setDgs] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
-  const [datos, setDatos] = useState({
+  const valoresIniciales = useRef({
     nombre: cartera?.nombre || '',
     descripcion: cartera?.descripcion || '',
     id_dg_lider: cartera?.id_dg_lider || '',
     id_responsable: cartera?.id_responsable || '',
     fecha_inicio: cartera?.fecha_inicio ? cartera.fecha_inicio.slice(0, 10) : '',
     fecha_fin: cartera?.fecha_fin ? cartera.fecha_fin.slice(0, 10) : '',
-  });
+  }).current;
+  const [datos, setDatos] = useState(valoresIniciales);
 
   useEffect(() => {
     Promise.all([catalogosApi.obtenerDGs(), catalogosApi.obtenerUsuarios()])
@@ -54,15 +56,18 @@ export default function ModalCartera({ cartera, onCerrar, onGuardada }) {
     }
   });
 
+  const hayCambiosSinGuardar = JSON.stringify(datos) !== JSON.stringify(valoresIniciales);
+  const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(hayCambiosSinGuardar, onCerrar);
+
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={onCerrar}>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={cerrarPorFondo}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <Briefcase size={17} className="text-guinda-500" />
             <h2 className="text-sm font-bold text-gray-900">{esEdicion ? 'Editar cartera' : 'Nueva cartera'}</h2>
           </div>
-          <button onClick={onCerrar} className="p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-100">
+          <button onClick={cerrarConConfirmacion} className="p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-100">
             <X size={16} />
           </button>
         </div>
@@ -107,7 +112,7 @@ export default function ModalCartera({ cartera, onCerrar, onGuardada }) {
         </div>
 
         <div className="flex justify-end gap-2 px-5 py-3.5 border-t border-gray-100 bg-gray-50 rounded-b-xl">
-          <button onClick={onCerrar} className="px-3.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded-lg">
+          <button onClick={cerrarConConfirmacion} className="px-3.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded-lg">
             Cancelar
           </button>
           <button onClick={guardar} disabled={guardando || !datos.nombre.trim()}

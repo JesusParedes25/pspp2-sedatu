@@ -20,11 +20,12 @@
  * apellido en vez de un error de base de datos.
  * ─────────────────────────────────────────────────────────────────
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader2, Search, Pencil, EyeOff, Eye, X, Plus, Trash2 } from 'lucide-react';
 import * as adminApi from '../../api/admin';
 import ConfirmDialog from '../common/ConfirmDialog';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
+import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
 
 // Modalidades presupuestarias de SHCP. La letra inicial de la clave es
 // justamente la modalidad, por eso se muestran juntas.
@@ -57,6 +58,15 @@ export default function TabProgramas() {
   const [editando, setEditando] = useState(null);   // { ...programa } o VACIO con modo
   const [porEliminar, setPorEliminar] = useState(null);
   const [error, setError] = useState('');
+  // Snapshot del valor con el que se abrió el formulario — para el
+  // guardia de "cambios sin guardar" (diff contra esto, no contra VACIO).
+  const editandoInicialRef = useRef(null);
+
+  function abrirEdicion(p) {
+    editandoInicialRef.current = p ? { ...p } : { ...VACIO };
+    setEditando(editandoInicialRef.current);
+    setError('');
+  }
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -120,6 +130,9 @@ export default function TabProgramas() {
     }
   }
 
+  const hayCambiosSinGuardar = !!editando && JSON.stringify(editando) !== JSON.stringify(editandoInicialRef.current);
+  const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(hayCambiosSinGuardar, () => setEditando(null));
+
   return (
     <div className="space-y-4">
       <div>
@@ -146,7 +159,7 @@ export default function TabProgramas() {
           Ver desactivados
         </label>
         <button
-          onClick={() => { setEditando({ ...VACIO }); setError(''); }}
+          onClick={() => abrirEdicion(null)}
           className="flex items-center gap-1.5 px-3 py-2 bg-guinda-700 text-white rounded-lg text-sm hover:bg-guinda-600 flex-shrink-0"
         >
           <Plus size={15} /> Nuevo
@@ -188,7 +201,7 @@ export default function TabProgramas() {
                 {p.descripcion && <p className="text-[11px] text-gray-500 mt-1.5">{p.descripcion}</p>}
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
-                <button onClick={() => { setEditando({ ...p }); setError(''); }} title="Editar"
+                <button onClick={() => abrirEdicion(p)} title="Editar"
                   className="p-1.5 text-gray-400 hover:text-blue-600 rounded hover:bg-gray-100"><Pencil size={13} /></button>
                 <button onClick={() => alternarActivo(p)} title={p.activo ? 'Desactivar (deja de ofrecerse)' : 'Reactivar'}
                   className="p-1.5 text-gray-400 hover:text-amber-600 rounded hover:bg-gray-100">
@@ -208,13 +221,13 @@ export default function TabProgramas() {
 
       {/* ─── Alta y edición ─── */}
       {editando && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setEditando(null)}>
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={cerrarPorFondo}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
               <h3 className="text-sm font-semibold text-gray-900">
                 {editando.id ? 'Editar programa' : 'Nuevo programa presupuestario'}
               </h3>
-              <button onClick={() => setEditando(null)} className="p-1 text-gray-400 hover:text-gray-700"><X size={16} /></button>
+              <button onClick={cerrarConConfirmacion} className="p-1 text-gray-400 hover:text-gray-700"><X size={16} /></button>
             </div>
 
             <div className="px-5 py-4 space-y-3 overflow-y-auto">
@@ -283,7 +296,7 @@ export default function TabProgramas() {
             </div>
 
             <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-100">
-              <button onClick={() => setEditando(null)} className="btn-secondary text-sm">Cancelar</button>
+              <button onClick={cerrarConConfirmacion} className="btn-secondary text-sm">Cancelar</button>
               <button onClick={guardar}
                 disabled={guardando || !editando.nombre?.trim() || !editando.clave?.trim()}
                 className="btn-primary text-sm disabled:opacity-40">

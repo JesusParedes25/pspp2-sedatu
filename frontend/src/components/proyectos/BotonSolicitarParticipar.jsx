@@ -28,6 +28,7 @@ import { UserPlus, Loader2, Clock, X } from 'lucide-react';
 import {
   solicitarParticipacion, solicitarParticipacionNodo, misSolicitudes,
 } from '../../api/solicitudes';
+import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
 
 const ETIQUETA_NODO = { etapa: 'esta etapa', accion: 'esta acción', tarea: 'esta tarea' };
 
@@ -108,14 +109,37 @@ export default function BotonSolicitarParticipar({ proyecto, permisos, nodo = nu
         Solicitar participar
       </button>
 
-      {abierto && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4" onClick={() => setAbierto(false)}>
+      {abierto && <ModalSolicitar
+        queSePide={queSePide}
+        esDeNodo={esDeNodo}
+        nodo={nodo}
+        nombreProyecto={nombreProyecto}
+        funcion={funcion}
+        setFuncion={setFuncion}
+        motivo={motivo}
+        setMotivo={setMotivo}
+        error={error}
+        enviando={enviando}
+        enviar={enviar}
+        onCerrar={() => setAbierto(false)}
+      />}
+    </>
+  );
+}
+
+function ModalSolicitar({ queSePide, esDeNodo, nodo, nombreProyecto, funcion, setFuncion, motivo, setMotivo, error, enviando, enviar, onCerrar }) {
+  // El motivo es lo único que de verdad se perdería (la función solo es un
+  // selector de dos opciones, barato de volver a elegir).
+  const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(motivo.trim().length > 0, onCerrar);
+
+  return (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4" onClick={cerrarPorFondo}>
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3 border-b">
               <h3 className="text-base font-semibold text-gray-900">
                 {esDeNodo ? `Solicitar participar en ${queSePide}` : 'Solicitar participar'}
               </h3>
-              <button onClick={() => setAbierto(false)} className="p-1 hover:bg-gray-100 rounded"><X size={18} /></button>
+              <button onClick={cerrarConConfirmacion} className="p-1 hover:bg-gray-100 rounded"><X size={18} /></button>
             </div>
 
             <div className="px-5 py-4 space-y-3">
@@ -164,7 +188,7 @@ export default function BotonSolicitarParticipar({ proyecto, permisos, nodo = nu
             </div>
 
             <div className="flex justify-end gap-2 px-5 py-3 border-t">
-              <button onClick={() => setAbierto(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
+              <button onClick={cerrarConConfirmacion} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
                 Cancelar
               </button>
               <button
@@ -178,7 +202,5 @@ export default function BotonSolicitarParticipar({ proyecto, permisos, nodo = nu
             </div>
           </div>
         </div>
-      )}
-    </>
   );
 }

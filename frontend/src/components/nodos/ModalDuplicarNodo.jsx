@@ -22,6 +22,7 @@ import * as etapasApi from '../../api/etapas';
 import * as accionesApi from '../../api/acciones';
 import * as tareasApi from '../../api/tareas';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
+import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
 
 export default function ModalDuplicarNodo({ tipo, nodo, proyectoId, onCerrar, onCompletado, mostrarToast }) {
   const [cargandoDestinos, setCargandoDestinos] = useState(true);
@@ -125,8 +126,10 @@ export default function ModalDuplicarNodo({ tipo, nodo, proyectoId, onCerrar, on
 
   const sinDestinos = !cargandoDestinos && tipo === 'accion' ? etapas.length === 0 : (!cargandoDestinos && gruposAcciones.length === 0);
 
+  const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(seleccionados.size > 0, onCerrar);
+
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onCerrar}>
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={cerrarPorFondo}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <div className="flex items-center gap-2">
@@ -135,7 +138,7 @@ export default function ModalDuplicarNodo({ tipo, nodo, proyectoId, onCerrar, on
               Duplicar {tipo === 'accion' ? 'acción a otras etapas' : 'tarea a otras acciones'}
             </h3>
           </div>
-          <button onClick={onCerrar} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+          <button onClick={cerrarConConfirmacion} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
         </div>
 
         <div className="px-4 py-3 flex-1 overflow-y-auto">
@@ -184,7 +187,7 @@ export default function ModalDuplicarNodo({ tipo, nodo, proyectoId, onCerrar, on
         </div>
 
         <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-gray-100">
-          <button onClick={onCerrar} className="text-xs text-gray-500 px-3 py-1.5 hover:text-gray-700">Cancelar</button>
+          <button onClick={cerrarConConfirmacion} className="text-xs text-gray-500 px-3 py-1.5 hover:text-gray-700">Cancelar</button>
           <button
             onClick={confirmar}
             disabled={seleccionados.size === 0 || duplicando}

@@ -18,11 +18,13 @@ import FilePreviewModal from '../evidencias/FilePreviewModal';
 import FilaDocumentoPendiente from './FilaDocumentoPendiente';
 import { permisosDeNodo } from '../../hooks/usePermisos';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
+import { useUI } from '../../context/UIContext';
 
 let contadorPendiente = 0;
 const idPendiente = () => `p${++contadorPendiente}`;
 
 export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, permisos: permisosProyecto }) {
+  const { mostrarToast } = useUI();
   const permisos = permisosDeNodo(permisosProyecto, tipo, id);
   // Una tarea no tiene tabla de evidencias propia (nunca la tuvo) — sus
   // adjuntos viven en el stream unificado `actividad` (tipo_evento='archivo'),
@@ -60,6 +62,7 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
   // peticiones multipart contra el mismo nodo — más simple de seguir en el
   // log del servidor, mismo criterio que ModalRegistrarAvance.
   const [guardarPendientes, guardando] = useEnvioUnico(async () => {
+    const total = pendientes.length;
     try {
       for (const p of pendientes) {
         const metadatos = { categoria: p.categoria, notas: p.notas, titulo: p.titulo?.trim() || null };
@@ -75,8 +78,10 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
       }
       setPendientes([]);
       onRecargar?.();
+      mostrarToast(total > 1 ? `${total} documentos guardados` : 'Documento guardado', 'exito');
     } catch (err) {
       console.error('Error subiendo documentos:', err);
+      mostrarToast(err.response?.data?.mensaje || 'No se pudo subir el documento', 'error');
     }
   });
 

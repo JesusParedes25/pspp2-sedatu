@@ -17,6 +17,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Loader2, Plus, Copy, Check, Trash2, KeyRound, X, AlertTriangle } from 'lucide-react';
 import * as adminApi from '../../api/admin';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
+import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
 
 function Campo({ etiqueta, children }) {
   return (
@@ -75,6 +76,9 @@ export default function TabApiIndicadores() {
   }
 
   const urlApi = `${window.location.origin}/api/v1/publico/indicadores`;
+
+  const hayCambiosSinGuardar = nuevo.nombre.trim().length > 0 || nuevo.descripcion.trim().length > 0;
+  const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(hayCambiosSinGuardar, () => setCreando(false));
 
   return (
     <div className="space-y-4">
@@ -188,11 +192,11 @@ export default function TabApiIndicadores() {
 
       {/* Alta */}
       {creando && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setCreando(false)}>
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={cerrarPorFondo}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
               <h3 className="text-sm font-semibold text-gray-900">Nuevo acceso a la API</h3>
-              <button onClick={() => setCreando(false)} className="p-1 text-gray-400 hover:text-gray-700"><X size={16} /></button>
+              <button onClick={cerrarConConfirmacion} className="p-1 text-gray-400 hover:text-gray-700"><X size={16} /></button>
             </div>
             <div className="px-5 py-4 space-y-3">
               <Campo etiqueta="¿Para qué es?">
@@ -218,7 +222,7 @@ export default function TabApiIndicadores() {
               </Campo>
             </div>
             <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-100">
-              <button onClick={() => setCreando(false)} className="btn-secondary text-sm">Cancelar</button>
+              <button onClick={cerrarConConfirmacion} className="btn-secondary text-sm">Cancelar</button>
               <button onClick={crear} disabled={!nuevo.nombre.trim() || guardando} className="btn-primary text-sm disabled:opacity-40">
                 {guardando ? 'Creando...' : 'Crear acceso'}
               </button>
