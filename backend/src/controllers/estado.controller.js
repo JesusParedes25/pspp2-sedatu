@@ -208,8 +208,12 @@ async function recalcularTrasEstado(entidadTipo, entidadId, client) {
     const fila = accion.rows[0];
     if (!fila) return;
 
-    // Si es subacción, recalcular la acción padre primero
+    // Si es subacción, recalcular la acción padre desde sus subacciones
+    // (porcentaje_avance) ANTES de leerlo para la etapa — si no, la etapa
+    // se recalcula desde el valor viejo que la acción padre tenía guardado
+    // (mismo patrón que la rama Tarea de esta función, abajo).
     if (fila.id_accion_padre) {
+      await recalcularPadres('accion', fila.id_accion_padre, client);
       const padre = await client.query(
         'SELECT id_etapa, id_proyecto FROM acciones WHERE id = $1',
         [fila.id_accion_padre]
