@@ -14,6 +14,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const pool = require('../pool');
+const { condicionRiesgoDeProyecto } = require('../../utils/condicion-riesgo');
 
 // Obtiene todos los riesgos de un proyecto (en todos sus niveles)
 async function obtenerRiesgosPorProyecto(proyectoId) {
@@ -25,16 +26,7 @@ async function obtenerRiesgosPorProyecto(proyectoId) {
     FROM riesgos r
     LEFT JOIN usuarios u_resp ON u_resp.id = r.id_responsable
     LEFT JOIN usuarios u_rep ON u_rep.id = r.id_reportador
-    WHERE (r.entidad_tipo = 'Proyecto' AND r.entidad_id = $1)
-       OR (r.entidad_tipo = 'Etapa' AND r.entidad_id IN (
-            SELECT id FROM etapas WHERE id_proyecto = $1
-          ))
-       OR (r.entidad_tipo = 'Accion' AND r.entidad_id IN (
-            SELECT id FROM acciones WHERE id_proyecto = $1
-          ))
-       OR (r.entidad_tipo = 'Tarea' AND r.entidad_id IN (
-            SELECT t.id FROM tareas t JOIN acciones a ON a.id = t.id_accion WHERE a.id_proyecto = $1
-          ))
+    WHERE ${condicionRiesgoDeProyecto('$1')}
     ORDER BY
       CASE r.nivel WHEN 'Critico' THEN 1 WHEN 'Alto' THEN 2 WHEN 'Medio' THEN 3 ELSE 4 END,
       r.created_at DESC
@@ -43,7 +35,7 @@ async function obtenerRiesgosPorProyecto(proyectoId) {
   return resultado.rows;
 }
 
-// Obtiene riesgos de una etapa (tipo Etapa + sus acciones)
+// Obtiene riesgos de una etapa (tipo Etapa + sus acciones/subacciones y tareas)
 async function obtenerRiesgosPorEtapa(etapaId) {
   const resultado = await pool.query(`
     SELECT
@@ -54,7 +46,7 @@ async function obtenerRiesgosPorEtapa(etapaId) {
     LEFT JOIN usuarios u_resp ON u_resp.id = r.id_responsable
     LEFT JOIN usuarios u_rep ON u_rep.id = r.id_reportador
     WHERE (r.entidad_tipo = 'Etapa' AND r.entidad_id = $1)
-       OR (r.entidad_tipo = 'Accion' AND r.entidad_id IN (
+       OR (r.entidad_tipo IN ('Accion', 'Subaccion') AND r.entidad_id IN (
             SELECT id FROM acciones WHERE id_etapa = $1
           ))
        OR (r.entidad_tipo = 'Tarea' AND r.entidad_id IN (

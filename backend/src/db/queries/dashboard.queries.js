@@ -3,6 +3,7 @@
  * PROPÓSITO: Queries agregadas para el dashboard ejecutivo.
  */
 const pool = require('../pool');
+const { condicionRiesgoDeProyecto } = require('../../utils/condicion-riesgo');
 
 /**
  * Métricas globales: total proyectos, acciones, avance, estados activos.
@@ -81,11 +82,11 @@ async function obtenerAlertas(filtros = {}) {
     ORDER BY a.fecha_fin ASC LIMIT 10
   `, params);
 
-  // Riesgos críticos
+  // Riesgos críticos (cualquier nivel: Proyecto, Etapa, Acción, Subacción o Tarea)
   const { rows: riesgos } = await pool.query(`
     SELECT r.titulo, r.nivel, r.created_at, p.nombre AS proyecto_nombre
     FROM riesgos r
-    JOIN proyectos p ON r.entidad_tipo = 'Proyecto' AND r.entidad_id = p.id AND p.deleted_at IS NULL
+    JOIN proyectos p ON ${condicionRiesgoDeProyecto('p.id')} AND p.deleted_at IS NULL
     WHERE r.estado IN ('Abierto','En_mitigacion') AND r.nivel IN ('Critico','Alto')
       ${filtroDG ? `AND p.id_dg_lider = $1` : ''}
     ORDER BY CASE r.nivel WHEN 'Critico' THEN 1 ELSE 2 END, r.created_at DESC
