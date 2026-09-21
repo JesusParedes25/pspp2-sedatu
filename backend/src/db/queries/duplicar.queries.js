@@ -299,17 +299,11 @@ async function duplicarProyecto(idOrigen, opciones, creadorId) {
           SELECT $1, anio, meta, 0 FROM indicador_metas_anuales WHERE id_indicador = $2
         `, [nuevoInd.id, ind.id]);
 
-        const { rows: vinculos } = await client.query(
-          'SELECT * FROM indicador_etapas WHERE id_indicador = $1', [ind.id]
-        );
-        for (const v of vinculos) {
-          const etapaNueva = mapaEtapas.get(v.id_etapa);
-          if (!etapaNueva) continue;
-          await client.query(`
-            INSERT INTO indicador_etapas (id_indicador, id_etapa, meta_etapa, valor_actual)
-            VALUES ($1, $2, $3, 0)
-          `, [nuevoInd.id, etapaNueva, v.meta_etapa]);
-        }
+        // Los vínculos de etapa (antes en indicador_etapas, retirada —
+        // ver migración 069) viven ahora como filas de
+        // indicador_aportaciones, igual que las de acción/tarea — y esas
+        // ya se decidió arriba que NO viajan al duplicar (son historia
+        // del original). Por consistencia, tampoco se copian aquí.
       }
     }
 
