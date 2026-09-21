@@ -17,6 +17,7 @@ const { recalcularEtapa, recalcularProyecto } = require('../../utils/recalculos'
 const { derivarEstadoContenedor } = require('../../utils/avance-semaforo');
 const municipiosNodoQueries = require('./municipios-nodo.queries');
 const { sincronizarCobertura } = require('./cobertura-sync.queries');
+const aportacionesQueries = require('./aportaciones.queries');
 
 // Obtiene acciones de nivel superior de una etapa (sin subacciones)
 async function obtenerAccionesPorEtapa(etapaId) {
@@ -144,6 +145,14 @@ async function obtenerAccionPorId(accionId) {
 // ── Helper: vincular indicadores a una acción con validación de meta ──
 // Valida que la suma total no supere meta_global de cada indicador.
 // Si valor_aportado es 0 o vacío, la acción queda vinculada sin aportar.
+//
+// Escribe en indicador_aportaciones (antes escribía en accion_indicador,
+// retirada — ver migración 068). modo 'al_concluir' a propósito: esta
+// aportación, capturada al crear la acción, solo cuenta para el indicador
+// cuando la acción se completa — no desde que se captura. Antes contaba
+// de inmediato aunque la acción se quedara Pendiente para siempre; el
+// indicador debe reflejar lo realmente logrado, no una promesa sin
+// cumplir.
 async function vincularIndicadores(client, accionId, indicadoresAsociados) {
   if (!indicadoresAsociados || indicadoresAsociados.length === 0) return;
   for (const ia of indicadoresAsociados) {
@@ -152,9 +161,9 @@ async function vincularIndicadores(client, accionId, indicadoresAsociados) {
     if (aportado < 0) throw new Error('El valor aportado no puede ser negativo');
     if (aportado > 0) {
       const res = await client.query(`
-        SELECT i.meta_global, COALESCE(SUM(ai.valor_aportado), 0)::numeric AS total_aportado
+        SELECT i.meta_global, COALESCE(SUM(ap.aportacion), 0)::numeric AS total_aportado
         FROM indicadores i
-        LEFT JOIN accion_indicador ai ON ai.id_indicador = i.id
+        LEFT JOIN indicador_aportaciones ap ON ap.id_indicador = i.id
         WHERE i.id = $1
         GROUP BY i.id
       `, [ia.id_indicador]);
@@ -169,9 +178,9 @@ async function vincularIndicadores(client, accionId, indicadoresAsociados) {
         }
       }
     }
-    await client.query(
-      'INSERT INTO accion_indicador (id_accion, id_indicador, valor_aportado) VALUES ($1, $2, $3)',
-      [accionId, ia.id_indicador, aportado]
+    await aportacionesQueries.crear(
+      { id_indicador: ia.id_indicador, id_accion: accionId, aportacion: aportado, modo: 'al_concluir' },
+      client
     );
   }
 }
@@ -857,7 +866,11 @@ async function actualizarIndicadoresAccion(accionId, indicadoresAsociados) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await client.query('DELETE FROM accion_indicador WHERE id_accion = $1', [accionId]);
+    // FK id_accion de indicador_aportaciones es ON DELETE CASCADE por
+    // acción; aquí se reemplaza el set completo de esta acción, así que
+    // se borra explícito antes de recrear (igual que antes con
+    // accion_indicador).
+    await client.query('DELETE FROM indicador_aportaciones WHERE id_accion = $1', [accionId]);
     await vincularIndicadores(client, accionId, indicadoresAsociados);
     await client.query('COMMIT');
     return { ok: true };
@@ -872,11 +885,11 @@ async function actualizarIndicadoresAccion(accionId, indicadoresAsociados) {
 // Obtiene los indicadores vinculados a una acción con sus valores
 async function obtenerIndicadoresAccion(accionId) {
   const res = await pool.query(`
-    SELECT ai.id_indicador, ai.valor_aportado,
+    SELECT ap.id_indicador, ap.aportacion AS valor_aportado,
            i.nombre, i.unidad, i.unidad_personalizada, i.meta_global, i.id_etapa
-    FROM accion_indicador ai
-    JOIN indicadores i ON i.id = ai.id_indicador
-    WHERE ai.id_accion = $1
+    FROM indicador_aportaciones ap
+    JOIN indicadores i ON i.id = ap.id_indicador
+    WHERE ap.id_accion = $1
     ORDER BY i.nombre
   `, [accionId]);
   return res.rows;

@@ -224,10 +224,10 @@ async function obtenerResumenAportaciones(indicadorId) {
       i.unidad,
       i.unidad_personalizada,
       i.nombre,
-      COALESCE(SUM(ai.valor_aportado), 0)::numeric AS total_aportado,
+      COALESCE(SUM(ai.aportacion), 0)::numeric AS total_aportado,
       COUNT(ai.id)::int AS num_acciones
     FROM indicadores i
-    LEFT JOIN accion_indicador ai ON ai.id_indicador = i.id
+    LEFT JOIN indicador_aportaciones ai ON ai.id_indicador = i.id
     WHERE i.id = $1
     GROUP BY i.id
   `, [indicadorId]);
@@ -248,7 +248,13 @@ async function obtenerResumenAportaciones(indicadorId) {
  * Recalcula valor_actual de un indicador según su modo_calculo.
  * - contar_completadas: cuenta acciones con estado='Completada' vinculadas
  * - porcentaje_promedio: promedio de porcentaje_avance de acciones vinculadas
- * - suma_manual: suma de accion_indicador.valor_aportado (comportamiento legacy)
+ *
+ * 'manual' y 'suma_manual' NO pasan por aquí — recalcularIndicadoresProyecto
+ * ya los excluye. Un indicador manual se edita con PATCH /indicadores/:id/valor
+ * (captura directa) o vía sus aportaciones (indicador_aportaciones, ver
+ * aportaciones.queries.js::recalcularAportacionesProyecto) — nunca desde
+ * esta función, que solo existió para los dos modos verdaderamente
+ * automáticos.
  *
  * Si id_etapa no es null, solo cuenta acciones de esa etapa.
  */
@@ -283,12 +289,7 @@ async function recalcularIndicador(indicadorId, client = null) {
     `, params);
     valor = parseFloat(res.rows[0].promedio) || 0;
   } else {
-    // suma_manual — legacy behavior
-    const res = await db.query(`
-      SELECT COALESCE(SUM(ai.valor_aportado), 0)::numeric AS total
-      FROM accion_indicador ai WHERE ai.id_indicador = $1
-    `, [indicadorId]);
-    valor = parseFloat(res.rows[0].total) || 0;
+    return null;
   }
 
   await db.query(
@@ -300,13 +301,17 @@ async function recalcularIndicador(indicadorId, client = null) {
 
 /**
  * Recalcula TODOS los indicadores auto-calculados de un proyecto.
- * Se invoca cuando cambia el estado de una acción.
+ * Se invoca cuando cambia el estado de una acción. Inclusión explícita
+ * (antes era `!= 'suma_manual'`, que de paso arrastraba 'manual' — la
+ * causa de que un indicador manual se pusiera en cero solo con
+ * cualquier cambio de estado, ver migración 068).
  */
 async function recalcularIndicadoresProyecto(proyectoId, client = null) {
   const db = client || pool;
   const res = await db.query(
     `SELECT id FROM indicadores
-     WHERE id_proyecto = $1 AND activo = true AND modo_calculo != 'suma_manual'`,
+     WHERE id_proyecto = $1 AND activo = true
+       AND modo_calculo IN ('contar_completadas', 'porcentaje_promedio')`,
     [proyectoId]
   );
   for (const row of res.rows) {
@@ -372,6 +377,74 @@ async function listarPublicables(filtros = {}) {
   });
 }
 
+/**
+ * Captura manual directa del valor de un indicador — la pieza que hasta
+ * ahora no existía: un indicador en modo 'manual' no tenía NINGÚN
+ * endpoint para fijar su valor a mano (solo se podía poner en cero por
+ * el bug de recalcularIndicadoresProyecto, ya corregido).
+ *
+ * temporalidad 'Global': set directo de valor_actual.
+ * temporalidad 'Anual': upsert de indicador_metas_anuales.valor_actual
+ * para ese año (crea la fila si no existía, sin tocar su meta si ya
+ * tenía una) — valor_actual del indicador pasa a ser la SUMA de todos
+ * sus años capturados, así el corte anual (indicador financiero) queda
+ * completo: el número global es la suma de lo capturado año por año.
+ *
+ * Solo aplica a modo_calculo = 'manual' — lo valida el controller antes
+ * de llamar aquí, para no pisar por accidente un valor auto-calculado.
+ */
+async function establecerValorManual(indicadorId, { valor, anio }) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rows: [ind] } = await client.query(
+      'SELECT temporalidad FROM indicadores WHERE id = $1', [indicadorId]
+    );
+    if (!ind) { await client.query('ROLLBACK'); return null; }
+
+    if (ind.temporalidad === 'Anual') {
+      if (anio == null) {
+        const err = new Error('Este indicador tiene corte anual: se requiere el año');
+        err.statusCode = 400;
+        throw err;
+      }
+      // meta es NOT NULL en el esquema — si el año no tenía fila (nadie
+      // configuró una meta para él todavía), se crea con meta=0 en vez de
+      // bloquear la captura del valor real: es válido reportar el gasto
+      // de un año antes de que su presupuesto formal quede definido.
+      await client.query(`
+        INSERT INTO indicador_metas_anuales (id_indicador, anio, meta, valor_actual)
+        VALUES ($1, $2, 0, $3)
+        ON CONFLICT (id_indicador, anio) DO UPDATE SET valor_actual = $3
+      `, [indicadorId, anio, valor]);
+
+      const { rows: [suma] } = await client.query(
+        'SELECT COALESCE(SUM(valor_actual), 0)::numeric AS total FROM indicador_metas_anuales WHERE id_indicador = $1',
+        [indicadorId]
+      );
+      await client.query(
+        'UPDATE indicadores SET valor_actual = $1, updated_at = NOW() WHERE id = $2',
+        [suma.total, indicadorId]
+      );
+    } else {
+      await client.query(
+        'UPDATE indicadores SET valor_actual = $1, updated_at = NOW() WHERE id = $2',
+        [valor, indicadorId]
+      );
+    }
+
+    const { rows: [actualizado] } = await client.query('SELECT * FROM indicadores WHERE id = $1', [indicadorId]);
+    await client.query('COMMIT');
+    return actualizado;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   listarPorProyecto,
   listarPorEtapa,
@@ -382,5 +455,6 @@ module.exports = {
   obtenerResumenAportaciones,
   recalcularIndicador,
   recalcularIndicadoresProyecto,
-  listarPublicables
+  listarPublicables,
+  establecerValorManual,
 };
