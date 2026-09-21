@@ -19,7 +19,9 @@
  */
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, X, Pencil } from 'lucide-react';
+import { formatearMonedaCorta, etiquetaUnidadIndicador } from '../../utils/formatoMoneda';
+import ModalEditarValorIndicador from './ModalEditarValorIndicador';
 
 const GUINDA = '#7B1C3E';
 
@@ -35,16 +37,16 @@ export const ETIQUETA_TIPO_INDICADOR = {
   Otro: 'Otro',
 };
 
-// Cómo se llama la unidad al escribirla junto al número.
-export function unidadDe(ind) {
-  if (ind.unidad === 'Porcentaje') return '%';
-  if (ind.unidad === 'Moneda_MXN') return 'MXN';
-  return ind.etiqueta_unidad || ind.unidad_personalizada || '';
-}
+// Cómo se llama la unidad al escribirla junto al número. Reexportado
+// desde el módulo compartido (antes vivía duplicado, con variaciones
+// menores, en ~7 archivos distintos).
+export const unidadDe = etiquetaUnidadIndicador;
 
 // Números grandes legibles de un vistazo: 1.2M en vez de 1,200,000.
 // Debajo de 10 000 se muestra completo, que es el rango donde el dato
-// exacto importa (dictámenes, acuerdos, zonas metropolitanas).
+// exacto importa (dictámenes, acuerdos, zonas metropolitanas). Para
+// indicadores de moneda se usa formatearMonedaCorta en su lugar (signo
+// $ real, no un sufijo "MXN" suelto igual que cualquier otra unidad).
 export function formatoCorto(n) {
   if (n == null || isNaN(n)) return '—';
   const abs = Math.abs(n);
@@ -54,7 +56,8 @@ export function formatoCorto(n) {
   return n.toLocaleString('es-MX', { maximumFractionDigits: 2 });
 }
 
-export default function TarjetaIndicador({ indicador, contexto = null, variante = 'normal', children }) {
+export default function TarjetaIndicador({ indicador, contexto = null, variante = 'normal', children, permitirEditarValor = false, onValorActualizado }) {
+  const [editandoValor, setEditandoValor] = useState(false);
   const meta = parseFloat(indicador.meta_global) || 0;
   const valor = parseFloat(indicador.valor_actual) || 0;
   const tieneMeta = meta > 0;
@@ -64,18 +67,37 @@ export default function TarjetaIndicador({ indicador, contexto = null, variante 
   // su contenedor.
   const pct = tieneMeta ? (valor / meta) * 100 : null;
   const pctBarra = pct !== null ? Math.min(100, pct) : null;
+  const esMoneda = indicador.unidad === 'Moneda_MXN';
   const unidad = unidadDe(indicador);
   const compacto = variante === 'compacto';
+  // Editar valor manual solo tiene sentido si el indicador de verdad se
+  // captura a mano (modo_calculo='manual') — para los automáticos el
+  // valor lo pone el propio recálculo, ofrecer editarlo confundiría más
+  // de lo que ayuda (parecería que "sirve" y el próximo recálculo lo
+  // pisa sin aviso).
+  const puedeEditar = permitirEditarValor && indicador.modo_calculo === 'manual';
 
   return (
     <div className={`rounded-lg border border-gray-200 bg-white ${compacto ? 'p-2.5' : 'p-3'} hover:border-gray-300 transition-colors`}>
       {/* Encabezado: qué se mide y dónde */}
-      <div className="min-w-0">
-        <p className={`${compacto ? 'text-xs' : 'text-sm'} font-medium text-gray-800 leading-snug break-words`}>
-          {indicador.nombre}
-        </p>
-        {contexto && (
-          <p className="text-[10px] text-gray-500 leading-snug break-words mt-0.5">{contexto}</p>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className={`${compacto ? 'text-xs' : 'text-sm'} font-medium text-gray-800 leading-snug break-words`}>
+            {indicador.nombre}
+          </p>
+          {contexto && (
+            <p className="text-[10px] text-gray-500 leading-snug break-words mt-0.5">{contexto}</p>
+          )}
+        </div>
+        {puedeEditar && (
+          <button
+            type="button"
+            onClick={() => setEditandoValor(true)}
+            title="Registrar valor"
+            className="flex-shrink-0 p-1 text-gray-300 hover:text-guinda-600 rounded hover:bg-gray-50"
+          >
+            <Pencil size={12} />
+          </button>
         )}
       </div>
 
@@ -88,14 +110,14 @@ export default function TarjetaIndicador({ indicador, contexto = null, variante 
             style={{ color: GUINDA }}
             title={valor.toLocaleString('es-MX')}
           >
-            {formatoCorto(valor)}
+            {esMoneda ? formatearMonedaCorta(valor) : formatoCorto(valor)}
           </span>
           {tieneMeta ? (
             <span className={`${compacto ? 'text-[10px]' : 'text-xs'} text-gray-500 ml-1.5`}>
-              de {formatoCorto(meta)}{unidad ? ` ${unidad}` : ''}
+              de {esMoneda ? formatearMonedaCorta(meta) : `${formatoCorto(meta)}${unidad ? ` ${unidad}` : ''}`}
             </span>
           ) : (
-            unidad && (
+            !esMoneda && unidad && (
               <span className={`${compacto ? 'text-[10px]' : 'text-xs'} text-gray-500 ml-1.5`}>{unidad}</span>
             )
           )}
@@ -125,6 +147,14 @@ export default function TarjetaIndicador({ indicador, contexto = null, variante 
       )}
 
       {children}
+
+      {editandoValor && (
+        <ModalEditarValorIndicador
+          indicador={indicador}
+          onCerrar={() => setEditandoValor(false)}
+          onGuardado={() => { setEditandoValor(false); onValorActualizado?.(); }}
+        />
+      )}
     </div>
   );
 }
@@ -156,14 +186,20 @@ export function agruparPorCatalogo(indicadores) {
 // y aísla la tarjeta a ese proyecto (con un chip "Quitar filtro" para
 // regresar al combinado) — antes no había forma de ver un solo proyecto
 // dentro de un agregado sin salir de la pantalla.
-function TarjetaIndicadorGrupo({ grupo, variante = 'normal' }) {
+function TarjetaIndicadorGrupo({ grupo, variante = 'normal', permitirEditarValor = false, onValorActualizado }) {
   const [abierto, setAbierto] = useState(false);
   const [proyectoAisladoId, setProyectoAisladoId] = useState(null);
+  const [editandoValor, setEditandoValor] = useState(false);
   const compacto = variante === 'compacto';
   const esPorcentaje = grupo[0].unidad === 'Porcentaje';
+  const esMoneda = grupo[0].unidad === 'Moneda_MXN';
   const unidad = unidadDe(grupo[0]);
 
   const aislado = proyectoAisladoId ? grupo.find(i => i.proyecto_id === proyectoAisladoId) : null;
+  // Editar solo tiene sentido aislado a UN proyecto (el combinado es una
+  // suma, no algo que se pueda "escribir") y solo si ese proyecto de
+  // verdad captura el valor a mano.
+  const puedeEditar = permitirEditarValor && !!aislado && aislado.modo_calculo === 'manual';
 
   const valorMostrado = aislado
     ? parseFloat(aislado.valor_actual) || 0
@@ -182,20 +218,32 @@ function TarjetaIndicadorGrupo({ grupo, variante = 'normal' }) {
         <p className={`${compacto ? 'text-xs' : 'text-sm'} font-medium text-gray-800 leading-snug break-words min-w-0`}>
           {grupo[0].nombre}
         </p>
-        {aislado ? (
-          <button
-            type="button"
-            onClick={() => setProyectoAisladoId(null)}
-            className="shrink-0 flex items-center gap-1 text-[10px] font-medium text-gray-500 bg-gray-100 hover:bg-gray-200 border border-gray-200 px-1.5 py-0.5 rounded-full transition-colors"
-            title="Volver al total combinado"
-          >
-            <X size={9} /> Quitar filtro
-          </button>
-        ) : (
-          <span className="shrink-0 text-[10px] font-medium text-guinda-700 bg-guinda-50 border border-guinda-100 px-1.5 py-0.5 rounded-full">
-            {grupo.length} proyectos
-          </span>
-        )}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {puedeEditar && (
+            <button
+              type="button"
+              onClick={() => setEditandoValor(true)}
+              title="Registrar valor"
+              className="p-1 text-gray-300 hover:text-guinda-600 rounded hover:bg-gray-50"
+            >
+              <Pencil size={12} />
+            </button>
+          )}
+          {aislado ? (
+            <button
+              type="button"
+              onClick={() => setProyectoAisladoId(null)}
+              className="flex items-center gap-1 text-[10px] font-medium text-gray-500 bg-gray-100 hover:bg-gray-200 border border-gray-200 px-1.5 py-0.5 rounded-full transition-colors"
+              title="Volver al total combinado"
+            >
+              <X size={9} /> Quitar filtro
+            </button>
+          ) : (
+            <span className="text-[10px] font-medium text-guinda-700 bg-guinda-50 border border-guinda-100 px-1.5 py-0.5 rounded-full">
+              {grupo.length} proyectos
+            </span>
+          )}
+        </div>
       </div>
       {aislado && (
         <p className="text-[10px] text-gray-400 -mt-1 mb-1 truncate">{[aislado.proyecto_nombre, aislado.dg_siglas].filter(Boolean).join(' · ')}</p>
@@ -214,14 +262,14 @@ function TarjetaIndicadorGrupo({ grupo, variante = 'normal' }) {
                 style={{ color: GUINDA }}
                 title={valorMostrado.toLocaleString('es-MX')}
               >
-                {formatoCorto(valorMostrado)}
+                {esMoneda ? formatearMonedaCorta(valorMostrado) : formatoCorto(valorMostrado)}
               </span>
               {tieneMeta ? (
                 <span className={`${compacto ? 'text-[10px]' : 'text-xs'} text-gray-500 ml-1.5`}>
-                  de {formatoCorto(metaMostrada)}{unidad ? ` ${unidad}` : ''}
+                  de {esMoneda ? formatearMonedaCorta(metaMostrada) : `${formatoCorto(metaMostrada)}${unidad ? ` ${unidad}` : ''}`}
                 </span>
               ) : (
-                unidad && <span className={`${compacto ? 'text-[10px]' : 'text-xs'} text-gray-500 ml-1.5`}>{unidad}</span>
+                !esMoneda && unidad && <span className={`${compacto ? 'text-[10px]' : 'text-xs'} text-gray-500 ml-1.5`}>{unidad}</span>
               )}
             </div>
             {tieneMeta && (
@@ -264,12 +312,22 @@ function TarjetaIndicadorGrupo({ grupo, variante = 'normal' }) {
               >
                 <span className="text-gray-600 truncate">{[ind.proyecto_nombre, ind.dg_siglas].filter(Boolean).join(' · ')}</span>
                 <span className="text-gray-500 tabular-nums flex-shrink-0">
-                  {formatoCorto(v)}{m > 0 ? ` / ${formatoCorto(m)}` : ''}{unidad ? ` ${unidad}` : ''}
+                  {esMoneda
+                    ? `${formatearMonedaCorta(v)}${m > 0 ? ` / ${formatearMonedaCorta(m)}` : ''}`
+                    : `${formatoCorto(v)}${m > 0 ? ` / ${formatoCorto(m)}` : ''}${unidad ? ` ${unidad}` : ''}`}
                 </span>
               </button>
             );
           })}
         </div>
+      )}
+
+      {editandoValor && aislado && (
+        <ModalEditarValorIndicador
+          indicador={aislado}
+          onCerrar={() => setEditandoValor(false)}
+          onGuardado={() => { setEditandoValor(false); onValorActualizado?.(); }}
+        />
       )}
     </div>
   );
@@ -279,7 +337,7 @@ function TarjetaIndicadorGrupo({ grupo, variante = 'normal' }) {
 // normal (un solo proyecto) o la agrupada (2+ proyectos con el mismo
 // id_catalogo) — lo que antes hacía cada vista (Tablero, Resumen de
 // cartera) mapeando TarjetaIndicador directamente.
-export function TarjetaIndicadorOAgrupada({ grupo, variante = 'normal' }) {
+export function TarjetaIndicadorOAgrupada({ grupo, variante = 'normal', permitirEditarValor = false, onValorActualizado }) {
   if (grupo.length === 1) {
     const ind = grupo[0];
     return (
@@ -287,8 +345,17 @@ export function TarjetaIndicadorOAgrupada({ grupo, variante = 'normal' }) {
         indicador={ind}
         variante={variante}
         contexto={[ind.proyecto_nombre, ind.dg_siglas].filter(Boolean).join(' · ')}
+        permitirEditarValor={permitirEditarValor}
+        onValorActualizado={onValorActualizado}
       />
     );
   }
-  return <TarjetaIndicadorGrupo grupo={grupo} variante={variante} />;
+  return (
+    <TarjetaIndicadorGrupo
+      grupo={grupo}
+      variante={variante}
+      permitirEditarValor={permitirEditarValor}
+      onValorActualizado={onValorActualizado}
+    />
+  );
 }

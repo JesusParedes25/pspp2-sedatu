@@ -29,6 +29,7 @@ import ModalDuplicarProyecto from '../../components/proyectos/ModalDuplicarProye
 import SelectorIndicadorCatalogo from '../../components/indicadores/SelectorIndicadorCatalogo';
 import EtiquetasChipInput from '../../components/common/EtiquetasChipInput';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
+import { etiquetaUnidadIndicador } from '../../utils/formatoMoneda';
 
 const PASOS = [
   'Información general',
@@ -635,7 +636,7 @@ export default function NuevoProyecto() {
               {datos.indicadores.map((ind, i) => (
                 <div key={i} className="pl-6 text-xs text-gray-500">
                   <span className="font-medium text-gray-700">{ind.nombre || '(sin nombre)'}:</span>{' '}
-                  meta {ind.meta_global} {ind.unidad === 'Porcentaje' ? '%' : ind.unidad === 'Moneda_MXN' ? 'MXN' : ind.unidad_personalizada || ''}
+                  meta {ind.meta_global} {etiquetaUnidadIndicador(ind)}
                   {ind.temporalidad === 'Anual' && ` (${ind.anio_inicio}–${ind.anio_fin})`}
                 </div>
               ))}
@@ -680,7 +681,7 @@ function ResumenCampo({ titulo, valor }) {
 // Sub-componente: formulario inline de un indicador (colapsable)
 function FormIndicador({ indicador, indice, onChange, onEliminar, onToggle }) {
   const etiquetaTipo = TIPOS_INDICADOR.find(t => t.valor === indicador.tipo)?.etiqueta || indicador.tipo;
-  const etiquetaUnidad = indicador.unidad === 'Porcentaje' ? '%' : indicador.unidad === 'Moneda_MXN' ? '$MXN' : indicador.unidad_personalizada || '#';
+  const etiquetaUnidad = etiquetaUnidadIndicador(indicador) || '#';
 
   // Generar filas de metas anuales cuando cambia temporalidad o rango
   function actualizarRangoAnual(inicio, fin) {

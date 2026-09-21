@@ -22,6 +22,7 @@ import { useState, useEffect, useRef } from 'react';
 import { X, Loader2, Search, Plus, BarChart3, BookOpen, Sparkles } from 'lucide-react';
 import * as catalogoApi from '../../api/catalogo-indicadores';
 import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
+import { etiquetaUnidadIndicador } from '../../utils/formatoMoneda';
 
 const TIPOS = [
   { valor: 'Avance_fisico', etiqueta: 'Avance físico' },
@@ -39,9 +40,7 @@ const UNIDADES = [
 ];
 
 export function etiquetaUnidad(ind) {
-  if (ind.unidad === 'Porcentaje') return '%';
-  if (ind.unidad === 'Moneda_MXN') return '$ MXN';
-  return ind.unidad_personalizada || ind.etiqueta_unidad || 'unidades';
+  return etiquetaUnidadIndicador(ind) || 'unidades';
 }
 
 export default function SelectorIndicadorCatalogo({ onElegir, onCerrar, yaUsados = [] }) {

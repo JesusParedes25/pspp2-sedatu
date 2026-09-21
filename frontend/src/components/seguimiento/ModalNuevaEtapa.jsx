@@ -21,6 +21,7 @@ import * as catalogosApi from '../../api/catalogos';
 import { useAuth } from '../../context/AuthContext';
 import CatalogSelector from '../common/CatalogSelector';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
+import { etiquetaUnidadIndicador } from '../../utils/formatoMoneda';
 
 export default function ModalNuevaEtapa({ proyecto, etapas, onGuardar, onCerrar }) {
   const { usuario } = useAuth();
@@ -265,7 +266,7 @@ export default function ModalNuevaEtapa({ proyecto, etapas, onGuardar, onCerrar 
               <div className="space-y-2">
                 {indicadores.map(ind => {
                   const asociado = datos.indicadores_asociados.find(ia => ia.id_indicador === ind.id);
-                  const unidadLabel = ind.unidad === 'Porcentaje' ? '%' : ind.unidad === 'Moneda_MXN' ? '$MXN' : ind.unidad_personalizada || '#';
+                  const unidadLabel = etiquetaUnidadIndicador(ind) || '#';
 
                   return (
                     <div key={ind.id} className={`border rounded-lg p-3 transition-colors ${asociado ? 'border-guinda-300 bg-guinda-50/30' : 'border-gray-200'}`}>

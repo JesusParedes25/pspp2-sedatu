@@ -96,3 +96,13 @@ export async function listarMios({ proyectoIds, carteraId } = {}) {
   const { data } = await client.get(`/indicadores/mios?${params}`);
   return data.datos || [];
 }
+
+// Fija el valor de un indicador en modo_calculo='manual'. Sin `anio`,
+// escribe el total global; con `anio`, escribe (upsert) el valor de ESE
+// año en indicador_metas_anuales — así queda completo el indicador
+// financiero con corte anual: la meta por año ya se capturaba, esto es
+// lo que faltaba para el lado del "realizado".
+export async function establecerValorIndicador(indicadorId, { valor, anio } = {}) {
+  const { data } = await client.patch(`/indicadores/${indicadorId}/valor`, { valor, anio });
+  return data;
+}
