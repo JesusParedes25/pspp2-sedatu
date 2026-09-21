@@ -14,6 +14,52 @@
  */
 const pool = require('../pool');
 const indicadoresQueries = require('./indicadores.queries');
+const aportacionesQueries = require('./aportaciones.queries');
+
+// ── Helper: vincular indicadores a una etapa con validación de meta ──
+// Mismo criterio que acciones.queries.js::vincularIndicadores (modo
+// 'al_concluir': cuenta cuando la etapa se completa, no desde que se
+// captura). Antes escribía en indicador_etapas, una tabla paralela sin
+// ningún consumidor en el frontend y cuya columna valor_actual nunca
+// actualizaba ningún recálculo — retirada, ver migración 069.
+async function vincularIndicadoresEtapa(client, etapaId, indicadoresAsociados) {
+  if (!indicadoresAsociados || indicadoresAsociados.length === 0) return;
+  const idsAfectados = new Set();
+  for (const ia of indicadoresAsociados) {
+    const aportado = (ia.meta_etapa !== '' && ia.meta_etapa != null) ? parseFloat(ia.meta_etapa) : 0;
+    if (aportado < 0) throw new Error('El valor aportado no puede ser negativo');
+    if (aportado > 0) {
+      const res = await client.query(`
+        SELECT i.meta_global, COALESCE(SUM(ap.aportacion), 0)::numeric AS total_aportado
+        FROM indicadores i
+        LEFT JOIN indicador_aportaciones ap ON ap.id_indicador = i.id
+        WHERE i.id = $1
+        GROUP BY i.id
+      `, [ia.id_indicador]);
+      if (res.rows[0]) {
+        const meta = parseFloat(res.rows[0].meta_global) || 0;
+        const yaAportado = parseFloat(res.rows[0].total_aportado) || 0;
+        if (meta > 0 && yaAportado + aportado > meta) {
+          throw new Error(
+            `La aportación (${aportado}) excede lo disponible del indicador. ` +
+            `Meta: ${meta}, ya comprometido: ${yaAportado}, disponible: ${(meta - yaAportado).toFixed(2)}`
+          );
+        }
+      }
+    }
+    await aportacionesQueries.crear(
+      { id_indicador: ia.id_indicador, id_etapa: etapaId, aportacion: aportado, modo: 'al_concluir' },
+      client
+    );
+    idsAfectados.add(ia.id_indicador);
+  }
+  // Recalcular de inmediato: la etapa puede ya estar Completada al
+  // momento de vincularla (mismo hueco ya corregido para aportaciones
+  // de nodo en general — ver aportaciones.controller.js).
+  for (const idIndicador of idsAfectados) {
+    await aportacionesQueries.recalcularUnIndicador(idIndicador, client);
+  }
+}
 
 // Obtiene todas las etapas de un proyecto con datos del responsable y conteos
 async function obtenerEtapasPorProyecto(proyectoId, idDg) {
@@ -132,15 +178,7 @@ async function crearEtapa(proyectoId, datos) {
     const etapa = resultado.rows[0];
 
     // 1. Vincular indicadores del proyecto existentes (distribución de meta)
-    if (datos.indicadores_asociados && datos.indicadores_asociados.length > 0) {
-      for (const ia of datos.indicadores_asociados) {
-        const metaEtapa = ia.meta_etapa === '' || ia.meta_etapa == null ? 0 : parseFloat(ia.meta_etapa);
-        await client.query(
-          'INSERT INTO indicador_etapas (id_indicador, id_etapa, meta_etapa) VALUES ($1, $2, $3)',
-          [ia.id_indicador, etapa.id, metaEtapa]
-        );
-      }
-    }
+    await vincularIndicadoresEtapa(client, etapa.id, datos.indicadores_asociados);
 
     // 2. Crear indicadores propios de la etapa (nuevos, no del proyecto)
     if (datos.indicadores_nuevos && datos.indicadores_nuevos.length > 0) {
@@ -216,15 +254,18 @@ async function actualizarEtapa(etapaId, datos, externalClient) {
       return null;
     }
 
-    // Sincronizar indicadores asociados (meta_etapa por indicador)
+    // Sincronizar indicadores asociados (aportación fija por indicador)
     if (Array.isArray(datos.indicadores_asociados)) {
-      await client.query('DELETE FROM indicador_etapas WHERE id_etapa = $1', [etapaId]);
-      for (const ia of datos.indicadores_asociados) {
-        const metaEtapa = ia.meta_etapa === '' || ia.meta_etapa == null ? 0 : parseFloat(ia.meta_etapa);
-        await client.query(
-          'INSERT INTO indicador_etapas (id_indicador, id_etapa, meta_etapa) VALUES ($1, $2, $3)',
-          [ia.id_indicador, etapaId, metaEtapa]
-        );
+      // Indicadores que perdían aportación en este reemplazo — también
+      // se recalculan al final, junto con los que la ganan (dentro de
+      // vincularIndicadoresEtapa).
+      const previos = await client.query(
+        'SELECT DISTINCT id_indicador FROM indicador_aportaciones WHERE id_etapa = $1', [etapaId]
+      );
+      await client.query('DELETE FROM indicador_aportaciones WHERE id_etapa = $1', [etapaId]);
+      await vincularIndicadoresEtapa(client, etapaId, datos.indicadores_asociados);
+      for (const row of previos.rows) {
+        await aportacionesQueries.recalcularUnIndicador(row.id_indicador, client);
       }
     }
 
@@ -248,11 +289,9 @@ async function eliminarEtapa(etapaId) {
       'UPDATE etapas SET depende_de = NULL WHERE depende_de = $1',
       [etapaId]
     );
-    // Eliminar indicador_etapas vinculados
-    await client.query(
-      'DELETE FROM indicador_etapas WHERE id_etapa = $1',
-      [etapaId]
-    );
+    // indicador_aportaciones.id_etapa es ON DELETE CASCADE — no hace
+    // falta borrarlas a mano (antes sí, indicador_etapas no tenía esa
+    // cascada configurada del lado del ORM manual).
     // Eliminar indicadores propios de la etapa
     await client.query(
       'DELETE FROM indicadores WHERE id_etapa = $1',

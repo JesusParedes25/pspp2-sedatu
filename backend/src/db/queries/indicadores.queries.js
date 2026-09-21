@@ -163,7 +163,7 @@ async function eliminar(indicadorId) {
   return resultado.rows[0] || null;
 }
 
-// Lista indicadores de una etapa: propios (id_etapa) + asociados via indicador_etapas
+// Lista indicadores de una etapa: propios (id_etapa) + asociados via indicador_aportaciones
 async function listarPorEtapa(etapaId) {
   // 1. Indicadores propios de la etapa
   const propios = await pool.query(`
@@ -173,12 +173,12 @@ async function listarPorEtapa(etapaId) {
     ORDER BY i.orden, i.created_at
   `, [etapaId]);
 
-  // 2. Indicadores del proyecto asociados a esta etapa via indicador_etapas
+  // 2. Indicadores del proyecto asociados a esta etapa via indicador_aportaciones
   const asociados = await pool.query(`
-    SELECT i.*, ie.meta_etapa, ie.id_indicador AS id_indicador_ref
-    FROM indicador_etapas ie
-    JOIN indicadores i ON i.id = ie.id_indicador
-    WHERE ie.id_etapa = $1 AND i.activo = true
+    SELECT i.*, ap.aportacion AS meta_etapa, ap.id_indicador AS id_indicador_ref
+    FROM indicador_aportaciones ap
+    JOIN indicadores i ON i.id = ap.id_indicador
+    WHERE ap.id_etapa = $1 AND i.activo = true
     ORDER BY i.orden, i.created_at
   `, [etapaId]);
 
