@@ -866,12 +866,27 @@ async function actualizarIndicadoresAccion(accionId, indicadoresAsociados) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    // Indicadores afectados por este reemplazo (los que perdían aportación
+    // y los que la ganan) — se recalculan al final, ver comentario abajo.
+    const previos = await client.query(
+      'SELECT DISTINCT id_indicador FROM indicador_aportaciones WHERE id_accion = $1', [accionId]
+    );
+    const idsAfectados = new Set(previos.rows.map(r => r.id_indicador));
+    for (const ia of (indicadoresAsociados || [])) idsAfectados.add(ia.id_indicador);
+
     // FK id_accion de indicador_aportaciones es ON DELETE CASCADE por
     // acción; aquí se reemplaza el set completo de esta acción, así que
     // se borra explícito antes de recrear (igual que antes con
     // accion_indicador).
     await client.query('DELETE FROM indicador_aportaciones WHERE id_accion = $1', [accionId]);
     await vincularIndicadores(client, accionId, indicadoresAsociados);
+    // Recalcular de inmediato: esta acción puede ya estar Completada al
+    // momento de editar sus aportaciones — sin esto, el indicador se
+    // queda desactualizado hasta el próximo cambio de estado de
+    // cualquier otro nodo del proyecto.
+    for (const idIndicador of idsAfectados) {
+      await aportacionesQueries.recalcularUnIndicador(idIndicador, client);
+    }
     await client.query('COMMIT');
     return { ok: true };
   } catch (err) {

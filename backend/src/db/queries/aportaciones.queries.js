@@ -69,7 +69,7 @@ async function actualizar(id, datos) {
 }
 
 async function eliminar(id) {
-  const res = await pool.query('DELETE FROM indicador_aportaciones WHERE id = $1 RETURNING id', [id]);
+  const res = await pool.query('DELETE FROM indicador_aportaciones WHERE id = $1 RETURNING id, id_indicador', [id]);
   return res.rows[0];
 }
 
@@ -203,6 +203,25 @@ async function detectarDobleConteo(indicadorId) {
 }
 
 /**
+ * Recalcula valor_actual de UN solo indicador — usada justo después de
+ * crear/editar/eliminar una aportación, para que el número no se quede
+ * obsoleto hasta el próximo cambio de estado de cualquier nodo del
+ * proyecto (que es cuando recalcularAportacionesProyecto vuelve a correr).
+ * Caso concreto que esto arregla: vincular un nodo YA completado con
+ * modo 'al_concluir' — sin esto, el indicador se queda en 0 hasta que
+ * algo más, sin relación, dispare un recálculo del proyecto.
+ */
+async function recalcularUnIndicador(indicadorId, client = null) {
+  const db = client || pool;
+  const { total } = await calcularValorRealizado(indicadorId, db);
+  await db.query(
+    'UPDATE indicadores SET valor_actual = $1, updated_at = NOW() WHERE id = $2',
+    [total, indicadorId]
+  );
+  return total;
+}
+
+/**
  * Recalculates valor_actual for ALL indicators of a project that have aportaciones.
  * Called after estado/avance changes to keep indicator values in sync.
  */
@@ -233,5 +252,6 @@ module.exports = {
   eliminarPorNodo,
   calcularValorRealizado,
   detectarDobleConteo,
+  recalcularUnIndicador,
   recalcularAportacionesProyecto
 };
