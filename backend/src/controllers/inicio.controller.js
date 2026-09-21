@@ -86,7 +86,7 @@ async function obtenerProyectosFiltro(req, res, next) {
     const proyectoIds = await alcanceProyectosUsuario(req.usuario);
     if (proyectoIds.length === 0) return res.json({ datos: [] });
     const { rows } = await pool.query(
-      "SELECT id, nombre FROM proyectos WHERE deleted_at IS NULL AND estado != 'Cancelado' AND id = ANY($1) ORDER BY nombre",
+      "SELECT id, nombre FROM proyectos WHERE deleted_at IS NULL AND estado != 'Cancelada' AND id = ANY($1) ORDER BY nombre",
       [proyectoIds]
     );
     res.json({ datos: rows });

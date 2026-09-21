@@ -12,6 +12,7 @@
 const pool = require('../pool');
 const { condicionRiesgoDeProyecto } = require('../../utils/condicion-riesgo');
 const { semaforoEfectivo } = require('../../utils/avance-semaforo');
+const { calcularAvancePorcentaje } = require('../../utils/indicador-calculo');
 
 // Un riesgo puede vivir en cualquier nivel del proyecto — Proyecto, Etapa,
 // Acción, Subacción o Tarea (migración 061) — casi nunca se crea al nivel
@@ -35,8 +36,11 @@ const COND_PROYECTO_TIENE_ACCION_VENCIDA = `EXISTS (
   SELECT 1 FROM acciones ac WHERE ac.id_proyecto = p.id
     AND ac.fecha_fin < NOW() AND ac.estado NOT IN ('Completada','Cancelada')
 )`;
+// 'Completada'/'Cancelada' son los valores reales de proyectos.estado (ver
+// CHECK constraint de la migración 011) — 'Concluido'/'Cancelado' nunca lo
+// fueron, así que este NOT IN nunca excluía nada.
 const COND_PROYECTO_VENCIDO = `(
-  (p.fecha_limite IS NOT NULL AND p.fecha_limite < CURRENT_DATE AND p.estado NOT IN ('Concluido','Cancelado'))
+  (p.fecha_limite IS NOT NULL AND p.fecha_limite < CURRENT_DATE AND p.estado NOT IN ('Completada','Cancelada'))
   OR ${COND_PROYECTO_TIENE_ACCION_VENCIDA}
 )`;
 
@@ -185,7 +189,7 @@ async function listarProyectosDeCartera(carteraId) {
     -- muestra (fecha_fin_efectiva), para que la etiqueta nunca contradiga
     -- la fecha de al lado.
     SELECT *,
-      (fecha_fin_efectiva IS NOT NULL AND fecha_fin_efectiva < CURRENT_DATE AND estado NOT IN ('Concluido','Cancelado')) AS fecha_limite_vencida
+      (fecha_fin_efectiva IS NOT NULL AND fecha_fin_efectiva < CURRENT_DATE AND estado NOT IN ('Completada','Cancelada')) AS fecha_limite_vencida
     FROM base
     ORDER BY es_principal DESC, nombre
   `, [carteraId]);
@@ -271,7 +275,7 @@ async function resumenCartera(carteraId) {
       p.id AS proyecto_id, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas
     FROM cartera_proyecto cp
     JOIN indicadores i ON i.id_proyecto = cp.proyecto_id AND i.activo = true
-    JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL
+    JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL AND p.estado != 'Cancelada'
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
     WHERE cp.cartera_id = $1
     ORDER BY i.tipo, p.nombre, i.nombre
@@ -280,6 +284,7 @@ async function resumenCartera(carteraId) {
     ...i,
     meta_global: parseFloat(i.meta_global) || 0,
     valor_actual: parseFloat(i.valor_actual) || 0,
+    pct_avance: calcularAvancePorcentaje(i.valor_actual, i.meta_global),
   }));
 
   // Estatus cualitativo (nota corta de texto libre, migración 047) de los

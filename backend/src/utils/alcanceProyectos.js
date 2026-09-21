@@ -22,7 +22,10 @@ const miembrosQueries = require('../db/queries/miembros.queries');
 async function alcanceProyectosUsuario(usuario) {
   if (usuario.rol === 'superadmin' || usuario.rol === 'ejecutivo') {
     const { rows } = await pool.query(
-      "SELECT id FROM proyectos WHERE deleted_at IS NULL AND estado != 'Cancelado'"
+      // 'Cancelada' es el valor real (femenino, ver CHECK constraint de la
+      // migración 011) — 'Cancelado' nunca fue un valor válido de esta
+      // columna, así que ese filtro nunca excluía nada.
+      "SELECT id FROM proyectos WHERE deleted_at IS NULL AND estado != 'Cancelada'"
     );
     return rows.map(r => r.id);
   }

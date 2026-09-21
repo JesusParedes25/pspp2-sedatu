@@ -5,6 +5,7 @@
  */
 const pool = require('../pool');
 const { condicionRiesgoDeProyecto } = require('../../utils/condicion-riesgo');
+const { calcularAvancePorcentaje } = require('../../utils/indicador-calculo');
 
 /**
  * Obtiene los proyectos del usuario (donde es miembro o creador).
@@ -25,7 +26,7 @@ async function obtenerProyectosUsuario(proyectoIds) {
       (SELECT COUNT(*) FROM riesgos r WHERE ${condicionRiesgoDeProyecto('p.id')} AND r.estado IN ('Abierto','En_mitigacion'))::int AS riesgos_activos
     FROM proyectos p
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
-    WHERE p.deleted_at IS NULL AND p.estado != 'Cancelado' ${filtro}
+    WHERE p.deleted_at IS NULL AND p.estado != 'Cancelada' ${filtro}
     ORDER BY p.es_prioritario DESC, p.updated_at DESC
     LIMIT 50
   `, params);
@@ -179,7 +180,7 @@ async function obtenerIndicadoresAgregados(proyectoIds) {
       p.id AS proyecto_id, p.nombre AS proyecto_nombre,
       dg.siglas AS dg_siglas
     FROM indicadores i
-    JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL
+    JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL AND p.estado != 'Cancelada'
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
     WHERE i.activo = true AND i.id_proyecto = ANY($1)
     ORDER BY i.tipo, p.nombre, i.nombre
@@ -189,9 +190,7 @@ async function obtenerIndicadoresAgregados(proyectoIds) {
     ...r,
     meta_global: parseFloat(r.meta_global) || 0,
     valor_actual: parseFloat(r.valor_actual) || 0,
-    pct_avance: (parseFloat(r.meta_global) || 0) > 0
-      ? Math.min(100, Math.round(((parseFloat(r.valor_actual) || 0) / parseFloat(r.meta_global)) * 100))
-      : null
+    pct_avance: calcularAvancePorcentaje(r.valor_actual, r.meta_global),
   }));
 }
 

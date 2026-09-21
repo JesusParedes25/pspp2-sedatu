@@ -8,6 +8,7 @@ const statsQueries = require('../db/queries/proyectos.stats.queries');
 const etapasQueries = require('../db/queries/etapas.queries');
 const inicioQueries = require('../db/queries/inicio.queries');
 const { semaforoEfectivo } = require('../utils/avance-semaforo');
+const { calcularAvancePorcentaje } = require('../utils/indicador-calculo');
 
 // GET /proyectos/:id/panorama
 async function obtenerPanorama(req, res, next) {
@@ -124,12 +125,11 @@ async function obtenerIndicadoresCompletos(proyectoId) {
   return indicadores.map(i => {
     const meta = parseFloat(i.meta_global) || 0;
     const valor = parseFloat(i.valor_actual) || 0;
-    const pct = meta > 0 ? Math.min(100, (valor / meta) * 100) : null;
     return {
       ...i,
       meta_global: meta,
       valor_actual: valor,
-      pct_avance: pct !== null ? parseFloat(pct.toFixed(1)) : null,
+      pct_avance: calcularAvancePorcentaje(valor, meta),
       metas_anuales: metasPorIndicador[i.id] || [],
       aportaciones: aportacionesPorIndicador[i.id] || []
     };
