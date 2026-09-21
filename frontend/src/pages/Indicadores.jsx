@@ -18,8 +18,23 @@ import * as indicadoresApi from '../api/indicadores';
 import FiltroTablero from '../components/inicio/FiltroTablero';
 import { ETIQUETA_TIPO_INDICADOR, agruparPorCatalogo, TarjetaIndicadorOAgrupada } from '../components/indicadores/TarjetaIndicador';
 import ModalVincularIndicador from '../components/indicadores/ModalVincularIndicador';
+import CatalogoIndicadores from '../components/indicadores/CatalogoIndicadores';
 
 export default function Indicadores() {
+  const [searchParams] = useSearchParams();
+  const vista = searchParams.get('vista') === 'catalogo' ? 'catalogo' : 'mios';
+
+  if (vista === 'catalogo') {
+    return (
+      <div className="p-6">
+        <CatalogoIndicadores />
+      </div>
+    );
+  }
+  return <MisIndicadores />;
+}
+
+function MisIndicadores() {
   const [indicadores, setIndicadores] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [mostrarWizard, setMostrarWizard] = useState(false);

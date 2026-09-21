@@ -45,3 +45,15 @@ export async function obtenerUsoIndicadorCatalogo(id) {
   const { data } = await client.get(`/catalogo-indicadores/${id}/uso`);
   return data;
 }
+
+// Fusiona 2+ entradas duplicadas del catálogo: reapunta los indicadores
+// de proyecto de las perdedoras hacia la sobreviviente y retira las
+// perdedoras. Irreversible — la pantalla debe pedir confirmación con el
+// efecto en números antes de llamar esto.
+export async function fusionarIndicadoresCatalogo(idSobrevive, idsFusionar) {
+  const { data } = await client.post('/catalogo-indicadores/fusionar', {
+    id_sobrevive: idSobrevive,
+    ids_fusionar: idsFusionar,
+  });
+  return data;
+}
