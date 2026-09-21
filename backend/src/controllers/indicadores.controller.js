@@ -130,6 +130,38 @@ async function listarPublicables(req, res, next) {
   }
 }
 
+// PATCH /indicadores/:id/valor — captura manual directa (modo_calculo = 'manual')
+async function establecerValor(req, res, next) {
+  try {
+    const pool = require('../db/pool');
+    const { rows: [ind] } = await pool.query('SELECT modo_calculo FROM indicadores WHERE id = $1', [req.params.id]);
+    if (!ind) {
+      return res.status(404).json({ error: true, mensaje: 'Indicador no encontrado' });
+    }
+    if (ind.modo_calculo !== 'manual') {
+      return res.status(409).json({
+        error: true,
+        mensaje: 'Este indicador se calcula automáticamente — no se puede editar su valor a mano',
+        codigo: 'NO_ES_MANUAL',
+      });
+    }
+    const { valor, anio } = req.body;
+    if (valor === undefined || valor === null || valor === '') {
+      return res.status(400).json({ error: true, mensaje: 'Falta el valor', codigo: 'CAMPOS_REQUERIDOS' });
+    }
+    const datos = await indicadoresQueries.establecerValorManual(req.params.id, {
+      valor: parseFloat(valor),
+      anio: anio != null && anio !== '' ? parseInt(anio) : null,
+    });
+    res.json({ datos, mensaje: 'Valor guardado' });
+  } catch (err) {
+    if (err.statusCode) {
+      return res.status(err.statusCode).json({ error: true, mensaje: err.message });
+    }
+    next(err);
+  }
+}
+
 // PATCH /indicadores/:id/publicar — toggle es_publicable
 async function togglePublicable(req, res, next) {
   try {
@@ -170,4 +202,4 @@ async function resumenConValores(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listarPorProyecto, listarPorEtapa, listarTodosPorProyecto, crear, actualizar, eliminar, resumenAportaciones, listarPublicables, togglePublicable, resumenConValores };
+module.exports = { listarPorProyecto, listarPorEtapa, listarTodosPorProyecto, crear, actualizar, eliminar, resumenAportaciones, listarPublicables, togglePublicable, resumenConValores, establecerValor };

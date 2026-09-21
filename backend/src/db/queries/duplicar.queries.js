@@ -266,8 +266,8 @@ async function duplicarProyecto(idOrigen, opciones, creadorId) {
 
     // ─── 6. Indicadores ───
     // Viaja la DEFINICIÓN y la meta; el valor logrado no, igual que el
-    // avance de los nodos. Las aportaciones registradas (accion_indicador,
-    // indicador_aportaciones) tampoco: son historia del original.
+    // avance de los nodos. Las aportaciones registradas (indicador_aportaciones)
+    // tampoco: son historia del original.
     if (incluir.indicadores) {
       const { rows: indicadores } = await client.query(
         'SELECT * FROM indicadores WHERE id_proyecto = $1 ORDER BY orden NULLS LAST, created_at', [idOrigen]

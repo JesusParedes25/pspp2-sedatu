@@ -194,6 +194,7 @@ router.put('/indicadores/:id', exigirEdicionIndicador(), indicadoresController.a
 router.delete('/indicadores/:id', exigirEdicionIndicador(), indicadoresController.eliminar);
 router.get('/indicadores/:id/resumen-aportaciones', indicadoresController.resumenAportaciones);
 router.patch('/indicadores/:id/publicar', exigirEdicionIndicador(), indicadoresController.togglePublicable);
+router.patch('/indicadores/:id/valor', exigirEdicionIndicador(), indicadoresController.establecerValor);
 
 // Aportaciones a indicadores
 router.get('/indicadores/:id/aportaciones', aportacionesController.listar);

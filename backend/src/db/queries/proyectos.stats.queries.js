@@ -11,6 +11,7 @@
  */
 const pool = require('../pool');
 const { condicionRiesgoDeProyecto } = require('../../utils/condicion-riesgo');
+const { calcularAvancePorcentaje } = require('../../utils/indicador-calculo');
 
 /**
  * Obtiene conteo de acciones por estado para un proyecto.
@@ -254,26 +255,28 @@ async function obtenerIndicadoresConProgreso(proyectoId) {
       i.descripcion,
       CASE WHEN i.id_etapa IS NOT NULL THEN 'etapa' ELSE 'proyecto' END AS nivel,
       e.nombre AS etapa_nombre,
-      COALESCE(SUM(ai.valor_aportado), 0)::numeric AS total_aportado,
+      COALESCE(SUM(ai.aportacion), 0)::numeric AS total_aportado,
       COUNT(ai.id)::int AS num_acciones
     FROM indicadores i
     LEFT JOIN etapas e ON e.id = i.id_etapa
-    LEFT JOIN accion_indicador ai ON ai.id_indicador = i.id
+    LEFT JOIN indicador_aportaciones ai ON ai.id_indicador = i.id
     WHERE i.id_proyecto = $1
     GROUP BY i.id, e.nombre
     ORDER BY i.id_etapa NULLS FIRST, i.nombre
   `, [proyectoId]);
 
+  // Solo el desglose por acción/subacción (mismo alcance que antes con
+  // accion_indicador) — las aportaciones de etapa/tarea no aplican aquí.
   const resAportaciones = await pool.query(`
     SELECT
       ai.id_indicador,
-      ai.valor_aportado,
+      ai.aportacion AS valor_aportado,
       a.id AS accion_id,
       a.nombre AS accion_nombre,
       a.id_accion_padre,
       et.nombre AS etapa_nombre,
       a.estado
-    FROM accion_indicador ai
+    FROM indicador_aportaciones ai
     JOIN acciones a ON a.id = ai.id_accion
     LEFT JOIN etapas et ON et.id = a.id_etapa
     WHERE ai.id_indicador IN (
@@ -300,7 +303,6 @@ async function obtenerIndicadoresConProgreso(proyectoId) {
   return resIndicadores.rows.map(r => {
     const meta = parseFloat(r.meta_global) || 0;
     const aportado = parseFloat(r.total_aportado) || 0;
-    const pct = meta > 0 ? Math.min(100, (aportado / meta) * 100) : 0;
     const unidadLabel = r.unidad === 'Porcentaje' ? '%'
       : r.unidad === 'Moneda_MXN' ? '$MXN'
       : r.unidad_personalizada || '#';
@@ -308,7 +310,7 @@ async function obtenerIndicadoresConProgreso(proyectoId) {
       ...r,
       meta_global: meta,
       total_aportado: aportado,
-      pct_avance: parseFloat(pct.toFixed(2)),
+      pct_avance: calcularAvancePorcentaje(aportado, meta) ?? 0,
       unidad_label: unidadLabel,
       aportaciones: aportacionesPorIndicador[r.id] || [],
     };

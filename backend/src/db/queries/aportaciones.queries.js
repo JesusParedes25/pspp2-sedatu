@@ -39,10 +39,11 @@ async function listarPorNodo(tipo, nodoId) {
   return res.rows;
 }
 
-async function crear(datos) {
+async function crear(datos, client = null) {
+  const db = client || pool;
   const { id_indicador, id_etapa, id_accion, id_tarea, aportacion, modo } = datos;
   const conflictCol = id_etapa ? 'id_etapa' : id_accion ? 'id_accion' : 'id_tarea';
-  const res = await pool.query(`
+  const res = await db.query(`
     INSERT INTO indicador_aportaciones (id_indicador, id_etapa, id_accion, id_tarea, aportacion, modo)
     VALUES ($1, $2, $3, $4, $5, $6)
     ON CONFLICT (id_indicador, ${conflictCol}) WHERE ${conflictCol} IS NOT NULL
