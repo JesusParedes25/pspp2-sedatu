@@ -27,6 +27,7 @@ const nombresRutas = {
   'notificaciones': 'Notificaciones',
   'mis-actividades': 'Mis actividades',
   'evidencias': 'Documentos',
+  'indicadores': 'Indicadores',
   'admin': 'Administración',
   'catalogos': 'Catálogos',
 };

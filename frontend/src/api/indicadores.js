@@ -86,3 +86,13 @@ export async function obtenerResumenIndicadores(proyectoId) {
   const { data } = await client.get(`/proyectos/${proyectoId}/indicadores/resumen`);
   return data;
 }
+
+// Todos los indicadores de los proyectos donde participa el usuario
+// (superadmin/ejecutivo ven todos) — módulo de Indicadores, "Mis indicadores".
+export async function listarMios({ proyectoIds, carteraId } = {}) {
+  const params = new URLSearchParams();
+  if (carteraId) params.set('cartera_id', carteraId);
+  else if (proyectoIds?.length) params.set('proyecto_ids', proyectoIds.join(','));
+  const { data } = await client.get(`/indicadores/mios?${params}`);
+  return data.datos || [];
+}
