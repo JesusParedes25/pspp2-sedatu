@@ -20,15 +20,7 @@ import * as catalogoApi from '../../api/catalogo-indicadores';
 import { useAuth } from '../../context/AuthContext';
 import { useUI } from '../../context/UIContext';
 import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
-
-const TIPOS = [
-  { valor: 'Avance_fisico', etiqueta: 'Avance físico' },
-  { valor: 'Avance_financiero', etiqueta: 'Avance financiero' },
-  { valor: 'Cobertura', etiqueta: 'Cobertura' },
-  { valor: 'Beneficiarios', etiqueta: 'Beneficiarios' },
-  { valor: 'Gestion', etiqueta: 'Gestión' },
-  { valor: 'Otro', etiqueta: 'Otro' },
-];
+import { TIPOS_INDICADOR as TIPOS } from '../../utils/tiposIndicador';
 
 function FilaUso({ indicador, onCerrar }) {
   const [usos, setUsos] = useState(null);
