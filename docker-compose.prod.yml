@@ -1,6 +1,6 @@
 # ARCHIVO: docker-compose.prod.yml
 # PROPÓSITO: Configuración de Docker Compose para producción con Nginx.
-# AJUSTADO: Para convivir con daot.geobint.com via Nginx Proxy Manager.
+# AJUSTADO: Para convivir con pspp.geobint.com via Nginx Proxy Manager.
 
 version: '3.8'
 
