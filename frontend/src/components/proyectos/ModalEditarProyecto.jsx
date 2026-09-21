@@ -23,6 +23,7 @@ import * as accionesApi from '../../api/acciones';
 import { usePermisosProyecto } from '../../hooks/usePermisos';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 import { useUI } from '../../context/UIContext';
+import { etiquetaUnidadIndicador } from '../../utils/formatoMoneda';
 
 const TIPOS_INDICADOR = [
   { valor: 'Avance_fisico', etiqueta: 'Avance físico' },
@@ -651,8 +652,7 @@ function Section({ titulo, children }) {
 
 function FilaIndicador({ indicador, onCambio, onToggle, onEliminar, onRangoAnual }) {
   const etiquetaTipo = TIPOS_INDICADOR.find(t => t.valor === indicador.tipo)?.etiqueta || indicador.tipo;
-  const etiquetaUnidad = indicador.unidad === 'Porcentaje' ? '%'
-    : indicador.unidad === 'Moneda_MXN' ? '$MXN' : indicador.unidad_personalizada || '#';
+  const etiquetaUnidad = etiquetaUnidadIndicador(indicador) || '#';
 
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">

@@ -42,11 +42,12 @@ import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 import CatalogSelector from '../common/CatalogSelector';
 import TerritorioSelector from '../nodos/TerritorioSelector';
 import FilaDocumentoPendiente from '../nodos/FilaDocumentoPendiente';
+import { etiquetaUnidadIndicador } from '../../utils/formatoMoneda';
 
 // ── Componente de tarjeta de indicador reutilizable ─────────────
 // Se usa tanto en ModalNuevaAccion como en DrawerAccion (subacciones)
 export function TarjetaIndicadorCascada({ ind, asociado, resumen, color, onToggle, onCambioModo, onCambioValor }) {
-  const unidadLabel = ind.unidad === 'Porcentaje' ? '%' : ind.unidad === 'Moneda_MXN' ? '$MXN' : ind.unidad_personalizada || '#';
+  const unidadLabel = etiquetaUnidadIndicador(ind) || '#';
   const meta = parseFloat(ind.meta_global) || 0;
   const totalAportado = resumen?.total_aportado ?? 0;
   const disponible = resumen?.disponible ?? meta;

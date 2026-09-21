@@ -137,7 +137,13 @@ function MisIndicadores() {
               </p>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {agruparPorCatalogo(inds).map(grupo => (
-                  <TarjetaIndicadorOAgrupada key={grupo[0].id_catalogo || grupo[0].id} grupo={grupo} variante="normal" />
+                  <TarjetaIndicadorOAgrupada
+                    key={grupo[0].id_catalogo || grupo[0].id}
+                    grupo={grupo}
+                    variante="normal"
+                    permitirEditarValor
+                    onValorActualizado={cargarIndicadores}
+                  />
                 ))}
               </div>
             </div>

@@ -177,11 +177,17 @@ async function obtenerIndicadoresAgregados(proyectoIds) {
     SELECT
       i.id, i.nombre, i.tipo, i.unidad, i.unidad_personalizada, i.id_catalogo,
       i.meta_global, i.valor_actual, i.modo_calculo,
+      i.temporalidad, i.anio_inicio, i.anio_fin,
       p.id AS proyecto_id, p.nombre AS proyecto_nombre,
-      dg.siglas AS dg_siglas
+      dg.siglas AS dg_siglas,
+      COALESCE(ma.metas_anuales, '[]'::json) AS metas_anuales
     FROM indicadores i
     JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL AND p.estado != 'Cancelada'
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
+    LEFT JOIN LATERAL (
+      SELECT json_agg(json_build_object('anio', anio, 'meta', meta, 'valor_actual', valor_actual) ORDER BY anio) AS metas_anuales
+      FROM indicador_metas_anuales WHERE id_indicador = i.id
+    ) ma ON true
     WHERE i.activo = true AND i.id_proyecto = ANY($1)
     ORDER BY i.tipo, p.nombre, i.nombre
   `, [proyectoIds]);
