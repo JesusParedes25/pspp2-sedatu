@@ -3,9 +3,8 @@
  * PROPÓSITO: Endpoint GET /inicio — dashboard personalizado del usuario.
  */
 const inicioQueries = require('../db/queries/inicio.queries');
-const carterasQueries = require('../db/queries/carteras.queries');
 const pool = require('../db/pool');
-const { alcanceProyectosUsuario } = require('../utils/alcanceProyectos');
+const { alcanceProyectosUsuario, resolverProyectoIdsFiltro } = require('../utils/alcanceProyectos');
 
 // GET /inicio?proyecto_ids=id1,id2&cartera_id=xxx
 // El filtro de Tablero (por uno/varios proyectos, o por cartera) se
@@ -16,16 +15,7 @@ const { alcanceProyectosUsuario } = require('../utils/alcanceProyectos');
 async function obtenerInicio(req, res, next) {
   try {
     const usuario = req.usuario;
-    let proyectoIds = await alcanceProyectosUsuario(usuario);
-
-    const { proyecto_ids: proyectoIdsQuery, cartera_id: carteraIdQuery } = req.query;
-    if (carteraIdQuery) {
-      const idsCartera = new Set(await carterasQueries.obtenerProyectoIdsDeCartera(carteraIdQuery));
-      proyectoIds = proyectoIds.filter(id => idsCartera.has(id));
-    } else if (proyectoIdsQuery) {
-      const pedidos = new Set(String(proyectoIdsQuery).split(',').map(s => s.trim()).filter(Boolean));
-      proyectoIds = proyectoIds.filter(id => pedidos.has(id));
-    }
+    const proyectoIds = await resolverProyectoIdsFiltro(usuario, req.query);
 
     if (!proyectoIds || proyectoIds.length === 0) {
       return res.json({

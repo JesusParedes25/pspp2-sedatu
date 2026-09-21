@@ -18,6 +18,7 @@
  */
 const pool = require('../db/pool');
 const miembrosQueries = require('../db/queries/miembros.queries');
+const carterasQueries = require('../db/queries/carteras.queries');
 
 async function alcanceProyectosUsuario(usuario) {
   if (usuario.rol === 'superadmin' || usuario.rol === 'ejecutivo') {
@@ -32,4 +33,24 @@ async function alcanceProyectosUsuario(usuario) {
   return miembrosQueries.obtenerProyectosUsuario(usuario.id);
 }
 
-module.exports = { alcanceProyectosUsuario };
+// Intersecta el alcance real del usuario con el filtro de
+// proyecto(s)/cartera que venga en la query string — nunca lo amplía,
+// ni siquiera para ejecutivo (para quien la intersección es un no-op,
+// porque su alcance ya es "todos"). proyecto_ids y cartera_id son
+// mutuamente excluyentes; si llegan los dos, gana cartera_id. Extraído
+// de inicio.controller.js para reusarse también en el módulo de
+// Indicadores — mismo criterio de filtro, misma fuente.
+async function resolverProyectoIdsFiltro(usuario, query) {
+  let proyectoIds = await alcanceProyectosUsuario(usuario);
+  const { proyecto_ids: proyectoIdsQuery, cartera_id: carteraIdQuery } = query;
+  if (carteraIdQuery) {
+    const idsCartera = new Set(await carterasQueries.obtenerProyectoIdsDeCartera(carteraIdQuery));
+    proyectoIds = proyectoIds.filter(id => idsCartera.has(id));
+  } else if (proyectoIdsQuery) {
+    const pedidos = new Set(String(proyectoIdsQuery).split(',').map(s => s.trim()).filter(Boolean));
+    proyectoIds = proyectoIds.filter(id => pedidos.has(id));
+  }
+  return proyectoIds;
+}
+
+module.exports = { alcanceProyectosUsuario, resolverProyectoIdsFiltro };

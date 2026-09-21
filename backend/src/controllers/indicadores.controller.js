@@ -11,6 +11,25 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const indicadoresQueries = require('../db/queries/indicadores.queries');
+const inicioQueries = require('../db/queries/inicio.queries');
+const { resolverProyectoIdsFiltro } = require('../utils/alcanceProyectos');
+
+// GET /indicadores/mios?proyecto_ids=id1,id2&cartera_id=xxx — todos los
+// indicadores de los proyectos donde participa el usuario (superadmin/
+// ejecutivo ven todos), agregados igual que en Tablero — mismo query,
+// mismo criterio de alcance/filtro (resolverProyectoIdsFiltro), para que
+// el número de un indicador sea el mismo sin importar si se ve aquí o
+// en el Tablero.
+async function listarMios(req, res, next) {
+  try {
+    const proyectoIds = await resolverProyectoIdsFiltro(req.usuario, req.query);
+    if (!proyectoIds || proyectoIds.length === 0) return res.json({ datos: [] });
+    const datos = await inicioQueries.obtenerIndicadoresAgregados(proyectoIds);
+    res.json({ datos });
+  } catch (err) {
+    next(err);
+  }
+}
 
 // GET /proyectos/:id/indicadores — solo los de nivel proyecto
 async function listarPorProyecto(req, res, next) {
@@ -202,4 +221,4 @@ async function resumenConValores(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listarPorProyecto, listarPorEtapa, listarTodosPorProyecto, crear, actualizar, eliminar, resumenAportaciones, listarPublicables, togglePublicable, resumenConValores, establecerValor };
+module.exports = { listarPorProyecto, listarPorEtapa, listarTodosPorProyecto, crear, actualizar, eliminar, resumenAportaciones, listarPublicables, togglePublicable, resumenConValores, establecerValor, listarMios };

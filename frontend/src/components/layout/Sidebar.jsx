@@ -70,6 +70,7 @@ const menuItems = [
       { to: '/proyectos/nuevo', esRutaPropia: true, etiqueta: 'Nuevo proyecto', icono: PlusCircle, requiereCrear: true },
     ],
   },
+  { to: '/indicadores', icono: BarChart3, etiqueta: 'Indicadores' },
   { to: '/mapa', icono: Map, etiqueta: 'Territorio' },
   { to: '/evidencias', icono: FileText, etiqueta: 'Documentos' },
   {

@@ -19,7 +19,7 @@
  */
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, X } from 'lucide-react';
 
 const GUINDA = '#7B1C3E';
 
@@ -151,16 +151,29 @@ export function agruparPorCatalogo(indicadores) {
 // (10 solicitudes + 5 solicitudes = 15); para porcentajes no (40% + 60%
 // no son "100%" de nada real), así que ahí se omite el número combinado
 // y solo se ofrece el desglose por proyecto.
+//
+// "Ver por proyecto" no es solo una lista pasiva: cada fila es clicable
+// y aísla la tarjeta a ese proyecto (con un chip "Quitar filtro" para
+// regresar al combinado) — antes no había forma de ver un solo proyecto
+// dentro de un agregado sin salir de la pantalla.
 function TarjetaIndicadorGrupo({ grupo, variante = 'normal' }) {
   const [abierto, setAbierto] = useState(false);
+  const [proyectoAisladoId, setProyectoAisladoId] = useState(null);
   const compacto = variante === 'compacto';
   const esPorcentaje = grupo[0].unidad === 'Porcentaje';
   const unidad = unidadDe(grupo[0]);
-  const totalValor = grupo.reduce((s, i) => s + (parseFloat(i.valor_actual) || 0), 0);
-  const totalMeta = grupo.reduce((s, i) => s + (parseFloat(i.meta_global) || 0), 0);
-  const tieneMeta = !esPorcentaje && totalMeta > 0;
+
+  const aislado = proyectoAisladoId ? grupo.find(i => i.proyecto_id === proyectoAisladoId) : null;
+
+  const valorMostrado = aislado
+    ? parseFloat(aislado.valor_actual) || 0
+    : grupo.reduce((s, i) => s + (parseFloat(i.valor_actual) || 0), 0);
+  const metaMostrada = aislado
+    ? parseFloat(aislado.meta_global) || 0
+    : grupo.reduce((s, i) => s + (parseFloat(i.meta_global) || 0), 0);
+  const tieneMeta = !esPorcentaje && metaMostrada > 0;
   // Mismo criterio que TarjetaIndicador: texto sin tope, barra topada.
-  const pct = tieneMeta ? (totalValor / totalMeta) * 100 : null;
+  const pct = tieneMeta ? (valorMostrado / metaMostrada) * 100 : null;
   const pctBarra = pct !== null ? Math.min(100, pct) : null;
 
   return (
@@ -169,10 +182,24 @@ function TarjetaIndicadorGrupo({ grupo, variante = 'normal' }) {
         <p className={`${compacto ? 'text-xs' : 'text-sm'} font-medium text-gray-800 leading-snug break-words min-w-0`}>
           {grupo[0].nombre}
         </p>
-        <span className="shrink-0 text-[10px] font-medium text-guinda-700 bg-guinda-50 border border-guinda-100 px-1.5 py-0.5 rounded-full">
-          {grupo.length} proyectos
-        </span>
+        {aislado ? (
+          <button
+            type="button"
+            onClick={() => setProyectoAisladoId(null)}
+            className="shrink-0 flex items-center gap-1 text-[10px] font-medium text-gray-500 bg-gray-100 hover:bg-gray-200 border border-gray-200 px-1.5 py-0.5 rounded-full transition-colors"
+            title="Volver al total combinado"
+          >
+            <X size={9} /> Quitar filtro
+          </button>
+        ) : (
+          <span className="shrink-0 text-[10px] font-medium text-guinda-700 bg-guinda-50 border border-guinda-100 px-1.5 py-0.5 rounded-full">
+            {grupo.length} proyectos
+          </span>
+        )}
       </div>
+      {aislado && (
+        <p className="text-[10px] text-gray-400 -mt-1 mb-1 truncate">{[aislado.proyecto_nombre, aislado.dg_siglas].filter(Boolean).join(' · ')}</p>
+      )}
 
       {esPorcentaje ? (
         <p className={`${compacto ? 'mt-1.5' : 'mt-2'} text-[11px] text-gray-500`}>
@@ -185,13 +212,13 @@ function TarjetaIndicadorGrupo({ grupo, variante = 'normal' }) {
               <span
                 className={`${compacto ? 'text-lg' : 'text-2xl'} font-bold tabular-nums leading-none`}
                 style={{ color: GUINDA }}
-                title={totalValor.toLocaleString('es-MX')}
+                title={valorMostrado.toLocaleString('es-MX')}
               >
-                {formatoCorto(totalValor)}
+                {formatoCorto(valorMostrado)}
               </span>
               {tieneMeta ? (
                 <span className={`${compacto ? 'text-[10px]' : 'text-xs'} text-gray-500 ml-1.5`}>
-                  de {formatoCorto(totalMeta)}{unidad ? ` ${unidad}` : ''}
+                  de {formatoCorto(metaMostrada)}{unidad ? ` ${unidad}` : ''}
                 </span>
               ) : (
                 unidad && <span className={`${compacto ? 'text-[10px]' : 'text-xs'} text-gray-500 ml-1.5`}>{unidad}</span>
@@ -214,25 +241,32 @@ function TarjetaIndicadorGrupo({ grupo, variante = 'normal' }) {
         </>
       )}
 
-      <button
-        type="button"
-        onClick={() => setAbierto(v => !v)}
-        className="mt-2 flex items-center gap-1 text-[10px] font-medium text-gray-500 hover:text-guinda-600"
-      >
-        {abierto ? <ChevronUp size={11} /> : <ChevronDown size={11} />} Ver por proyecto
-      </button>
-      {abierto && (
+      {!aislado && (
+        <button
+          type="button"
+          onClick={() => setAbierto(v => !v)}
+          className="mt-2 flex items-center gap-1 text-[10px] font-medium text-gray-500 hover:text-guinda-600"
+        >
+          {abierto ? <ChevronUp size={11} /> : <ChevronDown size={11} />} Ver por proyecto
+        </button>
+      )}
+      {abierto && !aislado && (
         <div className="mt-1.5 pt-1.5 border-t border-gray-100 space-y-1">
           {grupo.map(ind => {
             const v = parseFloat(ind.valor_actual) || 0;
             const m = parseFloat(ind.meta_global) || 0;
             return (
-              <div key={ind.id} className="flex items-center justify-between gap-2 text-[11px]">
+              <button
+                key={ind.id}
+                type="button"
+                onClick={() => { setProyectoAisladoId(ind.proyecto_id); setAbierto(false); }}
+                className="w-full flex items-center justify-between gap-2 text-[11px] hover:bg-gray-50 rounded px-1 -mx-1 py-0.5 transition-colors"
+              >
                 <span className="text-gray-600 truncate">{[ind.proyecto_nombre, ind.dg_siglas].filter(Boolean).join(' · ')}</span>
                 <span className="text-gray-500 tabular-nums flex-shrink-0">
                   {formatoCorto(v)}{m > 0 ? ` / ${formatoCorto(m)}` : ''}{unidad ? ` ${unidad}` : ''}
                 </span>
-              </div>
+              </button>
             );
           })}
         </div>
