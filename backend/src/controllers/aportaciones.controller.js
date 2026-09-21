@@ -36,6 +36,10 @@ async function crear(req, res, next) {
       modo: modo || 'proporcional',
     };
     const aportacion = await aportacionesQueries.crear(datos);
+    // Recalcular de inmediato: si el nodo elegido ya estaba Completada (o
+    // ya tenía avance, en modo proporcional), sin esto el indicador se
+    // queda en 0 hasta el próximo cambio de estado de cualquier otro nodo.
+    await aportacionesQueries.recalcularUnIndicador(aportacion.id_indicador);
     res.status(201).json({ datos: aportacion, mensaje: 'Aportación creada' });
   } catch (err) { next(err); }
 }
@@ -48,6 +52,7 @@ async function actualizar(req, res, next) {
     if (req.body.modo !== undefined) mapped.modo = req.body.modo;
     const aportacion = await aportacionesQueries.actualizar(req.params.id, mapped);
     if (!aportacion) return res.status(404).json({ error: true, mensaje: 'Aportación no encontrada' });
+    await aportacionesQueries.recalcularUnIndicador(aportacion.id_indicador);
     res.json({ datos: aportacion, mensaje: 'Aportación actualizada' });
   } catch (err) { next(err); }
 }
@@ -57,6 +62,7 @@ async function eliminar(req, res, next) {
   try {
     const resultado = await aportacionesQueries.eliminar(req.params.id);
     if (!resultado) return res.status(404).json({ error: true, mensaje: 'Aportación no encontrada' });
+    await aportacionesQueries.recalcularUnIndicador(resultado.id_indicador);
     res.json({ mensaje: 'Aportación eliminada' });
   } catch (err) { next(err); }
 }

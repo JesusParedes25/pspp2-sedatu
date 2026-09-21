@@ -12,15 +12,17 @@
  */
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { BarChart3, Loader2 } from 'lucide-react';
+import { BarChart3, Loader2, Plus } from 'lucide-react';
 import { obtenerProyectosFiltroInicio, obtenerCarterasFiltroInicio } from '../api/inicio';
 import * as indicadoresApi from '../api/indicadores';
 import FiltroTablero from '../components/inicio/FiltroTablero';
 import { ETIQUETA_TIPO_INDICADOR, agruparPorCatalogo, TarjetaIndicadorOAgrupada } from '../components/indicadores/TarjetaIndicador';
+import ModalVincularIndicador from '../components/indicadores/ModalVincularIndicador';
 
 export default function Indicadores() {
   const [indicadores, setIndicadores] = useState([]);
   const [cargando, setCargando] = useState(true);
+  const [mostrarWizard, setMostrarWizard] = useState(false);
 
   // Mismo criterio de filtro (URL-backed) que ya usa Tablero — respaldado
   // en la URL para poder compartir/recargar sin perderlo.
@@ -53,12 +55,16 @@ export default function Indicadores() {
       .finally(() => setCargandoOpciones(false));
   }, []);
 
-  useEffect(() => {
+  function cargarIndicadores() {
     setCargando(true);
-    indicadoresApi.listarMios(filtro)
+    return indicadoresApi.listarMios(filtro)
       .then(setIndicadores)
       .catch(console.error)
       .finally(() => setCargando(false));
+  }
+
+  useEffect(() => {
+    cargarIndicadores();
   }, [filtro.carteraId, filtro.proyectoIds.join(',')]);
 
   const grupos = {};
@@ -76,13 +82,21 @@ export default function Indicadores() {
             Los indicadores de los proyectos donde participas, en un solo lugar.
           </p>
         </div>
-        <FiltroTablero
-          filtro={filtro}
-          onCambiar={setFiltro}
-          proyectos={opcionesProyectos}
-          carteras={opcionesCarteras}
-          cargando={cargandoOpciones}
-        />
+        <div className="flex items-center gap-2">
+          <FiltroTablero
+            filtro={filtro}
+            onCambiar={setFiltro}
+            proyectos={opcionesProyectos}
+            carteras={opcionesCarteras}
+            cargando={cargandoOpciones}
+          />
+          <button
+            onClick={() => setMostrarWizard(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium bg-guinda-700 text-white hover:bg-guinda-600 transition-colors"
+          >
+            <Plus size={15} /> Vincular indicador
+          </button>
+        </div>
       </div>
 
       {cargando ? (
@@ -114,6 +128,14 @@ export default function Indicadores() {
             </div>
           ))}
         </div>
+      )}
+
+      {mostrarWizard && (
+        <ModalVincularIndicador
+          proyectosDisponibles={opcionesProyectos}
+          onCerrar={() => setMostrarWizard(false)}
+          onVinculado={() => { setMostrarWizard(false); cargarIndicadores(); }}
+        />
       )}
     </div>
   );

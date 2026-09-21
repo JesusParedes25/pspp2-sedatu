@@ -694,7 +694,7 @@ export default function NodoCard({
 
           {seccion === 'indicador' && (
             <div className="bg-gray-50 rounded-lg p-2.5 max-h-80 overflow-y-auto">
-              <TabIndicadores tipo={tipo} nodoId={nodo.id} proyectoId={proyectoId} soloLectura={soloLectura} />
+              <TabIndicadores tipo={tipo} nodoId={nodo.id} nodoNombre={nodo.nombre} proyectoId={proyectoId} soloLectura={soloLectura} />
             </div>
           )}
 

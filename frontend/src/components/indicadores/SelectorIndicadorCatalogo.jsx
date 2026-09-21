@@ -19,7 +19,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useRef } from 'react';
-import { X, Loader2, Search, Plus, BarChart3, BookOpen } from 'lucide-react';
+import { X, Loader2, Search, Plus, BarChart3, BookOpen, Sparkles } from 'lucide-react';
 import * as catalogoApi from '../../api/catalogo-indicadores';
 import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
 
@@ -56,6 +56,23 @@ export default function SelectorIndicadorCatalogo({ onElegir, onCerrar, yaUsados
     unidad_personalizada: '', definicion: '', fuente: '',
   }).current;
   const [nuevo, setNuevo] = useState(valoresInicialesNuevo);
+  // Sugerencias por similitud (pg_trgm) mientras se teclea el nombre en
+  // modo alta — antes solo se detectaba el nombre EXACTO (y hasta
+  // entonces, después de intentar guardar). Detectar antes de crear, con
+  // contexto (cuántos proyectos ya lo usan), para decidir informado.
+  const [similares, setSimilares] = useState([]);
+
+  useEffect(() => {
+    if (!modoAlta || !nuevo.nombre.trim() || nuevo.nombre.trim().length < 3) { setSimilares([]); return; }
+    let vivo = true;
+    const t = setTimeout(async () => {
+      try {
+        const res = await catalogoApi.buscarSimilares(nuevo.nombre.trim());
+        if (vivo) setSimilares(res);
+      } catch { if (vivo) setSimilares([]); }
+    }, 300);
+    return () => { vivo = false; clearTimeout(t); };
+  }, [modoAlta, nuevo.nombre]);
 
   useEffect(() => {
     let vivo = true;
@@ -184,6 +201,28 @@ export default function SelectorIndicadorCatalogo({ onElegir, onCerrar, yaUsados
             </>
           ) : (
             <>
+              {similares.length > 0 && (
+                <div className="border border-amber-200 bg-amber-50/60 rounded-lg p-2.5 space-y-1.5">
+                  <p className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-800">
+                    <Sparkles size={12} /> Parecido a lo que buscas — ¿es este?
+                  </p>
+                  {similares.slice(0, 3).map(s => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => onElegir(s)}
+                      className="w-full text-left px-2.5 py-1.5 bg-white border border-amber-200 rounded-md hover:border-amber-400 hover:bg-amber-50 transition-colors"
+                    >
+                      <span className="text-xs text-gray-800">{s.nombre}</span>
+                      {s.usos > 0 && (
+                        <span className="ml-1.5 text-[10px] text-gray-400">
+                          · usado en {s.usos} proyecto{s.usos !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">Nombre del indicador</label>
                 <input

@@ -14,6 +14,16 @@ export async function listarCatalogoIndicadores({ busqueda, incluirInactivos } =
   return data;
 }
 
+// Entradas parecidas por similitud de texto (pg_trgm) — para sugerirlas
+// ANTES de crear una nueva, en vez de dejar que el usuario cree un
+// duplicado con otra redacción (acentos, espacios, singular/plural).
+export async function buscarSimilares(nombre, excluirId) {
+  const { data } = await client.get('/catalogo-indicadores/similares', {
+    params: { q: nombre, excluir_id: excluirId || undefined },
+  });
+  return data.datos || [];
+}
+
 export async function crearIndicadorCatalogo(datos) {
   const { data } = await client.post('/catalogo-indicadores', datos);
   return data;
