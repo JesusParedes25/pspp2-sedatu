@@ -40,6 +40,38 @@ async function claveDisponible(base, db) {
   }
 }
 
+// Busca entradas del catálogo parecidas a `nombre` por similitud de texto
+// (pg_trgm, misma convención que buscarEstadosFuzzy/buscarMunicipiosFuzzy
+// en geografia.queries.js), no coincidencia exacta — para ofrecerlas ANTES
+// de crear una nueva entrada que en realidad ya existe con otra redacción
+// (acentos, espacios, singular/plural). No bloquea nada por sí sola: es
+// una sugerencia para quien decide, con el número de proyectos que ya usan
+// cada una para ayudar a decidir informado.
+async function buscarSimilares(nombre, excluirId = null) {
+  const texto = (nombre || '').trim();
+  if (!texto) return [];
+  const params = [texto];
+  let filtroExcluir = '';
+  if (excluirId) {
+    params.push(excluirId);
+    filtroExcluir = `AND c.id != $${params.length}`;
+  }
+  const { rows } = await pool.query(`
+    SELECT c.id, c.clave, c.nombre, c.tipo, c.unidad, c.activo,
+      similarity(LOWER(c.nombre), LOWER($1)) AS score,
+      (SELECT COUNT(DISTINCT i.id_proyecto)
+         FROM indicadores i
+         JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL
+        WHERE i.id_catalogo = c.id) AS usos
+    FROM catalogo_indicadores c
+    WHERE (LOWER(c.nombre) % LOWER($1) OR LOWER(c.nombre) LIKE LOWER($1) || '%')
+      ${filtroExcluir}
+    ORDER BY score DESC
+    LIMIT 5
+  `, params);
+  return rows.map(r => ({ ...r, usos: parseInt(r.usos, 10) || 0 }));
+}
+
 // Lista el catálogo. `usos` dice en cuántos proyectos se está usando —
 // es el dato que necesita quien administra para saber si puede retirar
 // una entrada sin dejar a nadie colgado.
@@ -142,6 +174,24 @@ const CAMPOS_EDITABLES = [
 ];
 
 async function actualizar(id, datos) {
+  // Antes, renombrar no chequeaba nada — se podía dejar dos entradas con
+  // el mismo nombre exacto sin ningún aviso. Mismo criterio de bloqueo
+  // que crear(), excluyendo la propia entrada que se está editando.
+  if (datos.nombre !== undefined) {
+    const nombre = (datos.nombre || '').trim();
+    const { rows: repetido } = await pool.query(
+      'SELECT id, nombre FROM catalogo_indicadores WHERE lower(trim(nombre)) = lower($1) AND id != $2',
+      [nombre, id]
+    );
+    if (repetido.length > 0) {
+      const err = new Error(`Ya existe un indicador llamado "${repetido[0].nombre}" en el catálogo`);
+      err.statusCode = 409;
+      err.codigo = 'DUPLICADO';
+      err.existente = repetido[0];
+      throw err;
+    }
+  }
+
   const sets = [];
   const valores = [];
   for (const campo of CAMPOS_EDITABLES) {
@@ -168,4 +218,63 @@ async function cambiarActivo(id, activo) {
   return rows[0] || null;
 }
 
-module.exports = { listar, obtener, uso, crear, actualizar, cambiarActivo, generarClave };
+// Fusiona 2+ entradas duplicadas del catálogo en una sola. Retirar una
+// entrada (cambiarActivo) nunca arregló la fragmentación que ya existe:
+// las pantallas de agregados (Tablero/Cartera) agrupan por
+// indicadores.id_catalogo sin fijarse si esa entrada del catálogo sigue
+// activa, así que un proyecto vinculado a una entrada retirada quedaba
+// huérfano — su dato dejaba de sumar en cualquier lado. Fusionar reapunta
+// TODOS los indicadores de proyecto de las entradas perdedoras hacia la
+// que sobrevive, y entonces sí las retira — a partir de ahí sí vuelven a
+// sumar juntos.
+async function fusionar(idSobrevive, idsFusionar) {
+  const perdedores = idsFusionar.filter(id => id !== idSobrevive);
+  if (perdedores.length === 0) {
+    const err = new Error('No hay entradas distintas que fusionar');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rows: existen } = await client.query(
+      'SELECT id FROM catalogo_indicadores WHERE id = ANY($1)',
+      [[idSobrevive, ...perdedores]]
+    );
+    if (existen.length !== perdedores.length + 1) {
+      const err = new Error('Alguna de las entradas ya no existe');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const { rows: reapuntados } = await client.query(
+      'UPDATE indicadores SET id_catalogo = $1, updated_at = NOW() WHERE id_catalogo = ANY($2) RETURNING id, id_proyecto',
+      [idSobrevive, perdedores]
+    );
+
+    await client.query(
+      'UPDATE catalogo_indicadores SET activo = false, updated_at = NOW() WHERE id = ANY($1)',
+      [perdedores]
+    );
+
+    const { rows: sobreviviente } = await client.query(
+      'SELECT * FROM catalogo_indicadores WHERE id = $1', [idSobrevive]
+    );
+
+    await client.query('COMMIT');
+    return {
+      sobreviviente: sobreviviente[0],
+      proyectos_reapuntados: reapuntados.length,
+      ids_retirados: perdedores,
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = { listar, obtener, uso, crear, actualizar, cambiarActivo, generarClave, buscarSimilares, fusionar };

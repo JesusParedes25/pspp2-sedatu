@@ -4,6 +4,7 @@
  */
 const pool = require('../pool');
 const { condicionRiesgoDeProyecto } = require('../../utils/condicion-riesgo');
+const { calcularAvancePorcentaje } = require('../../utils/indicador-calculo');
 
 /**
  * Métricas globales: total proyectos, acciones, avance, estados activos.
@@ -28,7 +29,7 @@ async function obtenerMetricasGlobales(filtros = {}) {
     FROM proyectos p
     LEFT JOIN acciones a ON a.id_proyecto = p.id AND a.id_accion_padre IS NULL AND a.estado != 'Cancelada'
     LEFT JOIN cobertura_geografica cg ON cg.tipo_entidad = 'accion' AND cg.id_entidad = a.id
-    WHERE p.estado != 'Cancelado' AND p.deleted_at IS NULL ${filtroDG}
+    WHERE p.estado != 'Cancelada' AND p.deleted_at IS NULL ${filtroDG}
   `, params);
 
   const totalNoCancel = (metricas.total_acciones || 1);
@@ -47,7 +48,7 @@ async function obtenerAvancePorDG() {
       COUNT(a.id)::int AS total_acciones,
       COUNT(a.id) FILTER (WHERE a.estado = 'Completada')::int AS completadas
     FROM direcciones_generales dg
-    JOIN proyectos p ON p.id_dg_lider = dg.id AND p.estado != 'Cancelado' AND p.deleted_at IS NULL
+    JOIN proyectos p ON p.id_dg_lider = dg.id AND p.estado != 'Cancelada' AND p.deleted_at IS NULL
     LEFT JOIN acciones a ON a.id_proyecto = p.id AND a.id_accion_padre IS NULL AND a.estado != 'Cancelada'
     GROUP BY dg.id, dg.siglas, dg.nombre
     HAVING COUNT(a.id) > 0
@@ -111,7 +112,7 @@ async function obtenerIndicadoresPublicables(filtros = {}) {
     SELECT i.id, i.nombre, i.meta_global, i.valor_actual, i.unidad, i.unidad_personalizada,
       p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas
     FROM indicadores i
-    JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL
+    JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL AND p.estado != 'Cancelada'
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
     WHERE i.es_publicable = true AND i.activo = true ${filtroDG}
     ORDER BY dg.siglas, p.nombre
@@ -121,8 +122,7 @@ async function obtenerIndicadoresPublicables(filtros = {}) {
     ...r,
     meta_global: parseFloat(r.meta_global) || 0,
     valor_actual: parseFloat(r.valor_actual) || 0,
-    avance_pct: (parseFloat(r.meta_global) || 0) > 0
-      ? Math.round(((parseFloat(r.valor_actual) || 0) / parseFloat(r.meta_global)) * 100) : 0,
+    avance_pct: calcularAvancePorcentaje(r.valor_actual, r.meta_global),
   }));
 }
 

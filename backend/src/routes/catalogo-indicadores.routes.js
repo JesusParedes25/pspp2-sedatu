@@ -15,6 +15,10 @@ const router = Router();
 
 router.get('/', ctrl.listar);
 router.post('/', ctrl.crear);
+// Rutas literales ANTES de '/:id' — si no, Express intentaría matchear
+// "similares"/"fusionar" como si fueran un :id.
+router.get('/similares', ctrl.buscarSimilares);
+router.post('/fusionar', requiereRol(['superadmin']), ctrl.fusionar);
 router.get('/:id', ctrl.obtener);
 
 router.get('/:id/uso', requiereRol(['superadmin']), ctrl.uso);

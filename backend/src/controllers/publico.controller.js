@@ -18,6 +18,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const pool = require('../db/pool');
+const { calcularAvancePorcentaje } = require('../utils/indicador-calculo');
 
 // GET /publico/indicadores
 // Consolidado por indicador del catálogo: la suma de metas y avances de
@@ -41,7 +42,7 @@ async function indicadores(req, res, next) {
         i.updated_at    AS actualizado_en
       FROM catalogo_indicadores c
       LEFT JOIN indicadores i ON i.id_catalogo = c.id AND i.activo = true
-      LEFT JOIN proyectos p   ON p.id = i.id_proyecto AND p.deleted_at IS NULL
+      LEFT JOIN proyectos p   ON p.id = i.id_proyecto AND p.deleted_at IS NULL AND p.estado != 'Cancelada'
       LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
       LEFT JOIN usuarios creador ON creador.id = i.id_creador
       WHERE ($1::text IS NULL OR c.clave = $1)
@@ -92,9 +93,7 @@ async function indicadores(req, res, next) {
 
     const datos = [...porClave.values()].map(e => ({
       ...e,
-      porcentaje: e.meta_total > 0
-        ? Math.round((e.avance_total / e.meta_total) * 1000) / 10
-        : null,
+      porcentaje: calcularAvancePorcentaje(e.avance_total, e.meta_total),
     }));
 
     res.json({

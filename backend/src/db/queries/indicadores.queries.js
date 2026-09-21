@@ -15,6 +15,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const pool = require('../pool');
+const { calcularAvancePorcentaje } = require('../../utils/indicador-calculo');
 
 // Lista indicadores de nivel proyecto (id_etapa IS NULL) con sus metas anuales
 async function listarPorProyecto(proyectoId) {
@@ -341,7 +342,7 @@ async function listarPublicables(filtros = {}) {
       dg.siglas AS dg_siglas,
       dg.nombre AS dg_nombre
     FROM indicadores i
-    JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL
+    JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL AND p.estado != 'Cancelada'
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
     WHERE ${where}
     ORDER BY dg.siglas, p.nombre, i.nombre
@@ -350,7 +351,6 @@ async function listarPublicables(filtros = {}) {
   return res.rows.map(r => {
     const meta = parseFloat(r.meta_global) || 0;
     const valor = parseFloat(r.valor_actual) || 0;
-    const pct = meta > 0 ? Math.min(100, (valor / meta) * 100) : 0;
     const unidadLabel = r.unidad === 'Porcentaje' ? '%'
       : r.unidad === 'Moneda_MXN' ? '$MXN'
       : r.unidad_personalizada || '#';
@@ -364,7 +364,7 @@ async function listarPublicables(filtros = {}) {
       tipo: r.tipo,
       meta: meta,
       valor_actual: valor,
-      porcentaje: parseFloat(pct.toFixed(2)),
+      porcentaje: calcularAvancePorcentaje(valor, meta),
       unidad: unidadLabel,
       modo_calculo: r.modo_calculo,
       ultima_actualizacion: r.updated_at,

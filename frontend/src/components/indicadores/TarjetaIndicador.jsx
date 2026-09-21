@@ -58,7 +58,12 @@ export default function TarjetaIndicador({ indicador, contexto = null, variante 
   const meta = parseFloat(indicador.meta_global) || 0;
   const valor = parseFloat(indicador.valor_actual) || 0;
   const tieneMeta = meta > 0;
-  const pct = tieneMeta ? Math.min(100, (valor / meta) * 100) : null;
+  // El % que se muestra en texto es el real, sin tope (un indicador
+  // sobre-cumplido dice "142% de la meta" — información útil, no un error
+  // a esconder). Solo la barra visual se topa en 100%, para no desbordar
+  // su contenedor.
+  const pct = tieneMeta ? (valor / meta) * 100 : null;
+  const pctBarra = pct !== null ? Math.min(100, pct) : null;
   const unidad = unidadDe(indicador);
   const compacto = variante === 'compacto';
 
@@ -110,7 +115,7 @@ export default function TarjetaIndicador({ indicador, contexto = null, variante 
         <div className={`${compacto ? 'mt-1.5 h-1.5' : 'mt-2 h-2'} bg-gray-100 rounded-full overflow-hidden`}>
           <div
             className="h-full rounded-full transition-all"
-            style={{ width: `${pct}%`, backgroundColor: GUINDA }}
+            style={{ width: `${pctBarra}%`, backgroundColor: GUINDA }}
           />
         </div>
       ) : (
@@ -154,7 +159,9 @@ function TarjetaIndicadorGrupo({ grupo, variante = 'normal' }) {
   const totalValor = grupo.reduce((s, i) => s + (parseFloat(i.valor_actual) || 0), 0);
   const totalMeta = grupo.reduce((s, i) => s + (parseFloat(i.meta_global) || 0), 0);
   const tieneMeta = !esPorcentaje && totalMeta > 0;
-  const pct = tieneMeta ? Math.min(100, (totalValor / totalMeta) * 100) : null;
+  // Mismo criterio que TarjetaIndicador: texto sin tope, barra topada.
+  const pct = tieneMeta ? (totalValor / totalMeta) * 100 : null;
+  const pctBarra = pct !== null ? Math.min(100, pct) : null;
 
   return (
     <div className={`rounded-lg border border-gray-200 bg-white ${compacto ? 'p-2.5' : 'p-3'} hover:border-gray-300 transition-colors`}>
@@ -201,7 +208,7 @@ function TarjetaIndicadorGrupo({ grupo, variante = 'normal' }) {
           </div>
           {tieneMeta && (
             <div className={`${compacto ? 'mt-1.5 h-1.5' : 'mt-2 h-2'} bg-gray-100 rounded-full overflow-hidden`}>
-              <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: GUINDA }} />
+              <div className="h-full rounded-full transition-all" style={{ width: `${pctBarra}%`, backgroundColor: GUINDA }} />
             </div>
           )}
         </>

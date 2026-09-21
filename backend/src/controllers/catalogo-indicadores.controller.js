@@ -31,6 +31,13 @@ async function listar(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function buscarSimilares(req, res, next) {
+  try {
+    const datos = await catalogoQueries.buscarSimilares(req.query.q, req.query.excluir_id || null);
+    res.json({ datos });
+  } catch (err) { next(err); }
+}
+
 async function obtener(req, res, next) {
   try {
     const datos = await catalogoQueries.obtener(req.params.id);
@@ -72,6 +79,29 @@ async function actualizar(req, res, next) {
       return res.status(404).json({ error: true, mensaje: 'Indicador no encontrado en el catálogo', codigo: 'NO_ENCONTRADO' });
     }
     res.json({ datos, mensaje: 'Indicador actualizado' });
+  } catch (err) {
+    if (err.codigo === 'DUPLICADO') {
+      return res.status(409).json({ error: true, mensaje: err.mensaje || err.message, codigo: 'DUPLICADO', existente: err.existente });
+    }
+    next(err);
+  }
+}
+
+async function fusionar(req, res, next) {
+  try {
+    const { id_sobrevive, ids_fusionar } = req.body || {};
+    if (!id_sobrevive || !Array.isArray(ids_fusionar) || ids_fusionar.length === 0) {
+      return res.status(400).json({
+        error: true,
+        mensaje: 'Se requiere id_sobrevive y al menos una entrada en ids_fusionar',
+        codigo: 'CAMPOS_REQUERIDOS',
+      });
+    }
+    const datos = await catalogoQueries.fusionar(id_sobrevive, ids_fusionar);
+    res.json({
+      datos,
+      mensaje: `Fusionado — ${datos.proyectos_reapuntados} indicador(es) de proyecto pasaron a "${datos.sobreviviente.nombre}"`,
+    });
   } catch (err) { next(err); }
 }
 
@@ -86,4 +116,4 @@ async function cambiarActivo(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listar, obtener, uso, crear, actualizar, cambiarActivo };
+module.exports = { listar, obtener, uso, crear, actualizar, cambiarActivo, buscarSimilares, fusionar };
