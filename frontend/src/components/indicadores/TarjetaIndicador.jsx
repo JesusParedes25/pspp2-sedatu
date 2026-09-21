@@ -21,21 +21,16 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, X, Pencil } from 'lucide-react';
 import { formatearMonedaCorta, etiquetaUnidadIndicador } from '../../utils/formatoMoneda';
+import { TIPOS_INDICADOR } from '../../utils/tiposIndicador';
 import ModalEditarValorIndicador from './ModalEditarValorIndicador';
 
 const GUINDA = '#7B1C3E';
 
 // Los agrupadores mostraban el valor crudo de la columna ("Avance_fisico",
 // "Gestion"). Se traducen aquí, en el mismo módulo que la tarjeta, para
-// que las tres vistas los escriban igual.
-export const ETIQUETA_TIPO_INDICADOR = {
-  Avance_fisico: 'Avance físico',
-  Avance_financiero: 'Avance financiero',
-  Cobertura: 'Cobertura',
-  Beneficiarios: 'Beneficiarios',
-  Gestion: 'Gestión',
-  Otro: 'Otro',
-};
+// que las tres vistas los escriban igual — derivado del único catálogo
+// de tipos en vez de copiado aparte.
+export const ETIQUETA_TIPO_INDICADOR = Object.fromEntries(TIPOS_INDICADOR.map(t => [t.valor, t.etiqueta]));
 
 // Cómo se llama la unidad al escribirla junto al número. Reexportado
 // desde el módulo compartido (antes vivía duplicado, con variaciones

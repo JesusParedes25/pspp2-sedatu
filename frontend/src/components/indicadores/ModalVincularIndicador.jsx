@@ -29,6 +29,8 @@ import * as etapasApi from '../../api/etapas';
 import * as indicadoresApi from '../../api/indicadores';
 import { useUI } from '../../context/UIContext';
 import SelectorIndicadorCatalogo from './SelectorIndicadorCatalogo';
+import CamposIndicadorProyecto from './CamposIndicadorProyecto';
+import { indicadorProyectoVacio, conDefaultsPorTipo } from '../../utils/tiposIndicador';
 
 const PASOS = ['Dónde', 'Qué', 'Cómo'];
 
@@ -59,7 +61,13 @@ export default function ModalVincularIndicador({
   const [catalogoElegido, setCatalogoElegido] = useState(null);
   const [indicadorExistente, setIndicadorExistente] = useState(null);
   const [indicadoresProyecto, setIndicadoresProyecto] = useState([]);
-  const [metaNueva, setMetaNueva] = useState('');
+  // Indicador nuevo (cuando la entrada del catálogo elegida no tiene
+  // todavía un indicador en este proyecto) — mismos campos que "Crear
+  // proyecto"/"Editar proyecto" (meta, temporalidad, año fiscal), antes
+  // ausentes aquí: este wizard solo pedía la meta y creaba siempre con
+  // temporalidad 'Global', así que un indicador financiero no tenía
+  // forma de marcarse "por ejercicio fiscal" desde este flujo.
+  const [indicadorNuevo, setIndicadorNuevo] = useState(indicadorProyectoVacio());
   const [modoAportacion, setModoAportacion] = useState('al_concluir');
   const [valorAportacion, setValorAportacion] = useState('');
   const [guardando, setGuardando] = useState(false);
@@ -128,7 +136,29 @@ export default function ModalVincularIndicador({
     setCatalogoElegido(entradaCatalogo);
     const existente = indicadoresProyecto.find(i => i.id_catalogo === entradaCatalogo.id);
     setIndicadorExistente(existente || null);
-    setPaso(3);
+    if (existente) {
+      // Ya existe un indicador de este proyecto para esa entrada del
+      // catálogo — nada nuevo que definir, se avanza directo.
+      setPaso(3);
+      return;
+    }
+    // Precargar nombre/tipo/unidad del catálogo — mismo criterio que
+    // "Crear proyecto"/"Editar proyecto": la identidad del indicador
+    // viene del catálogo, aquí solo se completa lo propio de este
+    // proyecto (meta, temporalidad, año). Se queda en el paso 2 para
+    // que esos campos sean visibles antes de avanzar — antes brincaba
+    // directo al paso 3 y la meta/temporalidad nunca llegaban a
+    // mostrarse, por eso no había forma de marcar un indicador
+    // financiero "por ejercicio fiscal" desde este wizard.
+    setIndicadorNuevo(conDefaultsPorTipo({
+      ...indicadorProyectoVacio(),
+      id_catalogo: entradaCatalogo.id,
+      nombre: entradaCatalogo.nombre,
+      tipo: entradaCatalogo.tipo,
+      unidad: entradaCatalogo.unidad,
+      unidad_personalizada: entradaCatalogo.unidad_personalizada || '',
+      descripcion: entradaCatalogo.descripcion || '',
+    }));
   }
 
   async function confirmarVinculo() {
@@ -139,14 +169,17 @@ export default function ModalVincularIndicador({
 
       if (!indicadorId) {
         const res = await indicadoresApi.crearIndicador(proyecto.id, {
-          nombre: catalogoElegido.nombre,
-          tipo: catalogoElegido.tipo,
-          unidad: catalogoElegido.unidad,
-          unidad_personalizada: catalogoElegido.unidad_personalizada,
-          etiqueta_unidad: catalogoElegido.etiqueta_unidad,
-          id_catalogo: catalogoElegido.id,
-          meta_global: metaNueva === '' ? null : parseFloat(metaNueva),
-          temporalidad: 'Global',
+          nombre: indicadorNuevo.nombre,
+          tipo: indicadorNuevo.tipo,
+          unidad: indicadorNuevo.unidad,
+          unidad_personalizada: indicadorNuevo.unidad_personalizada,
+          id_catalogo: indicadorNuevo.id_catalogo,
+          meta_global: indicadorNuevo.meta_global === '' ? null : parseFloat(indicadorNuevo.meta_global),
+          temporalidad: indicadorNuevo.temporalidad,
+          anio_inicio: indicadorNuevo.temporalidad === 'Anual' ? indicadorNuevo.anio_inicio : null,
+          anio_fin: indicadorNuevo.temporalidad === 'Anual' ? indicadorNuevo.anio_fin : null,
+          metas_anuales: indicadorNuevo.temporalidad === 'Anual' ? indicadorNuevo.metas_anuales : [],
+          descripcion: indicadorNuevo.descripcion,
         });
         indicadorId = res.datos.id;
       }
@@ -300,18 +333,11 @@ export default function ModalVincularIndicador({
               )}
 
               {catalogoElegido && !indicadorExistente && (
-                <div>
-                  <label className="block text-[11px] text-gray-500 mb-1">
-                    Meta de este proyecto para "{catalogoElegido.nombre}" <span className="text-gray-400">(opcional)</span>
-                  </label>
-                  <input
-                    type="number" step="any" min="0"
-                    value={metaNueva}
-                    onChange={e => setMetaNueva(e.target.value)}
-                    placeholder="0"
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400"
-                  />
-                </div>
+                <CamposIndicadorProyecto
+                  indicador={indicadorNuevo}
+                  onCambio={(patch) => setIndicadorNuevo(prev => ({ ...prev, ...patch }))}
+                  mostrarDescripcion={false}
+                />
               )}
               {catalogoElegido && indicadorExistente && (
                 <p className="text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
@@ -386,6 +412,15 @@ export default function ModalVincularIndicador({
             <button
               onClick={irAPaso2}
               disabled={!proyecto}
+              className="px-4 py-2 text-sm font-medium text-white bg-guinda-700 rounded-lg disabled:opacity-50"
+            >
+              Siguiente
+            </button>
+          )}
+          {paso === 2 && (catalogoElegido && !indicadorExistente) && (
+            <button
+              onClick={() => setPaso(3)}
+              disabled={!indicadorNuevo.nombre.trim()}
               className="px-4 py-2 text-sm font-medium text-white bg-guinda-700 rounded-lg disabled:opacity-50"
             >
               Siguiente

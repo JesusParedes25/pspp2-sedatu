@@ -24,31 +24,13 @@ import { usePermisosProyecto } from '../../hooks/usePermisos';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 import { useUI } from '../../context/UIContext';
 import { etiquetaUnidadIndicador } from '../../utils/formatoMoneda';
-
-const TIPOS_INDICADOR = [
-  { valor: 'Avance_fisico', etiqueta: 'Avance físico' },
-  { valor: 'Avance_financiero', etiqueta: 'Avance financiero' },
-  { valor: 'Cobertura', etiqueta: 'Cobertura' },
-  { valor: 'Beneficiarios', etiqueta: 'Beneficiarios' },
-  { valor: 'Gestion', etiqueta: 'Gestión' },
-  { valor: 'Otro', etiqueta: 'Otro' },
-];
-
-const UNIDADES_INDICADOR = [
-  { valor: 'Porcentaje', etiqueta: '% (porcentaje)' },
-  { valor: 'Moneda_MXN', etiqueta: '$ MXN (pesos)' },
-  { valor: 'Numero', etiqueta: 'Número (personalizable)' },
-];
-
+import { TIPOS_INDICADOR, indicadorProyectoVacio, conDefaultsPorTipo } from '../../utils/tiposIndicador';
+import CamposIndicadorProyecto from '../indicadores/CamposIndicadorProyecto';
 
 const INDICADOR_NUEVO = () => ({
   _key: Date.now() + Math.random(),
   _esNuevo: true,
-  nombre: '', tipo: 'Avance_fisico', unidad: 'Numero',
-  unidad_personalizada: '',
-  meta_global: '', temporalidad: 'Global',
-  anio_inicio: new Date().getFullYear(), anio_fin: new Date().getFullYear(),
-  metas_anuales: [], descripcion: '', _abierto: true,
+  ...indicadorProyectoVacio(),
 });
 
 export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) {
@@ -222,7 +204,7 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
   function agregarDelCatalogo(delCatalogo) {
     setDatos(prev => ({
       ...prev,
-      indicadores: [...prev.indicadores, {
+      indicadores: [...prev.indicadores, conDefaultsPorTipo({
         ...INDICADOR_NUEVO(),
         id_catalogo: delCatalogo.id,
         nombre: delCatalogo.nombre,
@@ -230,7 +212,7 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
         unidad: delCatalogo.unidad,
         unidad_personalizada: delCatalogo.unidad_personalizada || '',
         descripcion: delCatalogo.descripcion || '',
-      }],
+      })],
     }));
     setMostrarCatalogoInd(false);
   }
@@ -239,11 +221,11 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
     setDatos(prev => ({ ...prev, indicadores: [...prev.indicadores, INDICADOR_NUEVO()] }));
   }
 
-  function actualizarIndicador(key, campo, valor) {
+  function actualizarIndicador(key, patch) {
     setDatos(prev => ({
       ...prev,
       indicadores: prev.indicadores.map(ind =>
-        ind._key === key ? { ...ind, [campo]: valor } : ind
+        ind._key === key ? { ...ind, ...patch } : ind
       ),
     }));
   }
@@ -264,17 +246,6 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
         ind._key === key ? { ...ind, _eliminado: true, _abierto: false } : ind
       ),
     }));
-  }
-
-  function actualizarRangoAnual(key, inicio, fin, indicador) {
-    const nuevas = [];
-    for (let a = inicio; a <= fin; a++) {
-      const existente = indicador.metas_anuales.find(m => m.anio === a);
-      nuevas.push({ anio: a, meta: existente?.meta || '' });
-    }
-    actualizarIndicador(key, 'anio_inicio', inicio);
-    actualizarIndicador(key, 'anio_fin', fin);
-    setTimeout(() => actualizarIndicador(key, 'metas_anuales', nuevas), 0);
   }
 
   const [guardar, enviando] = useEnvioUnico(async () => {
@@ -510,10 +481,9 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
               <div className="space-y-2">
                 {indicadoresVisibles.map(ind => (
                   <FilaIndicador key={ind._key} indicador={ind}
-                    onCambio={(campo, valor) => actualizarIndicador(ind._key, campo, valor)}
+                    onCambio={(patch) => actualizarIndicador(ind._key, patch)}
                     onToggle={() => toggleIndicador(ind._key)}
                     onEliminar={() => eliminarIndicador(ind._key)}
-                    onRangoAnual={(ini, fin) => actualizarRangoAnual(ind._key, ini, fin, ind)}
                   />
                 ))}
               </div>
@@ -650,7 +620,7 @@ function Section({ titulo, children }) {
   );
 }
 
-function FilaIndicador({ indicador, onCambio, onToggle, onEliminar, onRangoAnual }) {
+function FilaIndicador({ indicador, onCambio, onToggle, onEliminar }) {
   const etiquetaTipo = TIPOS_INDICADOR.find(t => t.valor === indicador.tipo)?.etiqueta || indicador.tipo;
   const etiquetaUnidad = etiquetaUnidadIndicador(indicador) || '#';
 
@@ -679,86 +649,8 @@ function FilaIndicador({ indicador, onCambio, onToggle, onEliminar, onRangoAnual
       </div>
 
       {indicador._abierto && (
-        <div className="p-4 space-y-3 border-t border-gray-100">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
-            <input type="text" value={indicador.nombre} onChange={e => onCambio('nombre', e.target.value)}
-              className="input-base text-sm" placeholder="Ej: Viviendas regularizadas…" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-              <select value={indicador.tipo} onChange={e => onCambio('tipo', e.target.value)} className="input-base text-sm">
-                {TIPOS_INDICADOR.map(t => <option key={t.valor} value={t.valor}>{t.etiqueta}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Unidad</label>
-              <select value={indicador.unidad} onChange={e => onCambio('unidad', e.target.value)} className="input-base text-sm">
-                {UNIDADES_INDICADOR.map(u => <option key={u.valor} value={u.valor}>{u.etiqueta}</option>)}
-              </select>
-            </div>
-          </div>
-          {indicador.unidad === 'Numero' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Etiqueta de unidad</label>
-              <input type="text" value={indicador.unidad_personalizada} onChange={e => onCambio('unidad_personalizada', e.target.value)}
-                className="input-base text-sm" placeholder="Ej: viviendas, ZMs, hectáreas…" />
-            </div>
-          )}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Meta global (opcional)</label>
-            <input type="number" step="any" value={indicador.meta_global} onChange={e => onCambio('meta_global', e.target.value)}
-              className="input-base text-sm" placeholder="0" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Temporalidad</label>
-            <div className="flex gap-4">
-              {[['Global', 'Meta global'], ['Anual', 'Por ejercicio fiscal']].map(([val, lbl]) => (
-                <label key={val} className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
-                  <input type="radio" checked={indicador.temporalidad === val}
-                    onChange={() => {
-                      onCambio('temporalidad', val);
-                      if (val === 'Anual' && !indicador.metas_anuales.length)
-                        onRangoAnual(indicador.anio_inicio, indicador.anio_fin);
-                    }}
-                    className="text-guinda-500 focus:ring-guinda-500" />
-                  {lbl}
-                </label>
-              ))}
-            </div>
-          </div>
-          {indicador.temporalidad === 'Anual' && (
-            <div className="space-y-2 pl-4 border-l-2 border-blue-200">
-              <div className="flex gap-3 items-end">
-                {[['Año inicio', indicador.anio_inicio, v => onRangoAnual(Number(v), indicador.anio_fin)],
-                  ['Año fin', indicador.anio_fin, v => onRangoAnual(indicador.anio_inicio, Number(v))]].map(([lbl, val, fn]) => (
-                  <div key={lbl}>
-                    <label className="block text-xs text-gray-500 mb-0.5">{lbl}</label>
-                    <input type="number" value={val} onChange={e => fn(e.target.value)}
-                      className="input-base text-sm w-24" min="2020" max="2040" />
-                  </div>
-                ))}
-              </div>
-              {indicador.metas_anuales.map((ma, mi) => (
-                <div key={ma.anio} className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500 w-10">{ma.anio}:</span>
-                  <input type="number" step="any" value={ma.meta}
-                    onChange={e => {
-                      const copia = [...indicador.metas_anuales];
-                      copia[mi] = { ...copia[mi], meta: e.target.value };
-                      onCambio('metas_anuales', copia);
-                    }}
-                    className="input-base text-sm flex-1" placeholder="Meta para este año" />
-                </div>
-              ))}
-            </div>
-          )}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Descripción (opcional)</label>
-            <input type="text" value={indicador.descripcion} onChange={e => onCambio('descripcion', e.target.value)}
-              className="input-base text-sm" placeholder="Contexto o fórmula de cálculo…" />
-          </div>
+        <div className="p-4 border-t border-gray-100">
+          <CamposIndicadorProyecto indicador={indicador} onCambio={onCambio} />
         </div>
       )}
     </div>

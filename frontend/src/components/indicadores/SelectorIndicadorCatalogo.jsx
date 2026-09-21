@@ -23,21 +23,7 @@ import { X, Loader2, Search, Plus, BarChart3, BookOpen, Sparkles } from 'lucide-
 import * as catalogoApi from '../../api/catalogo-indicadores';
 import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
 import { etiquetaUnidadIndicador } from '../../utils/formatoMoneda';
-
-const TIPOS = [
-  { valor: 'Avance_fisico', etiqueta: 'Avance físico' },
-  { valor: 'Avance_financiero', etiqueta: 'Avance financiero' },
-  { valor: 'Cobertura', etiqueta: 'Cobertura' },
-  { valor: 'Beneficiarios', etiqueta: 'Beneficiarios' },
-  { valor: 'Gestion', etiqueta: 'Gestión' },
-  { valor: 'Otro', etiqueta: 'Otro' },
-];
-
-const UNIDADES = [
-  { valor: 'Porcentaje', etiqueta: '% (porcentaje)' },
-  { valor: 'Moneda_MXN', etiqueta: '$ MXN (pesos)' },
-  { valor: 'Numero', etiqueta: 'Número (personalizable)' },
-];
+import { TIPOS_INDICADOR as TIPOS, UNIDADES_INDICADOR as UNIDADES } from '../../utils/tiposIndicador';
 
 export function etiquetaUnidad(ind) {
   return etiquetaUnidadIndicador(ind) || 'unidades';
@@ -238,7 +224,16 @@ export default function SelectorIndicadorCatalogo({ onElegir, onCerrar, yaUsados
                   <label className="block text-xs font-semibold text-gray-700 mb-1">Tipo</label>
                   <select
                     value={nuevo.tipo}
-                    onChange={e => setNuevo(n => ({ ...n, tipo: e.target.value }))}
+                    onChange={e => {
+                      const tipo = e.target.value;
+                      // "Avance financiero" casi siempre es en pesos —
+                      // solo se sugiere si el usuario no había tocado la
+                      // unidad todavía (sigue en el default de fábrica).
+                      setNuevo(n => ({
+                        ...n, tipo,
+                        unidad: (tipo === 'Avance_financiero' && n.unidad === 'Numero') ? 'Moneda_MXN' : n.unidad,
+                      }));
+                    }}
                     className="w-full px-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400"
                   >
                     {TIPOS.map(t => <option key={t.valor} value={t.valor}>{t.etiqueta}</option>)}
