@@ -70,7 +70,13 @@ const menuItems = [
       { to: '/proyectos/nuevo', esRutaPropia: true, etiqueta: 'Nuevo proyecto', icono: PlusCircle, requiereCrear: true },
     ],
   },
-  { to: '/indicadores', icono: BarChart3, etiqueta: 'Indicadores' },
+  {
+    id: 'indicadores', base: '/indicadores', icono: BarChart3, etiqueta: 'Indicadores',
+    children: [
+      { to: '/indicadores', param: 'mios', paramKey: 'vista', etiqueta: 'Mis indicadores', icono: BarChart3, default: true },
+      { to: '/indicadores?vista=catalogo', param: 'catalogo', paramKey: 'vista', etiqueta: 'Catálogo', icono: List },
+    ],
+  },
   { to: '/mapa', icono: Map, etiqueta: 'Territorio' },
   { to: '/evidencias', icono: FileText, etiqueta: 'Documentos' },
   {
