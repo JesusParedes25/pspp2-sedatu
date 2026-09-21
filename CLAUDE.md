@@ -26,9 +26,12 @@ federal mexicana de ordenamiento territorial). Uso interno.
   logs "Seeders completados") — los UUIDs de proyectos/nodos semilla
   **cambian en cada restart**, no asumir que un ID de una sesión anterior
   sigue existiendo.
-- **Producción**: servidor `srv885729` (SSH), dominio `daot.geobint.com`
+- **Producción**: servidor `srv885729` (SSH), dominio `pspp.geobint.com`
   vía Nginx Proxy Manager. Se despliega con `docker-compose.prod.yml`.
-  Repo en el servidor: `~/pspp2-sedatu`.
+  Repo en el servidor: `~/pspp2-sedatu`. Plan a futuro: migrar a
+  `https://sistemas.sedatu.gob.mx/pspp/` — cuando eso pase, usar
+  `VITE_BASE_PATH=/pspp/` en el servicio `frontend-build` (ver nota más
+  abajo sobre `base` y `VITE_BASE_PATH`).
 - Usar siempre `docker compose` (v2), **no** `docker-compose` (v1) — hay
   un mismatch de versión de API con el Docker Engine del servidor.
 
