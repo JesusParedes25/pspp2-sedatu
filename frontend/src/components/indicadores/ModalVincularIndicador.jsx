@@ -11,11 +11,18 @@
  * 1. "¿Dónde vive este indicador?" — Proyecto → Etapa → Acción/Subacción
  *    → Tarea, todos opcionales salvo Proyecto ("detenerse aquí" en
  *    cualquier nivel = vincular a ese nivel). Solo se listan
- *    proyectos/nodos donde el usuario tiene permiso de edición.
+ *    proyectos/nodos donde el usuario tiene permiso de edición. El
+ *    select de proyecto se omite si ya viene fijo
+ *    (`proyectoPreseleccionado`); los de etapa/acción/tarea se omiten
+ *    si ya viene fijo el nodo (`nodoPreseleccionado`) — independientes
+ *    entre sí, para cubrir también "proyecto fijo, nodo por elegir"
+ *    (el caso de "+ Agregar nodo" desde el detalle de un indicador).
  * 2. "¿Qué vas a medir?" — SelectorIndicadorCatalogo, reusado tal cual
  *    (ya trae el buscador con sugerencias por similitud). Si el
  *    proyecto no tenía todavía un indicador para esa entrada del
- *    catálogo, se crea aquí (con una meta opcional).
+ *    catálogo, se crea aquí (con una meta opcional). Se salta por
+ *    completo si ya viene fijo el indicador (`indicadorPreseleccionado`
+ *    — se llega directo del paso 1 al paso 3, ya se sabe qué medir).
  * 3. "¿Cómo aporta este nodo?" — solo si se eligió un nodo (no aplica a
  *    nivel proyecto): Manual (cuenta un valor fijo cuando el nodo se
  *    complete) o Automático (proporcional a su avance en cualquier
@@ -38,6 +45,7 @@ export default function ModalVincularIndicador({
   proyectosDisponibles = [],
   proyectoPreseleccionado = null,
   nodoPreseleccionado = null,
+  indicadorPreseleccionado = null,
   onVinculado,
   onCerrar,
 }) {
@@ -56,7 +64,14 @@ export default function ModalVincularIndicador({
   const [accionId, setAccionId] = useState(nodoPreseleccionado?.tipo === 'accion' ? nodoPreseleccionado.id : '');
   const [tareaId, setTareaId] = useState(nodoPreseleccionado?.tipo === 'tarea' ? nodoPreseleccionado.id : '');
 
-  const [paso, setPaso] = useState(proyectoPreseleccionado ? 2 : 1);
+  // Sin ambigüedad de "dónde" (proyecto+nodo ya resueltos), se arranca
+  // más adelante: directo en "qué medir" (paso 2), o directo en "cómo
+  // aporta" (paso 3) si además ya viene fijo el indicador — el botón
+  // "Atrás" nunca retrocede antes de este punto (ver más abajo).
+  const pasoInicial = (proyectoPreseleccionado && nodoPreseleccionado)
+    ? (indicadorPreseleccionado ? 3 : 2)
+    : 1;
+  const [paso, setPaso] = useState(pasoInicial);
   const [mostrarCatalogo, setMostrarCatalogo] = useState(false);
   const [catalogoElegido, setCatalogoElegido] = useState(null);
   const [indicadorExistente, setIndicadorExistente] = useState(null);
@@ -126,9 +141,21 @@ export default function ModalVincularIndicador({
     return null;
   }
 
-  function irAPaso2() {
+  function irSiguienteDesdePaso1() {
     setError('');
-    setPaso(2);
+    // Ya se sabe qué medir (indicadorPreseleccionado) — nada que elegir
+    // en el paso 2, se salta directo a "cómo aporta".
+    setPaso(indicadorPreseleccionado ? 3 : 2);
+  }
+
+  // El botón "Atrás" nunca retrocede antes de pasoInicial (no hay nada
+  // que mostrar ahí — esos pasos se saltaron a propósito). Desde el
+  // paso 3 con indicadorPreseleccionado, retrocede al paso 1 (el 2 no
+  // se visitó, saltarlo también al volver).
+  function irAtras() {
+    if (paso === 3 && indicadorPreseleccionado && pasoInicial === 1) { setPaso(1); return; }
+    if (paso > pasoInicial) { setPaso(paso - 1); return; }
+    onCerrar();
   }
 
   async function alElegirCatalogo(entradaCatalogo) {
@@ -165,7 +192,7 @@ export default function ModalVincularIndicador({
     setError('');
     setGuardando(true);
     try {
-      let indicadorId = indicadorExistente?.id;
+      let indicadorId = indicadorPreseleccionado?.id || indicadorExistente?.id;
 
       if (!indicadorId) {
         const res = await indicadoresApi.crearIndicador(proyecto.id, {
@@ -225,30 +252,46 @@ export default function ModalVincularIndicador({
 
         <div className="px-5 py-4 overflow-y-auto space-y-3 flex-1">
           {/* ── Paso 1: dónde ── */}
-          {paso === 1 && !proyectoPreseleccionado && (
+          {paso === 1 && (
             <>
               <p className="text-xs font-semibold text-gray-700">¿Dónde vive este indicador?</p>
-              <div>
-                <label className="block text-[11px] text-gray-500 mb-1">Proyecto</label>
-                <select
-                  value={proyecto?.id || ''}
-                  onChange={e => {
-                    const p = proyectosDisponibles.find(pr => pr.id === e.target.value);
-                    setProyecto(p || null);
-                    setEtapaId(''); setAccionId(''); setTareaId('');
-                  }}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400"
-                >
-                  <option value="">— elige un proyecto —</option>
-                  {proyectosDisponibles.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                </select>
-              </div>
+              {indicadorPreseleccionado && (
+                <p className="text-[11px] text-gray-500">
+                  Agregando un nodo que aporte a <strong>{indicadorPreseleccionado.nombre}</strong>.
+                </p>
+              )}
+
+              {proyectoPreseleccionado ? (
+                <div className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+                  Proyecto: <strong>{proyectoPreseleccionado.nombre}</strong>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-[11px] text-gray-500 mb-1">Proyecto</label>
+                  <select
+                    value={proyecto?.id || ''}
+                    onChange={e => {
+                      const p = proyectosDisponibles.find(pr => pr.id === e.target.value);
+                      setProyecto(p || null);
+                      setEtapaId(''); setAccionId(''); setTareaId('');
+                    }}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400"
+                  >
+                    <option value="">— elige un proyecto —</option>
+                    {proyectosDisponibles.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                  </select>
+                </div>
+              )}
 
               {cargandoProyecto && (
                 <div className="flex items-center gap-2 text-xs text-gray-400 py-2"><Loader2 size={13} className="animate-spin" /> Cargando proyecto…</div>
               )}
 
-              {proyecto && !cargandoProyecto && (
+              {nodoPreseleccionado ? (
+                <div className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+                  Nodo: <strong>{nodoPreseleccionado.nombre}</strong>
+                </div>
+              ) : proyecto && !cargandoProyecto && (
                 <>
                   <div>
                     <label className="block text-[11px] text-gray-500 mb-1">Etapa <span className="text-gray-400">(opcional — déjalo vacío para vincular a nivel proyecto)</span></label>
@@ -304,13 +347,6 @@ export default function ModalVincularIndicador({
                 </>
               )}
             </>
-          )}
-
-          {paso === 1 && proyectoPreseleccionado && (
-            <div className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
-              Vinculando en: <strong>{proyectoPreseleccionado.nombre}</strong>
-              {nodoPreseleccionado && <> → <strong>{nodoPreseleccionado.nombre}</strong></>}
-            </div>
           )}
 
           {/* ── Paso 2: qué ── */}
@@ -403,14 +439,14 @@ export default function ModalVincularIndicador({
 
         <div className="flex justify-between gap-2 px-5 py-3.5 border-t border-gray-100 flex-shrink-0">
           <button
-            onClick={() => (paso > 1 && !(paso === 2 && proyectoPreseleccionado) ? setPaso(paso - 1) : onCerrar())}
+            onClick={irAtras}
             className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
           >
-            {paso > 1 && !(paso === 2 && proyectoPreseleccionado) ? 'Atrás' : 'Cancelar'}
+            {(paso > pasoInicial || (paso === 3 && indicadorPreseleccionado && pasoInicial === 1)) ? 'Atrás' : 'Cancelar'}
           </button>
           {paso === 1 && (
             <button
-              onClick={irAPaso2}
+              onClick={irSiguienteDesdePaso1}
               disabled={!proyecto}
               className="px-4 py-2 text-sm font-medium text-white bg-guinda-700 rounded-lg disabled:opacity-50"
             >
