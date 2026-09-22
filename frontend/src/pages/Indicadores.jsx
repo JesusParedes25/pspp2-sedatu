@@ -143,6 +143,7 @@ function MisIndicadores() {
                     variante="normal"
                     permitirEditarValor
                     onValorActualizado={cargarIndicadores}
+                    enlazable
                   />
                 ))}
               </div>

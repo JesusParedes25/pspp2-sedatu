@@ -19,6 +19,7 @@
  */
 
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronUp, X, Pencil } from 'lucide-react';
 import { formatearMonedaCorta, etiquetaUnidadIndicador } from '../../utils/formatoMoneda';
 import { TIPOS_INDICADOR } from '../../utils/tiposIndicador';
@@ -51,7 +52,7 @@ export function formatoCorto(n) {
   return n.toLocaleString('es-MX', { maximumFractionDigits: 2 });
 }
 
-export default function TarjetaIndicador({ indicador, contexto = null, variante = 'normal', children, permitirEditarValor = false, onValorActualizado }) {
+export default function TarjetaIndicador({ indicador, contexto = null, variante = 'normal', children, permitirEditarValor = false, onValorActualizado, enlazable = false }) {
   const [editandoValor, setEditandoValor] = useState(false);
   const meta = parseFloat(indicador.meta_global) || 0;
   const valor = parseFloat(indicador.valor_actual) || 0;
@@ -72,8 +73,12 @@ export default function TarjetaIndicador({ indicador, contexto = null, variante 
   // pisa sin aviso).
   const puedeEditar = permitirEditarValor && indicador.modo_calculo === 'manual';
 
-  return (
-    <div className={`rounded-lg border border-gray-200 bg-white ${compacto ? 'p-2.5' : 'p-3'} hover:border-gray-300 transition-colors`}>
+  // El botón "editar valor" y el modal que abre nunca deben disparar la
+  // navegación del <Link> cuando la tarjeta es enlazable — el modal se
+  // renderiza fuera del Link (como hermano), y el botón corta el evento
+  // antes de que llegue a burbujear hasta el <a>.
+  const contenido = (
+    <>
       {/* Encabezado: qué se mide y dónde */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -87,7 +92,7 @@ export default function TarjetaIndicador({ indicador, contexto = null, variante 
         {puedeEditar && (
           <button
             type="button"
-            onClick={() => setEditandoValor(true)}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEditandoValor(true); }}
             title="Registrar valor"
             className="flex-shrink-0 p-1 text-gray-300 hover:text-guinda-600 rounded hover:bg-gray-50"
           >
@@ -142,6 +147,18 @@ export default function TarjetaIndicador({ indicador, contexto = null, variante 
       )}
 
       {children}
+    </>
+  );
+
+  const clasesTarjeta = `rounded-lg border border-gray-200 bg-white ${compacto ? 'p-2.5' : 'p-3'} hover:border-gray-300 transition-colors`;
+
+  return (
+    <>
+      {enlazable ? (
+        <Link to={`/indicadores/${indicador.id}`} className={`block ${clasesTarjeta}`}>{contenido}</Link>
+      ) : (
+        <div className={clasesTarjeta}>{contenido}</div>
+      )}
 
       {editandoValor && (
         <ModalEditarValorIndicador
@@ -150,7 +167,7 @@ export default function TarjetaIndicador({ indicador, contexto = null, variante 
           onGuardado={() => { setEditandoValor(false); onValorActualizado?.(); }}
         />
       )}
-    </div>
+    </>
   );
 }
 
@@ -181,7 +198,7 @@ export function agruparPorCatalogo(indicadores) {
 // y aísla la tarjeta a ese proyecto (con un chip "Quitar filtro" para
 // regresar al combinado) — antes no había forma de ver un solo proyecto
 // dentro de un agregado sin salir de la pantalla.
-function TarjetaIndicadorGrupo({ grupo, variante = 'normal', permitirEditarValor = false, onValorActualizado }) {
+function TarjetaIndicadorGrupo({ grupo, variante = 'normal', permitirEditarValor = false, onValorActualizado, enlazable = false }) {
   const [abierto, setAbierto] = useState(false);
   const [proyectoAisladoId, setProyectoAisladoId] = useState(null);
   const [editandoValor, setEditandoValor] = useState(false);
@@ -298,19 +315,32 @@ function TarjetaIndicadorGrupo({ grupo, variante = 'normal', permitirEditarValor
           {grupo.map(ind => {
             const v = parseFloat(ind.valor_actual) || 0;
             const m = parseFloat(ind.meta_global) || 0;
-            return (
-              <button
-                key={ind.id}
-                type="button"
-                onClick={() => { setProyectoAisladoId(ind.proyecto_id); setAbierto(false); }}
-                className="w-full flex items-center justify-between gap-2 text-[11px] hover:bg-gray-50 rounded px-1 -mx-1 py-0.5 transition-colors"
-              >
+            const claseFila = "w-full flex items-center justify-between gap-2 text-[11px] hover:bg-gray-50 rounded px-1 -mx-1 py-0.5 transition-colors";
+            const contenidoFila = (
+              <>
                 <span className="text-gray-600 truncate">{[ind.proyecto_nombre, ind.dg_siglas].filter(Boolean).join(' · ')}</span>
                 <span className="text-gray-500 tabular-nums flex-shrink-0">
                   {esMoneda
                     ? `${formatearMonedaCorta(v)}${m > 0 ? ` / ${formatearMonedaCorta(m)}` : ''}`
                     : `${formatoCorto(v)}${m > 0 ? ` / ${formatoCorto(m)}` : ''}${unidad ? ` ${unidad}` : ''}`}
                 </span>
+              </>
+            );
+            // Enlazable: cada fila lleva directo al detalle de ESE
+            // indicador (tiene más sentido ahora que existe esa
+            // pantalla). En el resto de vistas (Tablero/Cartera/
+            // Panorama) se conserva el "aislar en la misma tarjeta" de
+            // siempre, sin cambios.
+            return enlazable ? (
+              <Link key={ind.id} to={`/indicadores/${ind.id}`} className={claseFila}>{contenidoFila}</Link>
+            ) : (
+              <button
+                key={ind.id}
+                type="button"
+                onClick={() => { setProyectoAisladoId(ind.proyecto_id); setAbierto(false); }}
+                className={claseFila}
+              >
+                {contenidoFila}
               </button>
             );
           })}
@@ -332,7 +362,7 @@ function TarjetaIndicadorGrupo({ grupo, variante = 'normal', permitirEditarValor
 // normal (un solo proyecto) o la agrupada (2+ proyectos con el mismo
 // id_catalogo) — lo que antes hacía cada vista (Tablero, Resumen de
 // cartera) mapeando TarjetaIndicador directamente.
-export function TarjetaIndicadorOAgrupada({ grupo, variante = 'normal', permitirEditarValor = false, onValorActualizado }) {
+export function TarjetaIndicadorOAgrupada({ grupo, variante = 'normal', permitirEditarValor = false, onValorActualizado, enlazable = false }) {
   if (grupo.length === 1) {
     const ind = grupo[0];
     return (
@@ -342,6 +372,7 @@ export function TarjetaIndicadorOAgrupada({ grupo, variante = 'normal', permitir
         contexto={[ind.proyecto_nombre, ind.dg_siglas].filter(Boolean).join(' · ')}
         permitirEditarValor={permitirEditarValor}
         onValorActualizado={onValorActualizado}
+        enlazable={enlazable}
       />
     );
   }
@@ -351,6 +382,7 @@ export function TarjetaIndicadorOAgrupada({ grupo, variante = 'normal', permitir
       variante={variante}
       permitirEditarValor={permitirEditarValor}
       onValorActualizado={onValorActualizado}
+      enlazable={enlazable}
     />
   );
 }

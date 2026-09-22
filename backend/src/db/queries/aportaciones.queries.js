@@ -4,12 +4,19 @@
  */
 const pool = require('../pool');
 
+// Trae también de qué proyecto es cada nodo: una aportación puede venir
+// de un proyecto distinto al dueño del indicador (el módulo permite
+// asociar cualquier etapa/acción/tarea, de uno o varios proyectos) — sin
+// esto, la pantalla de detalle del indicador no podría distinguir un
+// nodo "de este proyecto" de uno ajeno.
 async function listarPorIndicador(indicadorId) {
   const res = await pool.query(`
     SELECT ia.*,
       e.nombre AS etapa_nombre,
       a.nombre AS accion_nombre,
       t.nombre AS tarea_nombre,
+      COALESCE(pe.id, pa.id, pta.id) AS nodo_proyecto_id,
+      COALESCE(pe.nombre, pa.nombre, pta.nombre) AS nodo_proyecto_nombre,
       COALESCE(
         CASE WHEN ia.id_etapa IS NOT NULL THEN COALESCE(e.avance_actual, e.porcentaje_calculado) END,
         CASE WHEN ia.id_accion IS NOT NULL THEN COALESCE(a.avance_actual, a.porcentaje_avance) END,
@@ -21,6 +28,10 @@ async function listarPorIndicador(indicadorId) {
     LEFT JOIN etapas e ON e.id = ia.id_etapa
     LEFT JOIN acciones a ON a.id = ia.id_accion
     LEFT JOIN tareas t ON t.id = ia.id_tarea
+    LEFT JOIN acciones ta ON ta.id = t.id_accion
+    LEFT JOIN proyectos pe ON pe.id = e.id_proyecto
+    LEFT JOIN proyectos pa ON pa.id = a.id_proyecto
+    LEFT JOIN proyectos pta ON pta.id = ta.id_proyecto
     WHERE ia.id_indicador = $1
     ORDER BY ia.created_at
   `, [indicadorId]);
