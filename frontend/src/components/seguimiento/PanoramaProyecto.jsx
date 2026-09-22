@@ -640,8 +640,12 @@ function IndicadorCard({ indicador }) {
   // La tarjeta es la compartida con Tablero y Resumen de cartera; aquí
   // se le agrega, como hijo, la gráfica de metas anuales, que solo tiene
   // sentido dentro del proyecto (es su desglose por año).
+  // "etiqueta" cubre Sexenio ("2018–2024") y Personalizado (texto
+  // libre, sin año calendario real — anio queda NULL para esos);
+  // "anio" sigue siendo el fallback correcto para el caso Año de
+  // siempre, donde nunca se guardó una etiqueta.
   const chartData = (indicador.metas_anuales || []).map(m => ({
-    anio: m.anio,
+    etiqueta: m.etiqueta || String(m.anio),
     meta: parseFloat(m.valor_meta) || 0,
     real: parseFloat(m.valor_real) || 0,
   }));
@@ -655,7 +659,7 @@ function IndicadorCard({ indicador }) {
         <div className="h-24 mt-2">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} barGap={2}>
-              <XAxis dataKey="anio" tick={{ fontSize: 10 }} />
+              <XAxis dataKey="etiqueta" tick={{ fontSize: 10 }} />
               <YAxis hide />
               <Tooltip contentStyle={{ fontSize: 11 }} />
               <Bar dataKey="meta" fill="#e5e7eb" name="Meta" radius={[2,2,0,0]} />

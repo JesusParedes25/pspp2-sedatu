@@ -91,7 +91,15 @@ async function listar({ busqueda, incluirInactivos = false } = {}) {
       (SELECT COUNT(DISTINCT i.id_proyecto)
          FROM indicadores i
          JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL
-        WHERE i.id_catalogo = c.id) AS usos
+        WHERE i.id_catalogo = c.id) AS usos,
+      -- DGs que lo usan, para el resumen en línea de la fila colapsada
+      -- ("3 proyectos · DGOTU, DGPV") — evita un GET /uso por cada fila
+      -- solo para mostrar ese resumen.
+      (SELECT COALESCE(array_agg(DISTINCT dg.siglas ORDER BY dg.siglas) FILTER (WHERE dg.siglas IS NOT NULL), ARRAY[]::text[])
+         FROM indicadores i
+         JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL
+         LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
+        WHERE i.id_catalogo = c.id) AS dgs
     FROM catalogo_indicadores c
     LEFT JOIN usuarios u ON u.id = c.creado_por
     ${where}

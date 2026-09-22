@@ -87,10 +87,10 @@ async function obtenerIndicadoresCompletos(proyectoId) {
   let metasPorIndicador = {};
   if (indIds.length > 0) {
     const { rows: metas } = await pool.query(`
-      SELECT id_indicador, anio, meta AS valor_meta, valor_actual AS valor_real
+      SELECT id_indicador, anio, etiqueta, meta AS valor_meta, valor_actual AS valor_real
       FROM indicador_metas_anuales
       WHERE id_indicador = ANY($1)
-      ORDER BY anio
+      ORDER BY anio, created_at
     `, [indIds]);
     for (const m of metas) {
       if (!metasPorIndicador[m.id_indicador]) metasPorIndicador[m.id_indicador] = [];
