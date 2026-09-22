@@ -4,8 +4,8 @@
  *
  * Lectura y alta abiertas a cualquier usuario autenticado (sin eso no
  * podría elegir indicadores al capturar su proyecto, ni agregar el que
- * le falte); edición, retiro y consulta de uso reservadas a superadmin,
- * que son las operaciones que afectan proyectos ajenos.
+ * le falte); edición, retiro y fusión reservadas a superadmin, que son
+ * las operaciones que afectan proyectos ajenos.
  */
 const { Router } = require('express');
 const ctrl = require('../controllers/catalogo-indicadores.controller');
@@ -21,7 +21,15 @@ router.get('/similares', ctrl.buscarSimilares);
 router.post('/fusionar', requiereRol(['superadmin']), ctrl.fusionar);
 router.get('/:id', ctrl.obtener);
 
-router.get('/:id/uso', requiereRol(['superadmin']), ctrl.uso);
+// "uso" y "nodos" son lectura, no una operación que afecte el proyecto
+// de nadie (a diferencia de actualizar/cambiarActivo/fusionar) — quedan
+// abiertas como el resto de la lectura del catálogo. Antes /uso era
+// superadmin-only (venía de cuando el catálogo solo vivía en el panel
+// de admin); la pantalla de Catálogo abierta a todos ya la llamaba sin
+// chequear rol, así que cualquier usuario que expandía "N proyectos"
+// recibía un 403.
+router.get('/:id/uso', ctrl.uso);
+router.get('/:id/nodos', ctrl.nodosVinculados);
 router.put('/:id', requiereRol(['superadmin']), ctrl.actualizar);
 router.patch('/:id/activo', requiereRol(['superadmin']), ctrl.cambiarActivo);
 
