@@ -16,6 +16,13 @@ export async function crearIndicador(proyectoId, datos) {
   return data;
 }
 
+// Un solo indicador por su id, con proyecto/DG dueño y sus metas/periodos
+// — usado por la pantalla de detalle del módulo de Indicadores.
+export async function obtenerIndicador(indicadorId) {
+  const { data } = await client.get(`/indicadores/${indicadorId}`);
+  return data.datos;
+}
+
 export async function actualizarIndicador(indicadorId, datos) {
   const { data } = await client.put(`/indicadores/${indicadorId}`, datos);
   return data;
@@ -39,6 +46,13 @@ export async function listarTodosPorProyecto(proyectoId) {
 export async function obtenerResumenAportaciones(indicadorId) {
   const { data } = await client.get(`/indicadores/${indicadorId}/resumen-aportaciones`);
   return data;
+}
+
+// Nodos (etapa/acción/tarea) que aportan a este indicador — usado por la
+// pantalla de detalle para listar/editar/quitar cada vínculo.
+export async function obtenerAportacionesIndicador(indicadorId) {
+  const { data } = await client.get(`/indicadores/${indicadorId}/aportaciones`);
+  return data.datos || [];
 }
 
 export async function listarPublicables(filtros = {}) {
@@ -97,12 +111,13 @@ export async function listarMios({ proyectoIds, carteraId } = {}) {
   return data.datos || [];
 }
 
-// Fija el valor de un indicador en modo_calculo='manual'. Sin `anio`,
-// escribe el total global; con `anio`, escribe (upsert) el valor de ESE
-// año en indicador_metas_anuales — así queda completo el indicador
-// financiero con corte anual: la meta por año ya se capturaba, esto es
-// lo que faltaba para el lado del "realizado".
-export async function establecerValorIndicador(indicadorId, { valor, anio } = {}) {
-  const { data } = await client.patch(`/indicadores/${indicadorId}/valor`, { valor, anio });
+// Fija el valor de un indicador en modo_calculo='manual'. Sin
+// `id_periodo`, escribe el total global; con `id_periodo` (el id real de
+// la fila en indicador_metas_anuales, no un año — un periodo
+// Personalizado no tiene un año confiable), escribe el valor de ESE
+// periodo. El periodo debe existir ya (definido desde la sección de
+// Definición del indicador) — este endpoint ya no lo autocrea.
+export async function establecerValorIndicador(indicadorId, { valor, id_periodo } = {}) {
+  const { data } = await client.patch(`/indicadores/${indicadorId}/valor`, { valor, id_periodo });
   return data;
 }

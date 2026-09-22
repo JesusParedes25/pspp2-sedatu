@@ -31,7 +31,7 @@ async function listarPorProyecto(proyectoId) {
     const metas = await pool.query(`
       SELECT * FROM indicador_metas_anuales
       WHERE id_indicador = ANY($1)
-      ORDER BY anio
+      ORDER BY anio, created_at
     `, [ids]);
 
     const metasPorIndicador = {};
@@ -243,7 +243,7 @@ async function listarPorEtapa(etapaId) {
     const ids = todos.map(i => i.id);
     const metas = await pool.query(`
       SELECT * FROM indicador_metas_anuales
-      WHERE id_indicador = ANY($1) ORDER BY anio
+      WHERE id_indicador = ANY($1) ORDER BY anio, created_at
     `, [ids]);
 
     const metasPorIndicador = {};

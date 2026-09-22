@@ -34,21 +34,43 @@ export function indicadorProyectoVacio() {
   return {
     nombre: '', tipo: 'Avance_fisico', unidad: 'Numero',
     unidad_personalizada: '',
-    meta_global: '', temporalidad: 'Global',
+    meta_global: '', temporalidad: 'Global', unidad_periodo: 'Anio',
     anio_inicio: anio, anio_fin: anio,
     metas_anuales: [], descripcion: '', _abierto: true,
   };
 }
 
 // Filas de metas por año para un rango [inicio, fin], conservando la
-// meta ya capturada de los años que se repiten.
+// meta (y el id real, necesario para el upsert por diff del backend) de
+// los años que se repiten.
 export function calcularMetasAnuales(inicio, fin, existentes = []) {
   const nuevas = [];
   for (let a = inicio; a <= fin; a++) {
     const previa = existentes.find(m => m.anio === a);
-    nuevas.push({ anio: a, meta: previa?.meta ?? '' });
+    nuevas.push({ id: previa?.id, anio: a, meta: previa?.meta ?? '' });
   }
   return nuevas;
+}
+
+// Igual que calcularMetasAnuales pero en bloques de 6 años calendario a
+// partir de "inicio" (ej. 2018→2018-2024, 2024→2024-2030) — el usuario
+// define su propio año de arranque, no se codifican fechas reales de
+// sexenios mexicanos. "fin" es el último año que el bloque debe cubrir;
+// el último bloque generado es el primero cuyo rango llega a "fin" o más.
+export function calcularMetasSexenio(inicio, fin, existentes = []) {
+  const nuevas = [];
+  for (let a = inicio; a < fin || nuevas.length === 0; a += 6) {
+    const previa = existentes.find(m => m.anio === a);
+    const finBloque = a + 6;
+    nuevas.push({ id: previa?.id, anio: a, etiqueta: `${a}–${finBloque}`, meta: previa?.meta ?? '' });
+  }
+  return nuevas;
+}
+
+// Fila en blanco para "+ agregar periodo" en modo Personalizado — sin
+// año calendario real, el usuario define su propia etiqueta.
+export function nuevoPeriodoPersonalizado() {
+  return { anio: null, etiqueta: '', meta: '' };
 }
 
 // Valor por defecto inteligente al ARMAR un indicador nuevo a partir de

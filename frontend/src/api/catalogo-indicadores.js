@@ -39,11 +39,19 @@ export async function cambiarActivoIndicadorCatalogo(id, activo) {
   return data;
 }
 
-// En qué proyectos se usa (solo superadmin) — la vista previa de lo que
-// tendrá que exponer la API externa.
+// En qué proyectos se usa — lectura abierta a cualquier usuario, igual
+// que el resto del catálogo (no es una operación que afecte el proyecto
+// de nadie, a diferencia de editar/retirar/fusionar).
 export async function obtenerUsoIndicadorCatalogo(id) {
   const { data } = await client.get(`/catalogo-indicadores/${id}/uso`);
   return data;
+}
+
+// Qué etapas/acciones/tareas, de cualquier proyecto, aportan a esta
+// entrada del catálogo — sección "Nodos vinculados" de la ficha.
+export async function obtenerNodosVinculadosCatalogo(id) {
+  const { data } = await client.get(`/catalogo-indicadores/${id}/nodos`);
+  return data.datos || [];
 }
 
 // Fusiona 2+ entradas duplicadas del catálogo: reapunta los indicadores
