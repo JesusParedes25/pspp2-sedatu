@@ -15,58 +15,113 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Loader2, Search, Pencil, EyeOff, Eye, X, ChevronRight, ExternalLink, GitMerge, CheckSquare, Square } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Loader2, Search, Pencil, EyeOff, Eye, X, ChevronRight, GitMerge, CheckSquare, Square } from 'lucide-react';
 import * as catalogoApi from '../../api/catalogo-indicadores';
 import { useAuth } from '../../context/AuthContext';
 import { useUI } from '../../context/UIContext';
 import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
 import { TIPOS_INDICADOR as TIPOS } from '../../utils/tiposIndicador';
 
-function FilaUso({ indicador, onCerrar }) {
+const ETIQUETA_TIPO_NODO = { etapa: 'Etapa', accion: 'Acción', tarea: 'Tarea' };
+const ETIQUETA_MODO_APORTACION = { al_concluir: 'Manual', proporcional: 'Automático' };
+
+// Sección "Proyectos vinculados" de la ficha — cada fila navega al
+// detalle de ESE indicador de proyecto (Pantalla de detalle del
+// módulo), que es donde se edita su meta/temporalidad — antes esta
+// tabla no llevaba a ningún lado, solo mostraba el número.
+function SeccionProyectosVinculados({ catalogoId }) {
   const [usos, setUsos] = useState(null);
   useEffect(() => {
-    catalogoApi.obtenerUsoIndicadorCatalogo(indicador.id)
+    catalogoApi.obtenerUsoIndicadorCatalogo(catalogoId)
       .then(r => setUsos(r.datos || []))
       .catch(() => setUsos([]));
-  }, [indicador.id]);
+  }, [catalogoId]);
 
   return (
-    <div className="bg-gray-50 border-t border-gray-200 px-4 py-3">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold text-gray-600">Proyectos que lo usan</span>
-        <button onClick={onCerrar} className="text-gray-400 hover:text-gray-700"><X size={13} /></button>
-      </div>
+    <div>
+      <p className="text-[11px] font-semibold text-gray-600 mb-1.5">Proyectos vinculados</p>
       {usos === null ? (
         <Loader2 size={14} className="animate-spin text-gray-400" />
       ) : usos.length === 0 ? (
         <p className="text-xs text-gray-500">Ningún proyecto lo usa todavía.</p>
       ) : (
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="text-gray-400 text-left">
-              <th className="font-medium pb-1">Proyecto</th>
-              <th className="font-medium pb-1 w-16">DG</th>
-              <th className="font-medium pb-1 w-20 text-right">Meta</th>
-              <th className="font-medium pb-1 w-20 text-right">Avance</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {usos.map(u => (
-              <tr key={u.indicador_id}>
-                <td className="py-1 pr-2">
-                  <a href={`/proyectos/${u.proyecto_id}?tab=resumen`} target="_blank" rel="noreferrer"
-                    className="text-guinda-600 hover:underline inline-flex items-center gap-1">
-                    {u.proyecto_nombre} <ExternalLink size={10} />
-                  </a>
-                </td>
-                <td className="py-1 text-gray-500">{u.dg_siglas || '—'}</td>
-                <td className="py-1 text-right text-gray-700">{u.meta_global ?? '—'}</td>
-                <td className="py-1 text-right text-gray-700">{u.valor_actual ?? '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="space-y-0.5">
+          {usos.map(u => (
+            <Link
+              key={u.indicador_id}
+              to={`/indicadores/${u.indicador_id}`}
+              className="flex items-center justify-between gap-2 text-xs px-2 py-1.5 rounded hover:bg-white transition-colors"
+            >
+              <span className="min-w-0 truncate text-guinda-700">
+                {u.proyecto_nombre}{u.dg_siglas ? <span className="text-gray-400"> · {u.dg_siglas}</span> : ''}
+              </span>
+              <span className="text-gray-500 tabular-nums flex-shrink-0">
+                {u.valor_actual ?? '—'} / {u.meta_global ?? '—'}
+              </span>
+            </Link>
+          ))}
+        </div>
       )}
+    </div>
+  );
+}
+
+// Sección "Nodos vinculados" (nueva) — qué etapa/acción/tarea, de
+// cualquier proyecto, aporta a este indicador de catálogo. Antes esta
+// información no existía en ningún lado del catálogo.
+function SeccionNodosVinculados({ catalogoId }) {
+  const [nodos, setNodos] = useState(null);
+  useEffect(() => {
+    catalogoApi.obtenerNodosVinculadosCatalogo(catalogoId)
+      .then(setNodos)
+      .catch(() => setNodos([]));
+  }, [catalogoId]);
+
+  return (
+    <div>
+      <p className="text-[11px] font-semibold text-gray-600 mb-1.5">Nodos vinculados</p>
+      {nodos === null ? (
+        <Loader2 size={14} className="animate-spin text-gray-400" />
+      ) : nodos.length === 0 ? (
+        <p className="text-xs text-gray-500">Ninguna etapa/acción/tarea aporta a este indicador todavía.</p>
+      ) : (
+        <div className="space-y-0.5">
+          {nodos.map(n => (
+            <Link
+              key={`${n.indicador_id}-${n.id_nodo}`}
+              to={`/proyectos/${n.proyecto_id}?tab=seguimiento&nodo=${n.id_nodo}`}
+              className="flex items-center justify-between gap-2 text-xs px-2 py-1.5 rounded hover:bg-white transition-colors"
+            >
+              <span className="min-w-0 truncate">
+                <span className="text-gray-800">{n.nombre_nodo}</span>
+                <span className="text-gray-400"> · {ETIQUETA_TIPO_NODO[n.tipo_nodo] || n.tipo_nodo} · {n.proyecto_nombre}{n.dg_siglas ? ` (${n.dg_siglas})` : ''}</span>
+              </span>
+              <span className="text-gray-400 flex-shrink-0">{ETIQUETA_MODO_APORTACION[n.modo] || n.modo}</span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// La ficha completa de una entrada, expandida — definición/fuente
+// siempre visibles (con placeholder si faltan, para que no parezca que
+// la sección no existe) + las dos secciones de arriba.
+function FichaExpandida({ indicador }) {
+  return (
+    <div className="bg-gray-50 border-t border-gray-200 px-4 py-3 space-y-3">
+      <div>
+        <p className="text-[11px] font-semibold text-gray-600 mb-0.5">Cómo se mide</p>
+        <p className="text-xs text-gray-600">{indicador.definicion || <span className="text-gray-400">Sin definición capturada.</span>}</p>
+      </div>
+      <div>
+        <p className="text-[11px] font-semibold text-gray-600 mb-0.5">Fuente del dato</p>
+        <p className="text-xs text-gray-600">{indicador.fuente || <span className="text-gray-400">Sin fuente capturada.</span>}</p>
+      </div>
+      <SeccionProyectosVinculados catalogoId={indicador.id} />
+      <SeccionNodosVinculados catalogoId={indicador.id} />
     </div>
   );
 }
@@ -276,16 +331,18 @@ export default function CatalogoIndicadores() {
                       {TIPOS.find(t => t.valor === ind.tipo)?.etiqueta || ind.tipo}
                     </span>
                     {ind.unidad_personalizada && <span className="text-[10px] text-gray-400">{ind.unidad_personalizada}</span>}
-                    <button
-                      onClick={() => setExpandido(expandido === ind.id ? null : ind.id)}
-                      className="text-[10px] text-gray-500 hover:text-guinda-600 inline-flex items-center gap-0.5"
-                    >
-                      {ind.usos} proyecto{ind.usos !== 1 ? 's' : ''}
-                      <ChevronRight size={10} className={expandido === ind.id ? 'rotate-90 transition-transform' : 'transition-transform'} />
-                    </button>
                   </div>
-                  {ind.definicion && <p className="text-[11px] text-gray-500 mt-1.5">{ind.definicion}</p>}
-                  {ind.fuente && <p className="text-[10px] text-gray-400 mt-0.5">Fuente: {ind.fuente}</p>}
+                  {/* Resumen de uso siempre visible, sin tener que expandir —
+                      antes esto quedaba escondido detrás de un clic. */}
+                  <button
+                    onClick={() => setExpandido(expandido === ind.id ? null : ind.id)}
+                    className="mt-1 text-[11px] text-gray-500 hover:text-guinda-600 inline-flex items-center gap-1"
+                  >
+                    <ChevronRight size={11} className={expandido === ind.id ? 'rotate-90 transition-transform flex-shrink-0' : 'transition-transform flex-shrink-0'} />
+                    {ind.usos > 0
+                      ? `${ind.usos} proyecto${ind.usos !== 1 ? 's' : ''}${ind.dgs?.length ? ` · ${ind.dgs.join(', ')}` : ''}`
+                      : 'Sin proyectos todavía'}
+                  </button>
                 </div>
                 {esSuperadmin && !modoFusion && (
                   <div className="flex items-center gap-1 flex-shrink-0">
@@ -298,7 +355,7 @@ export default function CatalogoIndicadores() {
                   </div>
                 )}
               </div>
-              {expandido === ind.id && <FilaUso indicador={ind} onCerrar={() => setExpandido(null)} />}
+              {expandido === ind.id && <FichaExpandida indicador={ind} />}
             </div>
           ))}
         </div>
