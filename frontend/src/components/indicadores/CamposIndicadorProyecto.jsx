@@ -19,10 +19,17 @@
  * pierde los dos primeros cambios si el padre arma el arreglo desde un
  * closure ya obsoleto (pasaba en las 3 implementaciones anteriores).
  */
-import { TIPOS_INDICADOR, UNIDADES_INDICADOR, calcularMetasAnuales } from '../../utils/tiposIndicador';
+import { X } from 'lucide-react';
+import {
+  TIPOS_INDICADOR, UNIDADES_INDICADOR,
+  calcularMetasAnuales, calcularMetasSexenio, nuevoPeriodoPersonalizado,
+} from '../../utils/tiposIndicador';
+
+const GENERADOR_POR_UNIDAD_PERIODO = { Anio: calcularMetasAnuales, Sexenio: calcularMetasSexenio };
 
 export default function CamposIndicadorProyecto({ indicador, onCambio, mostrarDescripcion = true }) {
   const esDeCatalogo = !!indicador.id_catalogo;
+  const unidadPeriodo = indicador.unidad_periodo || 'Anio';
   const etiquetaTipo = TIPOS_INDICADOR.find(t => t.valor === indicador.tipo)?.etiqueta || indicador.tipo;
   const etiquetaUnidad = indicador.unidad === 'Porcentaje' ? '%'
     : indicador.unidad === 'Moneda_MXN' ? '$ MXN'
@@ -33,13 +40,15 @@ export default function CamposIndicadorProyecto({ indicador, onCambio, mostrarDe
     // Valor por defecto inteligente: "Avance financiero" casi siempre
     // implica pesos y corte por ejercicio fiscal. Solo se aplica si el
     // usuario no había tocado esos campos todavía (siguen en su default
-    // de fábrica) — nunca pisa una elección ya hecha a propósito.
+    // de fábrica) — nunca pisa una elección ya hecha a propósito. No
+    // sugiere Sexenio: nadie lo pidió como default, solo como opción.
     if (nuevoTipo === 'Avance_financiero' && indicador.unidad === 'Numero' && !indicador.unidad_personalizada) {
       patch.unidad = 'Moneda_MXN';
     }
     if (nuevoTipo === 'Avance_financiero' && indicador.temporalidad === 'Global' && indicador.metas_anuales.length === 0) {
       const anio = new Date().getFullYear();
       patch.temporalidad = 'Anual';
+      patch.unidad_periodo = 'Anio';
       patch.anio_inicio = anio;
       patch.anio_fin = anio;
       patch.metas_anuales = calcularMetasAnuales(anio, anio);
@@ -48,19 +57,50 @@ export default function CamposIndicadorProyecto({ indicador, onCambio, mostrarDe
   }
 
   function cambiarRangoAnual(inicio, fin) {
+    const generar = GENERADOR_POR_UNIDAD_PERIODO[unidadPeriodo] || calcularMetasAnuales;
     onCambio({
       anio_inicio: inicio,
       anio_fin: fin,
-      metas_anuales: calcularMetasAnuales(inicio, fin, indicador.metas_anuales),
+      metas_anuales: generar(inicio, fin, indicador.metas_anuales),
     });
   }
 
   function elegirTemporalidad(valor) {
     const patch = { temporalidad: valor };
     if (valor === 'Anual' && indicador.metas_anuales.length === 0) {
-      patch.metas_anuales = calcularMetasAnuales(indicador.anio_inicio, indicador.anio_fin);
+      const generar = GENERADOR_POR_UNIDAD_PERIODO[unidadPeriodo] || calcularMetasAnuales;
+      patch.metas_anuales = generar(indicador.anio_inicio, indicador.anio_fin);
     }
     onCambio(patch);
+  }
+
+  // "¿Cada cuánto?" — cambiar de Año/Sexenio regenera las filas a partir
+  // del mismo rango (conservando meta/id de lo que coincida); cambiar a
+  // Personalizado no toca lo que ya había, solo asegura al menos una fila
+  // en blanco para no aterrizar en una lista vacía sin salida.
+  function cambiarUnidadPeriodo(valor) {
+    const patch = { unidad_periodo: valor };
+    const generar = GENERADOR_POR_UNIDAD_PERIODO[valor];
+    if (generar) {
+      patch.metas_anuales = generar(indicador.anio_inicio, indicador.anio_fin, indicador.metas_anuales);
+    } else if (valor === 'Personalizado' && indicador.metas_anuales.length === 0) {
+      patch.metas_anuales = [nuevoPeriodoPersonalizado()];
+    }
+    onCambio(patch);
+  }
+
+  function cambiarMetaPeriodo(indice, campo, valor) {
+    const copia = [...indicador.metas_anuales];
+    copia[indice] = { ...copia[indice], [campo]: valor };
+    onCambio({ metas_anuales: copia });
+  }
+
+  function quitarPeriodo(indice) {
+    onCambio({ metas_anuales: indicador.metas_anuales.filter((_, i) => i !== indice) });
+  }
+
+  function agregarPeriodoPersonalizado() {
+    onCambio({ metas_anuales: [...indicador.metas_anuales, nuevoPeriodoPersonalizado()] });
   }
 
   return (
@@ -140,38 +180,74 @@ export default function CamposIndicadorProyecto({ indicador, onCambio, mostrarDe
 
       {indicador.temporalidad === 'Anual' && (
         <div className="space-y-2 pl-4 border-l-2 border-blue-200">
-          <div className="flex gap-3 items-end">
-            <div>
-              <label className="block text-xs text-gray-500 mb-0.5">Año inicio</label>
-              <input type="number" value={indicador.anio_inicio}
-                onChange={e => cambiarRangoAnual(Number(e.target.value), indicador.anio_fin)}
-                className="input-base text-sm w-24" min="2020" max="2040" />
-            </div>
-            <span className="text-gray-400 pb-2">—</span>
-            <div>
-              <label className="block text-xs text-gray-500 mb-0.5">Año fin</label>
-              <input type="number" value={indicador.anio_fin}
-                onChange={e => cambiarRangoAnual(indicador.anio_inicio, Number(e.target.value))}
-                className="input-base text-sm w-24" min="2020" max="2040" />
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">¿Cada cuánto?</label>
+            <div className="flex gap-4">
+              {[['Anio', 'Año'], ['Sexenio', 'Sexenio'], ['Personalizado', 'Personalizado']].map(([valor, etiqueta]) => (
+                <label key={valor} className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                  <input type="radio" checked={unidadPeriodo === valor}
+                    onChange={() => cambiarUnidadPeriodo(valor)}
+                    className="text-guinda-500 focus:ring-guinda-500" />
+                  {etiqueta}
+                </label>
+              ))}
             </div>
           </div>
-          <div className="space-y-1">
-            {indicador.metas_anuales.map((ma, mi) => (
-              <div key={ma.anio} className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 w-10">{ma.anio}:</span>
-                <input type="number" step="any" value={ma.meta}
-                  onChange={e => {
-                    const copia = [...indicador.metas_anuales];
-                    copia[mi] = { ...copia[mi], meta: e.target.value };
-                    onCambio({ metas_anuales: copia });
-                  }}
-                  className="input-base text-sm flex-1" placeholder="Meta para este año" />
+
+          {unidadPeriodo !== 'Personalizado' ? (
+            <>
+              <div className="flex gap-3 items-end">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-0.5">Año inicio</label>
+                  <input type="number" value={indicador.anio_inicio}
+                    onChange={e => cambiarRangoAnual(Number(e.target.value), indicador.anio_fin)}
+                    className="input-base text-sm w-24" min="2020" max="2040" />
+                </div>
+                <span className="text-gray-400 pb-2">—</span>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-0.5">Año fin</label>
+                  <input type="number" value={indicador.anio_fin}
+                    onChange={e => cambiarRangoAnual(indicador.anio_inicio, Number(e.target.value))}
+                    className="input-base text-sm w-24" min="2020" max="2040" />
+                </div>
               </div>
-            ))}
-          </div>
+              <div className="space-y-1">
+                {indicador.metas_anuales.map((ma, mi) => (
+                  <div key={ma.id || ma.anio} className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 w-16">{ma.etiqueta || ma.anio}:</span>
+                    <input type="number" step="any" value={ma.meta}
+                      onChange={e => cambiarMetaPeriodo(mi, 'meta', e.target.value)}
+                      className="input-base text-sm flex-1" placeholder="Meta para este periodo" />
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="space-y-1">
+              {indicador.metas_anuales.map((ma, mi) => (
+                <div key={ma.id || `nuevo-${mi}`} className="flex items-center gap-2">
+                  <input type="text" value={ma.etiqueta || ''}
+                    onChange={e => cambiarMetaPeriodo(mi, 'etiqueta', e.target.value)}
+                    className="input-base text-sm flex-1" placeholder="Etiqueta, ej: Q1 2026" />
+                  <input type="number" step="any" value={ma.meta}
+                    onChange={e => cambiarMetaPeriodo(mi, 'meta', e.target.value)}
+                    className="input-base text-sm w-32" placeholder="Meta" />
+                  <button type="button" onClick={() => quitarPeriodo(mi)}
+                    className="p-1.5 text-gray-400 hover:text-red-500" title="Quitar periodo">
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+              <button type="button" onClick={agregarPeriodoPersonalizado}
+                className="text-xs text-guinda-600 hover:text-guinda-700 font-medium pt-1">
+                + agregar periodo
+              </button>
+            </div>
+          )}
+
           {indicador.metas_anuales.length > 0 && (
             <p className="text-xs text-gray-400">
-              Suma anual: {indicador.metas_anuales.reduce((s, m) => s + (parseFloat(m.meta) || 0), 0).toLocaleString()}
+              Suma de periodos: {indicador.metas_anuales.reduce((s, m) => s + (parseFloat(m.meta) || 0), 0).toLocaleString()}
               {indicador.meta_global ? ` / Meta global: ${Number(indicador.meta_global).toLocaleString()}` : ''}
             </p>
           )}
