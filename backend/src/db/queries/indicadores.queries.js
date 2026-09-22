@@ -50,6 +50,29 @@ async function listarPorProyecto(proyectoId) {
   return indicadores.rows;
 }
 
+// Un solo indicador por su id, con el nombre del proyecto/DG dueño y
+// sus metas/periodos — usado por la pantalla de detalle del módulo de
+// Indicadores. No existía ningún GET-por-id de un solo indicador
+// antes de esto, solo endpoints de listado.
+async function obtenerPorId(indicadorId) {
+  const { rows: [indicador] } = await pool.query(`
+    SELECT i.*, p.nombre AS proyecto_nombre, p.id AS proyecto_id,
+      dg.siglas AS dg_siglas, dg.nombre AS dg_nombre
+    FROM indicadores i
+    JOIN proyectos p ON p.id = i.id_proyecto
+    LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
+    WHERE i.id = $1 AND i.activo = true
+  `, [indicadorId]);
+  if (!indicador) return null;
+
+  const { rows: metas } = await pool.query(
+    'SELECT * FROM indicador_metas_anuales WHERE id_indicador = $1 ORDER BY anio NULLS LAST, created_at',
+    [indicadorId]
+  );
+  indicador.metas_anuales = metas;
+  return indicador;
+}
+
 // Crea un indicador con sus metas anuales opcionales
 // Si datos.id_etapa viene, es un indicador de nivel etapa; si no, es de proyecto.
 async function crear(proyectoId, datos, client = null, creadorId = null) {
@@ -65,15 +88,19 @@ async function crear(proyectoId, datos, client = null, creadorId = null) {
   const resultado = await db.query(`
     INSERT INTO indicadores (
       id_proyecto, id_etapa, nombre, tipo, unidad, unidad_personalizada,
-      etiqueta_unidad, meta_global, temporalidad, anio_inicio, anio_fin,
-      descripcion, orden, id_catalogo, id_creador
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+      etiqueta_unidad, meta_global, temporalidad, unidad_periodo,
+      anio_inicio, anio_fin, descripcion, orden, id_catalogo, id_creador
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
     RETURNING *
   `, [
     proyectoId, idEtapa, datos.nombre, datos.tipo, datos.unidad,
     datos.unidad_personalizada || null,
     datos.etiqueta_unidad || datos.unidad_personalizada || null, metaGlobal,
     datos.temporalidad || 'Global',
+    // unidad_periodo solo importa cuando temporalidad='Anual' (Año/
+    // Sexenio/Personalizado); para 'Global' se guarda el default sin
+    // que nada lo use.
+    datos.unidad_periodo || 'Anio',
     anioInicio, anioFin,
     datos.descripcion || null, orden,
     // Enlace opcional al catálogo: lo manda el selector del formulario.
@@ -87,16 +114,18 @@ async function crear(proyectoId, datos, client = null, creadorId = null) {
 
   const indicador = resultado.rows[0];
 
-  // Insertar metas anuales si hay desglose temporal
+  // Insertar metas/periodos si hay desglose temporal. "anio" puede venir
+  // vacío para un periodo Personalizado (no representa un año
+  // calendario) — solo "meta" es obligatorio, no "anio".
   if (datos.metas_anuales && datos.metas_anuales.length > 0) {
     for (const ma of datos.metas_anuales) {
       const metaAnual = ma.meta === '' || ma.meta == null ? 0 : parseFloat(ma.meta);
       const anio = ma.anio === '' || ma.anio == null ? null : parseInt(ma.anio);
-      if (anio == null) continue;
+      const etiqueta = ma.etiqueta || null;
       await db.query(`
-        INSERT INTO indicador_metas_anuales (id_indicador, anio, meta)
-        VALUES ($1, $2, $3)
-      `, [indicador.id, anio, metaAnual]);
+        INSERT INTO indicador_metas_anuales (id_indicador, anio, meta, etiqueta)
+        VALUES ($1, $2, $3, $4)
+      `, [indicador.id, anio, metaAnual, etiqueta]);
     }
   }
 
@@ -104,7 +133,7 @@ async function crear(proyectoId, datos, client = null, creadorId = null) {
   return indicador;
 }
 
-// Actualiza un indicador y recrea sus metas anuales
+// Actualiza un indicador y sincroniza sus metas/periodos por diff.
 async function actualizar(indicadorId, datos) {
   const client = await pool.connect();
   try {
@@ -115,32 +144,58 @@ async function actualizar(indicadorId, datos) {
       UPDATE indicadores SET
         nombre = $1, tipo = $2, unidad = $3,
         unidad_personalizada = $4, etiqueta_unidad = $5,
-        meta_global = $6, temporalidad = $7,
-        anio_inicio = $8, anio_fin = $9,
-        descripcion = $10, updated_at = NOW()
-      WHERE id = $11
+        meta_global = $6, temporalidad = $7, unidad_periodo = $8,
+        anio_inicio = $9, anio_fin = $10,
+        descripcion = $11, updated_at = NOW()
+      WHERE id = $12
       RETURNING *
     `, [
       datos.nombre, datos.tipo, datos.unidad,
       datos.unidad_personalizada || null,
       datos.etiqueta_unidad || datos.unidad_personalizada || null,
-      metaGlobal, datos.temporalidad || 'Global',
+      metaGlobal, datos.temporalidad || 'Global', datos.unidad_periodo || 'Anio',
       datos.anio_inicio || null, datos.anio_fin || null,
       datos.descripcion || null, indicadorId
     ]);
 
-    // Recrear metas anuales
-    await client.query(
-      'DELETE FROM indicador_metas_anuales WHERE id_indicador = $1',
+    // Sincronizar metas/periodos por diff en vez de borrar y recrear
+    // todo: borrar-y-recrear pisaba valor_actual de CADA periodo con
+    // cualquier edición de metadatos (nombre, meta, etc.), no solo con
+    // un cambio real a los periodos. Con 'Personalizado' agregar/quitar
+    // periodos es una acción frecuente, así que perder el valor ya
+    // capturado de los demás en cada guardado dejó de ser aceptable.
+    // Filas entrantes con "id" existente → UPDATE (conserva
+    // valor_actual); sin "id" → INSERT (periodo nuevo); filas que ya
+    // no vienen en el arreglo entrante → DELETE (el usuario lo quitó).
+    const entrantes = datos.metas_anuales || [];
+    const { rows: existentes } = await client.query(
+      'SELECT id FROM indicador_metas_anuales WHERE id_indicador = $1',
       [indicadorId]
     );
+    const idsEntrantes = new Set(entrantes.filter(ma => ma.id).map(ma => ma.id));
+    const idsAEliminar = existentes.map(e => e.id).filter(id => !idsEntrantes.has(id));
 
-    if (datos.metas_anuales && datos.metas_anuales.length > 0) {
-      for (const ma of datos.metas_anuales) {
-        await client.query(`
-          INSERT INTO indicador_metas_anuales (id_indicador, anio, meta)
-          VALUES ($1, $2, $3)
-        `, [indicadorId, ma.anio, ma.meta]);
+    if (idsAEliminar.length > 0) {
+      await client.query(
+        'DELETE FROM indicador_metas_anuales WHERE id = ANY($1)',
+        [idsAEliminar]
+      );
+    }
+
+    for (const ma of entrantes) {
+      const anio = ma.anio === '' || ma.anio == null ? null : parseInt(ma.anio);
+      const meta = ma.meta === '' || ma.meta == null ? 0 : parseFloat(ma.meta);
+      const etiqueta = ma.etiqueta || null;
+      if (ma.id) {
+        await client.query(
+          'UPDATE indicador_metas_anuales SET anio = $1, meta = $2, etiqueta = $3 WHERE id = $4 AND id_indicador = $5',
+          [anio, meta, etiqueta, ma.id, indicadorId]
+        );
+      } else {
+        await client.query(
+          'INSERT INTO indicador_metas_anuales (id_indicador, anio, meta, etiqueta) VALUES ($1, $2, $3, $4)',
+          [indicadorId, anio, meta, etiqueta]
+        );
       }
     }
 
@@ -393,7 +448,14 @@ async function listarPublicables(filtros = {}) {
  * Solo aplica a modo_calculo = 'manual' — lo valida el controller antes
  * de llamar aquí, para no pisar por accidente un valor auto-calculado.
  */
-async function establecerValorManual(indicadorId, { valor, anio }) {
+// { valor, id_periodo } — id_periodo es el id real de la fila de
+// indicador_metas_anuales, no un año: con 'Personalizado' un año no
+// identifica de forma confiable "cuál periodo". Usar el id de la fila
+// deja un solo camino (UPDATE por id) para Año/Sexenio/Personalizado
+// por igual, sin ramas por tipo de periodo. A diferencia de antes, el
+// periodo ya no se autocrea aquí — siempre se define explícitamente en
+// crear()/actualizar() antes de poder capturarle un valor.
+async function establecerValorManual(indicadorId, { valor, id_periodo }) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -404,20 +466,20 @@ async function establecerValorManual(indicadorId, { valor, anio }) {
     if (!ind) { await client.query('ROLLBACK'); return null; }
 
     if (ind.temporalidad === 'Anual') {
-      if (anio == null) {
-        const err = new Error('Este indicador tiene corte anual: se requiere el año');
+      if (id_periodo == null) {
+        const err = new Error('Este indicador tiene corte por periodos: falta indicar cuál');
         err.statusCode = 400;
         throw err;
       }
-      // meta es NOT NULL en el esquema — si el año no tenía fila (nadie
-      // configuró una meta para él todavía), se crea con meta=0 en vez de
-      // bloquear la captura del valor real: es válido reportar el gasto
-      // de un año antes de que su presupuesto formal quede definido.
-      await client.query(`
-        INSERT INTO indicador_metas_anuales (id_indicador, anio, meta, valor_actual)
-        VALUES ($1, $2, 0, $3)
-        ON CONFLICT (id_indicador, anio) DO UPDATE SET valor_actual = $3
-      `, [indicadorId, anio, valor]);
+      const { rows: [periodo] } = await client.query(
+        'UPDATE indicador_metas_anuales SET valor_actual = $1 WHERE id = $2 AND id_indicador = $3 RETURNING id',
+        [valor, id_periodo, indicadorId]
+      );
+      if (!periodo) {
+        const err = new Error('El periodo indicado no existe para este indicador');
+        err.statusCode = 404;
+        throw err;
+      }
 
       const { rows: [suma] } = await client.query(
         'SELECT COALESCE(SUM(valor_actual), 0)::numeric AS total FROM indicador_metas_anuales WHERE id_indicador = $1',
@@ -447,6 +509,7 @@ async function establecerValorManual(indicadorId, { valor, anio }) {
 
 module.exports = {
   listarPorProyecto,
+  obtenerPorId,
   listarPorEtapa,
   listarTodosPorProyecto,
   crear,

@@ -128,6 +128,35 @@ async function uso(id) {
   }));
 }
 
+// Qué etapa/acción/tarea, de cualquier proyecto, aporta a este
+// indicador de catálogo — la "ficha" del catálogo lo muestra junto a
+// "proyectos vinculados" para no quedarse solo en el nivel de
+// proyecto. Cruza indicador_aportaciones (ya trae etapa/acción/tarea
+// por separado, exactamente una de las tres) contra todos los
+// indicadores de proyecto ligados a esta entrada del catálogo.
+async function obtenerNodosVinculados(id) {
+  const { rows } = await pool.query(`
+    SELECT
+      CASE WHEN ap.id_etapa IS NOT NULL THEN 'etapa'
+           WHEN ap.id_accion IS NOT NULL THEN 'accion'
+           ELSE 'tarea' END AS tipo_nodo,
+      COALESCE(e.nombre, a.nombre, t.nombre) AS nombre_nodo,
+      COALESCE(ap.id_etapa, ap.id_accion, ap.id_tarea) AS id_nodo,
+      p.id AS proyecto_id, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas,
+      ap.modo, ap.aportacion, i.id AS indicador_id
+    FROM indicador_aportaciones ap
+    JOIN indicadores i ON i.id = ap.id_indicador
+    JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL
+    LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
+    LEFT JOIN etapas e ON e.id = ap.id_etapa
+    LEFT JOIN acciones a ON a.id = ap.id_accion
+    LEFT JOIN tareas t ON t.id = ap.id_tarea
+    WHERE i.id_catalogo = $1
+    ORDER BY p.nombre, nombre_nodo
+  `, [id]);
+  return rows.map(r => ({ ...r, aportacion: r.aportacion == null ? null : parseFloat(r.aportacion) }));
+}
+
 async function crear(datos, usuarioId) {
   const nombre = (datos.nombre || '').trim();
   if (!nombre) {
@@ -277,4 +306,4 @@ async function fusionar(idSobrevive, idsFusionar) {
   }
 }
 
-module.exports = { listar, obtener, uso, crear, actualizar, cambiarActivo, generarClave, buscarSimilares, fusionar };
+module.exports = { listar, obtener, uso, obtenerNodosVinculados, crear, actualizar, cambiarActivo, generarClave, buscarSimilares, fusionar };

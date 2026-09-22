@@ -191,6 +191,7 @@ router.post('/proyectos/:id/indicadores', exigirEdicionProyecto(), indicadoresCo
 router.get('/etapas/:id/indicadores', indicadoresController.listarPorEtapa);
 router.get('/indicadores/publicos', indicadoresController.listarPublicables);
 router.get('/indicadores/mios', indicadoresController.listarMios);
+router.get('/indicadores/:id', indicadoresController.obtenerPorId);
 router.put('/indicadores/:id', exigirEdicionIndicador(), indicadoresController.actualizar);
 router.delete('/indicadores/:id', exigirEdicionIndicador(), indicadoresController.eliminar);
 router.get('/indicadores/:id/resumen-aportaciones', indicadoresController.resumenAportaciones);

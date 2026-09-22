@@ -31,6 +31,20 @@ async function listarMios(req, res, next) {
   }
 }
 
+// GET /indicadores/:id — un solo indicador, con proyecto/DG dueño y
+// sus metas/periodos — usado por la pantalla de detalle del módulo.
+async function obtenerPorId(req, res, next) {
+  try {
+    const indicador = await indicadoresQueries.obtenerPorId(req.params.id);
+    if (!indicador) {
+      return res.status(404).json({ error: true, mensaje: 'Indicador no encontrado' });
+    }
+    res.json({ datos: indicador });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // GET /proyectos/:id/indicadores — solo los de nivel proyecto
 async function listarPorProyecto(req, res, next) {
   try {
@@ -164,13 +178,13 @@ async function establecerValor(req, res, next) {
         codigo: 'NO_ES_MANUAL',
       });
     }
-    const { valor, anio } = req.body;
+    const { valor, id_periodo } = req.body;
     if (valor === undefined || valor === null || valor === '') {
       return res.status(400).json({ error: true, mensaje: 'Falta el valor', codigo: 'CAMPOS_REQUERIDOS' });
     }
     const datos = await indicadoresQueries.establecerValorManual(req.params.id, {
       valor: parseFloat(valor),
-      anio: anio != null && anio !== '' ? parseInt(anio) : null,
+      id_periodo: id_periodo || null,
     });
     res.json({ datos, mensaje: 'Valor guardado' });
   } catch (err) {
@@ -221,4 +235,4 @@ async function resumenConValores(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listarPorProyecto, listarPorEtapa, listarTodosPorProyecto, crear, actualizar, eliminar, resumenAportaciones, listarPublicables, togglePublicable, resumenConValores, establecerValor, listarMios };
+module.exports = { obtenerPorId, listarPorProyecto, listarPorEtapa, listarTodosPorProyecto, crear, actualizar, eliminar, resumenAportaciones, listarPublicables, togglePublicable, resumenConValores, establecerValor, listarMios };

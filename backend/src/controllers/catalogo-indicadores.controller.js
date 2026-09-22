@@ -55,6 +55,13 @@ async function uso(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function nodosVinculados(req, res, next) {
+  try {
+    const datos = await catalogoQueries.obtenerNodosVinculados(req.params.id);
+    res.json({ datos });
+  } catch (err) { next(err); }
+}
+
 async function crear(req, res, next) {
   try {
     if (req.usuario?.rol === 'externo') {
@@ -116,4 +123,4 @@ async function cambiarActivo(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listar, obtener, uso, crear, actualizar, cambiarActivo, buscarSimilares, fusionar };
+module.exports = { listar, obtener, uso, nodosVinculados, crear, actualizar, cambiarActivo, buscarSimilares, fusionar };
