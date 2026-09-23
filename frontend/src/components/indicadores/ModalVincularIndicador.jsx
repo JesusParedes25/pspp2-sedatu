@@ -36,6 +36,7 @@ import * as etapasApi from '../../api/etapas';
 import * as indicadoresApi from '../../api/indicadores';
 import { useUI } from '../../context/UIContext';
 import SelectorIndicadorCatalogo from './SelectorIndicadorCatalogo';
+import SelectorNodoArbol from './SelectorNodoArbol';
 import CamposIndicadorProyecto from './CamposIndicadorProyecto';
 import { indicadorProyectoVacio, conDefaultsPorTipo } from '../../utils/tiposIndicador';
 
@@ -60,9 +61,9 @@ export default function ModalVincularIndicador({
   const [arbol, setArbol] = useState(null);
   const [cargandoProyecto, setCargandoProyecto] = useState(false);
 
-  const [etapaId, setEtapaId] = useState(nodoPreseleccionado?.tipo === 'etapa' ? nodoPreseleccionado.id : '');
-  const [accionId, setAccionId] = useState(nodoPreseleccionado?.tipo === 'accion' ? nodoPreseleccionado.id : '');
-  const [tareaId, setTareaId] = useState(nodoPreseleccionado?.tipo === 'tarea' ? nodoPreseleccionado.id : '');
+  const [nodoSeleccionado, setNodoSeleccionado] = useState(
+    nodoPreseleccionado ? { tipo: nodoPreseleccionado.tipo, id: nodoPreseleccionado.id } : null
+  );
 
   // Sin ambigüedad de "dónde" (proyecto+nodo ya resueltos), se arranca
   // más adelante: directo en "qué medir" (paso 2), o directo en "cómo
@@ -144,17 +145,9 @@ export default function ModalVincularIndicador({
   // Un aviso de duplicado quedaría engañoso si el usuario retrocede y
   // elige otro nodo — se limpia en cuanto cambia a qué se está
   // vinculando.
-  useEffect(() => { setDuplicado(null); }, [etapaId, accionId, tareaId]);
+  useEffect(() => { setDuplicado(null); }, [nodoSeleccionado]);
 
   const etapas = arbol || [];
-  const etapaActual = etapas.find(e => e.id === etapaId);
-  const acciones = (etapaActual?.acciones || []).filter(a => !a.id_accion_padre);
-  const accionActual = acciones.find(a => a.id === accionId)
-    || (etapaActual?.acciones || []).flatMap(a => a.subacciones || []).find(s => s.id === accionId);
-  const subaccionesYTareas = [
-    ...(acciones.find(a => a.id === accionId)?.subacciones || []).map(s => ({ ...s, _tipo: 'subaccion' })),
-    ...(acciones.find(a => a.id === accionId)?.tareas || []).map(t => ({ ...t, _tipo: 'tarea' })),
-  ];
 
   // El indicador que el paso 3 necesita conocer para saber si pedir
   // categoría — el que ya venía fijo, o el que se encontró/creó en el
@@ -164,21 +157,7 @@ export default function ModalVincularIndicador({
   const esPorCategorias = indicadorDestino?.composicion === 'Categorias';
 
   // Nodo final resuelto para el paso 3 (o null = a nivel proyecto).
-  const nodoFinal = tareaId
-    ? { tipo: 'tarea', id: tareaId }
-    : accionId
-    ? { tipo: 'accion', id: accionId }
-    : etapaId
-    ? { tipo: 'etapa', id: etapaId }
-    : null;
-
-  function nombreNodoFinal() {
-    if (nodoPreseleccionado) return nodoPreseleccionado.nombre;
-    if (tareaId) return subaccionesYTareas.find(x => x.id === tareaId)?.nombre;
-    if (accionId) return accionActual?.nombre || acciones.find(a => a.id === accionId)?.nombre;
-    if (etapaId) return etapaActual?.nombre;
-    return null;
-  }
+  const nodoFinal = nodoSeleccionado;
 
   function irSiguienteDesdePaso1() {
     setError('');
@@ -307,8 +286,13 @@ export default function ModalVincularIndicador({
   }
 
   return createPortal((
-    <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[88vh] flex flex-col" onClick={e => e.stopPropagation()}>
+    // items-start + pt-[8vh] en vez de centrado vertical: el contenido
+    // del paso 1 crece según cuántos selects aparecen (etapa → acción →
+    // tarea) — centrado, cada select nuevo recentraba TODA la caja y
+    // se sentía como un salto; anclado arriba, el crecimiento empuja
+    // hacia abajo sin mover el encabezado.
+    <div className="fixed inset-0 bg-black/40 z-[9999] flex items-start justify-center p-4 pt-[8vh] overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg min-h-[420px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-gray-900">Vincular indicador</h3>
@@ -331,12 +315,9 @@ export default function ModalVincularIndicador({
           {/* ── Paso 1: dónde ── */}
           {paso === 1 && (
             <>
-              <p className="text-xs font-semibold text-gray-700">¿Dónde vive este indicador?</p>
-              {indicadorPreseleccionado && (
-                <p className="text-[11px] text-gray-500">
-                  Agregando un nodo que aporte a <strong>{indicadorPreseleccionado.nombre}</strong>.
-                </p>
-              )}
+              <p className="text-xs font-semibold text-gray-700">
+                {indicadorPreseleccionado ? `¿Qué nodo va a aportar a "${indicadorPreseleccionado.nombre}"?` : '¿Dónde vive este indicador?'}
+              </p>
 
               {proyectoPreseleccionado ? (
                 <div className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
@@ -350,7 +331,7 @@ export default function ModalVincularIndicador({
                     onChange={e => {
                       const p = proyectosDisponibles.find(pr => pr.id === e.target.value);
                       setProyecto(p || null);
-                      setEtapaId(''); setAccionId(''); setTareaId('');
+                      setNodoSeleccionado(null);
                     }}
                     className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400"
                   >
@@ -369,63 +350,18 @@ export default function ModalVincularIndicador({
                   Nodo: <strong>{nodoPreseleccionado.nombre}</strong>
                 </div>
               ) : proyecto && !cargandoProyecto && (
-                <>
-                  <div>
-                    <label className="block text-[11px] text-gray-500 mb-1">Etapa <span className="text-gray-400">(opcional — déjalo vacío para vincular a nivel proyecto)</span></label>
-                    <select
-                      value={etapaId}
-                      onChange={e => { setEtapaId(e.target.value); setAccionId(''); setTareaId(''); }}
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400"
-                    >
-                      <option value="">— a nivel de todo el proyecto —</option>
-                      {etapas.map(e => (
-                        <option key={e.id} value={e.id} disabled={!puedeEditar('etapa', e.id) || yaVinculado('etapa', e.id)}>
-                          {e.nombre}{!puedeEditar('etapa', e.id) ? ' (sin permiso)' : yaVinculado('etapa', e.id) ? ' (ya vinculado)' : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {etapaId && (
-                    <div>
-                      <label className="block text-[11px] text-gray-500 mb-1">Acción <span className="text-gray-400">(opcional)</span></label>
-                      <select
-                        value={accionId}
-                        onChange={e => { setAccionId(e.target.value); setTareaId(''); }}
-                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400"
-                      >
-                        <option value="">— a nivel de esta etapa —</option>
-                        {acciones.map(a => (
-                          <option key={a.id} value={a.id} disabled={!puedeEditar('accion', a.id) || yaVinculado('accion', a.id)}>
-                            {a.nombre}{!puedeEditar('accion', a.id) ? ' (sin permiso)' : yaVinculado('accion', a.id) ? ' (ya vinculado)' : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {accionId && subaccionesYTareas.length > 0 && (
-                    <div>
-                      <label className="block text-[11px] text-gray-500 mb-1">Subacción o tarea <span className="text-gray-400">(opcional)</span></label>
-                      <select
-                        value={tareaId}
-                        onChange={e => setTareaId(e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400"
-                      >
-                        <option value="">— a nivel de esta acción —</option>
-                        {subaccionesYTareas.map(s => {
-                          const tipoNodo = s._tipo === 'tarea' ? 'tarea' : 'accion';
-                          const bloqueado = !puedeEditar(tipoNodo, s.id) || yaVinculado(tipoNodo, s.id);
-                          return (
-                            <option key={s.id} value={s.id} disabled={bloqueado}>
-                              {s.nombre}{!puedeEditar(tipoNodo, s.id) ? ' (sin permiso)' : yaVinculado(tipoNodo, s.id) ? ' (ya vinculado)' : ''}
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </div>
-                  )}
-                </>
+                <div>
+                  <label className="block text-[11px] text-gray-500 mb-1">
+                    Etapa, acción o tarea <span className="text-gray-400">(opcional — deja "a nivel de todo el proyecto" si no aplica a un nodo específico)</span>
+                  </label>
+                  <SelectorNodoArbol
+                    etapas={etapas}
+                    valor={nodoSeleccionado}
+                    onSeleccionar={(tipo, id) => setNodoSeleccionado(tipo ? { tipo, id } : null)}
+                    puedeEditar={puedeEditar}
+                    yaVinculado={yaVinculado}
+                  />
+                </div>
               )}
             </>
           )}
