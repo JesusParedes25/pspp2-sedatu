@@ -70,8 +70,12 @@ export default function TarjetaIndicador({ indicador, contexto = null, variante 
   // captura a mano (modo_calculo='manual') — para los automáticos el
   // valor lo pone el propio recálculo, ofrecer editarlo confundiría más
   // de lo que ayuda (parecería que "sirve" y el próximo recálculo lo
-  // pisa sin aviso).
-  const puedeEditar = permitirEditarValor && indicador.modo_calculo === 'manual';
+  // pisa sin aviso). En tarjetas enlazable (solo "Mis indicadores") el
+  // lápiz queda fuera: la tarjeta completa ya es un link al detalle,
+  // que tiene el mismo editor — mostrar las dos formas de llegar ahí
+  // era ruido. En Tablero/Cartera/Panorama (sin página a la que ir)
+  // el lápiz sigue siendo la única forma de editar, sin cambios.
+  const puedeEditar = permitirEditarValor && indicador.modo_calculo === 'manual' && !enlazable;
 
   // El botón "editar valor" y el modal que abre nunca deben disparar la
   // navegación del <Link> cuando la tarjeta es enlazable — el modal se
@@ -150,14 +154,22 @@ export default function TarjetaIndicador({ indicador, contexto = null, variante 
     </>
   );
 
-  const clasesTarjeta = `rounded-lg border border-gray-200 bg-white ${compacto ? 'p-2.5' : 'p-3'} hover:border-gray-300 transition-colors`;
+  const clasesTarjeta = `rounded-lg border border-gray-200 bg-white ${compacto ? 'p-2.5' : 'p-3'} transition-colors`;
+  // Con el lápiz fuera, el clic en la tarjeta es la única forma de
+  // entrar a editar — el hover tiene que dejarlo claro por sí solo.
+  // La paleta "guinda" solo define 50/100/200/500/600/700/800 (ver
+  // tailwind.config.cjs) — "300" no genera ninguna clase real, se
+  // queda mudo. guinda-200 es el tono claro más cercano al borde
+  // gris-200 de base, así que el cambio sí se nota.
+  const clasesEnlazable = 'hover:border-guinda-200 hover:shadow-sm cursor-pointer';
+  const clasesNormal = 'hover:border-gray-300';
 
   return (
     <>
       {enlazable ? (
-        <Link to={`/indicadores/${indicador.id}`} className={`block ${clasesTarjeta}`}>{contenido}</Link>
+        <Link to={`/indicadores/${indicador.id}`} className={`block ${clasesTarjeta} ${clasesEnlazable}`}>{contenido}</Link>
       ) : (
-        <div className={clasesTarjeta}>{contenido}</div>
+        <div className={`${clasesTarjeta} ${clasesNormal}`}>{contenido}</div>
       )}
 
       {editandoValor && (
@@ -210,8 +222,12 @@ function TarjetaIndicadorGrupo({ grupo, variante = 'normal', permitirEditarValor
   const aislado = proyectoAisladoId ? grupo.find(i => i.proyecto_id === proyectoAisladoId) : null;
   // Editar solo tiene sentido aislado a UN proyecto (el combinado es una
   // suma, no algo que se pueda "escribir") y solo si ese proyecto de
-  // verdad captura el valor a mano.
-  const puedeEditar = permitirEditarValor && !!aislado && aislado.modo_calculo === 'manual';
+  // verdad captura el valor a mano. En modo enlazable esto nunca se
+  // alcanza de todos modos: ahí cada fila de "Ver por proyecto" navega
+  // directo al detalle en vez de aislar (ver abajo), así que `aislado`
+  // se queda siempre null — el `&& !enlazable` es defensivo/explícito,
+  // no cambia comportamiento observable.
+  const puedeEditar = permitirEditarValor && !!aislado && aislado.modo_calculo === 'manual' && !enlazable;
 
   const valorMostrado = aislado
     ? parseFloat(aislado.valor_actual) || 0
