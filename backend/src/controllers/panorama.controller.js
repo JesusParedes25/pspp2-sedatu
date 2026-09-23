@@ -75,7 +75,7 @@ async function obtenerIndicadoresCompletos(proyectoId) {
     SELECT i.id, i.nombre, i.tipo, i.unidad, i.unidad_personalizada, i.etiqueta_unidad,
       i.meta_global, i.valor_actual, i.modo_calculo, i.temporalidad, i.descripcion,
       i.id_etapa, e.nombre AS etapa_nombre,
-      i.es_publicable
+      i.es_publicable, i.composicion, i.tipo_grafico
     FROM indicadores i
     LEFT JOIN etapas e ON e.id = i.id_etapa
     WHERE i.id_proyecto = $1 AND i.activo = true
@@ -95,6 +95,22 @@ async function obtenerIndicadoresCompletos(proyectoId) {
     for (const m of metas) {
       if (!metasPorIndicador[m.id_indicador]) metasPorIndicador[m.id_indicador] = [];
       metasPorIndicador[m.id_indicador].push(m);
+    }
+  }
+
+  // Fetch categorías for all indicators — mismo alias valor_meta/valor_real
+  // que metas_anuales, para que el frontend arme ambas gráficas igual.
+  let categoriasPorIndicador = {};
+  if (indIds.length > 0) {
+    const { rows: categorias } = await pool.query(`
+      SELECT id_indicador, nombre AS etiqueta, meta AS valor_meta, valor_actual AS valor_real
+      FROM indicador_categorias
+      WHERE id_indicador = ANY($1)
+      ORDER BY orden, created_at
+    `, [indIds]);
+    for (const c of categorias) {
+      if (!categoriasPorIndicador[c.id_indicador]) categoriasPorIndicador[c.id_indicador] = [];
+      categoriasPorIndicador[c.id_indicador].push(c);
     }
   }
 
@@ -131,6 +147,7 @@ async function obtenerIndicadoresCompletos(proyectoId) {
       valor_actual: valor,
       pct_avance: calcularAvancePorcentaje(valor, meta),
       metas_anuales: metasPorIndicador[i.id] || [],
+      categorias: categoriasPorIndicador[i.id] || [],
       aportaciones: aportacionesPorIndicador[i.id] || []
     };
   });

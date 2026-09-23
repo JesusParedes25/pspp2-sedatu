@@ -17,6 +17,42 @@
 const pool = require('../pool');
 const { calcularAvancePorcentaje } = require('../../utils/indicador-calculo');
 
+// Válida la combinación composicion/unidad antes de crear/actualizar —
+// un indicador en Porcentaje no puede componerse de categorías: sumar
+// porcentajes entre categorías no representa nada real, mismo criterio
+// que ya excluye el combinado de porcentajes entre proyectos
+// (TarjetaIndicadorGrupo). Se rechaza en vez de normalizar en
+// silencio: esta combinación solo puede llegar por un bug del
+// frontend (que ya la deshabilita), mejor que truene claro.
+function validarComposicion(datos) {
+  if (datos.composicion === 'Categorias' && datos.unidad === 'Porcentaje') {
+    const err = new Error('Un indicador en porcentaje no puede componerse de categorías');
+    err.statusCode = 400;
+    err.codigo = 'CATEGORIAS_PORCENTAJE';
+    throw err;
+  }
+}
+
+// Carga en lote las categorías de varios indicadores (mismo patrón de
+// batching ya usado para metas_anuales en cada función de este
+// archivo) y las anexa como `.categorias` a cada fila de `indicadores`.
+async function cargarCategorias(db, indicadores) {
+  if (indicadores.length === 0) return;
+  const ids = indicadores.map(i => i.id);
+  const { rows: categorias } = await db.query(
+    'SELECT * FROM indicador_categorias WHERE id_indicador = ANY($1) ORDER BY orden, created_at',
+    [ids]
+  );
+  const porIndicador = {};
+  for (const c of categorias) {
+    if (!porIndicador[c.id_indicador]) porIndicador[c.id_indicador] = [];
+    porIndicador[c.id_indicador].push(c);
+  }
+  for (const ind of indicadores) {
+    ind.categorias = porIndicador[ind.id] || [];
+  }
+}
+
 // Lista indicadores de nivel proyecto (id_etapa IS NULL) con sus metas anuales
 async function listarPorProyecto(proyectoId) {
   const indicadores = await pool.query(`
@@ -47,6 +83,7 @@ async function listarPorProyecto(proyectoId) {
     }
   }
 
+  await cargarCategorias(pool, indicadores.rows);
   return indicadores.rows;
 }
 
@@ -70,6 +107,13 @@ async function obtenerPorId(indicadorId) {
     [indicadorId]
   );
   indicador.metas_anuales = metas;
+
+  const { rows: categorias } = await pool.query(
+    'SELECT * FROM indicador_categorias WHERE id_indicador = $1 ORDER BY orden, created_at',
+    [indicadorId]
+  );
+  indicador.categorias = categorias;
+
   return indicador;
 }
 
@@ -77,6 +121,7 @@ async function obtenerPorId(indicadorId) {
 // Si datos.id_etapa viene, es un indicador de nivel etapa; si no, es de proyecto.
 async function crear(proyectoId, datos, client = null, creadorId = null) {
   const db = client || pool;
+  validarComposicion(datos);
 
   // Sanitizar campos numéricos: convertir "" a null
   const metaGlobal = datos.meta_global === '' || datos.meta_global == null ? null : parseFloat(datos.meta_global);
@@ -89,8 +134,9 @@ async function crear(proyectoId, datos, client = null, creadorId = null) {
     INSERT INTO indicadores (
       id_proyecto, id_etapa, nombre, tipo, unidad, unidad_personalizada,
       etiqueta_unidad, meta_global, temporalidad, unidad_periodo,
-      anio_inicio, anio_fin, descripcion, orden, id_catalogo, id_creador
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+      anio_inicio, anio_fin, descripcion, orden, id_catalogo, id_creador,
+      composicion, tipo_grafico
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
     RETURNING *
   `, [
     proyectoId, idEtapa, datos.nombre, datos.tipo, datos.unidad,
@@ -109,7 +155,12 @@ async function crear(proyectoId, datos, client = null, creadorId = null) {
     datos.id_catalogo || null,
     // Quién dio de alta este indicador. Lo necesita la API externa para
     // atribuir el dato, y sirve para saber a quién preguntarle.
-    creadorId || datos.id_creador || null
+    creadorId || datos.id_creador || null,
+    // composicion/tipo_grafico solo importan cuando hay algo que
+    // desglosar (temporalidad='Anual' o composicion='Categorias'); para
+    // un indicador simple quedan con su default sin que nada los use.
+    datos.composicion === 'Categorias' ? 'Categorias' : 'Simple',
+    datos.tipo_grafico === 'dona' ? 'dona' : 'barras',
   ]);
 
   const indicador = resultado.rows[0];
@@ -128,13 +179,29 @@ async function crear(proyectoId, datos, client = null, creadorId = null) {
       `, [indicador.id, anio, metaAnual, etiqueta]);
     }
   }
-
   indicador.metas_anuales = datos.metas_anuales || [];
+
+  // Insertar categorías si el indicador se compone de ellas. "orden" es
+  // la posición en el arreglo entrante — sin UI de reordenar en v1,
+  // solo agregar/quitar.
+  if (datos.categorias && datos.categorias.length > 0) {
+    let orden = 0;
+    for (const cat of datos.categorias) {
+      const metaCat = cat.meta === '' || cat.meta == null ? 0 : parseFloat(cat.meta);
+      await db.query(`
+        INSERT INTO indicador_categorias (id_indicador, nombre, meta, orden)
+        VALUES ($1, $2, $3, $4)
+      `, [indicador.id, cat.nombre, metaCat, orden++]);
+    }
+  }
+  indicador.categorias = datos.categorias || [];
+
   return indicador;
 }
 
 // Actualiza un indicador y sincroniza sus metas/periodos por diff.
 async function actualizar(indicadorId, datos) {
+  validarComposicion(datos);
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -146,8 +213,9 @@ async function actualizar(indicadorId, datos) {
         unidad_personalizada = $4, etiqueta_unidad = $5,
         meta_global = $6, temporalidad = $7, unidad_periodo = $8,
         anio_inicio = $9, anio_fin = $10,
-        descripcion = $11, updated_at = NOW()
-      WHERE id = $12
+        descripcion = $11, composicion = $12, tipo_grafico = $13,
+        updated_at = NOW()
+      WHERE id = $14
       RETURNING *
     `, [
       datos.nombre, datos.tipo, datos.unidad,
@@ -155,7 +223,10 @@ async function actualizar(indicadorId, datos) {
       datos.etiqueta_unidad || datos.unidad_personalizada || null,
       metaGlobal, datos.temporalidad || 'Global', datos.unidad_periodo || 'Anio',
       datos.anio_inicio || null, datos.anio_fin || null,
-      datos.descripcion || null, indicadorId
+      datos.descripcion || null,
+      datos.composicion === 'Categorias' ? 'Categorias' : 'Simple',
+      datos.tipo_grafico === 'dona' ? 'dona' : 'barras',
+      indicadorId
     ]);
 
     // Sincronizar metas/periodos por diff en vez de borrar y recrear
@@ -195,6 +266,41 @@ async function actualizar(indicadorId, datos) {
         await client.query(
           'INSERT INTO indicador_metas_anuales (id_indicador, anio, meta, etiqueta) VALUES ($1, $2, $3, $4)',
           [indicadorId, anio, meta, etiqueta]
+        );
+      }
+    }
+
+    // Mismo diff-upsert que arriba, aplicado a categorías: conserva
+    // valor_actual de las que solo cambiaron de nombre/meta. "orden" se
+    // recalcula siempre a partir de la posición en el arreglo entrante
+    // (sin UI de reordenar en v1, solo agregar/quitar al final).
+    const categoriasEntrantes = datos.categorias || [];
+    const { rows: categoriasExistentes } = await client.query(
+      'SELECT id FROM indicador_categorias WHERE id_indicador = $1',
+      [indicadorId]
+    );
+    const idsCategoriasEntrantes = new Set(categoriasEntrantes.filter(c => c.id).map(c => c.id));
+    const idsCategoriasAEliminar = categoriasExistentes.map(e => e.id).filter(id => !idsCategoriasEntrantes.has(id));
+
+    if (idsCategoriasAEliminar.length > 0) {
+      await client.query(
+        'DELETE FROM indicador_categorias WHERE id = ANY($1)',
+        [idsCategoriasAEliminar]
+      );
+    }
+
+    let ordenCategoria = 0;
+    for (const cat of categoriasEntrantes) {
+      const meta = cat.meta === '' || cat.meta == null ? 0 : parseFloat(cat.meta);
+      if (cat.id) {
+        await client.query(
+          'UPDATE indicador_categorias SET nombre = $1, meta = $2, orden = $3 WHERE id = $4 AND id_indicador = $5',
+          [cat.nombre, meta, ordenCategoria++, cat.id, indicadorId]
+        );
+      } else {
+        await client.query(
+          'INSERT INTO indicador_categorias (id_indicador, nombre, meta, orden) VALUES ($1, $2, $3, $4)',
+          [indicadorId, cat.nombre, meta, ordenCategoria++]
         );
       }
     }
@@ -256,6 +362,7 @@ async function listarPorEtapa(etapaId) {
     }
   }
 
+  await cargarCategorias(pool, todos);
   return todos;
 }
 
@@ -455,13 +562,19 @@ async function listarPublicables(filtros = {}) {
 // por igual, sin ramas por tipo de periodo. A diferencia de antes, el
 // periodo ya no se autocrea aquí — siempre se define explícitamente en
 // crear()/actualizar() antes de poder capturarle un valor.
-async function establecerValorManual(indicadorId, { valor, id_periodo }) {
+// { valor, id_periodo, id_categoria } — composicion='Categorias' implica
+// temporalidad='Global' por diseño (excluyentes), así que estas dos
+// ramas nunca compiten por el mismo indicador: id_periodo identifica
+// una fila de indicador_metas_anuales, id_categoria una de
+// indicador_categorias, mismo shape de UPDATE-por-id y rollup por SUM
+// para ambas.
+async function establecerValorManual(indicadorId, { valor, id_periodo, id_categoria }) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
     const { rows: [ind] } = await client.query(
-      'SELECT temporalidad FROM indicadores WHERE id = $1', [indicadorId]
+      'SELECT temporalidad, composicion FROM indicadores WHERE id = $1', [indicadorId]
     );
     if (!ind) { await client.query('ROLLBACK'); return null; }
 
@@ -483,6 +596,30 @@ async function establecerValorManual(indicadorId, { valor, id_periodo }) {
 
       const { rows: [suma] } = await client.query(
         'SELECT COALESCE(SUM(valor_actual), 0)::numeric AS total FROM indicador_metas_anuales WHERE id_indicador = $1',
+        [indicadorId]
+      );
+      await client.query(
+        'UPDATE indicadores SET valor_actual = $1, updated_at = NOW() WHERE id = $2',
+        [suma.total, indicadorId]
+      );
+    } else if (ind.composicion === 'Categorias') {
+      if (id_categoria == null) {
+        const err = new Error('Este indicador se compone de categorías: falta indicar cuál');
+        err.statusCode = 400;
+        throw err;
+      }
+      const { rows: [categoria] } = await client.query(
+        'UPDATE indicador_categorias SET valor_actual = $1 WHERE id = $2 AND id_indicador = $3 RETURNING id',
+        [valor, id_categoria, indicadorId]
+      );
+      if (!categoria) {
+        const err = new Error('La categoría indicada no existe para este indicador');
+        err.statusCode = 404;
+        throw err;
+      }
+
+      const { rows: [suma] } = await client.query(
+        'SELECT COALESCE(SUM(valor_actual), 0)::numeric AS total FROM indicador_categorias WHERE id_indicador = $1',
         [indicadorId]
       );
       await client.query(
