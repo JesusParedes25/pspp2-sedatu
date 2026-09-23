@@ -203,9 +203,16 @@ export default function ModalVincularIndicador({
           id_catalogo: indicadorNuevo.id_catalogo,
           meta_global: indicadorNuevo.meta_global === '' ? null : parseFloat(indicadorNuevo.meta_global),
           temporalidad: indicadorNuevo.temporalidad,
+          // unidad_periodo faltaba aquí: elegir Sexenio/Personalizado en
+          // este wizard se perdía en silencio (el backend defaulteaba a
+          // 'Anio') — bug real encontrado al agregar composicion/categorias.
+          unidad_periodo: indicadorNuevo.unidad_periodo,
           anio_inicio: indicadorNuevo.temporalidad === 'Anual' ? indicadorNuevo.anio_inicio : null,
           anio_fin: indicadorNuevo.temporalidad === 'Anual' ? indicadorNuevo.anio_fin : null,
           metas_anuales: indicadorNuevo.temporalidad === 'Anual' ? indicadorNuevo.metas_anuales : [],
+          composicion: indicadorNuevo.composicion,
+          tipo_grafico: indicadorNuevo.tipo_grafico,
+          categorias: indicadorNuevo.composicion === 'Categorias' ? indicadorNuevo.categorias : [],
           descripcion: indicadorNuevo.descripcion,
         });
         indicadorId = res.datos.id;

@@ -91,6 +91,7 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
           _esNuevo: false,
           _abierto: false,
           metas_anuales: ind.metas_anuales || [],
+          categorias: ind.categorias || [],
         }));
         setDatos(prev => ({ ...prev, etiquetas, indicadores }));
       } catch (err) {

@@ -117,7 +117,7 @@ export async function listarMios({ proyectoIds, carteraId } = {}) {
 // Personalizado no tiene un año confiable), escribe el valor de ESE
 // periodo. El periodo debe existir ya (definido desde la sección de
 // Definición del indicador) — este endpoint ya no lo autocrea.
-export async function establecerValorIndicador(indicadorId, { valor, id_periodo } = {}) {
-  const { data } = await client.patch(`/indicadores/${indicadorId}/valor`, { valor, id_periodo });
+export async function establecerValorIndicador(indicadorId, { valor, id_periodo, id_categoria } = {}) {
+  const { data } = await client.patch(`/indicadores/${indicadorId}/valor`, { valor, id_periodo, id_categoria });
   return data;
 }
