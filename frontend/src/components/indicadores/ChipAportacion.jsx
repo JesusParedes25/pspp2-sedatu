@@ -70,7 +70,14 @@ export default function ChipAportacion({ ap, etiquetaPrincipal, subtitulo, soloL
           {subtitulo && <span className="text-[10px] text-gray-400 truncate block">{subtitulo}</span>}
         </span>
         <span className="flex items-center gap-1.5 flex-shrink-0">
-          <span className="text-[10px] text-gray-400">{modoInfo.etiqueta}</span>
+          {ap.categoria_nombre && (
+            <span className="text-[9px] font-medium text-guinda-700 bg-guinda-50 border border-guinda-100 px-1.5 py-0.5 rounded-full truncate max-w-[90px]" title={ap.categoria_nombre}>
+              {ap.categoria_nombre}
+            </span>
+          )}
+          <span className="text-[10px] text-gray-400 tabular-nums">
+            {Number(ap.aportacion) > 0 ? Number(ap.aportacion).toLocaleString('es-MX') + ' · ' : ''}{modoInfo.etiqueta}
+          </span>
           {abierto ? <ChevronDown size={13} className="text-gray-400" /> : <ChevronRight size={13} className="text-gray-400" />}
         </span>
       </button>

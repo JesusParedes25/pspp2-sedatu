@@ -646,6 +646,20 @@ async function establecerValorManual(indicadorId, { valor, id_periodo, id_catego
         [suma.total, indicadorId]
       );
     } else {
+      // Mismo criterio que la rama de categorías: si algún nodo ya
+      // aporta a este indicador, su valor se calcula solo — el guard
+      // de modo_calculo no basta por sí solo porque el wizard nunca lo
+      // escribe (siempre queda en su default 'manual').
+      const { rows: [conAportacion] } = await client.query(
+        'SELECT 1 FROM indicador_aportaciones WHERE id_indicador = $1 LIMIT 1',
+        [indicadorId]
+      );
+      if (conAportacion) {
+        const err = new Error('Este indicador se calcula automáticamente desde los nodos vinculados — no se puede editar a mano');
+        err.statusCode = 409;
+        err.codigo = 'INDICADOR_CON_APORTACIONES';
+        throw err;
+      }
       await client.query(
         'UPDATE indicadores SET valor_actual = $1, updated_at = NOW() WHERE id = $2',
         [valor, indicadorId]
