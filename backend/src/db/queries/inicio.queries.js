@@ -176,11 +176,12 @@ async function obtenerIndicadoresAgregados(proyectoIds) {
   const { rows } = await pool.query(`
     SELECT
       i.id, i.nombre, i.tipo, i.unidad, i.unidad_personalizada, i.id_catalogo,
-      i.meta_global, i.valor_actual, i.modo_calculo,
+      i.meta_global, i.valor_actual, i.modo_calculo, i.composicion,
       i.temporalidad, i.anio_inicio, i.anio_fin,
       p.id AS proyecto_id, p.nombre AS proyecto_nombre,
       dg.siglas AS dg_siglas,
-      COALESCE(ma.metas_anuales, '[]'::json) AS metas_anuales
+      COALESCE(ma.metas_anuales, '[]'::json) AS metas_anuales,
+      COALESCE(cat.categorias, '[]'::json) AS categorias
     FROM indicadores i
     JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL AND p.estado != 'Cancelada'
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
@@ -190,6 +191,12 @@ async function obtenerIndicadoresAgregados(proyectoIds) {
       ) ORDER BY anio NULLS LAST, created_at) AS metas_anuales
       FROM indicador_metas_anuales WHERE id_indicador = i.id
     ) ma ON true
+    LEFT JOIN LATERAL (
+      SELECT json_agg(json_build_object(
+        'id', id, 'nombre', nombre, 'meta', meta, 'valor_actual', valor_actual
+      ) ORDER BY orden, created_at) AS categorias
+      FROM indicador_categorias WHERE id_indicador = i.id
+    ) cat ON true
     WHERE i.activo = true AND i.id_proyecto = ANY($1)
     ORDER BY i.tipo, p.nombre, i.nombre
   `, [proyectoIds]);

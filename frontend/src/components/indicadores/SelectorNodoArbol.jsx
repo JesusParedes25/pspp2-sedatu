@@ -99,13 +99,19 @@ function hijosDeEtapa(etapa) {
   }));
 }
 
-// Un nodo "sobrevive" al filtro de búsqueda si su nombre coincide o si
-// alguno de sus descendientes coincide — así un texto que solo matchea
-// una tarea igual deja ver (y expandido) el camino completo hasta ella.
-function coincideArbol(nombre, hijos, q) {
-  if (!q) return true;
-  if (normalizar(nombre).includes(q)) return true;
-  return hijos.some(h => coincideArbol(h.nodo.nombre, h.hijos, q));
+// Filtra en cada nivel, no solo decide si mostrar la raíz — antes
+// `coincideArbol` solo respondía sí/no para la etapa completa, así que
+// una vez que una etapa "pasaba" (porque algún descendiente coincidía)
+// se mostraban TODOS sus hijos, coincidieran o no. Esto arma un árbol
+// nuevo con `hijos` ya filtrados en cada nivel: un nodo sobrevive si
+// su propio nombre coincide, o si le queda al menos un hijo tras
+// filtrar recursivamente.
+function filtrarRama(rama, q) {
+  if (!q) return rama;
+  const hijosFiltrados = rama.hijos.map(h => filtrarRama(h, q)).filter(Boolean);
+  const propioCoincide = normalizar(rama.nodo.nombre).includes(q);
+  if (!propioCoincide && hijosFiltrados.length === 0) return null;
+  return { ...rama, hijos: hijosFiltrados };
 }
 
 export default function SelectorNodoArbol({ etapas, valor, onSeleccionar, puedeEditar, yaVinculado }) {
@@ -125,7 +131,7 @@ export default function SelectorNodoArbol({ etapas, valor, onSeleccionar, puedeE
     nodo: etapa,
     tipo: 'etapa',
     hijos: hijosDeEtapa(etapa),
-  })).filter(r => coincideArbol(r.nodo.nombre, r.hijos, q)), [etapas, q]);
+  })).map(r => filtrarRama(r, q)).filter(Boolean), [etapas, q]);
 
   // Con texto de búsqueda, expandir automáticamente el camino hasta
   // cada coincidencia — si no, el usuario tendría que adivinar dónde

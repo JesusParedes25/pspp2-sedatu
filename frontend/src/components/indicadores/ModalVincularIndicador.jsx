@@ -292,10 +292,12 @@ export default function ModalVincularIndicador({
     // se sentía como un salto; anclado arriba, el crecimiento empuja
     // hacia abajo sin mover el encabezado.
     <div className="fixed inset-0 bg-black/40 z-[9999] flex items-start justify-center p-4 pt-[8vh] overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg min-h-[420px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg h-[520px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-gray-900">Vincular indicador</h3>
+            <h3 className="text-sm font-semibold text-gray-900 truncate">
+              {indicadorPreseleccionado ? `Agregar nodo a "${indicadorPreseleccionado.nombre}"` : 'Vincular indicador'}
+            </h3>
             <div className="flex items-center gap-1 mt-0.5">
               {PASOS.map((p, i) => (
                 <span key={p} className={`flex items-center gap-1 text-[10px] font-medium ${

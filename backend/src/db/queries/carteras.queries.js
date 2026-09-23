@@ -271,12 +271,19 @@ async function resumenCartera(carteraId) {
   // obtenerIndicadoresAgregados en inicio.queries.js.
   const { rows: indicadoresCrudos } = await pool.query(`
     SELECT i.id, i.nombre, i.tipo, i.unidad, i.unidad_personalizada, i.id_catalogo,
-      i.meta_global, i.valor_actual,
-      p.id AS proyecto_id, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas
+      i.meta_global, i.valor_actual, i.composicion,
+      p.id AS proyecto_id, p.nombre AS proyecto_nombre, dg.siglas AS dg_siglas,
+      COALESCE(cat.categorias, '[]'::json) AS categorias
     FROM cartera_proyecto cp
     JOIN indicadores i ON i.id_proyecto = cp.proyecto_id AND i.activo = true
     JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL AND p.estado != 'Cancelada'
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
+    LEFT JOIN LATERAL (
+      SELECT json_agg(json_build_object(
+        'id', id, 'nombre', nombre, 'meta', meta, 'valor_actual', valor_actual
+      ) ORDER BY orden, created_at) AS categorias
+      FROM indicador_categorias WHERE id_indicador = i.id
+    ) cat ON true
     WHERE cp.cartera_id = $1
     ORDER BY i.tipo, p.nombre, i.nombre
   `, [carteraId]);
