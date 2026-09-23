@@ -69,6 +69,7 @@ export default function TabIndicadores({ tipo, nodoId, nodoNombre, proyectoId, s
               soloLectura={soloLectura}
               onActualizado={cargar}
               mostrarToast={mostrarToast}
+              categorias={ap.composicion === 'Categorias' ? ap.categorias : undefined}
             />
           ))}
           {!soloLectura && (

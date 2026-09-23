@@ -20,13 +20,15 @@ export const MODOS_APORTACION = [
   { valor: 'proporcional', etiqueta: 'Automático', ayuda: 'Se calcula solo, proporcional a su avance.' },
 ];
 
-export default function ChipAportacion({ ap, etiquetaPrincipal, subtitulo, soloLectura, onActualizado, mostrarToast }) {
+export default function ChipAportacion({ ap, etiquetaPrincipal, subtitulo, soloLectura, onActualizado, mostrarToast, categorias }) {
   const [abierto, setAbierto] = useState(false);
   const [modo, setModo] = useState(ap.modo);
   const [valor, setValor] = useState(ap.aportacion ?? '');
+  const [idCategoria, setIdCategoria] = useState(ap.id_categoria || '');
   const [guardando, setGuardando] = useState(false);
 
   const modoInfo = MODOS_APORTACION.find(m => m.valor === ap.modo) || MODOS_APORTACION[0];
+  const esPorCategorias = !!categorias;
 
   async function guardar() {
     setGuardando(true);
@@ -34,6 +36,7 @@ export default function ChipAportacion({ ap, etiquetaPrincipal, subtitulo, soloL
       await indicadoresApi.actualizarAportacion(ap.id, {
         modo,
         valor_aportacion: valor === '' ? 0 : parseFloat(valor),
+        ...(esPorCategorias ? { id_categoria: idCategoria || null } : {}),
       });
       mostrarToast('Aportación actualizada', 'exito');
       onActualizado();
@@ -89,6 +92,17 @@ export default function ChipAportacion({ ap, etiquetaPrincipal, subtitulo, soloL
               </button>
             ))}
           </div>
+          {esPorCategorias && (
+            <select
+              value={idCategoria}
+              onChange={e => setIdCategoria(e.target.value)}
+              disabled={soloLectura}
+              className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:border-guinda-500 focus:ring-1 focus:ring-guinda-500/20 outline-none disabled:opacity-60"
+            >
+              <option value="">— sin categoría —</option>
+              {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select>
+          )}
           <div className="flex items-center gap-2">
             <input
               type="number" step="any" min="0"
@@ -101,7 +115,7 @@ export default function ChipAportacion({ ap, etiquetaPrincipal, subtitulo, soloL
               <>
                 <button
                   onClick={guardar}
-                  disabled={guardando || (modo === ap.modo && Number(valor) === Number(ap.aportacion))}
+                  disabled={guardando || (modo === ap.modo && Number(valor) === Number(ap.aportacion) && idCategoria === (ap.id_categoria || ''))}
                   className="text-xs font-medium text-guinda-700 hover:underline disabled:opacity-40 disabled:no-underline"
                 >
                   Guardar

@@ -367,6 +367,10 @@ async function listarPorEtapa(etapaId) {
 }
 
 // Lista TODOS los indicadores de un proyecto (nivel proyecto + nivel etapa)
+// — usada por ModalVincularIndicador para saber qué indicadores ya tiene
+// el proyecto. Necesita .categorias igual que las otras funciones de
+// listado: sin esto, el selector de categoría al vincular un nodo no
+// tendría de dónde poblarse para un indicador que ya existía de antes.
 async function listarTodosPorProyecto(proyectoId) {
   const indicadores = await pool.query(`
     SELECT i.*, e.nombre AS etapa_nombre
@@ -375,6 +379,7 @@ async function listarTodosPorProyecto(proyectoId) {
     WHERE i.id_proyecto = $1 AND i.activo = true
     ORDER BY i.id_etapa NULLS FIRST, i.orden, i.created_at
   `, [proyectoId]);
+  await cargarCategorias(pool, indicadores.rows);
   return indicadores.rows;
 }
 
@@ -606,6 +611,20 @@ async function establecerValorManual(indicadorId, { valor, id_periodo, id_catego
       if (id_categoria == null) {
         const err = new Error('Este indicador se compone de categorías: falta indicar cuál');
         err.statusCode = 400;
+        throw err;
+      }
+      // Si la categoría ya tiene algún nodo aportándole, su valor se
+      // calcula solo (mismo criterio de exclusión manual/automático que
+      // ya usa el indicador completo vía modo_calculo) — escribirla a
+      // mano aquí se perdería en el próximo recálculo automático.
+      const { rows: [conAportacion] } = await client.query(
+        'SELECT 1 FROM indicador_aportaciones WHERE id_indicador = $1 AND id_categoria = $2 LIMIT 1',
+        [indicadorId, id_categoria]
+      );
+      if (conAportacion) {
+        const err = new Error('Esta categoría se calcula automáticamente desde los nodos vinculados — no se puede editar a mano');
+        err.statusCode = 409;
+        err.codigo = 'CATEGORIA_CON_APORTACIONES';
         throw err;
       }
       const { rows: [categoria] } = await client.query(

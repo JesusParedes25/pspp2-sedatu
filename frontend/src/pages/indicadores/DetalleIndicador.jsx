@@ -130,6 +130,7 @@ export default function DetalleIndicador() {
         onActualizado={cargarAportaciones}
         onAgregar={() => setMostrarWizard(true)}
         mostrarToast={mostrarToast}
+        categorias={indicador.composicion === 'Categorias' ? indicador.categorias : undefined}
       />
 
       {mostrarWizard && (
@@ -303,7 +304,7 @@ function SeccionCategorias({ indicador, onGuardado, mostrarToast }) {
   );
 }
 
-function SeccionAportaciones({ aportaciones, cargando, proyectoId, onActualizado, onAgregar, mostrarToast }) {
+function SeccionAportaciones({ aportaciones, cargando, proyectoId, onActualizado, onAgregar, mostrarToast, categorias }) {
   return (
     <section className="bg-white border border-gray-200 rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
@@ -336,6 +337,7 @@ function SeccionAportaciones({ aportaciones, cargando, proyectoId, onActualizado
                 subtitulo={subtitulo}
                 onActualizado={onActualizado}
                 mostrarToast={mostrarToast}
+                categorias={categorias}
               />
             );
           })}

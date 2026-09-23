@@ -85,6 +85,7 @@ export default function ModalVincularIndicador({
   const [indicadorNuevo, setIndicadorNuevo] = useState(indicadorProyectoVacio());
   const [modoAportacion, setModoAportacion] = useState('al_concluir');
   const [valorAportacion, setValorAportacion] = useState('');
+  const [categoriaAportacion, setCategoriaAportacion] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
 
@@ -123,6 +124,13 @@ export default function ModalVincularIndicador({
     ...(acciones.find(a => a.id === accionId)?.subacciones || []).map(s => ({ ...s, _tipo: 'subaccion' })),
     ...(acciones.find(a => a.id === accionId)?.tareas || []).map(t => ({ ...t, _tipo: 'tarea' })),
   ];
+
+  // El indicador que el paso 3 necesita conocer para saber si pedir
+  // categoría — el que ya venía fijo, o el que se encontró/creó en el
+  // paso 2 (ambos traen `.categorias` gracias al fix de
+  // listarTodosPorProyecto/indicadorProyectoVacio).
+  const indicadorDestino = indicadorPreseleccionado || indicadorExistente || indicadorNuevo;
+  const esPorCategorias = indicadorDestino?.composicion === 'Categorias';
 
   // Nodo final resuelto para el paso 3 (o null = a nivel proyecto).
   const nodoFinal = tareaId
@@ -225,6 +233,7 @@ export default function ModalVincularIndicador({
           id_nodo: nodo.id,
           valor_aportacion: valorAportacion === '' ? 0 : parseFloat(valorAportacion),
           modo: modoAportacion,
+          id_categoria: esPorCategorias ? categoriaAportacion : undefined,
         });
       }
 
@@ -398,6 +407,24 @@ export default function ModalVincularIndicador({
               </p>
               {(nodoPreseleccionado || nodoFinal) ? (
                 <>
+                  {esPorCategorias && (
+                    <div>
+                      <label className="block text-[11px] text-gray-500 mb-1">¿A cuál categoría aporta?</label>
+                      <select
+                        value={categoriaAportacion}
+                        onChange={e => setCategoriaAportacion(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400"
+                      >
+                        <option value="">— elige una categoría —</option>
+                        {(indicadorDestino.categorias || []).map(c => (
+                          <option key={c.id} value={c.id}>{c.nombre}</option>
+                        ))}
+                      </select>
+                      {(indicadorDestino.categorias || []).length === 0 && (
+                        <p className="text-[11px] text-amber-700 mt-1">Este indicador no tiene categorías definidas todavía.</p>
+                      )}
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
@@ -472,7 +499,7 @@ export default function ModalVincularIndicador({
           {paso === 3 && (
             <button
               onClick={confirmarVinculo}
-              disabled={guardando}
+              disabled={guardando || (esPorCategorias && (nodoPreseleccionado || nodoFinal) && !categoriaAportacion)}
               className="px-4 py-2 text-sm font-medium text-white bg-guinda-700 rounded-lg disabled:opacity-50 flex items-center gap-2"
             >
               {guardando && <Loader2 size={14} className="animate-spin" />}
