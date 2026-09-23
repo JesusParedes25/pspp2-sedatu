@@ -44,6 +44,20 @@ export const unidadDe = etiquetaUnidadIndicador;
 // exacto importa (dictámenes, acuerdos, zonas metropolitanas). Para
 // indicadores de moneda se usa formatearMonedaCorta en su lugar (signo
 // $ real, no un sufijo "MXN" suelto igual que cualquier otra unidad).
+// Meta "efectiva" de un indicador para mostrar — meta_global si está
+// capturada, si no la suma de metas de sus categorías (un indicador
+// por categorías puede dejar meta_global en blanco a propósito, la
+// meta vive repartida). Solo de DISPLAY, nunca se escribe a la base
+// de datos. Reusado por TarjetaIndicador y TarjetaIndicadorGrupo para
+// que el mismo indicador no muestre "sin meta" en una vista y una
+// meta real en otra.
+function metaEfectiva(ind) {
+  const metaCategorias = ind.composicion === 'Categorias' && Array.isArray(ind.categorias)
+    ? ind.categorias.reduce((acc, c) => acc + (parseFloat(c.meta) || 0), 0)
+    : 0;
+  return parseFloat(ind.meta_global) || metaCategorias || 0;
+}
+
 export function formatoCorto(n) {
   if (n == null || isNaN(n)) return '—';
   const abs = Math.abs(n);
@@ -55,7 +69,7 @@ export function formatoCorto(n) {
 
 export default function TarjetaIndicador({ indicador, contexto = null, variante = 'normal', children, permitirEditarValor = false, onValorActualizado, enlazable = false }) {
   const [editandoValor, setEditandoValor] = useState(false);
-  const meta = parseFloat(indicador.meta_global) || 0;
+  const meta = metaEfectiva(indicador);
   const valor = parseFloat(indicador.valor_actual) || 0;
   const tieneMeta = meta > 0;
   // El % que se muestra en texto es el real, sin tope (un indicador
@@ -242,8 +256,8 @@ function TarjetaIndicadorGrupo({ grupo, variante = 'normal', permitirEditarValor
     ? parseFloat(aislado.valor_actual) || 0
     : grupo.reduce((s, i) => s + (parseFloat(i.valor_actual) || 0), 0);
   const metaMostrada = aislado
-    ? parseFloat(aislado.meta_global) || 0
-    : grupo.reduce((s, i) => s + (parseFloat(i.meta_global) || 0), 0);
+    ? metaEfectiva(aislado)
+    : grupo.reduce((s, i) => s + metaEfectiva(i), 0);
   const tieneMeta = !esPorcentaje && metaMostrada > 0;
   // Mismo criterio que TarjetaIndicador: texto sin tope, barra topada.
   const pct = tieneMeta ? (valorMostrado / metaMostrada) * 100 : null;
@@ -339,7 +353,7 @@ function TarjetaIndicadorGrupo({ grupo, variante = 'normal', permitirEditarValor
         <div className="mt-1.5 pt-1.5 border-t border-gray-100 space-y-1">
           {grupo.map(ind => {
             const v = parseFloat(ind.valor_actual) || 0;
-            const m = parseFloat(ind.meta_global) || 0;
+            const m = metaEfectiva(ind);
             const claseFila = "w-full flex items-center justify-between gap-2 text-[11px] hover:bg-gray-50 rounded px-1 -mx-1 py-0.5 transition-colors";
             const contenidoFila = (
               <>
