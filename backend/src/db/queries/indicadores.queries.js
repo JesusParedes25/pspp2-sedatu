@@ -16,6 +16,7 @@
  */
 const pool = require('../pool');
 const { calcularAvancePorcentaje } = require('../../utils/indicador-calculo');
+const { registrarActividad } = require('../../utils/actividad-log');
 
 // Válida la combinación composicion/unidad antes de crear/actualizar —
 // un indicador en Porcentaje no puede componerse de categorías: sumar
@@ -30,6 +31,56 @@ function validarComposicion(datos) {
     err.statusCode = 400;
     err.codigo = 'CATEGORIAS_PORCENTAJE';
     throw err;
+  }
+}
+
+// Valida montos y nombres de la definición del indicador — sin esto,
+// el servidor aceptaba (y persistía) una meta_global negativa, una
+// categoría con monto negativo, una categoría sin nombre, o dos
+// categorías con el mismo nombre, mostrando igual el toast de éxito.
+// La vía de aportación de nodos (aportaciones.controller.js::crear)
+// ya rechaza montos negativos desde antes — este es el hueco paralelo
+// en la definición del indicador/categorías.
+function validarDatosIndicador(datos) {
+  if (datos.meta_global !== '' && datos.meta_global != null) {
+    const metaGlobal = parseFloat(datos.meta_global);
+    if (Number.isFinite(metaGlobal) && metaGlobal < 0) {
+      const err = new Error('La meta global no puede ser negativa');
+      err.statusCode = 400;
+      err.codigo = 'META_GLOBAL_NEGATIVA';
+      throw err;
+    }
+  }
+
+  const categorias = datos.categorias || [];
+  const nombresVistos = new Set();
+  for (const cat of categorias) {
+    const nombre = (cat.nombre || '').trim();
+    if (nombre === '') {
+      const err = new Error('Cada categoría necesita un nombre');
+      err.statusCode = 400;
+      err.codigo = 'CATEGORIA_SIN_NOMBRE';
+      throw err;
+    }
+
+    const clave = nombre.toLowerCase();
+    if (nombresVistos.has(clave)) {
+      const err = new Error(`Ya existe una categoría llamada "${nombre}"`);
+      err.statusCode = 400;
+      err.codigo = 'CATEGORIA_NOMBRE_DUPLICADO';
+      throw err;
+    }
+    nombresVistos.add(clave);
+
+    if (cat.meta !== '' && cat.meta != null) {
+      const meta = parseFloat(cat.meta);
+      if (Number.isFinite(meta) && meta < 0) {
+        const err = new Error(`La meta de la categoría "${nombre}" no puede ser negativa`);
+        err.statusCode = 400;
+        err.codigo = 'CATEGORIA_META_NEGATIVA';
+        throw err;
+      }
+    }
   }
 }
 
@@ -122,6 +173,7 @@ async function obtenerPorId(indicadorId) {
 async function crear(proyectoId, datos, client = null, creadorId = null) {
   const db = client || pool;
   validarComposicion(datos);
+  validarDatosIndicador(datos);
 
   // Sanitizar campos numéricos: convertir "" a null
   const metaGlobal = datos.meta_global === '' || datos.meta_global == null ? null : parseFloat(datos.meta_global);
@@ -196,12 +248,23 @@ async function crear(proyectoId, datos, client = null, creadorId = null) {
   }
   indicador.categorias = datos.categorias || [];
 
+  await registrarActividad({
+    id_proyecto: proyectoId,
+    id_usuario: creadorId || datos.id_creador || null,
+    tipo: 'indicador',
+    titulo: `Indicador "${indicador.nombre}" creado`,
+    entidad_tipo: 'Indicador',
+    entidad_id: indicador.id,
+    client: client || undefined,
+  });
+
   return indicador;
 }
 
 // Actualiza un indicador y sincroniza sus metas/periodos por diff.
-async function actualizar(indicadorId, datos) {
+async function actualizar(indicadorId, datos, idUsuario = null) {
   validarComposicion(datos);
+  validarDatosIndicador(datos);
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -306,6 +369,16 @@ async function actualizar(indicadorId, datos) {
     }
 
     await client.query('COMMIT');
+
+    await registrarActividad({
+      id_proyecto: resultado.rows[0].id_proyecto,
+      id_usuario: idUsuario,
+      tipo: 'indicador',
+      titulo: `Indicador "${resultado.rows[0].nombre}" actualizado`,
+      entidad_tipo: 'Indicador',
+      entidad_id: indicadorId,
+    });
+
     return resultado.rows[0];
   } catch (err) {
     await client.query('ROLLBACK');
@@ -316,12 +389,23 @@ async function actualizar(indicadorId, datos) {
 }
 
 // Elimina (soft) un indicador
-async function eliminar(indicadorId) {
+async function eliminar(indicadorId, idUsuario = null) {
   const resultado = await pool.query(`
     UPDATE indicadores SET activo = false, updated_at = NOW()
-    WHERE id = $1 RETURNING id
+    WHERE id = $1 RETURNING id, id_proyecto, nombre
   `, [indicadorId]);
-  return resultado.rows[0] || null;
+  const fila = resultado.rows[0];
+  if (fila) {
+    await registrarActividad({
+      id_proyecto: fila.id_proyecto,
+      id_usuario: idUsuario,
+      tipo: 'indicador',
+      titulo: `Indicador "${fila.nombre}" eliminado`,
+      entidad_tipo: 'Indicador',
+      entidad_id: fila.id,
+    });
+  }
+  return fila || null;
 }
 
 // Lista indicadores de una etapa: propios (id_etapa) + asociados via indicador_aportaciones
@@ -573,7 +657,7 @@ async function listarPublicables(filtros = {}) {
 // una fila de indicador_metas_anuales, id_categoria una de
 // indicador_categorias, mismo shape de UPDATE-por-id y rollup por SUM
 // para ambas.
-async function establecerValorManual(indicadorId, { valor, id_periodo, id_categoria }) {
+async function establecerValorManual(indicadorId, { valor, id_periodo, id_categoria }, idUsuario = null) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -668,6 +752,16 @@ async function establecerValorManual(indicadorId, { valor, id_periodo, id_catego
 
     const { rows: [actualizado] } = await client.query('SELECT * FROM indicadores WHERE id = $1', [indicadorId]);
     await client.query('COMMIT');
+
+    await registrarActividad({
+      id_proyecto: actualizado.id_proyecto,
+      id_usuario: idUsuario,
+      tipo: 'indicador',
+      titulo: `Valor capturado para "${actualizado.nombre}"`,
+      entidad_tipo: 'Indicador',
+      entidad_id: indicadorId,
+    });
+
     return actualizado;
   } catch (err) {
     await client.query('ROLLBACK');

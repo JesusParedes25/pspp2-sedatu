@@ -20,6 +20,7 @@ const {
 } = require('../utils/autorizacion');
 const permisosQueries = require('../db/queries/permisos.queries');
 const indicadoresQueries = require('../db/queries/indicadores.queries');
+const inicioQueries = require('../db/queries/inicio.queries');
 const miembrosQueries = require('../db/queries/miembros.queries');
 const pool = require('../db/pool');
 const { cambiarEstado: cambiarEstadoUtil } = require('../utils/validaciones-estado');
@@ -477,4 +478,20 @@ async function misPermisos(req, res, next) {
   }
 }
 
-module.exports = { listar, obtenerPorId, crear, duplicar, actualizar, eliminar, listarEliminados, restaurar, eliminarDefinitivamente, obtenerDGs, agregarDG, eliminarDG, obtenerEtiquetas, subirImagen, servirImagen, misPermisos };
+// GET /proyectos/:id/actividad-reciente — bitácora del proyecto
+// (actividad_log, migración 031), a diferencia del panel anterior que
+// leía notificaciones: esas excluyen a quien disparó el evento
+// (notificarEquipoProyecto avisa a los DEMÁS miembros, no al actor), así
+// que un usuario nunca veía sus propios cambios ahí. actividad_log no
+// tiene ese problema — mismo query que ya usa el widget de Tablero
+// (obtenerActividadReciente), aquí acotado a un solo proyecto.
+async function actividadReciente(req, res, next) {
+  try {
+    const datos = await inicioQueries.obtenerActividadReciente([req.params.id]);
+    res.json({ datos });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { listar, obtenerPorId, crear, duplicar, actualizar, eliminar, listarEliminados, restaurar, eliminarDefinitivamente, obtenerDGs, agregarDG, eliminarDG, obtenerEtiquetas, subirImagen, servirImagen, misPermisos, actividadReciente };

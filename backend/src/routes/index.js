@@ -212,6 +212,7 @@ router.get('/proyectos/:id/indicadores/resumen', indicadoresController.resumenCo
 
 // Estadísticas del proyecto (para el resumen/dashboard)
 router.get('/proyectos/:id/stats', proyectosStatsController.obtenerStats);
+router.get('/proyectos/:id/actividad-reciente', proyectosController.actividadReciente);
 
 // Conteo de descendientes (para confirm de cancelación en cascada)
 router.get('/conteo-descendientes', estadoController.conteoDescendientes);

@@ -135,6 +135,30 @@ async function obtenerActividadReciente(proyectoId) {
       ORDER BY e.created_at DESC
       LIMIT 5
     )
+    UNION ALL
+    (
+      -- Cambios a indicadores (crear/editar/eliminar, valor capturado,
+      -- nodos vinculados/desvinculados) — bitácora real vía actividad_log
+      -- (migración 031), a diferencia de comentarios/evidencias arriba
+      -- que se leen directo de su tabla legacy. Se usa "titulo" como
+      -- descripción porque ya trae el resumen legible del evento
+      -- ("Indicador \"X\" actualizado"); "descripcion" queda vacío en
+      -- la mayoría de estos eventos.
+      SELECT
+        'indicador' AS tipo,
+        al.created_at,
+        u.nombre_completo AS actor,
+        dg.siglas AS actor_dg,
+        al.titulo AS descripcion,
+        'Indicador' AS entidad_tipo,
+        al.entidad_id
+      FROM actividad_log al
+      LEFT JOIN usuarios u ON u.id = al.id_usuario
+      LEFT JOIN direcciones_generales dg ON dg.id = u.id_dg
+      WHERE al.id_proyecto = $1 AND al.entidad_tipo = 'Indicador'
+      ORDER BY al.created_at DESC
+      LIMIT 5
+    )
     ORDER BY created_at DESC
     LIMIT 10
   `, [proyectoId]);

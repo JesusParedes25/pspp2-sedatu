@@ -103,6 +103,14 @@ export async function obtenerEtiquetasProyecto(id) {
   return data;
 }
 
+// Bitácora real del proyecto (actividad_log) — a diferencia de las
+// notificaciones, aquí SÍ aparecen los cambios hechos por el propio
+// usuario que los generó (notificarEquipoProyecto excluye al actor).
+export async function obtenerActividadRecienteProyecto(id) {
+  const { data } = await client.get(`/proyectos/${id}/actividad-reciente`);
+  return data.datos;
+}
+
 export async function subirImagenProyecto(id, archivo) {
   const formData = new FormData();
   formData.append('imagen', archivo);
