@@ -85,8 +85,17 @@ export default function CamposIndicadorProyecto({ indicador, onCambio, mostrarDe
     } else if (modo === 'periodos') {
       const patch = { temporalidad: 'Anual', composicion: 'Simple' };
       if (indicador.metas_anuales.length === 0) {
+        // Un indicador que nació Global nunca tuvo anio_inicio/anio_fin
+        // — generar con ambos en null producía una fila fantasma sin
+        // año ni etiqueta (se veía como un ":" suelto). Mismo default
+        // que ya usa indicadorProyectoVacio() para uno nuevo.
+        const anioActual = new Date().getFullYear();
+        const inicio = indicador.anio_inicio ?? anioActual;
+        const fin = indicador.anio_fin ?? anioActual;
+        patch.anio_inicio = inicio;
+        patch.anio_fin = fin;
         const generar = GENERADOR_POR_UNIDAD_PERIODO[unidadPeriodo] || calcularMetasAnuales;
-        patch.metas_anuales = generar(indicador.anio_inicio, indicador.anio_fin);
+        patch.metas_anuales = generar(inicio, fin);
       }
       onCambio(patch);
     } else {
@@ -211,7 +220,7 @@ export default function CamposIndicadorProyecto({ indicador, onCambio, mostrarDe
       <div>
         <label className="block text-xs font-medium text-gray-600 mb-1">Meta global (opcional)</label>
         <input type="number" step="any" value={indicador.meta_global} onChange={e => onCambio({ meta_global: e.target.value })}
-          className="input-base text-sm" placeholder={indicador.unidad === 'Porcentaje' ? '100' : indicador.unidad === 'Moneda_MXN' ? '150000000' : '500'} />
+          className="input-base text-sm" placeholder={indicador.unidad === 'Porcentaje' ? '100' : indicador.unidad === 'Moneda_MXN' ? 'Ej. 1,500,000' : '500'} />
       </div>
 
       <div>

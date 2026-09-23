@@ -175,6 +175,11 @@ export default function SelectorIndicadorCatalogo({ onElegir, onCerrar, yaUsados
                   );
                 })}
               </div>
+              {!busqueda && catalogo.length >= 50 && (
+                <p className="text-[11px] text-gray-400 text-center -mt-1">
+                  Mostrando los primeros 50 — escribe para buscar entre todos.
+                </p>
+              )}
 
               <button
                 type="button"

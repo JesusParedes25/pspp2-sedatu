@@ -75,6 +75,14 @@ async function buscarSimilares(nombre, excluirId = null) {
 // Lista el catálogo. `usos` dice en cuántos proyectos se está usando —
 // es el dato que necesita quien administra para saber si puede retirar
 // una entrada sin dejar a nadie colgado.
+// La versión anterior traía "usos"/"dgs" con dos subconsultas
+// correlacionadas por fila — baratas una por una, pero ejecutadas para
+// CADA entrada del catálogo en la carga inicial (sin filtro) hacían
+// perceptible el ~2s de apertura del selector. Un solo LEFT JOIN +
+// GROUP BY resuelve lo mismo en una pasada. `p.id IS NOT NULL` filtra
+// dentro del COUNT/array_agg en vez de en el WHERE — un WHERE ahí
+// convertiría el LEFT JOIN en un INNER JOIN de facto y excluiría del
+// resultado las entradas del catálogo sin ningún proyecto vinculado.
 async function listar({ busqueda, incluirInactivos = false } = {}) {
   const condiciones = [];
   const valores = [];
@@ -84,26 +92,28 @@ async function listar({ busqueda, incluirInactivos = false } = {}) {
     condiciones.push(`(c.nombre ILIKE $${valores.length} OR c.clave ILIKE $${valores.length})`);
   }
   const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
+  // Sin texto de búsqueda, un tope evita traer + agregar el catálogo
+  // completo de una sola vez — con texto ya viene acotado por el
+  // ILIKE, no hace falta.
+  const limite = busqueda ? '' : 'LIMIT 50';
 
   const { rows } = await pool.query(`
     SELECT c.*,
       u.nombre_completo AS creador_nombre,
-      (SELECT COUNT(DISTINCT i.id_proyecto)
-         FROM indicadores i
-         JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL
-        WHERE i.id_catalogo = c.id) AS usos,
+      COUNT(DISTINCT CASE WHEN p.id IS NOT NULL THEN i.id_proyecto END) AS usos,
       -- DGs que lo usan, para el resumen en línea de la fila colapsada
       -- ("3 proyectos · DGOTU, DGPV") — evita un GET /uso por cada fila
       -- solo para mostrar ese resumen.
-      (SELECT COALESCE(array_agg(DISTINCT dg.siglas ORDER BY dg.siglas) FILTER (WHERE dg.siglas IS NOT NULL), ARRAY[]::text[])
-         FROM indicadores i
-         JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL
-         LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
-        WHERE i.id_catalogo = c.id) AS dgs
+      COALESCE(array_agg(DISTINCT dg.siglas ORDER BY dg.siglas) FILTER (WHERE dg.siglas IS NOT NULL), ARRAY[]::text[]) AS dgs
     FROM catalogo_indicadores c
     LEFT JOIN usuarios u ON u.id = c.creado_por
+    LEFT JOIN indicadores i ON i.id_catalogo = c.id
+    LEFT JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL
+    LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
     ${where}
+    GROUP BY c.id, u.nombre_completo
     ORDER BY c.activo DESC, c.nombre
+    ${limite}
   `, valores);
 
   return rows.map(r => ({ ...r, usos: parseInt(r.usos, 10) || 0 }));

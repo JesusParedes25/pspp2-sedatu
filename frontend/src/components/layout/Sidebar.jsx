@@ -122,12 +122,16 @@ function hijosDe(item) {
   return [];
 }
 
-function childActivo(child, pathname, searchParams) {
+function childActivo(child, pathname, searchParams, base) {
   const key = child.paramKey || 'tab';
   const valorUrl = searchParams.get(key);
   if (valorUrl) return valorUrl === child.param;
   if (child.esRutaPropia) return pathname === child.to.split('?')[0];
-  return !!child.default;
+  // Sin query param en la URL, el fallback "default" solo aplica en la
+  // página base exacta (la lista) — no en cualquier ruta anidada bajo
+  // ella (ej. /proyectos/:id), donde ningún sub-ítem de la lista debe
+  // quedar resaltado.
+  return pathname === base && !!child.default;
 }
 
 export default function Sidebar({ pendientesNotificaciones = 0 }) {
@@ -271,12 +275,12 @@ export default function Sidebar({ pendientesNotificaciones = 0 }) {
                         <div key={grupo.titulo}>
                           <p className="px-2.5 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/40">{grupo.titulo}</p>
                           {grupo.children.map(child => (
-                            <SubItem key={child.to} child={child} activo={childActivo(child, location.pathname, searchParams)} />
+                            <SubItem key={child.to} child={child} activo={childActivo(child, location.pathname, searchParams, item.base)} />
                           ))}
                         </div>
                       ))
                     : item.children.map(child => (
-                        <SubItem key={child.to} child={child} activo={childActivo(child, location.pathname, searchParams)} />
+                        <SubItem key={child.to} child={child} activo={childActivo(child, location.pathname, searchParams, item.base)} />
                       ))}
                 </div>
               )}
