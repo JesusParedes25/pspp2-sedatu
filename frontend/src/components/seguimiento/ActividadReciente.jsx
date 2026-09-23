@@ -15,18 +15,23 @@
 import { useState, useEffect } from 'react';
 import {
   TrendingUp, FileText, AlertTriangle, MessageSquare,
-  CheckCircle, Clock, User, Shield
+  CheckCircle, Clock, User, Shield, BarChart3
 } from 'lucide-react';
-import * as notificacionesApi from '../../api/notificaciones';
+import * as proyectosApi from '../../api/proyectos';
 
+// Claves en minúscula: coinciden con el `tipo` real que escribe cada
+// call-site de registrarActividad (actividad_log) — antes este mapa
+// comparaba contra `notificaciones.tipo` (capitalizado), fuente que
+// este componente ya no usa.
 const iconosPorTipo = {
-  Avance:       { icono: TrendingUp,    color: 'bg-blue-100 text-blue-500' },
-  Evidencia:    { icono: FileText,       color: 'bg-green-100 text-green-500' },
-  Riesgo:       { icono: AlertTriangle,  color: 'bg-orange-100 text-orange-500' },
-  Comentario:   { icono: MessageSquare,  color: 'bg-purple-100 text-purple-500' },
-  Completada:   { icono: CheckCircle,    color: 'bg-green-100 text-green-600' },
-  Estado:       { icono: Clock,          color: 'bg-yellow-100 text-yellow-600' },
-  Mitigacion:   { icono: Shield,         color: 'bg-blue-100 text-blue-600' },
+  avance:       { icono: TrendingUp,    color: 'bg-blue-100 text-blue-500' },
+  evidencia:    { icono: FileText,       color: 'bg-green-100 text-green-500' },
+  riesgo:       { icono: AlertTriangle,  color: 'bg-orange-100 text-orange-500' },
+  comentario:   { icono: MessageSquare,  color: 'bg-purple-100 text-purple-500' },
+  estado:       { icono: Clock,          color: 'bg-yellow-100 text-yellow-600' },
+  miembro:      { icono: Shield,         color: 'bg-blue-100 text-blue-600' },
+  indicador:    { icono: BarChart3,      color: 'bg-teal-100 text-teal-600' },
+  creacion:     { icono: CheckCircle,    color: 'bg-green-100 text-green-600' },
   General:      { icono: User,           color: 'bg-gray-100 text-gray-500' },
 };
 
@@ -54,15 +59,13 @@ export default function ActividadReciente({ proyectoId }) {
 
     async function cargar() {
       try {
-        // Usa las notificaciones del usuario como fuente de actividad
-        const res = await notificacionesApi.obtenerNotificaciones();
-        // La respuesta es { datos: { notificaciones: [...], no_leidas: N } }
-        const todas = res.datos?.notificaciones || res.datos || [];
-        // Filtrar solo las del proyecto actual si es posible
-        const filtradas = Array.isArray(todas)
-          ? todas.filter(n => n.proyecto_id === proyectoId || n.entidad_id === proyectoId)
-          : [];
-        setActividades(filtradas);
+        // actividad_log (bitácora real del proyecto) en vez de
+        // notificaciones: notificarEquipoProyecto excluye a quien
+        // disparó el evento, así que un usuario nunca veía sus
+        // propios cambios aquí — ya viene filtrado por proyecto,
+        // sin necesitar el filtro client-side de antes.
+        const datos = await proyectosApi.obtenerActividadRecienteProyecto(proyectoId);
+        setActividades(Array.isArray(datos) ? datos : []);
       } catch (err) {
         console.error('Error cargando actividad:', err);
         setActividades([]);
@@ -119,12 +122,12 @@ export default function ActividadReciente({ proyectoId }) {
               {/* Contenido */}
               <div className="flex-1 min-w-0 pt-1">
                 <p className="text-sm text-gray-800">{actividad.titulo}</p>
-                {actividad.mensaje && (
-                  <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{actividad.mensaje}</p>
+                {actividad.descripcion && (
+                  <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{actividad.descripcion}</p>
                 )}
                 <div className="flex items-center gap-2 mt-1">
-                  {actividad.autor_nombre && (
-                    <span className="text-xs text-gray-400">{actividad.autor_nombre}</span>
+                  {actividad.actor && (
+                    <span className="text-xs text-gray-400">{actividad.actor}</span>
                   )}
                   <span className="text-xs text-gray-300">{fechaRelativa(actividad.created_at)}</span>
                 </div>

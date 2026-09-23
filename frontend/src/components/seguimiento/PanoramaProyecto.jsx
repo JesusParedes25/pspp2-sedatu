@@ -5,6 +5,7 @@
  *  Vencidos/por vencer, Riesgos, Actividad reciente.
  */
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Users, UserPlus, Target, MapPin, AlertTriangle, Clock, Activity,
   TrendingUp, Calendar, Shield, ChevronRight, X, Trash2, Search, Loader2, MessageSquare, Layers,
@@ -385,25 +386,54 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
       {actividad.length > 0 && (
         <SeccionCard titulo="Actividad reciente" icono={Activity}>
           <ul className="space-y-3">
-            {actividad.slice(0, 10).map((ev, i) => (
-              <li key={i}>
-                <button onClick={() => onNavegarNodo?.(ev.entidad_id)} className="w-full flex items-start gap-2.5 text-left p-1 -m-1 rounded hover:bg-purple-50 transition-colors">
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    ev.tipo === 'comentario' ? 'bg-purple-100 text-purple-600' : 'bg-green-100 text-green-600'
-                  }`}>
-                    {ev.tipo === 'comentario' ? <Activity size={12} /> : <TrendingUp size={12} />}
+            {actividad.slice(0, 10).map((ev, i) => {
+              const icono = ev.tipo === 'comentario' ? <Activity size={12} />
+                : ev.tipo === 'indicador' ? <Target size={12} />
+                : <TrendingUp size={12} />;
+              const color = ev.tipo === 'comentario' ? 'bg-purple-100 text-purple-600'
+                : ev.tipo === 'indicador' ? 'bg-teal-100 text-teal-600'
+                : 'bg-green-100 text-green-600';
+              const etiqueta = ev.tipo === 'comentario' ? 'comentó'
+                : ev.tipo === 'indicador' ? null // el título ya es la oración completa
+                : 'subió evidencia';
+              const contenido = (
+                <>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${color}`}>
+                    {icono}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-gray-800">
-                      <span className="font-medium">{ev.actor}</span>
-                      {' '}<span className="text-gray-500">{ev.tipo === 'comentario' ? 'comentó' : 'subió evidencia'}:</span>
-                      {' '}<span className="text-gray-700 truncate">{ev.descripcion?.slice(0, 80)}</span>
+                      {etiqueta ? (
+                        <>
+                          <span className="font-medium">{ev.actor}</span>
+                          {' '}<span className="text-gray-500">{etiqueta}:</span>
+                          {' '}<span className="text-gray-700 truncate">{ev.descripcion?.slice(0, 80)}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-gray-700 truncate">{ev.descripcion?.slice(0, 80)}</span>
+                          {' '}<span className="text-gray-500">· {ev.actor}</span>
+                        </>
+                      )}
                     </p>
                     <p className="text-[11px] text-gray-400 mt-0.5">{rel(ev.created_at)}</p>
                   </div>
-                </button>
-              </li>
-            ))}
+                </>
+              );
+              return (
+                <li key={i}>
+                  {ev.tipo === 'indicador' ? (
+                    <Link to={`/indicadores/${ev.entidad_id}`} className="w-full flex items-start gap-2.5 text-left p-1 -m-1 rounded hover:bg-purple-50 transition-colors">
+                      {contenido}
+                    </Link>
+                  ) : (
+                    <button onClick={() => onNavegarNodo?.(ev.entidad_id)} className="w-full flex items-start gap-2.5 text-left p-1 -m-1 rounded hover:bg-purple-50 transition-colors">
+                      {contenido}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </SeccionCard>
       )}

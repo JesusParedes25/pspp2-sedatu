@@ -3,6 +3,18 @@
  * PROPÓSITO: Controlador REST para aportaciones de nodos a indicadores.
  */
 const aportacionesQueries = require('../db/queries/aportaciones.queries');
+const pool = require('../db/pool');
+const { registrarActividad } = require('../utils/actividad-log');
+
+// Resuelve id_proyecto/nombre del indicador dueño de una aportación —
+// necesario para la bitácora (actividad_log requiere id_proyecto), ya
+// que la fila de indicador_aportaciones no lo trae directo.
+async function proyectoDelIndicador(idIndicador) {
+  const { rows: [ind] } = await pool.query(
+    'SELECT id_proyecto, nombre FROM indicadores WHERE id = $1', [idIndicador]
+  );
+  return ind || null;
+}
 
 // GET /indicadores/:id/aportaciones
 async function listar(req, res, next) {
@@ -56,6 +68,19 @@ async function crear(req, res, next) {
     // ya tenía avance, en modo proporcional), sin esto el indicador se
     // queda en 0 hasta el próximo cambio de estado de cualquier otro nodo.
     await aportacionesQueries.recalcularUnIndicador(aportacion.id_indicador);
+
+    const ind = await proyectoDelIndicador(aportacion.id_indicador);
+    if (ind) {
+      await registrarActividad({
+        id_proyecto: ind.id_proyecto,
+        id_usuario: req.usuario?.id || null,
+        tipo: 'indicador',
+        titulo: `Nodo vinculado a "${ind.nombre}"`,
+        entidad_tipo: 'Indicador',
+        entidad_id: aportacion.id_indicador,
+      });
+    }
+
     res.status(201).json({ datos: aportacion, mensaje: 'Aportación creada' });
   } catch (err) {
     if (err.codigo === 'YA_VINCULADO') {
@@ -80,6 +105,19 @@ async function actualizar(req, res, next) {
     const aportacion = await aportacionesQueries.actualizar(req.params.id, mapped);
     if (!aportacion) return res.status(404).json({ error: true, mensaje: 'Aportación no encontrada' });
     await aportacionesQueries.recalcularUnIndicador(aportacion.id_indicador);
+
+    const ind = await proyectoDelIndicador(aportacion.id_indicador);
+    if (ind) {
+      await registrarActividad({
+        id_proyecto: ind.id_proyecto,
+        id_usuario: req.usuario?.id || null,
+        tipo: 'indicador',
+        titulo: `Aportación editada en "${ind.nombre}"`,
+        entidad_tipo: 'Indicador',
+        entidad_id: aportacion.id_indicador,
+      });
+    }
+
     res.json({ datos: aportacion, mensaje: 'Aportación actualizada' });
   } catch (err) { next(err); }
 }
@@ -90,6 +128,19 @@ async function eliminar(req, res, next) {
     const resultado = await aportacionesQueries.eliminar(req.params.id);
     if (!resultado) return res.status(404).json({ error: true, mensaje: 'Aportación no encontrada' });
     await aportacionesQueries.recalcularUnIndicador(resultado.id_indicador);
+
+    const ind = await proyectoDelIndicador(resultado.id_indicador);
+    if (ind) {
+      await registrarActividad({
+        id_proyecto: ind.id_proyecto,
+        id_usuario: req.usuario?.id || null,
+        tipo: 'indicador',
+        titulo: `Nodo desvinculado de "${ind.nombre}"`,
+        entidad_tipo: 'Indicador',
+        entidad_id: resultado.id_indicador,
+      });
+    }
+
     res.json({ mensaje: 'Aportación eliminada' });
   } catch (err) { next(err); }
 }

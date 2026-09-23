@@ -29,6 +29,7 @@ import ChipAportacion from '../../components/indicadores/ChipAportacion';
 import ModalVincularIndicador from '../../components/indicadores/ModalVincularIndicador';
 import GraficaIndicador from '../../components/indicadores/GraficaIndicador';
 import ListaCategoriasEditable from '../../components/indicadores/ListaCategoriasEditable';
+import ConfirmDialog from '../../components/common/ConfirmDialog';
 import { usarCapturaValorIndicador } from '../../hooks/usarCapturaValorIndicador';
 import { usarCapturaCategorias } from '../../hooks/usarCapturaCategorias';
 import { formatearMoneda } from '../../utils/formatoMoneda';
@@ -123,7 +124,7 @@ export default function DetalleIndicador() {
         </p>
       </div>
 
-      <SeccionDefinicion indicador={indicador} onGuardado={cargar} mostrarToast={mostrarToast} />
+      <SeccionDefinicion indicador={indicador} aportaciones={aportaciones} onGuardado={cargar} mostrarToast={mostrarToast} />
 
       {indicador.composicion === 'Categorias' ? (
         <SeccionCategorias indicador={indicador} aportaciones={aportaciones} onGuardado={cargar} mostrarToast={mostrarToast} />
@@ -154,15 +155,16 @@ export default function DetalleIndicador() {
   );
 }
 
-function SeccionDefinicion({ indicador, onGuardado, mostrarToast }) {
+function SeccionDefinicion({ indicador, aportaciones, onGuardado, mostrarToast }) {
   const [datos, setDatos] = useState(() => datosEditables(indicador));
   const [guardando, setGuardando] = useState(false);
+  const [categoriasABorrar, setCategoriasABorrar] = useState(null);
 
   // Si se recarga el indicador (tras guardar, o tras un cambio hecho
   // desde otra pantalla), el formulario se resincroniza con lo real.
   useEffect(() => { setDatos(datosEditables(indicador)); }, [indicador]);
 
-  async function guardar() {
+  async function guardarDeVerdad() {
     setGuardando(true);
     try {
       await indicadoresApi.actualizarIndicador(indicador.id, {
@@ -190,6 +192,26 @@ function SeccionDefinicion({ indicador, onGuardado, mostrarToast }) {
     }
   }
 
+  // El diff-upsert del backend (actualizar()) borra cualquier categoría
+  // cuyo "id" ya no venga en el arreglo entrante — sus aportaciones
+  // sobreviven con id_categoria=NULL (ON DELETE SET NULL, migración 072)
+  // y quedan bajo "Sin categoría asignada", el total no cambia. El dato
+  // resultante ya es correcto; lo que faltaba era avisar ANTES de que
+  // pase, ya que hoy desaparece de la lista sin aviso.
+  function guardar() {
+    const idsEntrantes = new Set((datos.categorias || []).filter(c => c.id).map(c => c.id));
+    const categoriasEliminadas = (indicador.categorias || []).filter(c => !idsEntrantes.has(c.id));
+    const afectadas = categoriasEliminadas
+      .map(cat => ({ cat, nAportaciones: (aportaciones || []).filter(a => a.id_categoria === cat.id).length }))
+      .filter(x => x.nAportaciones > 0);
+
+    if (afectadas.length > 0) {
+      setCategoriasABorrar(afectadas);
+      return;
+    }
+    guardarDeVerdad();
+  }
+
   return (
     <section className="bg-white border border-gray-200 rounded-xl p-4">
       <h2 className="text-sm font-semibold text-gray-900 mb-3">Definición</h2>
@@ -199,6 +221,21 @@ function SeccionDefinicion({ indicador, onGuardado, mostrarToast }) {
           {guardando ? 'Guardando...' : 'Guardar'}
         </button>
       </div>
+
+      <ConfirmDialog
+        abierto={!!categoriasABorrar}
+        variante="neutral"
+        titulo="Categoría con nodos vinculados"
+        mensaje={categoriasABorrar ? (
+          categoriasABorrar.length === 1
+            ? `La categoría "${categoriasABorrar[0].cat.nombre}" tiene ${categoriasABorrar[0].nAportaciones} nodo(s) vinculado(s). Al eliminarla, esos nodos quedarán como "Sin categoría asignada" — el total del indicador no cambia.`
+            : `Las categorías ${categoriasABorrar.map(x => `"${x.cat.nombre}"`).join(', ')} tienen nodos vinculados. Al eliminarlas, esos nodos quedarán como "Sin categoría asignada" — el total del indicador no cambia.`
+        ) : ''}
+        textoConfirmar="Eliminar de todos modos"
+        textoCancelar="Cancelar"
+        onConfirmar={() => { setCategoriasABorrar(null); guardarDeVerdad(); }}
+        onCancelar={() => setCategoriasABorrar(null)}
+      />
     </section>
   );
 }

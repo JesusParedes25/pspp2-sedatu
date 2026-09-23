@@ -246,7 +246,8 @@ async function obtenerActividadReciente(proyectoIds) {
       COALESCE(et_directa.nombre, et_via_accion.nombre, et_via_tarea.nombre) AS etapa_nombre,
       COALESCE(ac_directa.nombre, ac_via_tarea.nombre) AS accion_nombre,
       ac_padre.nombre AS accion_padre_nombre,
-      t_directa.nombre AS tarea_nombre
+      t_directa.nombre AS tarea_nombre,
+      ind.nombre AS indicador_nombre
     FROM actividad_log al
     JOIN proyectos p ON p.id = al.id_proyecto
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
@@ -258,6 +259,7 @@ async function obtenerActividadReciente(proyectoIds) {
     LEFT JOIN tareas t_directa ON al.entidad_tipo = 'Tarea' AND t_directa.id = al.entidad_id
     LEFT JOIN acciones ac_via_tarea ON ac_via_tarea.id = t_directa.id_accion
     LEFT JOIN etapas et_via_tarea ON et_via_tarea.id = ac_via_tarea.id_etapa
+    LEFT JOIN indicadores ind ON al.entidad_tipo = 'Indicador' AND ind.id = al.entidad_id
     WHERE al.id_proyecto = ANY($1)
     ORDER BY al.created_at DESC
     LIMIT 50

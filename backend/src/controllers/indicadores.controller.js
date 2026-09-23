@@ -88,7 +88,7 @@ async function crear(req, res, next) {
 // PUT /indicadores/:id
 async function actualizar(req, res, next) {
   try {
-    const indicador = await indicadoresQueries.actualizar(req.params.id, req.body);
+    const indicador = await indicadoresQueries.actualizar(req.params.id, req.body, req.usuario?.id);
     if (!indicador) {
       return res.status(404).json({ error: true, mensaje: 'Indicador no encontrado' });
     }
@@ -131,10 +131,26 @@ async function eliminar(req, res, next) {
 
     // Hard delete so FK ON DELETE CASCADE cleans up aportaciones + metas + categorías
     if (nAport > 0 || nMetas > 0 || nCategorias > 0) {
+      // Capturar id_proyecto/nombre ANTES de borrar — la bitácora
+      // (actividad_log.entidad_id) no tiene FK, así que registrar
+      // después del hard-delete no rompe nada, pero el mensaje sí
+      // necesita el nombre mientras la fila todavía existe.
+      const { rows: [previo] } = await pool.query('SELECT id_proyecto, nombre FROM indicadores WHERE id = $1', [id]);
       const del = await pool.query('DELETE FROM indicadores WHERE id = $1 RETURNING id', [id]);
       if (!del.rows[0]) return res.status(404).json({ error: true, mensaje: 'Indicador no encontrado' });
+      if (previo) {
+        const { registrarActividad } = require('../utils/actividad-log');
+        await registrarActividad({
+          id_proyecto: previo.id_proyecto,
+          id_usuario: req.usuario?.id || null,
+          tipo: 'indicador',
+          titulo: `Indicador "${previo.nombre}" eliminado`,
+          entidad_tipo: 'Indicador',
+          entidad_id: id,
+        });
+      }
     } else {
-      const resultado = await indicadoresQueries.eliminar(id);
+      const resultado = await indicadoresQueries.eliminar(id, req.usuario?.id);
       if (!resultado) return res.status(404).json({ error: true, mensaje: 'Indicador no encontrado' });
     }
     res.json({ mensaje: 'Indicador eliminado' });
@@ -191,7 +207,7 @@ async function establecerValor(req, res, next) {
       valor: parseFloat(valor),
       id_periodo: id_periodo || null,
       id_categoria: id_categoria || null,
-    });
+    }, req.usuario?.id);
     res.json({ datos, mensaje: 'Valor guardado' });
   } catch (err) {
     if (err.statusCode) {
