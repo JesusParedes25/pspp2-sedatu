@@ -36,7 +36,8 @@ export function indicadorProyectoVacio() {
     unidad_personalizada: '',
     meta_global: '', temporalidad: 'Global', unidad_periodo: 'Anio',
     anio_inicio: anio, anio_fin: anio,
-    metas_anuales: [], descripcion: '', _abierto: true,
+    metas_anuales: [], composicion: 'Simple', tipo_grafico: 'barras',
+    categorias: [], descripcion: '', _abierto: true,
   };
 }
 
@@ -71,6 +72,13 @@ export function calcularMetasSexenio(inicio, fin, existentes = []) {
 // año calendario real, el usuario define su propia etiqueta.
 export function nuevoPeriodoPersonalizado() {
   return { anio: null, etiqueta: '', meta: '' };
+}
+
+// Fila en blanco para "+ agregar categoría" — un indicador por
+// categorías (composicion='Categorias') es una lista de nombres libres
+// que suman al total, sin año/periodo asociado en esta versión.
+export function nuevaCategoria() {
+  return { nombre: '', meta: '' };
 }
 
 // Valor por defecto inteligente al ARMAR un indicador nuevo a partir de

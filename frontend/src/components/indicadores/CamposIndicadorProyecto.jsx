@@ -22,14 +22,28 @@
 import { X } from 'lucide-react';
 import {
   TIPOS_INDICADOR, UNIDADES_INDICADOR,
-  calcularMetasAnuales, calcularMetasSexenio, nuevoPeriodoPersonalizado,
+  calcularMetasAnuales, calcularMetasSexenio, nuevoPeriodoPersonalizado, nuevaCategoria,
 } from '../../utils/tiposIndicador';
 
 const GENERADOR_POR_UNIDAD_PERIODO = { Anio: calcularMetasAnuales, Sexenio: calcularMetasSexenio };
 
+// El radio de arriba es uno solo con 3 opciones (en vez de "Temporalidad"
+// cruzado con "¿Cómo se compone?" por separado) porque, siendo
+// excluyentes por diseño, dos radios independientes generarían una 4ª
+// combinación inválida (Anual + Categorías) que habría que bloquear a
+// mano — con una sola opción elegida a la vez no hay estado inválido
+// que prevenir.
+function modoDesgloseDe(indicador) {
+  if (indicador.composicion === 'Categorias') return 'categorias';
+  if (indicador.temporalidad === 'Anual') return 'periodos';
+  return 'simple';
+}
+
 export default function CamposIndicadorProyecto({ indicador, onCambio, mostrarDescripcion = true }) {
   const esDeCatalogo = !!indicador.id_catalogo;
   const unidadPeriodo = indicador.unidad_periodo || 'Anio';
+  const esPorcentaje = indicador.unidad === 'Porcentaje';
+  const modoDesglose = modoDesgloseDe(indicador);
   const etiquetaTipo = TIPOS_INDICADOR.find(t => t.valor === indicador.tipo)?.etiqueta || indicador.tipo;
   const etiquetaUnidad = indicador.unidad === 'Porcentaje' ? '%'
     : indicador.unidad === 'Moneda_MXN' ? '$ MXN'
@@ -65,13 +79,25 @@ export default function CamposIndicadorProyecto({ indicador, onCambio, mostrarDe
     });
   }
 
-  function elegirTemporalidad(valor) {
-    const patch = { temporalidad: valor };
-    if (valor === 'Anual' && indicador.metas_anuales.length === 0) {
-      const generar = GENERADOR_POR_UNIDAD_PERIODO[unidadPeriodo] || calcularMetasAnuales;
-      patch.metas_anuales = generar(indicador.anio_inicio, indicador.anio_fin);
+  function elegirModoDesglose(modo) {
+    if (modo === 'simple') {
+      onCambio({ temporalidad: 'Global', composicion: 'Simple' });
+    } else if (modo === 'periodos') {
+      const patch = { temporalidad: 'Anual', composicion: 'Simple' };
+      if (indicador.metas_anuales.length === 0) {
+        const generar = GENERADOR_POR_UNIDAD_PERIODO[unidadPeriodo] || calcularMetasAnuales;
+        patch.metas_anuales = generar(indicador.anio_inicio, indicador.anio_fin);
+      }
+      onCambio(patch);
+    } else {
+      const patch = { temporalidad: 'Global', composicion: 'Categorias' };
+      if (!indicador.categorias || indicador.categorias.length === 0) {
+        // Arranca con 2 filas en blanco: una sola "categoría" no es una
+        // categorización.
+        patch.categorias = [nuevaCategoria(), nuevaCategoria()];
+      }
+      onCambio(patch);
     }
-    onCambio(patch);
   }
 
   // "¿Cada cuánto?" — cambiar de Año/Sexenio regenera las filas a partir
@@ -101,6 +127,34 @@ export default function CamposIndicadorProyecto({ indicador, onCambio, mostrarDe
 
   function agregarPeriodoPersonalizado() {
     onCambio({ metas_anuales: [...indicador.metas_anuales, nuevoPeriodoPersonalizado()] });
+  }
+
+  function cambiarCategoria(indice, campo, valor) {
+    const copia = [...(indicador.categorias || [])];
+    copia[indice] = { ...copia[indice], [campo]: valor };
+    onCambio({ categorias: copia });
+  }
+
+  function quitarCategoria(indice) {
+    onCambio({ categorias: indicador.categorias.filter((_, i) => i !== indice) });
+  }
+
+  function agregarCategoria() {
+    onCambio({ categorias: [...(indicador.categorias || []), nuevaCategoria()] });
+  }
+
+  // Un porcentaje sumado entre categorías no representa nada real
+  // (mismo criterio que ya excluye el combinado de porcentajes entre
+  // proyectos en TarjetaIndicadorGrupo) — si el usuario cambia la
+  // unidad a Porcentaje mientras ya tenía Categorías elegido, se
+  // regresa a Simple en el mismo patch.
+  function cambiarUnidad(valor) {
+    const patch = { unidad: valor };
+    if (valor === 'Porcentaje' && indicador.composicion === 'Categorias') {
+      patch.temporalidad = 'Global';
+      patch.composicion = 'Simple';
+    }
+    onCambio(patch);
   }
 
   return (
@@ -138,7 +192,7 @@ export default function CamposIndicadorProyecto({ indicador, onCambio, mostrarDe
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Unidad de medida</label>
-              <select value={indicador.unidad} onChange={e => onCambio({ unidad: e.target.value })} className="input-base text-sm">
+              <select value={indicador.unidad} onChange={e => cambiarUnidad(e.target.value)} className="input-base text-sm">
                 {UNIDADES_INDICADOR.map(u => <option key={u.valor} value={u.valor}>{u.etiqueta}</option>)}
               </select>
             </div>
@@ -161,24 +215,51 @@ export default function CamposIndicadorProyecto({ indicador, onCambio, mostrarDe
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">Temporalidad</label>
-        <div className="flex gap-4">
+        <label className="block text-xs font-medium text-gray-600 mb-1">¿Cómo se mide este indicador?</label>
+        <div className="flex gap-4 flex-wrap">
           <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
-            <input type="radio" checked={indicador.temporalidad === 'Global'}
-              onChange={() => elegirTemporalidad('Global')}
+            <input type="radio" checked={modoDesglose === 'simple'}
+              onChange={() => elegirModoDesglose('simple')}
               className="text-guinda-500 focus:ring-guinda-500" />
-            Meta global (sin desglose anual)
+            Un solo valor
           </label>
           <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
-            <input type="radio" checked={indicador.temporalidad === 'Anual'}
-              onChange={() => elegirTemporalidad('Anual')}
+            <input type="radio" checked={modoDesglose === 'periodos'}
+              onChange={() => elegirModoDesglose('periodos')}
               className="text-guinda-500 focus:ring-guinda-500" />
-            Metas por ejercicio fiscal
+            Por periodos (año/sexenio/personalizado)
+          </label>
+          <label className={`flex items-center gap-1.5 text-sm cursor-pointer ${esPorcentaje ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700'}`}>
+            <input type="radio" checked={modoDesglose === 'categorias'} disabled={esPorcentaje}
+              onChange={() => elegirModoDesglose('categorias')}
+              className="text-guinda-500 focus:ring-guinda-500" />
+            Por categorías
           </label>
         </div>
+        {esPorcentaje && (
+          <p className="text-[11px] text-gray-400 mt-1">
+            Un porcentaje no se puede componer de categorías — sumarlas no representa nada real.
+          </p>
+        )}
       </div>
 
-      {indicador.temporalidad === 'Anual' && (
+      {(modoDesglose === 'periodos' || modoDesglose === 'categorias') && (
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de gráfica</label>
+          <div className="flex gap-4">
+            {[['barras', 'Barras'], ['dona', 'Dona']].map(([valor, etiqueta]) => (
+              <label key={valor} className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                <input type="radio" checked={(indicador.tipo_grafico || 'barras') === valor}
+                  onChange={() => onCambio({ tipo_grafico: valor })}
+                  className="text-guinda-500 focus:ring-guinda-500" />
+                {etiqueta}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {modoDesglose === 'periodos' && (
         <div className="space-y-2 pl-4 border-l-2 border-blue-200">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">¿Cada cuánto?</label>
@@ -248,6 +329,38 @@ export default function CamposIndicadorProyecto({ indicador, onCambio, mostrarDe
           {indicador.metas_anuales.length > 0 && (
             <p className="text-xs text-gray-400">
               Suma de periodos: {indicador.metas_anuales.reduce((s, m) => s + (parseFloat(m.meta) || 0), 0).toLocaleString()}
+              {indicador.meta_global ? ` / Meta global: ${Number(indicador.meta_global).toLocaleString()}` : ''}
+            </p>
+          )}
+        </div>
+      )}
+
+      {modoDesglose === 'categorias' && (
+        <div className="space-y-2 pl-4 border-l-2 border-blue-200">
+          <div className="space-y-1">
+            {(indicador.categorias || []).map((cat, ci) => (
+              <div key={cat.id || `nueva-${ci}`} className="flex items-center gap-2">
+                <input type="text" value={cat.nombre || ''}
+                  onChange={e => cambiarCategoria(ci, 'nombre', e.target.value)}
+                  className="input-base text-sm flex-1" placeholder="Nombre de la categoría, ej: Solicitudes de validación" />
+                <input type="number" step="any" value={cat.meta}
+                  onChange={e => cambiarCategoria(ci, 'meta', e.target.value)}
+                  className="input-base text-sm w-32" placeholder="Meta" />
+                <button type="button" onClick={() => quitarCategoria(ci)}
+                  className="p-1.5 text-gray-400 hover:text-red-500" title="Quitar categoría">
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+            <button type="button" onClick={agregarCategoria}
+              className="text-xs text-guinda-600 hover:text-guinda-700 font-medium pt-1">
+              + agregar categoría
+            </button>
+          </div>
+
+          {(indicador.categorias || []).length > 0 && (
+            <p className="text-xs text-gray-400">
+              Suma de categorías: {indicador.categorias.reduce((s, c) => s + (parseFloat(c.meta) || 0), 0).toLocaleString()}
               {indicador.meta_global ? ` / Meta global: ${Number(indicador.meta_global).toLocaleString()}` : ''}
             </p>
           )}

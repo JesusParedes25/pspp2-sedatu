@@ -35,6 +35,7 @@ function datosEditables(indicador) {
     ...indicador,
     unidad_personalizada: indicador.unidad_personalizada || '',
     metas_anuales: indicador.metas_anuales || [],
+    categorias: indicador.categorias || [],
     descripcion: indicador.descripcion || '',
   };
 }
@@ -158,6 +159,9 @@ function SeccionDefinicion({ indicador, onGuardado, mostrarToast }) {
         anio_inicio: datos.temporalidad === 'Anual' ? datos.anio_inicio : null,
         anio_fin: datos.temporalidad === 'Anual' ? datos.anio_fin : null,
         metas_anuales: datos.temporalidad === 'Anual' ? datos.metas_anuales : [],
+        composicion: datos.composicion,
+        tipo_grafico: datos.tipo_grafico,
+        categorias: datos.composicion === 'Categorias' ? datos.categorias : [],
         descripcion: datos.descripcion,
       });
       mostrarToast('Indicador actualizado', 'exito');
