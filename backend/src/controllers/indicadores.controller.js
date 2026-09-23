@@ -111,21 +111,26 @@ async function eliminar(req, res, next) {
     const countMetas = await pool.query(
       'SELECT COUNT(*)::int AS n FROM indicador_metas_anuales WHERE id_indicador = $1', [id]
     );
+    const countCategorias = await pool.query(
+      'SELECT COUNT(*)::int AS n FROM indicador_categorias WHERE id_indicador = $1', [id]
+    );
     const nAport = countAport.rows[0].n;
     const nMetas = countMetas.rows[0].n;
+    const nCategorias = countCategorias.rows[0].n;
 
     // If has linked items and no confirm, return warning
-    if ((nAport > 0 || nMetas > 0) && req.query.confirmar !== 'true') {
+    if ((nAport > 0 || nMetas > 0 || nCategorias > 0) && req.query.confirmar !== 'true') {
       return res.json({
         requiere_confirmacion: true,
         n_aportaciones: nAport,
         n_metas_anuales: nMetas,
-        mensaje: `Este indicador tiene ${nAport} aportaciones y ${nMetas} metas anuales ligadas; se eliminarán también.`
+        n_categorias: nCategorias,
+        mensaje: `Este indicador tiene ${nAport} aportaciones, ${nMetas} metas anuales y ${nCategorias} categorías ligadas; se eliminarán también.`
       });
     }
 
-    // Hard delete so FK ON DELETE CASCADE cleans up aportaciones + metas
-    if (nAport > 0 || nMetas > 0) {
+    // Hard delete so FK ON DELETE CASCADE cleans up aportaciones + metas + categorías
+    if (nAport > 0 || nMetas > 0 || nCategorias > 0) {
       const del = await pool.query('DELETE FROM indicadores WHERE id = $1 RETURNING id', [id]);
       if (!del.rows[0]) return res.status(404).json({ error: true, mensaje: 'Indicador no encontrado' });
     } else {
@@ -178,13 +183,14 @@ async function establecerValor(req, res, next) {
         codigo: 'NO_ES_MANUAL',
       });
     }
-    const { valor, id_periodo } = req.body;
+    const { valor, id_periodo, id_categoria } = req.body;
     if (valor === undefined || valor === null || valor === '') {
       return res.status(400).json({ error: true, mensaje: 'Falta el valor', codigo: 'CAMPOS_REQUERIDOS' });
     }
     const datos = await indicadoresQueries.establecerValorManual(req.params.id, {
       valor: parseFloat(valor),
       id_periodo: id_periodo || null,
+      id_categoria: id_categoria || null,
     });
     res.json({ datos, mensaje: 'Valor guardado' });
   } catch (err) {
