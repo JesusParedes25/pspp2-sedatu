@@ -120,10 +120,11 @@ export default function DetalleIndicador() {
       {indicador.composicion === 'Categorias' ? (
         <SeccionCategorias indicador={indicador} onGuardado={cargar} mostrarToast={mostrarToast} />
       ) : (
-        <SeccionValor indicador={indicador} onGuardado={cargar} mostrarToast={mostrarToast} />
+        <SeccionValor indicador={indicador} onGuardado={cargar} mostrarToast={mostrarToast} tieneAportaciones={aportaciones.length > 0} />
       )}
 
       <SeccionAportaciones
+        indicador={indicador}
         aportaciones={aportaciones}
         cargando={cargandoAportaciones}
         proyectoId={indicador.proyecto_id}
@@ -138,7 +139,7 @@ export default function DetalleIndicador() {
           proyectoPreseleccionado={{ id: indicador.proyecto_id, nombre: indicador.proyecto_nombre }}
           indicadorPreseleccionado={indicador}
           onCerrar={() => setMostrarWizard(false)}
-          onVinculado={() => { setMostrarWizard(false); cargarAportaciones(); }}
+          onVinculado={() => { setMostrarWizard(false); cargar(); cargarAportaciones(); }}
         />
       )}
     </div>
@@ -194,9 +195,15 @@ function SeccionDefinicion({ indicador, onGuardado, mostrarToast }) {
   );
 }
 
-function SeccionValor({ indicador, onGuardado, mostrarToast }) {
+function SeccionValor({ indicador, onGuardado, mostrarToast, tieneAportaciones }) {
   const esMoneda = indicador.unidad === 'Moneda_MXN';
-  const esManual = indicador.modo_calculo === 'manual';
+  // modo_calculo nunca lo escribe el wizard (siempre queda en su
+  // default 'manual'), así que por sí solo no basta para saber si el
+  // valor se captura a mano — un indicador puede quedar en 'manual' y
+  // a la vez tener nodos aportando. En cuanto hay al menos un nodo, el
+  // valor se calcula solo (mismo criterio que ya aplica por categoría
+  // en SeccionCategorias/establecerValorManual) y el input se oculta.
+  const esManual = indicador.modo_calculo === 'manual' && !tieneAportaciones;
   const {
     mostrarSelectorPeriodo, sinPeriodos, periodos,
     idPeriodo, cambiarPeriodo, periodoActual,
@@ -304,43 +311,93 @@ function SeccionCategorias({ indicador, onGuardado, mostrarToast }) {
   );
 }
 
-function SeccionAportaciones({ aportaciones, cargando, proyectoId, onActualizado, onAgregar, mostrarToast, categorias }) {
+function filaAportacion(ap, proyectoId, onActualizado, mostrarToast, categorias) {
+  const nombreNodo = ap.etapa_nombre || ap.accion_nombre || ap.tarea_nombre;
+  const tipoNodo = ap.etapa_nombre ? 'Etapa' : ap.accion_nombre ? 'Acción' : 'Tarea';
+  // Una aportación puede venir de un proyecto distinto al del
+  // indicador (el módulo lo permite) — cuando eso pasa, se
+  // deja explícito en vez de dejar que parezca un nodo propio.
+  const esOtroProyecto = ap.nodo_proyecto_id && ap.nodo_proyecto_id !== proyectoId;
+  const subtitulo = [tipoNodo, esOtroProyecto ? ap.nodo_proyecto_nombre : null].filter(Boolean).join(' · ');
+  return (
+    <ChipAportacion
+      key={ap.id}
+      ap={ap}
+      etiquetaPrincipal={nombreNodo}
+      subtitulo={subtitulo}
+      onActualizado={onActualizado}
+      mostrarToast={mostrarToast}
+      categorias={categorias}
+    />
+  );
+}
+
+function SeccionAportaciones({ indicador, aportaciones, cargando, proyectoId, onActualizado, onAgregar, mostrarToast, categorias }) {
+  const esMoneda = indicador.unidad === 'Moneda_MXN';
+  const valorActual = parseFloat(indicador.valor_actual) || 0;
+  const metaGlobal = parseFloat(indicador.meta_global) || 0;
+  const esPorCategorias = indicador.composicion === 'Categorias';
+
+  // Agrupar por categoría solo tiene sentido si el indicador es por
+  // categorías — el total y el subtotal de cada grupo vienen del
+  // rollup que ya hizo el backend (indicador.valor_actual/
+  // categorias[].valor_actual), nunca recalculados aquí, para no
+  // arriesgar que la suma en pantalla diverja de la real.
+  const grupos = esPorCategorias
+    ? (indicador.categorias || []).map(cat => ({
+        categoria: cat,
+        filas: aportaciones.filter(ap => ap.id_categoria === cat.id),
+      })).filter(g => g.filas.length > 0)
+    : null;
+  const sinCategoria = esPorCategorias ? aportaciones.filter(ap => !ap.id_categoria) : [];
+
   return (
     <section className="bg-white border border-gray-200 rounded-xl p-4">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-1">
         <h2 className="text-sm font-semibold text-gray-900">Nodos que aportan</h2>
         <button onClick={onAgregar} className="flex items-center gap-1 text-xs font-medium text-guinda-700 hover:underline">
           <Link2 size={12} /> Agregar nodo
         </button>
       </div>
+      {aportaciones.length > 0 && (
+        <p className="text-xs text-gray-500 mb-2">
+          Total: <span className="font-medium text-gray-700">{esMoneda ? formatearMoneda(valorActual) : valorActual.toLocaleString('es-MX')}</span>
+          {metaGlobal > 0 && <> de {esMoneda ? formatearMoneda(metaGlobal) : metaGlobal.toLocaleString('es-MX')}</>}
+        </p>
+      )}
       {cargando ? (
         <div className="flex items-center gap-2 text-xs text-gray-400 py-2">
           <Loader2 size={14} className="animate-spin" /> Cargando…
         </div>
       ) : aportaciones.length === 0 ? (
         <p className="text-xs text-gray-500">Ningún nodo aporta a este indicador todavía.</p>
+      ) : esPorCategorias ? (
+        <div className="space-y-3">
+          {grupos.map(({ categoria, filas }) => (
+            <div key={categoria.id}>
+              <p className="text-[11px] font-semibold text-gray-500 mb-1 flex items-center justify-between">
+                <span>{categoria.nombre}</span>
+                <span className="font-normal text-gray-400">
+                  {esMoneda ? formatearMoneda(parseFloat(categoria.valor_actual) || 0) : (parseFloat(categoria.valor_actual) || 0).toLocaleString('es-MX')}
+                </span>
+              </p>
+              <div className="space-y-2">
+                {filas.map(ap => filaAportacion(ap, proyectoId, onActualizado, mostrarToast, categorias))}
+              </div>
+            </div>
+          ))}
+          {sinCategoria.length > 0 && (
+            <div>
+              <p className="text-[11px] font-semibold text-amber-700 mb-1">Sin categoría asignada</p>
+              <div className="space-y-2">
+                {sinCategoria.map(ap => filaAportacion(ap, proyectoId, onActualizado, mostrarToast, categorias))}
+              </div>
+            </div>
+          )}
+        </div>
       ) : (
         <div className="space-y-2">
-          {aportaciones.map(ap => {
-            const nombreNodo = ap.etapa_nombre || ap.accion_nombre || ap.tarea_nombre;
-            const tipoNodo = ap.etapa_nombre ? 'Etapa' : ap.accion_nombre ? 'Acción' : 'Tarea';
-            // Una aportación puede venir de un proyecto distinto al del
-            // indicador (el módulo lo permite) — cuando eso pasa, se
-            // deja explícito en vez de dejar que parezca un nodo propio.
-            const esOtroProyecto = ap.nodo_proyecto_id && ap.nodo_proyecto_id !== proyectoId;
-            const subtitulo = [tipoNodo, esOtroProyecto ? ap.nodo_proyecto_nombre : null].filter(Boolean).join(' · ');
-            return (
-              <ChipAportacion
-                key={ap.id}
-                ap={ap}
-                etiquetaPrincipal={nombreNodo}
-                subtitulo={subtitulo}
-                onActualizado={onActualizado}
-                mostrarToast={mostrarToast}
-                categorias={categorias}
-              />
-            );
-          })}
+          {aportaciones.map(ap => filaAportacion(ap, proyectoId, onActualizado, mostrarToast, categorias))}
         </div>
       )}
     </section>
