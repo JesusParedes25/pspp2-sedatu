@@ -61,6 +61,7 @@ export default function SeccionAportaciones({ tipo, nodoId, proyectoId, avanceEf
           // lado" — no es el mismo caso que el wizard de vinculación,
           // que sí exige un monto antes de crear la aportación.
           valor_aportacion: 0,
+          permitir_cero: true,
           modo: 'proporcional',
           id_categoria: ind.composicion === 'Categorias' ? categoriaElegida[ind.id] : undefined,
         });

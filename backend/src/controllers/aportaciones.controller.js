@@ -26,7 +26,21 @@ async function listarPorNodo(req, res, next) {
 // POST /indicadores/:id/aportaciones
 async function crear(req, res, next) {
   try {
-    const { tipo_nodo, id_nodo, valor_aportacion, modo, id_categoria } = req.body;
+    const { tipo_nodo, id_nodo, valor_aportacion, modo, id_categoria, permitir_cero } = req.body;
+
+    // Un monto vacío/0 antes se aceptaba sin más (`?? 0` solo cubre
+    // undefined/null) — ahora hace falta un monto real, salvo que el
+    // llamador pida explícitamente permitir_cero (caso legítimo: el
+    // checkbox de vincular en Seguimiento crea la aportación en 0 a
+    // propósito y deja ajustar el monto justo al lado).
+    const monto = valor_aportacion === '' || valor_aportacion == null ? 0 : Number(valor_aportacion);
+    if (!permitir_cero && (!Number.isFinite(monto) || monto <= 0)) {
+      const err = new Error('Indica cuánto aporta este nodo antes de vincularlo');
+      err.statusCode = 400;
+      err.codigo = 'MONTO_REQUERIDO';
+      throw err;
+    }
+
     await aportacionesQueries.validarCategoriaAportacion(req.params.id, id_categoria || null);
     const datos = {
       id_indicador: req.params.id,
@@ -34,7 +48,7 @@ async function crear(req, res, next) {
       id_accion: tipo_nodo === 'accion' ? id_nodo : null,
       id_tarea: tipo_nodo === 'tarea' ? id_nodo : null,
       id_categoria: id_categoria || null,
-      aportacion: valor_aportacion ?? 0,
+      aportacion: monto,
       modo: modo || 'proporcional',
     };
     const aportacion = await aportacionesQueries.crear(datos);
@@ -43,7 +57,12 @@ async function crear(req, res, next) {
     // queda en 0 hasta el próximo cambio de estado de cualquier otro nodo.
     await aportacionesQueries.recalcularUnIndicador(aportacion.id_indicador);
     res.status(201).json({ datos: aportacion, mensaje: 'Aportación creada' });
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (err.codigo === 'YA_VINCULADO') {
+      return res.status(409).json({ error: true, mensaje: err.message, codigo: err.codigo, aportacionExistente: err.aportacionExistente });
+    }
+    next(err);
+  }
 }
 
 // PATCH /aportaciones/:id

@@ -116,18 +116,40 @@ async function validarCategoriaAportacion(idIndicador, idCategoria) {
   }
 }
 
+// Vincular el mismo nodo dos veces al mismo indicador ya no sobrescribe
+// en silencio — antes caía en un ON CONFLICT DO UPDATE sin que nadie
+// se enterara de que el monto/modo de la primera vinculación se había
+// perdido. Ahora un INSERT simple, y la violación de unicidad
+// (Postgres 23505, disparada por los índices únicos parciales de
+// id_etapa/id_accion/id_tarea) se relanza como un error 409 tipado
+// con la fila existente adjunta — el controller decide si mostrarla
+// para pedir confirmación explícita antes de sobreescribir.
 async function crear(datos, client = null) {
   const db = client || pool;
   const { id_indicador, id_etapa, id_accion, id_tarea, id_categoria, aportacion, modo } = datos;
-  const conflictCol = id_etapa ? 'id_etapa' : id_accion ? 'id_accion' : 'id_tarea';
-  const res = await db.query(`
-    INSERT INTO indicador_aportaciones (id_indicador, id_etapa, id_accion, id_tarea, id_categoria, aportacion, modo)
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
-    ON CONFLICT (id_indicador, ${conflictCol}) WHERE ${conflictCol} IS NOT NULL
-    DO UPDATE SET aportacion = $6, modo = $7, id_categoria = $5
-    RETURNING *
-  `, [id_indicador, id_etapa || null, id_accion || null, id_tarea || null, id_categoria || null, aportacion || 0, modo || 'proporcional']);
-  return res.rows[0];
+  try {
+    const res = await db.query(`
+      INSERT INTO indicador_aportaciones (id_indicador, id_etapa, id_accion, id_tarea, id_categoria, aportacion, modo)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *
+    `, [id_indicador, id_etapa || null, id_accion || null, id_tarea || null, id_categoria || null, aportacion || 0, modo || 'proporcional']);
+    return res.rows[0];
+  } catch (pgErr) {
+    if (pgErr.code === '23505') {
+      const col = id_etapa ? 'id_etapa' : id_accion ? 'id_accion' : 'id_tarea';
+      const valorCol = id_etapa || id_accion || id_tarea;
+      const { rows: [existente] } = await db.query(
+        `SELECT * FROM indicador_aportaciones WHERE id_indicador = $1 AND ${col} = $2`,
+        [id_indicador, valorCol]
+      );
+      const err = new Error('Este nodo ya está vinculado a este indicador');
+      err.statusCode = 409;
+      err.codigo = 'YA_VINCULADO';
+      err.aportacionExistente = existente;
+      throw err;
+    }
+    throw pgErr;
+  }
 }
 
 async function actualizar(id, datos) {

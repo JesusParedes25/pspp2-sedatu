@@ -86,8 +86,15 @@ export default function ModalVincularIndicador({
   const [modoAportacion, setModoAportacion] = useState('al_concluir');
   const [valorAportacion, setValorAportacion] = useState('');
   const [categoriaAportacion, setCategoriaAportacion] = useState('');
+  const [permitirCero, setPermitirCero] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
+  // Si el backend rechaza por 409 (el nodo elegido ya estaba vinculado
+  // a este indicador), se guarda la aportación existente aquí en vez
+  // de solo mostrar un error — deja ofrecer sobreescribir con un
+  // segundo clic deliberado, nunca automático.
+  const [duplicado, setDuplicado] = useState(null);
+  const [aportacionesExistentes, setAportacionesExistentes] = useState([]);
 
   // Cargar árbol + permisos + indicadores ya capturados del proyecto elegido.
   useEffect(() => {
@@ -108,12 +115,36 @@ export default function ModalVincularIndicador({
     return () => { vivo = false; };
   }, [proyecto?.id]);
 
+  // Qué nodos ya aportan a ESTE indicador — solo se puede saber de
+  // antemano cuando el indicador ya viene fijo (entrar por "+ Agregar
+  // nodo" desde su detalle); si todavía no se sabe cuál indicador es
+  // (flujo general desde "Mis indicadores"), el backend igual protege
+  // con el 409 al confirmar.
+  useEffect(() => {
+    if (!indicadorPreseleccionado?.id) { setAportacionesExistentes([]); return; }
+    let vivo = true;
+    indicadoresApi.obtenerAportacionesIndicador(indicadorPreseleccionado.id)
+      .then(datos => { if (vivo) setAportacionesExistentes(datos || []); })
+      .catch(() => { if (vivo) setAportacionesExistentes([]); });
+    return () => { vivo = false; };
+  }, [indicadorPreseleccionado?.id]);
+
   function puedeEditar(tipo, id) {
     if (!permisos) return true; // provisional mientras carga
     if (!permisos.nodos_editables) return permisos.puede_capturar_proyecto !== false;
     if (permisos.puede_capturar_proyecto) return true;
     return (permisos.nodos_editables[tipo] || []).includes(id);
   }
+
+  function yaVinculado(tipo, id) {
+    const col = tipo === 'etapa' ? 'id_etapa' : tipo === 'tarea' ? 'id_tarea' : 'id_accion';
+    return aportacionesExistentes.some(a => a[col] === id);
+  }
+
+  // Un aviso de duplicado quedaría engañoso si el usuario retrocede y
+  // elige otro nodo — se limpia en cuanto cambia a qué se está
+  // vinculando.
+  useEffect(() => { setDuplicado(null); }, [etapaId, accionId, tareaId]);
 
   const etapas = arbol || [];
   const etapaActual = etapas.find(e => e.id === etapaId);
@@ -228,19 +259,49 @@ export default function ModalVincularIndicador({
 
       const nodo = nodoPreseleccionado || nodoFinal;
       if (nodo) {
-        await indicadoresApi.crearAportacion(indicadorId, {
-          tipo_nodo: nodo.tipo,
-          id_nodo: nodo.id,
-          valor_aportacion: valorAportacion === '' ? 0 : parseFloat(valorAportacion),
-          modo: modoAportacion,
-          id_categoria: esPorCategorias ? categoriaAportacion : undefined,
-        });
+        try {
+          await indicadoresApi.crearAportacion(indicadorId, {
+            tipo_nodo: nodo.tipo,
+            id_nodo: nodo.id,
+            valor_aportacion: valorAportacion === '' ? 0 : parseFloat(valorAportacion),
+            permitir_cero: permitirCero,
+            modo: modoAportacion,
+            id_categoria: esPorCategorias ? categoriaAportacion : undefined,
+          });
+        } catch (err) {
+          if (err.response?.data?.codigo === 'YA_VINCULADO') {
+            // No sobrescribir en silencio — se ofrece un segundo clic
+            // deliberado con el monto/modo existente a la vista.
+            setDuplicado({ indicadorId, existente: err.response.data.aportacionExistente });
+            setGuardando(false);
+            return;
+          }
+          throw err;
+        }
       }
 
       mostrarToast('Indicador vinculado', 'exito');
       onVinculado?.();
     } catch (err) {
       setError(err.response?.data?.mensaje || 'No se pudo vincular el indicador');
+      setGuardando(false);
+    }
+  }
+
+  async function sobrescribirDuplicado() {
+    if (!duplicado) return;
+    setGuardando(true);
+    try {
+      await indicadoresApi.actualizarAportacion(duplicado.existente.id, {
+        valor_aportacion: valorAportacion === '' ? 0 : parseFloat(valorAportacion),
+        modo: modoAportacion,
+        id_categoria: esPorCategorias ? categoriaAportacion : undefined,
+      });
+      mostrarToast('Aportación actualizada', 'exito');
+      setDuplicado(null);
+      onVinculado?.();
+    } catch (err) {
+      setError(err.response?.data?.mensaje || 'No se pudo actualizar la aportación');
       setGuardando(false);
     }
   }
@@ -318,8 +379,8 @@ export default function ModalVincularIndicador({
                     >
                       <option value="">— a nivel de todo el proyecto —</option>
                       {etapas.map(e => (
-                        <option key={e.id} value={e.id} disabled={!puedeEditar('etapa', e.id)}>
-                          {e.nombre}{!puedeEditar('etapa', e.id) ? ' (sin permiso)' : ''}
+                        <option key={e.id} value={e.id} disabled={!puedeEditar('etapa', e.id) || yaVinculado('etapa', e.id)}>
+                          {e.nombre}{!puedeEditar('etapa', e.id) ? ' (sin permiso)' : yaVinculado('etapa', e.id) ? ' (ya vinculado)' : ''}
                         </option>
                       ))}
                     </select>
@@ -335,8 +396,8 @@ export default function ModalVincularIndicador({
                       >
                         <option value="">— a nivel de esta etapa —</option>
                         {acciones.map(a => (
-                          <option key={a.id} value={a.id} disabled={!puedeEditar('accion', a.id)}>
-                            {a.nombre}{!puedeEditar('accion', a.id) ? ' (sin permiso)' : ''}
+                          <option key={a.id} value={a.id} disabled={!puedeEditar('accion', a.id) || yaVinculado('accion', a.id)}>
+                            {a.nombre}{!puedeEditar('accion', a.id) ? ' (sin permiso)' : yaVinculado('accion', a.id) ? ' (ya vinculado)' : ''}
                           </option>
                         ))}
                       </select>
@@ -352,11 +413,15 @@ export default function ModalVincularIndicador({
                         className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400"
                       >
                         <option value="">— a nivel de esta acción —</option>
-                        {subaccionesYTareas.map(s => (
-                          <option key={s.id} value={s.id} disabled={!puedeEditar(s._tipo === 'tarea' ? 'tarea' : 'accion', s.id)}>
-                            {s.nombre}
-                          </option>
-                        ))}
+                        {subaccionesYTareas.map(s => {
+                          const tipoNodo = s._tipo === 'tarea' ? 'tarea' : 'accion';
+                          const bloqueado = !puedeEditar(tipoNodo, s.id) || yaVinculado(tipoNodo, s.id);
+                          return (
+                            <option key={s.id} value={s.id} disabled={bloqueado}>
+                              {s.nombre}{!puedeEditar(tipoNodo, s.id) ? ' (sin permiso)' : yaVinculado(tipoNodo, s.id) ? ' (ya vinculado)' : ''}
+                            </option>
+                          );
+                        })}
                       </select>
                     </div>
                   )}
@@ -454,11 +519,38 @@ export default function ModalVincularIndicador({
                     <input
                       type="number" step="any" min="0"
                       value={valorAportacion}
-                      onChange={e => setValorAportacion(e.target.value)}
+                      onChange={e => { setValorAportacion(e.target.value); setPermitirCero(false); }}
                       placeholder="0"
                       className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400"
                     />
+                    {!permitirCero && (valorAportacion === '' || parseFloat(valorAportacion) <= 0) && (
+                      <button
+                        type="button"
+                        onClick={() => setPermitirCero(true)}
+                        className="text-[11px] text-guinda-600 hover:underline mt-1"
+                      >
+                        Vincular con 0 por ahora — lo capturo después
+                      </button>
+                    )}
                   </div>
+
+                  {duplicado && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 space-y-1.5">
+                      <p className="text-xs text-amber-800">
+                        Este nodo ya está vinculado a este indicador
+                        {duplicado.existente ? ` (monto actual: ${duplicado.existente.aportacion}, ${duplicado.existente.modo === 'al_concluir' ? 'Manual' : 'Automático'})` : ''}.
+                        ¿Sobrescribir con los valores de arriba?
+                      </p>
+                      <button
+                        type="button"
+                        onClick={sobrescribirDuplicado}
+                        disabled={guardando}
+                        className="text-xs font-medium text-amber-800 hover:underline disabled:opacity-50"
+                      >
+                        Sí, sobrescribir
+                      </button>
+                    </div>
+                  )}
                 </>
               ) : (
                 <p className="text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
@@ -496,10 +588,14 @@ export default function ModalVincularIndicador({
               Siguiente
             </button>
           )}
-          {paso === 3 && (
+          {paso === 3 && !duplicado && (
             <button
               onClick={confirmarVinculo}
-              disabled={guardando || (esPorCategorias && (nodoPreseleccionado || nodoFinal) && !categoriaAportacion)}
+              disabled={
+                guardando ||
+                (esPorCategorias && (nodoPreseleccionado || nodoFinal) && !categoriaAportacion) ||
+                ((nodoPreseleccionado || nodoFinal) && !permitirCero && (valorAportacion === '' || parseFloat(valorAportacion) <= 0))
+              }
               className="px-4 py-2 text-sm font-medium text-white bg-guinda-700 rounded-lg disabled:opacity-50 flex items-center gap-2"
             >
               {guardando && <Loader2 size={14} className="animate-spin" />}
