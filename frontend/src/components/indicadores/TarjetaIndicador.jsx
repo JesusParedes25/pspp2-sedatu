@@ -24,6 +24,7 @@ import { ChevronDown, ChevronUp, X, Pencil } from 'lucide-react';
 import { formatearMonedaCorta, etiquetaUnidadIndicador } from '../../utils/formatoMoneda';
 import { TIPOS_INDICADOR } from '../../utils/tiposIndicador';
 import ModalEditarValorIndicador from './ModalEditarValorIndicador';
+import ModalEditarCategoriasIndicador from './ModalEditarCategoriasIndicador';
 
 const GUINDA = '#7B1C3E';
 
@@ -173,11 +174,19 @@ export default function TarjetaIndicador({ indicador, contexto = null, variante 
       )}
 
       {editandoValor && (
-        <ModalEditarValorIndicador
-          indicador={indicador}
-          onCerrar={() => setEditandoValor(false)}
-          onGuardado={() => { setEditandoValor(false); onValorActualizado?.(); }}
-        />
+        indicador.composicion === 'Categorias' ? (
+          <ModalEditarCategoriasIndicador
+            indicador={indicador}
+            onCerrar={() => setEditandoValor(false)}
+            onGuardado={() => { setEditandoValor(false); onValorActualizado?.(); }}
+          />
+        ) : (
+          <ModalEditarValorIndicador
+            indicador={indicador}
+            onCerrar={() => setEditandoValor(false)}
+            onGuardado={() => { setEditandoValor(false); onValorActualizado?.(); }}
+          />
+        )
       )}
     </>
   );
@@ -364,11 +373,19 @@ function TarjetaIndicadorGrupo({ grupo, variante = 'normal', permitirEditarValor
       )}
 
       {editandoValor && aislado && (
-        <ModalEditarValorIndicador
-          indicador={aislado}
-          onCerrar={() => setEditandoValor(false)}
-          onGuardado={() => { setEditandoValor(false); onValorActualizado?.(); }}
-        />
+        aislado.composicion === 'Categorias' ? (
+          <ModalEditarCategoriasIndicador
+            indicador={aislado}
+            onCerrar={() => setEditandoValor(false)}
+            onGuardado={() => { setEditandoValor(false); onValorActualizado?.(); }}
+          />
+        ) : (
+          <ModalEditarValorIndicador
+            indicador={aislado}
+            onCerrar={() => setEditandoValor(false)}
+            onGuardado={() => { setEditandoValor(false); onValorActualizado?.(); }}
+          />
+        )
       )}
     </div>
   );

@@ -10,7 +10,6 @@ import {
   TrendingUp, Calendar, Shield, ChevronRight, X, Trash2, Search, Loader2, MessageSquare, Layers,
 } from 'lucide-react';
 import { NIVELES } from '../../config/niveles';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useAuth } from '../../context/AuthContext';
 import { useUI } from '../../context/UIContext';
 import { usePermisosProyecto } from '../../hooks/usePermisos';
@@ -19,11 +18,11 @@ import { agregarMiembroNodo, actualizarRolNodo, eliminarMiembroNodo } from '../.
 import { calcularColorSemaforo } from '../../utils/semaforoColor';
 import client from '../../api/client';
 import TarjetaIndicador from '../indicadores/TarjetaIndicador';
+import GraficaIndicador from '../indicadores/GraficaIndicador';
 import BotonSolicitarParticipar from '../proyectos/BotonSolicitarParticipar';
 import ListaEstatusCualitativo from '../indicadores/ListaEstatusCualitativo';
 
 const GUINDA = '#7B1C3E';
-const GUINDA_LIGHT = '#9f2241';
 
 // ─── Helpers ──────────────────────────────────────────────────
 function fmt(f) {
@@ -638,36 +637,30 @@ function ParticipanteCard({ miembro: m, puedeGestionar, puedeSalir, onEliminar, 
 // ─── Indicador Card ───────────────────────────────────────────
 function IndicadorCard({ indicador }) {
   // La tarjeta es la compartida con Tablero y Resumen de cartera; aquí
-  // se le agrega, como hijo, la gráfica de metas anuales, que solo tiene
-  // sentido dentro del proyecto (es su desglose por año).
-  // "etiqueta" cubre Sexenio ("2018–2024") y Personalizado (texto
-  // libre, sin año calendario real — anio queda NULL para esos);
-  // "anio" sigue siendo el fallback correcto para el caso Año de
-  // siempre, donde nunca se guardó una etiqueta.
-  const chartData = (indicador.metas_anuales || []).map(m => ({
-    etiqueta: m.etiqueta || String(m.anio),
-    meta: parseFloat(m.valor_meta) || 0,
-    real: parseFloat(m.valor_real) || 0,
-  }));
+  // se le agrega, como hijo, la gráfica del desglose (periodos o
+  // categorías, excluyentes por diseño), que solo tiene sentido dentro
+  // del proyecto. "etiqueta" cubre Sexenio ("2018–2024") y
+  // Personalizado (texto libre, sin año calendario real — anio queda
+  // NULL para esos); "anio" sigue siendo el fallback correcto para el
+  // caso Año de siempre, donde nunca se guardó una etiqueta.
+  const filas = indicador.composicion === 'Categorias'
+    ? (indicador.categorias || []).map(c => ({
+        etiqueta: c.etiqueta,
+        meta: parseFloat(c.valor_meta) || 0,
+        real: parseFloat(c.valor_real) || 0,
+      }))
+    : (indicador.metas_anuales || []).map(m => ({
+        etiqueta: m.etiqueta || String(m.anio),
+        meta: parseFloat(m.valor_meta) || 0,
+        real: parseFloat(m.valor_real) || 0,
+      }));
 
   return (
     <TarjetaIndicador
       indicador={indicador}
       contexto={indicador.etapa_nombre ? `Etapa: ${indicador.etapa_nombre}` : null}
     >
-      {chartData.length > 0 && (
-        <div className="h-24 mt-2">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} barGap={2}>
-              <XAxis dataKey="etiqueta" tick={{ fontSize: 10 }} />
-              <YAxis hide />
-              <Tooltip contentStyle={{ fontSize: 11 }} />
-              <Bar dataKey="meta" fill="#e5e7eb" name="Meta" radius={[2,2,0,0]} />
-              <Bar dataKey="real" fill={GUINDA_LIGHT} name="Real" radius={[2,2,0,0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+      <GraficaIndicador filas={filas} tipo={indicador.tipo_grafico} />
     </TarjetaIndicador>
   );
 }
