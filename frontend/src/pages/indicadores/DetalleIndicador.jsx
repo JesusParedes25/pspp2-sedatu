@@ -81,7 +81,14 @@ export default function DetalleIndicador() {
 
   useEffect(() => { cargar(); cargarAportaciones(); }, [cargar, cargarAportaciones]);
 
-  if (cargando) {
+  // El spinner de página completa solo tiene sentido en el mount
+  // inicial (todavía no hay nada que mostrar) — en cada refresh
+  // posterior (tras vincular/editar un nodo) `cargando` también se
+  // pone en true, y reemplazar TODO el árbol por un spinner lo vuelve
+  // a montar de cero al terminar, lo que resetea el scroll del
+  // navegador a top. Con contenido previo ya en pantalla, se queda
+  // visible sin parpadeo mientras llega el dato nuevo.
+  if (cargando && !indicador) {
     return (
       <div className="p-6 flex items-center justify-center py-16 gap-2 text-gray-400">
         <Loader2 size={18} className="animate-spin" />
@@ -129,7 +136,7 @@ export default function DetalleIndicador() {
         aportaciones={aportaciones}
         cargando={cargandoAportaciones}
         proyectoId={indicador.proyecto_id}
-        onActualizado={cargarAportaciones}
+        onActualizado={() => { cargar(); cargarAportaciones(); }}
         onAgregar={() => setMostrarWizard(true)}
         mostrarToast={mostrarToast}
         categorias={indicador.composicion === 'Categorias' ? indicador.categorias : undefined}
