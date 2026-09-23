@@ -14,7 +14,7 @@
 import { useState, useEffect } from 'react';
 import * as indicadoresApi from '../api/indicadores';
 
-export function usarCapturaCategorias(indicador) {
+export function usarCapturaCategorias(indicador, categoriasConAportacion = new Set()) {
   const categorias = indicador.categorias || [];
   const sinCategorias = categorias.length === 0;
 
@@ -39,6 +39,10 @@ export function usarCapturaCategorias(indicador) {
     setError('');
     try {
       for (const cat of categorias) {
+        // Se calcula sola desde los nodos vinculados — ni la UI la deja
+        // editar ya, pero se salta también aquí por si acaso, en vez
+        // de mandar un PATCH que el backend de todos modos rechazaría.
+        if (categoriasConAportacion.has(cat.id)) continue;
         const nuevo = valores[cat.id];
         const actual = cat.valor_actual ?? '';
         if (String(nuevo) === String(actual)) continue;

@@ -19,11 +19,12 @@
  * pierde los dos primeros cambios si el padre arma el arreglo desde un
  * closure ya obsoleto (pasaba en las 3 implementaciones anteriores).
  */
-import { X } from 'lucide-react';
+import { X, AlertTriangle } from 'lucide-react';
 import {
   TIPOS_INDICADOR, UNIDADES_INDICADOR,
   calcularMetasAnuales, calcularMetasSexenio, nuevoPeriodoPersonalizado, nuevaCategoria,
 } from '../../utils/tiposIndicador';
+import { excedeMeta } from '../../utils/estadoMeta';
 
 const GENERADOR_POR_UNIDAD_PERIODO = { Anio: calcularMetasAnuales, Sexenio: calcularMetasSexenio };
 
@@ -367,12 +368,17 @@ export default function CamposIndicadorProyecto({ indicador, onCambio, mostrarDe
             </button>
           </div>
 
-          {(indicador.categorias || []).length > 0 && (
-            <p className="text-xs text-gray-400">
-              Suma de categorías: {indicador.categorias.reduce((s, c) => s + (parseFloat(c.meta) || 0), 0).toLocaleString()}
-              {indicador.meta_global ? ` / Meta global: ${Number(indicador.meta_global).toLocaleString()}` : ''}
-            </p>
-          )}
+          {(indicador.categorias || []).length > 0 && (() => {
+            const sumaCategorias = indicador.categorias.reduce((s, c) => s + (parseFloat(c.meta) || 0), 0);
+            const excede = excedeMeta(sumaCategorias, indicador.meta_global);
+            return (
+              <p className={`text-xs flex items-center gap-1 ${excede ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
+                {excede && <AlertTriangle size={12} className="flex-shrink-0" />}
+                Suma de categorías: {sumaCategorias.toLocaleString()}
+                {indicador.meta_global ? ` / Meta global: ${Number(indicador.meta_global).toLocaleString()}` : ''}
+              </p>
+            );
+          })()}
         </div>
       )}
 
