@@ -19,6 +19,10 @@ export default function SeccionAportaciones({ tipo, nodoId, proyectoId, avanceEf
   const [aportaciones, setAportaciones] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(null);
+  // Categoría elegida para cada indicador por categorías todavía no
+  // vinculado — el checkbox de vincular no aplica ahí, hace falta
+  // elegir a cuál categoría aporta este nodo antes de poder vincular.
+  const [categoriaElegida, setCategoriaElegida] = useState({});
 
   const cargar = useCallback(async () => {
     try {
@@ -52,8 +56,13 @@ export default function SeccionAportaciones({ tipo, nodoId, proyectoId, avanceEf
         await indicadoresApi.crearAportacion(ind.id, {
           tipo_nodo: tipo === 'etapa' ? 'etapa' : 'accion',
           id_nodo: nodoId,
+          // Monto en 0 a propósito: el modelo de esta sección es
+          // "vincula ahora, ajusta el monto en el campo inline de al
+          // lado" — no es el mismo caso que el wizard de vinculación,
+          // que sí exige un monto antes de crear la aportación.
           valor_aportacion: 0,
           modo: 'proporcional',
+          id_categoria: ind.composicion === 'Categorias' ? categoriaElegida[ind.id] : undefined,
         });
         mostrarToast('Indicador vinculado', 'exito');
       }
@@ -145,6 +154,20 @@ export default function SeccionAportaciones({ tipo, nodoId, proyectoId, avanceEf
                   {MODOS.map(m => <option key={m.valor} value={m.valor}>{m.etiqueta}</option>)}
                 </select>
               </div>
+              {ind.composicion === 'Categorias' && (
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-gray-500">Categoría:</span>
+                  <select
+                    value={ap.id_categoria || ''}
+                    onChange={e => actualizarAportacion(ap.id, 'id_categoria', e.target.value)}
+                    disabled={soloLectura}
+                    className="text-xs border border-gray-300 rounded px-1 py-0.5 focus:border-[#7B1C3E] focus:ring-1 focus:ring-[#7B1C3E]/20 outline-none bg-white"
+                  >
+                    <option value="">— elige —</option>
+                    {(ind.categorias || []).map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  </select>
+                </div>
+              )}
               {ind.meta_global > 0 && ap.aportacion > 0 && (
                 <span className="text-[10px] text-gray-400">
                   {((ap.aportacion / ind.meta_global) * 100).toFixed(1)}% de la meta
@@ -168,22 +191,35 @@ export default function SeccionAportaciones({ tipo, nodoId, proyectoId, avanceEf
       {/* Indicadores no vinculados */}
       {!soloLectura && noVinculados.length > 0 && (
         <div className="mt-1">
-          {noVinculados.map(ind => (
-            <label
-              key={ind.id}
-              className="flex items-center gap-2 text-xs text-gray-500 py-0.5 hover:text-gray-700 cursor-pointer"
-            >
-              <input
-                type="checkbox"
-                checked={false}
-                onChange={() => toggleIndicador(ind)}
-                disabled={guardando === ind.id}
-                className="rounded text-[#7B1C3E] focus:ring-[#7B1C3E]/30"
-              />
-              <span className="truncate">{ind.nombre}</span>
-              {guardando === ind.id && <Loader2 size={10} className="animate-spin text-gray-400" />}
-            </label>
-          ))}
+          {noVinculados.map(ind => {
+            const esPorCategorias = ind.composicion === 'Categorias';
+            const sinCategoriaElegida = esPorCategorias && !categoriaElegida[ind.id];
+            return (
+              <div key={ind.id} className="flex items-center gap-2 text-xs text-gray-500 py-0.5">
+                <label className="flex items-center gap-2 hover:text-gray-700 cursor-pointer min-w-0">
+                  <input
+                    type="checkbox"
+                    checked={false}
+                    onChange={() => !sinCategoriaElegida && toggleIndicador(ind)}
+                    disabled={guardando === ind.id || sinCategoriaElegida}
+                    className="rounded text-[#7B1C3E] focus:ring-[#7B1C3E]/30"
+                  />
+                  <span className="truncate">{ind.nombre}</span>
+                </label>
+                {esPorCategorias && (
+                  <select
+                    value={categoriaElegida[ind.id] || ''}
+                    onChange={e => setCategoriaElegida(prev => ({ ...prev, [ind.id]: e.target.value }))}
+                    className="text-[10px] border border-gray-300 rounded px-1 py-0.5 focus:border-[#7B1C3E] focus:ring-1 focus:ring-[#7B1C3E]/20 outline-none bg-white"
+                  >
+                    <option value="">— categoría —</option>
+                    {(ind.categorias || []).map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  </select>
+                )}
+                {guardando === ind.id && <Loader2 size={10} className="animate-spin text-gray-400" />}
+              </div>
+            );
+          })}
         </div>
       )}
 

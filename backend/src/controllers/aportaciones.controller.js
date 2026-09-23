@@ -26,12 +26,14 @@ async function listarPorNodo(req, res, next) {
 // POST /indicadores/:id/aportaciones
 async function crear(req, res, next) {
   try {
-    const { tipo_nodo, id_nodo, valor_aportacion, modo } = req.body;
+    const { tipo_nodo, id_nodo, valor_aportacion, modo, id_categoria } = req.body;
+    await aportacionesQueries.validarCategoriaAportacion(req.params.id, id_categoria || null);
     const datos = {
       id_indicador: req.params.id,
       id_etapa: tipo_nodo === 'etapa' ? id_nodo : null,
       id_accion: tipo_nodo === 'accion' ? id_nodo : null,
       id_tarea: tipo_nodo === 'tarea' ? id_nodo : null,
+      id_categoria: id_categoria || null,
       aportacion: valor_aportacion ?? 0,
       modo: modo || 'proporcional',
     };
@@ -50,6 +52,12 @@ async function actualizar(req, res, next) {
     const mapped = {};
     if (req.body.valor_aportacion !== undefined) mapped.aportacion = req.body.valor_aportacion;
     if (req.body.modo !== undefined) mapped.modo = req.body.modo;
+    if (req.body.id_categoria !== undefined) {
+      const idIndicador = await aportacionesQueries.obtenerIndicadorDeAportacion(req.params.id);
+      if (!idIndicador) return res.status(404).json({ error: true, mensaje: 'Aportación no encontrada' });
+      await aportacionesQueries.validarCategoriaAportacion(idIndicador, req.body.id_categoria || null);
+      mapped.id_categoria = req.body.id_categoria || null;
+    }
     const aportacion = await aportacionesQueries.actualizar(req.params.id, mapped);
     if (!aportacion) return res.status(404).json({ error: true, mensaje: 'Aportación no encontrada' });
     await aportacionesQueries.recalcularUnIndicador(aportacion.id_indicador);
