@@ -21,7 +21,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Loader2, Link2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Link2, AlertTriangle } from 'lucide-react';
 import * as indicadoresApi from '../../api/indicadores';
 import { useUI } from '../../context/UIContext';
 import CamposIndicadorProyecto from '../../components/indicadores/CamposIndicadorProyecto';
@@ -32,6 +32,7 @@ import ListaCategoriasEditable from '../../components/indicadores/ListaCategoria
 import { usarCapturaValorIndicador } from '../../hooks/usarCapturaValorIndicador';
 import { usarCapturaCategorias } from '../../hooks/usarCapturaCategorias';
 import { formatearMoneda } from '../../utils/formatoMoneda';
+import { excedeMeta } from '../../utils/estadoMeta';
 
 function datosEditables(indicador) {
   return {
@@ -118,7 +119,7 @@ export default function DetalleIndicador() {
       <SeccionDefinicion indicador={indicador} onGuardado={cargar} mostrarToast={mostrarToast} />
 
       {indicador.composicion === 'Categorias' ? (
-        <SeccionCategorias indicador={indicador} onGuardado={cargar} mostrarToast={mostrarToast} />
+        <SeccionCategorias indicador={indicador} aportaciones={aportaciones} onGuardado={cargar} mostrarToast={mostrarToast} />
       ) : (
         <SeccionValor indicador={indicador} onGuardado={cargar} mostrarToast={mostrarToast} tieneAportaciones={aportaciones.length > 0} />
       )}
@@ -271,8 +272,9 @@ function SeccionValor({ indicador, onGuardado, mostrarToast, tieneAportaciones }
   );
 }
 
-function SeccionCategorias({ indicador, onGuardado, mostrarToast }) {
-  const { categorias, sinCategorias, valores, cambiarValor, guardar, guardando, error } = usarCapturaCategorias(indicador);
+function SeccionCategorias({ indicador, aportaciones, onGuardado, mostrarToast }) {
+  const categoriasConAportacion = new Set(aportaciones.map(a => a.id_categoria).filter(Boolean));
+  const { categorias, sinCategorias, valores, cambiarValor, guardar, guardando, error } = usarCapturaCategorias(indicador, categoriasConAportacion);
 
   async function manejarGuardar() {
     const ok = await guardar();
@@ -288,7 +290,13 @@ function SeccionCategorias({ indicador, onGuardado, mostrarToast }) {
         </p>
       ) : (
         <div className="max-w-sm">
-          <ListaCategoriasEditable indicador={indicador} categorias={categorias} valores={valores} onCambiarValor={cambiarValor} />
+          <ListaCategoriasEditable
+            indicador={indicador}
+            categorias={categorias}
+            valores={valores}
+            onCambiarValor={cambiarValor}
+            categoriasConAportacion={categoriasConAportacion}
+          />
           <div className="flex justify-end mt-3">
             <button onClick={manejarGuardar} disabled={guardando} className="btn-primary text-sm disabled:opacity-40">
               {guardando ? 'Guardando...' : 'Guardar'}
@@ -360,8 +368,9 @@ function SeccionAportaciones({ indicador, aportaciones, cargando, proyectoId, on
         </button>
       </div>
       {aportaciones.length > 0 && (
-        <p className="text-xs text-gray-500 mb-2">
-          Total: <span className="font-medium text-gray-700">{esMoneda ? formatearMoneda(valorActual) : valorActual.toLocaleString('es-MX')}</span>
+        <p className={`text-xs mb-2 flex items-center gap-1 ${excedeMeta(valorActual, metaGlobal) ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+          {excedeMeta(valorActual, metaGlobal) && <AlertTriangle size={11} className="flex-shrink-0" />}
+          Total: <span className="font-medium">{esMoneda ? formatearMoneda(valorActual) : valorActual.toLocaleString('es-MX')}</span>
           {metaGlobal > 0 && <> de {esMoneda ? formatearMoneda(metaGlobal) : metaGlobal.toLocaleString('es-MX')}</>}
         </p>
       )}
@@ -373,19 +382,23 @@ function SeccionAportaciones({ indicador, aportaciones, cargando, proyectoId, on
         <p className="text-xs text-gray-500">Ningún nodo aporta a este indicador todavía.</p>
       ) : esPorCategorias ? (
         <div className="space-y-3">
-          {grupos.map(({ categoria, filas }) => (
-            <div key={categoria.id}>
-              <p className="text-[11px] font-semibold text-gray-500 mb-1 flex items-center justify-between">
-                <span>{categoria.nombre}</span>
-                <span className="font-normal text-gray-400">
-                  {esMoneda ? formatearMoneda(parseFloat(categoria.valor_actual) || 0) : (parseFloat(categoria.valor_actual) || 0).toLocaleString('es-MX')}
-                </span>
-              </p>
-              <div className="space-y-2">
-                {filas.map(ap => filaAportacion(ap, proyectoId, onActualizado, mostrarToast, categorias))}
+          {grupos.map(({ categoria, filas }) => {
+            const excede = excedeMeta(categoria.valor_actual, categoria.meta);
+            return (
+              <div key={categoria.id}>
+                <p className="text-[11px] font-semibold text-gray-500 mb-1 flex items-center justify-between">
+                  <span>{categoria.nombre}</span>
+                  <span className={`font-normal flex items-center gap-1 ${excede ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
+                    {excede && <AlertTriangle size={10} className="flex-shrink-0" />}
+                    {esMoneda ? formatearMoneda(parseFloat(categoria.valor_actual) || 0) : (parseFloat(categoria.valor_actual) || 0).toLocaleString('es-MX')}
+                  </span>
+                </p>
+                <div className="space-y-2">
+                  {filas.map(ap => filaAportacion(ap, proyectoId, onActualizado, mostrarToast, categorias))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {sinCategoria.length > 0 && (
             <div>
               <p className="text-[11px] font-semibold text-amber-700 mb-1">Sin categoría asignada</p>
