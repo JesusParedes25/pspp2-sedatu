@@ -27,7 +27,10 @@ import { useUI } from '../../context/UIContext';
 import CamposIndicadorProyecto from '../../components/indicadores/CamposIndicadorProyecto';
 import ChipAportacion from '../../components/indicadores/ChipAportacion';
 import ModalVincularIndicador from '../../components/indicadores/ModalVincularIndicador';
+import GraficaIndicador from '../../components/indicadores/GraficaIndicador';
+import ListaCategoriasEditable from '../../components/indicadores/ListaCategoriasEditable';
 import { usarCapturaValorIndicador } from '../../hooks/usarCapturaValorIndicador';
+import { usarCapturaCategorias } from '../../hooks/usarCapturaCategorias';
 import { formatearMoneda } from '../../utils/formatoMoneda';
 
 function datosEditables(indicador) {
@@ -114,7 +117,11 @@ export default function DetalleIndicador() {
 
       <SeccionDefinicion indicador={indicador} onGuardado={cargar} mostrarToast={mostrarToast} />
 
-      <SeccionValor indicador={indicador} onGuardado={cargar} mostrarToast={mostrarToast} />
+      {indicador.composicion === 'Categorias' ? (
+        <SeccionCategorias indicador={indicador} onGuardado={cargar} mostrarToast={mostrarToast} />
+      ) : (
+        <SeccionValor indicador={indicador} onGuardado={cargar} mostrarToast={mostrarToast} />
+      )}
 
       <SeccionAportaciones
         aportaciones={aportaciones}
@@ -241,6 +248,56 @@ function SeccionValor({ indicador, onGuardado, mostrarToast }) {
           </div>
           {error && <p className="text-xs text-red-600">{error}</p>}
         </div>
+      )}
+      {mostrarSelectorPeriodo && periodos.length > 0 && (
+        <GraficaIndicador
+          tipo={indicador.tipo_grafico}
+          filas={periodos.map(p => ({
+            etiqueta: p.etiqueta || String(p.anio),
+            meta: parseFloat(p.meta) || 0,
+            real: parseFloat(p.valor_actual) || 0,
+          }))}
+        />
+      )}
+    </section>
+  );
+}
+
+function SeccionCategorias({ indicador, onGuardado, mostrarToast }) {
+  const { categorias, sinCategorias, valores, cambiarValor, guardar, guardando, error } = usarCapturaCategorias(indicador);
+
+  async function manejarGuardar() {
+    const ok = await guardar();
+    if (ok) { mostrarToast('Valores actualizados', 'exito'); onGuardado(); }
+  }
+
+  return (
+    <section className="bg-white border border-gray-200 rounded-xl p-4">
+      <h2 className="text-sm font-semibold text-gray-900 mb-2">Valor por categoría</h2>
+      {sinCategorias ? (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+          Todavía no hay ninguna categoría definida. Agrega al menos una en Definición (arriba) antes de poder registrar valores.
+        </p>
+      ) : (
+        <div className="max-w-sm">
+          <ListaCategoriasEditable indicador={indicador} categorias={categorias} valores={valores} onCambiarValor={cambiarValor} />
+          <div className="flex justify-end mt-3">
+            <button onClick={manejarGuardar} disabled={guardando} className="btn-primary text-sm disabled:opacity-40">
+              {guardando ? 'Guardando...' : 'Guardar'}
+            </button>
+          </div>
+          {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
+        </div>
+      )}
+      {!sinCategorias && (
+        <GraficaIndicador
+          tipo={indicador.tipo_grafico}
+          filas={categorias.map(c => ({
+            etiqueta: c.nombre,
+            meta: parseFloat(c.meta) || 0,
+            real: parseFloat(c.valor_actual) || 0,
+          }))}
+        />
       )}
     </section>
   );
