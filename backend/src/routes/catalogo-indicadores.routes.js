@@ -20,6 +20,9 @@ router.post('/', ctrl.crear);
 router.get('/similares', ctrl.buscarSimilares);
 router.get('/productos', ctrl.listarProductos);
 router.get('/lineas-accion', ctrl.listarLineasAccion);
+// Alimenta la pantalla "Fusionar duplicados" — mismo nivel de permiso que
+// /fusionar, ya que es parte del mismo flujo de curación.
+router.get('/duplicados-sugeridos', requiereRol(['superadmin']), ctrl.duplicadosSugeridos);
 router.post('/fusionar', requiereRol(['superadmin']), ctrl.fusionar);
 router.get('/:id', ctrl.obtener);
 

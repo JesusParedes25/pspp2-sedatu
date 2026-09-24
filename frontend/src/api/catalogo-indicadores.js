@@ -45,6 +45,17 @@ export async function buscarSimilares(nombre, excluirId) {
   return data.datos || [];
 }
 
+// Pares de entradas activas que se parecen entre sí (self-join pg_trgm
+// sobre el catálogo completo) — alimenta la sugerencia automática de
+// "Fusionar duplicados", antes de que el usuario tenga que adivinar
+// cuáles son duplicados y seleccionarlos a mano uno por uno.
+export async function buscarDuplicadosSugeridos(umbral) {
+  const { data } = await client.get('/catalogo-indicadores/duplicados-sugeridos', {
+    params: { umbral: umbral || undefined },
+  });
+  return data.datos || [];
+}
+
 export async function crearIndicadorCatalogo(datos) {
   const { data } = await client.post('/catalogo-indicadores', datos);
   return data;

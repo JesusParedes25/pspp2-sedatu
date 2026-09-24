@@ -56,6 +56,15 @@ async function buscarSimilares(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function duplicadosSugeridos(req, res, next) {
+  try {
+    const umbral = req.query.umbral !== undefined ? parseFloat(req.query.umbral) : 0.5;
+    const seguro = Number.isFinite(umbral) ? Math.min(Math.max(umbral, 0.1), 1) : 0.5;
+    const datos = await catalogoQueries.buscarDuplicadosSugeridos(seguro);
+    res.json({ datos });
+  } catch (err) { next(err); }
+}
+
 async function obtener(req, res, next) {
   try {
     const datos = await catalogoQueries.obtener(req.params.id);
@@ -141,4 +150,4 @@ async function cambiarActivo(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listar, obtener, uso, nodosVinculados, crear, actualizar, cambiarActivo, buscarSimilares, fusionar, listarProductos, listarLineasAccion };
+module.exports = { listar, obtener, uso, nodosVinculados, crear, actualizar, cambiarActivo, buscarSimilares, duplicadosSugeridos, fusionar, listarProductos, listarLineasAccion };
