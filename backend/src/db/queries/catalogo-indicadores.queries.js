@@ -311,6 +311,39 @@ async function obtenerNodosVinculados(id) {
   return rows.map(r => ({ ...r, aportacion: r.aportacion == null ? null : parseFloat(r.aportacion) }));
 }
 
+// Instrumentos válidos — mismo catálogo que el CHECK de la migración 073
+// (catalogo_indicadores_instrumento_check). Repetido aquí a propósito: la
+// base de datos ya rechaza un valor inválido, pero como violación de
+// CHECK cruda no trae un mensaje claro para la UI (y un VARCHAR
+// demasiado largo ni siquiera está mapeado a 400 en errorHandler.js —
+// cae al 500 genérico). Esta validación explícita corre ANTES de tocar
+// la base, con mensajes en español listos para el toast del frontend.
+const INSTRUMENTOS_VALIDOS = ['Informe de Gobierno', 'Informe de Labores', 'PSEDATU 2025-2030'];
+
+function validarMetadatosInstitucionales(datos) {
+  if (datos.instrumento !== undefined && datos.instrumento !== null && datos.instrumento !== ''
+      && !INSTRUMENTOS_VALIDOS.includes(datos.instrumento)) {
+    const err = new Error(`Instrumento inválido: debe ser uno de ${INSTRUMENTOS_VALIDOS.join(', ')}, o vacío.`);
+    err.statusCode = 400;
+    err.codigo = 'INSTRUMENTO_INVALIDO';
+    throw err;
+  }
+  if (datos.codigo_linea_accion !== undefined && datos.codigo_linea_accion !== null
+      && String(datos.codigo_linea_accion).length > 15) {
+    const err = new Error('El código de línea de acción no puede exceder 15 caracteres.');
+    err.statusCode = 400;
+    err.codigo = 'CODIGO_LINEA_ACCION_LARGO';
+    throw err;
+  }
+  if (datos.area_sugerida !== undefined && datos.area_sugerida !== null
+      && String(datos.area_sugerida).length > 120) {
+    const err = new Error('El área sugerida no puede exceder 120 caracteres.');
+    err.statusCode = 400;
+    err.codigo = 'AREA_SUGERIDA_LARGA';
+    throw err;
+  }
+}
+
 async function crear(datos, usuarioId) {
   const nombre = (datos.nombre || '').trim();
   if (!nombre) {
@@ -319,6 +352,7 @@ async function crear(datos, usuarioId) {
     err.codigo = 'CAMPOS_REQUERIDOS';
     throw err;
   }
+  validarMetadatosInstitucionales(datos);
 
   // Evita que dos personas creen "el mismo" indicador con distinta
   // capitalización — el catálogo perdería su razón de ser.
@@ -366,6 +400,8 @@ const CAMPOS_EDITABLES = [
 ];
 
 async function actualizar(id, datos) {
+  validarMetadatosInstitucionales(datos);
+
   // Antes, renombrar no chequeaba nada — se podía dejar dos entradas con
   // el mismo nombre exacto sin ningún aviso. Mismo criterio de bloqueo
   // que crear(), excluyendo la propia entrada que se está editando.
@@ -500,4 +536,4 @@ async function fusionar(idSobrevive, idsFusionar) {
   }
 }
 
-module.exports = { listar, obtener, uso, obtenerNodosVinculados, crear, actualizar, cambiarActivo, generarClave, claveDisponible, buscarSimilares, buscarDuplicadosSugeridos, fusionar, listarProductos, listarLineasAccion };
+module.exports = { listar, obtener, uso, obtenerNodosVinculados, crear, actualizar, cambiarActivo, generarClave, claveDisponible, buscarSimilares, buscarDuplicadosSugeridos, fusionar, listarProductos, listarLineasAccion, validarMetadatosInstitucionales, INSTRUMENTOS_VALIDOS };
