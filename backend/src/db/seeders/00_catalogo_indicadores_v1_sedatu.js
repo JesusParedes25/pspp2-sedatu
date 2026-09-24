@@ -17926,11 +17926,11 @@ const CATALOGO_V1_SEDATU = [
     "unidad_personalizada": null,
     "etiqueta_unidad": null,
     "definicion": null,
-    "referencia": "4.51",
+    "referencia": "4.5.1",
     "instrumento": "PSEDATU 2025-2030",
     "area_sugerida": "RAN",
     "producto": "Promover la eficiencia, trazabilidad y acceso transparente a la información registral a través del fortalecimiento de los procesos de inscripción de actos jurídicos agrarios que certifican derechos sobre la propiedad social",
-    "codigo_linea_accion": "4.51",
+    "codigo_linea_accion": "4.5.1",
     "activo": true
   },
   {
