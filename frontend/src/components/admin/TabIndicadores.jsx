@@ -22,6 +22,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader2, Search, Pencil, EyeOff, Eye, X, ChevronRight, ExternalLink } from 'lucide-react';
 import * as catalogoApi from '../../api/catalogo-indicadores';
 import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
+import FiltrosCatalogoIndicadores from '../indicadores/FiltrosCatalogoIndicadores';
+
+const INSTRUMENTOS = ['Informe de Gobierno', 'Informe de Labores', 'PSEDATU 2025-2030'];
 
 const TIPOS = [
   { valor: 'Avance_fisico', etiqueta: 'Avance físico' },
@@ -85,6 +88,7 @@ export default function TabIndicadores() {
   const [items, setItems] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState('');
+  const [filtros, setFiltros] = useState({ instrumento: null, producto: null, objetivo: null, estrategia: null });
   const [verRetirados, setVerRetirados] = useState(false);
   const [editando, setEditando] = useState(null);
   const [expandido, setExpandido] = useState(null);
@@ -103,12 +107,16 @@ export default function TabIndicadores() {
       const res = await catalogoApi.listarCatalogoIndicadores({
         busqueda: busqueda || undefined,
         incluirInactivos: verRetirados,
+        instrumento: filtros.instrumento || undefined,
+        producto: filtros.producto || undefined,
+        objetivo: filtros.objetivo || undefined,
+        estrategia: filtros.estrategia || undefined,
       });
       setItems(res.datos || []);
     } catch {
       setError('No se pudo cargar el catálogo.');
     } finally { setCargando(false); }
-  }, [busqueda, verRetirados]);
+  }, [busqueda, verRetirados, filtros]);
 
   useEffect(() => {
     const t = setTimeout(cargar, busqueda ? 250 : 0);
@@ -166,6 +174,8 @@ export default function TabIndicadores() {
           Ver retirados
         </label>
       </div>
+
+      <FiltrosCatalogoIndicadores valor={filtros} onCambio={patch => setFiltros(f => ({ ...f, ...patch }))} />
 
       {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>}
 
@@ -269,7 +279,47 @@ export default function TabIndicadores() {
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">Fuente del dato</label>
                 <input value={editando.fuente || ''} onChange={e => setEditando(v => ({ ...v, fuente: e.target.value }))}
+                  placeholder="De dónde viene el dato, ej. INEGI, CONAPO..."
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Referencia</label>
+                <input value={editando.referencia || ''} onChange={e => setEditando(v => ({ ...v, referencia: e.target.value }))}
+                  placeholder="Dónde ubicarlo, ej. página 261 del informe"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400" />
+              </div>
+              <div className="pt-2 border-t border-gray-100">
+                <p className="text-[11px] font-semibold text-gray-500 mb-2">Metadatos de importación institucional</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Instrumento</label>
+                    <select value={editando.instrumento || ''} onChange={e => setEditando(v => ({ ...v, instrumento: e.target.value || null }))}
+                      className="w-full px-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400">
+                      <option value="">— ninguno —</option>
+                      {INSTRUMENTOS.map(i => <option key={i} value={i}>{i}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Área sugerida</label>
+                    <input value={editando.area_sugerida || ''} onChange={e => setEditando(v => ({ ...v, area_sugerida: e.target.value }))}
+                      placeholder="Ej. DGOTU; DGPV"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400" />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Producto / objetivo estratégico</label>
+                  <textarea value={editando.producto || ''} onChange={e => setEditando(v => ({ ...v, producto: e.target.value }))}
+                    rows={2}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400" />
+                </div>
+                {editando.instrumento === 'PSEDATU 2025-2030' && (
+                  <div className="mt-3">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Código de línea de acción</label>
+                    <input value={editando.codigo_linea_accion || ''} onChange={e => setEditando(v => ({ ...v, codigo_linea_accion: e.target.value }))}
+                      placeholder="Ej. 1.1.1"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400" />
+                  </div>
+                )}
               </div>
               {editando.usos > 0 && (
                 <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">

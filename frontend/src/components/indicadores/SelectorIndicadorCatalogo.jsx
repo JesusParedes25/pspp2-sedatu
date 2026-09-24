@@ -24,6 +24,7 @@ import * as catalogoApi from '../../api/catalogo-indicadores';
 import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
 import { etiquetaUnidadIndicador } from '../../utils/formatoMoneda';
 import { TIPOS_INDICADOR as TIPOS, UNIDADES_INDICADOR as UNIDADES } from '../../utils/tiposIndicador';
+import FiltrosCatalogoIndicadores from './FiltrosCatalogoIndicadores';
 
 export function etiquetaUnidad(ind) {
   return etiquetaUnidadIndicador(ind) || 'unidades';
@@ -33,6 +34,7 @@ export default function SelectorIndicadorCatalogo({ onElegir, onCerrar, yaUsados
   const [catalogo, setCatalogo] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState('');
+  const [filtros, setFiltros] = useState({ instrumento: null, producto: null, objetivo: null, estrategia: null });
   const [modoAlta, setModoAlta] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState(null);
@@ -64,7 +66,13 @@ export default function SelectorIndicadorCatalogo({ onElegir, onCerrar, yaUsados
     const t = setTimeout(async () => {
       setCargando(true);
       try {
-        const res = await catalogoApi.listarCatalogoIndicadores({ busqueda: busqueda || undefined });
+        const res = await catalogoApi.listarCatalogoIndicadores({
+          busqueda: busqueda || undefined,
+          instrumento: filtros.instrumento || undefined,
+          producto: filtros.producto || undefined,
+          objetivo: filtros.objetivo || undefined,
+          estrategia: filtros.estrategia || undefined,
+        });
         if (vivo) setCatalogo(res.datos || []);
       } catch {
         if (vivo) setError('No se pudo cargar el catálogo de indicadores.');
@@ -73,7 +81,7 @@ export default function SelectorIndicadorCatalogo({ onElegir, onCerrar, yaUsados
       }
     }, busqueda ? 250 : 0);
     return () => { vivo = false; clearTimeout(t); };
-  }, [busqueda]);
+  }, [busqueda, filtros]);
 
   async function crearYElegir() {
     if (!nuevo.nombre.trim()) return;
@@ -129,6 +137,8 @@ export default function SelectorIndicadorCatalogo({ onElegir, onCerrar, yaUsados
                   className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400"
                 />
               </div>
+
+              <FiltrosCatalogoIndicadores valor={filtros} onCambio={patch => setFiltros(f => ({ ...f, ...patch }))} />
 
               <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-72 overflow-y-auto">
                 {cargando ? (

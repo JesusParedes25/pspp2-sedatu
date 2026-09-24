@@ -22,6 +22,9 @@ import { useAuth } from '../../context/AuthContext';
 import { useUI } from '../../context/UIContext';
 import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
 import { TIPOS_INDICADOR as TIPOS } from '../../utils/tiposIndicador';
+import FiltrosCatalogoIndicadores from './FiltrosCatalogoIndicadores';
+
+const INSTRUMENTOS = ['Informe de Gobierno', 'Informe de Labores', 'PSEDATU 2025-2030'];
 
 const ETIQUETA_TIPO_NODO = { etapa: 'Etapa', accion: 'Acción', tarea: 'Tarea' };
 const ETIQUETA_MODO_APORTACION = { al_concluir: 'Manual', proporcional: 'Automático' };
@@ -120,6 +123,14 @@ function FichaExpandida({ indicador }) {
         <p className="text-[11px] font-semibold text-gray-600 mb-0.5">Fuente del dato</p>
         <p className="text-xs text-gray-600">{indicador.fuente || <span className="text-gray-400">Sin fuente capturada.</span>}</p>
       </div>
+      {(indicador.referencia || indicador.producto || indicador.instrumento) && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-gray-500">
+          {indicador.instrumento && <span>{indicador.instrumento}</span>}
+          {indicador.codigo_linea_accion && <span>· Línea de acción {indicador.codigo_linea_accion}</span>}
+          {indicador.referencia && <span>· {indicador.referencia}</span>}
+          {indicador.area_sugerida && <span>· Área: {indicador.area_sugerida}</span>}
+        </div>
+      )}
       <SeccionProyectosVinculados catalogoId={indicador.id} />
       <SeccionNodosVinculados catalogoId={indicador.id} />
     </div>
@@ -134,6 +145,7 @@ export default function CatalogoIndicadores() {
   const [items, setItems] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState('');
+  const [filtros, setFiltros] = useState({ instrumento: null, producto: null, objetivo: null, estrategia: null });
   const [verRetirados, setVerRetirados] = useState(false);
   const [editando, setEditando] = useState(null);
   const [expandido, setExpandido] = useState(null);
@@ -159,12 +171,16 @@ export default function CatalogoIndicadores() {
       const res = await catalogoApi.listarCatalogoIndicadores({
         busqueda: busqueda || undefined,
         incluirInactivos: esSuperadmin ? verRetirados : false,
+        instrumento: filtros.instrumento || undefined,
+        producto: filtros.producto || undefined,
+        objetivo: filtros.objetivo || undefined,
+        estrategia: filtros.estrategia || undefined,
       });
       setItems(res.datos || []);
     } catch {
       setError('No se pudo cargar el catálogo.');
     } finally { setCargando(false); }
-  }, [busqueda, verRetirados, esSuperadmin]);
+  }, [busqueda, verRetirados, esSuperadmin, filtros]);
 
   useEffect(() => {
     const t = setTimeout(cargar, busqueda ? 250 : 0);
@@ -288,7 +304,7 @@ export default function CatalogoIndicadores() {
           <input
             value={busqueda}
             onChange={e => setBusqueda(e.target.value)}
-            placeholder="Buscar por nombre o clave..."
+            placeholder="Buscar por nombre, clave, producto o área..."
             className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400"
           />
         </div>
@@ -299,6 +315,8 @@ export default function CatalogoIndicadores() {
           </label>
         )}
       </div>
+
+      <FiltrosCatalogoIndicadores valor={filtros} onCambio={patch => setFiltros(f => ({ ...f, ...patch }))} />
 
       {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>}
 
@@ -407,7 +425,47 @@ export default function CatalogoIndicadores() {
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">Fuente del dato</label>
                 <input value={editando.fuente || ''} onChange={e => setEditando(v => ({ ...v, fuente: e.target.value }))}
+                  placeholder="De dónde viene el dato, ej. INEGI, CONAPO..."
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Referencia</label>
+                <input value={editando.referencia || ''} onChange={e => setEditando(v => ({ ...v, referencia: e.target.value }))}
+                  placeholder="Dónde ubicarlo, ej. página 261 del informe"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400" />
+              </div>
+              <div className="pt-2 border-t border-gray-100">
+                <p className="text-[11px] font-semibold text-gray-500 mb-2">Metadatos de importación institucional</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Instrumento</label>
+                    <select value={editando.instrumento || ''} onChange={e => setEditando(v => ({ ...v, instrumento: e.target.value || null }))}
+                      className="w-full px-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400">
+                      <option value="">— ninguno —</option>
+                      {INSTRUMENTOS.map(i => <option key={i} value={i}>{i}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Área sugerida</label>
+                    <input value={editando.area_sugerida || ''} onChange={e => setEditando(v => ({ ...v, area_sugerida: e.target.value }))}
+                      placeholder="Ej. DGOTU; DGPV"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400" />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Producto / objetivo estratégico</label>
+                  <textarea value={editando.producto || ''} onChange={e => setEditando(v => ({ ...v, producto: e.target.value }))}
+                    rows={2}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400" />
+                </div>
+                {editando.instrumento === 'PSEDATU 2025-2030' && (
+                  <div className="mt-3">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Código de línea de acción</label>
+                    <input value={editando.codigo_linea_accion || ''} onChange={e => setEditando(v => ({ ...v, codigo_linea_accion: e.target.value }))}
+                      placeholder="Ej. 1.1.1"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400" />
+                  </div>
+                )}
               </div>
               {editando.usos > 0 && (
                 <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">

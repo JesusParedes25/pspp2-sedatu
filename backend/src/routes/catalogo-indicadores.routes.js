@@ -18,6 +18,8 @@ router.post('/', ctrl.crear);
 // Rutas literales ANTES de '/:id' — si no, Express intentaría matchear
 // "similares"/"fusionar" como si fueran un :id.
 router.get('/similares', ctrl.buscarSimilares);
+router.get('/productos', ctrl.listarProductos);
+router.get('/lineas-accion', ctrl.listarLineasAccion);
 router.post('/fusionar', requiereRol(['superadmin']), ctrl.fusionar);
 router.get('/:id', ctrl.obtener);
 

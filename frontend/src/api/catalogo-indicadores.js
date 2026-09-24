@@ -4,14 +4,35 @@
  */
 import client from './client';
 
-export async function listarCatalogoIndicadores({ busqueda, incluirInactivos } = {}) {
+export async function listarCatalogoIndicadores({ busqueda, incluirInactivos, instrumento, producto, objetivo, estrategia } = {}) {
   const { data } = await client.get('/catalogo-indicadores', {
     params: {
       busqueda: busqueda || undefined,
       incluir_inactivos: incluirInactivos ? 'true' : undefined,
+      instrumento: instrumento || undefined,
+      producto: producto || undefined,
+      objetivo: objetivo || undefined,
+      estrategia: estrategia || undefined,
     },
   });
   return data;
+}
+
+// Sugerencias en vivo para el combobox de "Producto" (Informe de
+// Gobierno/Labores) — acotadas por instrumento.
+export async function listarProductosCatalogo(busqueda, instrumento) {
+  const { data } = await client.get('/catalogo-indicadores/productos', {
+    params: { busqueda: busqueda || undefined, instrumento: instrumento || undefined },
+  });
+  return data.datos || [];
+}
+
+// Códigos de línea de acción del PSEDATU realmente presentes en el
+// catálogo — el frontend deriva el filtro de 2 niveles (objetivo →
+// estrategia) de esta lista.
+export async function listarLineasAccionCatalogo() {
+  const { data } = await client.get('/catalogo-indicadores/lineas-accion');
+  return data.datos || [];
 }
 
 // Entradas parecidas por similitud de texto (pg_trgm) — para sugerirlas
