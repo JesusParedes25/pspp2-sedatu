@@ -72,6 +72,80 @@ async function buscarSimilares(nombre, excluirId = null) {
   return rows.map(r => ({ ...r, usos: parseInt(r.usos, 10) || 0 }));
 }
 
+// Sugiere PARES de entradas activas que se parecen entre sí, para la
+// pantalla "Fusionar duplicados" — a diferencia de buscarSimilares()
+// (que compara UN nombre nuevo contra el catálogo, para el alta manual),
+// esto recorre el catálogo completo contra sí mismo para encontrar
+// duplicados que YA existen y nadie detectó.
+//
+// Con 1387+ entradas, un self-join evaluando similarity() en cada par
+// posible (~950 mil pares) tomó ~21s en pruebas — Postgres no usa un
+// índice GIN de trigramas para acotar un self-join columna-contra-columna
+// en una tabla de este tamaño (el planner prefiere Seq Scan). La solución
+// que sí funciona: un índice GIST (gist_trgm_ops, migración 075) permite
+// una búsqueda "los 3 más parecidos" por fila vía el operador de
+// distancia "<->" en una LATERAL — Postgres SÍ usa ese índice para KNN,
+// bajando el tiempo a ~2.5s (1366 búsquedas de índice en vez de 1366
+// barridos completos). El umbral filtra los candidatos DESPUÉS de la
+// búsqueda por índice (no cambia qué candidatos se examinan, solo cuáles
+// se muestran) — sigue siendo "configurable", solo que ya no se aplica
+// vía el GUC pg_trgm.similarity_threshold.
+async function buscarDuplicadosSugeridos(umbral = 0.5) {
+  const { rows: candidatos } = await pool.query(`
+    SELECT a.id AS id1, a.nombre AS nombre1, a.clave AS clave1,
+           m.id2, m.nombre2, m.clave2, m.score
+      FROM catalogo_indicadores a
+      CROSS JOIN LATERAL (
+        SELECT b.id AS id2, b.nombre AS nombre2, b.clave AS clave2,
+               similarity(LOWER(b.nombre), LOWER(a.nombre)) AS score
+          FROM catalogo_indicadores b
+         WHERE b.activo = true AND b.id <> a.id
+         ORDER BY b.nombre <-> a.nombre
+         LIMIT 3
+      ) m
+     WHERE a.activo = true AND m.score >= $1
+  `, [umbral]);
+
+  if (candidatos.length === 0) return [];
+
+  // Cada fila del catálogo aporta sus propios 3 candidatos más cercanos,
+  // así que el mismo par puede aparecer dos veces (una vez desde cada
+  // lado) — se deduplica por par sin ordenar, quedándose con el mayor
+  // score visto.
+  const porPar = new Map();
+  for (const c of candidatos) {
+    const [id1, id2] = c.id1 < c.id2 ? [c.id1, c.id2] : [c.id2, c.id1];
+    const [n1, k1, n2, k2] = c.id1 < c.id2
+      ? [c.nombre1, c.clave1, c.nombre2, c.clave2]
+      : [c.nombre2, c.clave2, c.nombre1, c.clave1];
+    const clave = `${id1}|${id2}`;
+    const score = parseFloat(c.score);
+    const existente = porPar.get(clave);
+    if (!existente || score > existente.score) {
+      porPar.set(clave, { id1, nombre1: n1, clave1: k1, id2, nombre2: n2, clave2: k2, score });
+    }
+  }
+
+  const pares = [...porPar.values()].sort((a, b) => b.score - a.score).slice(0, 50);
+
+  const ids = [...new Set(pares.flatMap(p => [p.id1, p.id2]))];
+  const { rows: usosPorId } = await pool.query(`
+    SELECT c.id, COUNT(DISTINCT i.id_proyecto)::int AS usos
+      FROM catalogo_indicadores c
+      LEFT JOIN indicadores i ON i.id_catalogo = c.id
+      LEFT JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL
+     WHERE c.id = ANY($1)
+     GROUP BY c.id
+  `, [ids]);
+  const usos = Object.fromEntries(usosPorId.map(r => [r.id, r.usos]));
+
+  return pares.map(p => ({
+    score: p.score,
+    entrada1: { id: p.id1, nombre: p.nombre1, clave: p.clave1, usos: usos[p.id1] || 0 },
+    entrada2: { id: p.id2, nombre: p.nombre2, clave: p.clave2, usos: usos[p.id2] || 0 },
+  }));
+}
+
 // Sugerencias en vivo para el combobox de "Producto" (Informe de
 // Gobierno/Labores, donde no hay código jerárquico) — acotado por
 // instrumento porque el usuario pidió agrupar "primero por instrumento
@@ -426,4 +500,4 @@ async function fusionar(idSobrevive, idsFusionar) {
   }
 }
 
-module.exports = { listar, obtener, uso, obtenerNodosVinculados, crear, actualizar, cambiarActivo, generarClave, claveDisponible, buscarSimilares, fusionar, listarProductos, listarLineasAccion };
+module.exports = { listar, obtener, uso, obtenerNodosVinculados, crear, actualizar, cambiarActivo, generarClave, claveDisponible, buscarSimilares, buscarDuplicadosSugeridos, fusionar, listarProductos, listarLineasAccion };

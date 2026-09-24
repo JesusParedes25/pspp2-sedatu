@@ -160,6 +160,22 @@ export default function CatalogoIndicadores() {
   const [confirmandoFusion, setConfirmandoFusion] = useState(false);
   const [fusionando, setFusionando] = useState(false);
 
+  // Sugerencias automáticas de posibles duplicados (pg_trgm) al entrar en
+  // modo fusión — antes solo existía la selección manual, obligando a
+  // adivinar cuáles entradas se parecen entre sí.
+  const [sugerencias, setSugerencias] = useState([]);
+  const [cargandoSugerencias, setCargandoSugerencias] = useState(false);
+  const [umbralSugerencias, setUmbralSugerencias] = useState(0.5);
+
+  useEffect(() => {
+    if (!modoFusion) return;
+    setCargandoSugerencias(true);
+    catalogoApi.buscarDuplicadosSugeridos(umbralSugerencias)
+      .then(setSugerencias)
+      .catch(() => setSugerencias([]))
+      .finally(() => setCargandoSugerencias(false));
+  }, [modoFusion, umbralSugerencias]);
+
   function abrirEdicion(ind) {
     editandoInicialRef.current = { ...ind };
     setEditando(editandoInicialRef.current);
@@ -226,6 +242,11 @@ export default function CatalogoIndicadores() {
     setModoFusion(false);
     setSeleccionados(new Set());
     setSobrevive(null);
+    setSugerencias([]);
+  }
+
+  function seleccionarSugerencia(par) {
+    setSeleccionados(prev => new Set([...prev, par.entrada1.id, par.entrada2.id]));
   }
 
   const itemsSeleccionados = items.filter(i => seleccionados.has(i.id));
@@ -295,6 +316,60 @@ export default function CatalogoIndicadores() {
               Fusionar seleccionados
             </button>
           </div>
+        </div>
+      )}
+
+      {modoFusion && (
+        <div className="border border-gray-200 rounded-lg px-3 py-2.5 space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-semibold text-gray-700">Posibles duplicados sugeridos</p>
+            <label className="flex items-center gap-1.5 text-[11px] text-gray-500 flex-shrink-0">
+              Sensibilidad
+              <select
+                value={umbralSugerencias}
+                onChange={e => setUmbralSugerencias(parseFloat(e.target.value))}
+                className="text-[11px] border border-gray-200 rounded px-1.5 py-0.5 focus:outline-none focus:border-guinda-400"
+              >
+                <option value={0.3}>Amplia</option>
+                <option value={0.5}>Media</option>
+                <option value={0.7}>Estricta</option>
+              </select>
+            </label>
+          </div>
+          {cargandoSugerencias ? (
+            <div className="flex justify-center py-4"><Loader2 size={14} className="animate-spin text-gray-400" /></div>
+          ) : sugerencias.length === 0 ? (
+            <p className="text-xs text-gray-500 py-1">No se encontraron pares parecidos con esta sensibilidad.</p>
+          ) : (
+            <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
+              {sugerencias.map(par => {
+                const yaSeleccionado = seleccionados.has(par.entrada1.id) && seleccionados.has(par.entrada2.id);
+                return (
+                  <div key={`${par.entrada1.id}-${par.entrada2.id}`}
+                    className={`flex items-center justify-between gap-3 px-2.5 py-1.5 rounded-lg text-xs ${yaSeleccionado ? 'bg-guinda-50 border border-guinda-200' : 'bg-gray-50'}`}>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-gray-800">
+                        <span className="font-medium">{par.entrada1.nombre}</span>
+                        <span className="text-gray-400"> ({par.entrada1.usos})</span>
+                      </p>
+                      <p className="truncate text-gray-800">
+                        <span className="font-medium">{par.entrada2.nombre}</span>
+                        <span className="text-gray-400"> ({par.entrada2.usos})</span>
+                      </p>
+                    </div>
+                    <span className="text-[10px] text-gray-400 flex-shrink-0">{Math.round(par.score * 100)}% parecido</span>
+                    <button
+                      onClick={() => seleccionarSugerencia(par)}
+                      disabled={yaSeleccionado}
+                      className="text-[11px] font-medium text-guinda-700 hover:text-guinda-800 disabled:text-gray-400 flex-shrink-0"
+                    >
+                      {yaSeleccionado ? 'Seleccionado' : 'Seleccionar'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
