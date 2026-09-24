@@ -24,6 +24,7 @@ const ejecutarSeeders = require('./db/seeders/index');
 const asegurarSuperAdmin = require('./db/seeders/00_superadmin');
 const asegurarEstructura = require('./db/seeders/00_estructura');
 const asegurarProgramas = require('./db/seeders/00_programas');
+const asegurarCatalogoIndicadoresV1 = require('./db/seeders/00_catalogo_indicadores_v1_sedatu');
 const { iniciarPurgaAutomatica } = require('./utils/purgarProyectos');
 const { iniciarAlertasAutomaticas } = require('./utils/alertasVencimiento');
 
@@ -88,14 +89,19 @@ async function iniciar() {
   try {
     await ejecutarMigraciones();
     await asegurarSuperAdmin();
-    // Los dos catálogos institucionales corren siempre, producción
-    // incluida: no son datos de demostración sino las listas reales que
-    // la plataforma necesita —la estructura de SEDATU para dar de alta
-    // usuarios y asignar áreas, y los Pp del Ramo 15 para vincular un
-    // proyecto a su programa. Ambos AGREGAN lo que falte y nunca
-    // reescriben lo que ya está capturado.
+    // Los catálogos institucionales corren siempre, producción incluida:
+    // no son datos de demostración sino las listas reales que la
+    // plataforma necesita —la estructura de SEDATU para dar de alta
+    // usuarios y asignar áreas, los Pp del Ramo 15 para vincular un
+    // proyecto a su programa, y el catálogo de indicadores oficial de
+    // la secretaría. Todos AGREGAN lo que falte y nunca reescriben lo
+    // que ya está capturado. El catálogo de indicadores, a diferencia
+    // de los otros dos, es un LOTE versionado (ver
+    // catalogo-indicadores-lote.js) — un Excel nuevo de otra dirección
+    // general se agrega como una línea nueva aquí, sin tocar esta.
     await asegurarEstructura();
     await asegurarProgramas();
+    await asegurarCatalogoIndicadoresV1();
     // CRÍTICO: los seeders insertan/actualizan usuarios de demo (contraseña
     // conocida "demo2026") y proyectos de ejemplo con ON CONFLICT DO UPDATE.
     // Antes esto corría en CADA arranque sin importar el entorno — en

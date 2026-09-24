@@ -72,6 +72,42 @@ async function buscarSimilares(nombre, excluirId = null) {
   return rows.map(r => ({ ...r, usos: parseInt(r.usos, 10) || 0 }));
 }
 
+// Sugerencias en vivo para el combobox de "Producto" (Informe de
+// Gobierno/Labores, donde no hay código jerárquico) — acotado por
+// instrumento porque el usuario pidió agrupar "primero por instrumento
+// y después por producto".
+async function listarProductos(busqueda, instrumento) {
+  const condiciones = ['producto IS NOT NULL', 'activo = true'];
+  const valores = [];
+  if (busqueda) {
+    valores.push(`%${busqueda}%`);
+    condiciones.push(`producto ILIKE $${valores.length}`);
+  }
+  if (instrumento) {
+    valores.push(instrumento);
+    condiciones.push(`instrumento = $${valores.length}`);
+  }
+  const { rows } = await pool.query(
+    `SELECT DISTINCT producto FROM catalogo_indicadores WHERE ${condiciones.join(' AND ')} ORDER BY producto LIMIT 20`,
+    valores
+  );
+  return rows.map(r => r.producto);
+}
+
+// Códigos de línea de acción del PSEDATU realmente presentes en el
+// catálogo — no un catálogo estático de objetivos/estrategias
+// codificado a mano (quedaría desactualizado si cambia el plan
+// sectorial). El frontend deriva los 2 niveles del filtro (objetivo =
+// primer segmento, estrategia = primeros dos) de esta lista.
+async function listarLineasAccion() {
+  const { rows } = await pool.query(
+    `SELECT DISTINCT codigo_linea_accion FROM catalogo_indicadores
+     WHERE instrumento = 'PSEDATU 2025-2030' AND codigo_linea_accion IS NOT NULL AND activo = true
+     ORDER BY codigo_linea_accion`
+  );
+  return rows.map(r => r.codigo_linea_accion);
+}
+
 // Lista el catálogo. `usos` dice en cuántos proyectos se está usando —
 // es el dato que necesita quien administra para saber si puede retirar
 // una entrada sin dejar a nadie colgado.
@@ -83,13 +119,39 @@ async function buscarSimilares(nombre, excluirId = null) {
 // dentro del COUNT/array_agg en vez de en el WHERE — un WHERE ahí
 // convertiría el LEFT JOIN en un INNER JOIN de facto y excluiría del
 // resultado las entradas del catálogo sin ningún proyecto vinculado.
-async function listar({ busqueda, incluirInactivos = false } = {}) {
+async function listar({ busqueda, incluirInactivos = false, instrumento, producto, objetivo, estrategia } = {}) {
   const condiciones = [];
   const valores = [];
   if (!incluirInactivos) condiciones.push('c.activo = true');
   if (busqueda) {
+    // Amplía la búsqueda a producto/area_sugerida además de
+    // nombre/clave — con 1387+ entradas importadas, un usuario suele
+    // recordar el tema ("vivienda") antes que el nombre exacto del
+    // indicador.
     valores.push(`%${busqueda}%`);
-    condiciones.push(`(c.nombre ILIKE $${valores.length} OR c.clave ILIKE $${valores.length})`);
+    condiciones.push(`(c.nombre ILIKE $${valores.length} OR c.clave ILIKE $${valores.length} OR c.producto ILIKE $${valores.length} OR c.area_sugerida ILIKE $${valores.length})`);
+  }
+  if (instrumento) {
+    valores.push(instrumento);
+    condiciones.push(`c.instrumento = $${valores.length}`);
+  }
+  if (producto) {
+    valores.push(producto);
+    condiciones.push(`c.producto = $${valores.length}`);
+  }
+  // objetivo/estrategia derivan de codigo_linea_accion ("objetivo.estrategia.línea")
+  // por prefijo — solo tienen sentido para PSEDATU, pero no hace falta
+  // repetir ese filtro aquí: un codigo_linea_accion no-PSEDATU siempre es NULL.
+  if (objetivo) {
+    valores.push(`${objetivo}.%`);
+    condiciones.push(`c.codigo_linea_accion LIKE $${valores.length}`);
+  }
+  if (estrategia) {
+    // Prefijo (líneas de acción "estrategia.N") + exacto (el propio
+    // código de 2 niveles, para los indicadores compuestos que viven
+    // directo en objetivo.estrategia sin una línea de acción debajo).
+    valores.push(`${estrategia}.%`, estrategia);
+    condiciones.push(`(c.codigo_linea_accion LIKE $${valores.length - 1} OR c.codigo_linea_accion = $${valores.length})`);
   }
   const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
   // Sin texto de búsqueda, un tope evita traer + agregar el catálogo
@@ -201,8 +263,9 @@ async function crear(datos, usuarioId) {
   const { rows } = await pool.query(`
     INSERT INTO catalogo_indicadores (
       clave, nombre, descripcion, tipo, unidad, unidad_personalizada,
-      etiqueta_unidad, definicion, fuente, creado_por
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      etiqueta_unidad, definicion, fuente, creado_por,
+      instrumento, area_sugerida, producto, codigo_linea_accion, referencia
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
     RETURNING *
   `, [
     clave, nombre, datos.descripcion || null,
@@ -210,6 +273,13 @@ async function crear(datos, usuarioId) {
     datos.unidad_personalizada || null,
     datos.etiqueta_unidad || datos.unidad_personalizada || null,
     datos.definicion || null, datos.fuente || null, usuarioId || null,
+    // Metadatos de importación institucional — opcionales, el alta
+    // manual desde SelectorIndicadorCatalogo.jsx no los pide y quedan
+    // NULL (un usuario normal no etiqueta de qué informe viene algo
+    // que está creando él mismo).
+    datos.instrumento || null, datos.area_sugerida || null,
+    datos.producto || null, datos.codigo_linea_accion || null,
+    datos.referencia || null,
   ]);
   return rows[0];
 }
@@ -218,6 +288,7 @@ async function crear(datos, usuarioId) {
 const CAMPOS_EDITABLES = [
   'nombre', 'descripcion', 'tipo', 'unidad', 'unidad_personalizada',
   'etiqueta_unidad', 'definicion', 'fuente',
+  'instrumento', 'area_sugerida', 'producto', 'codigo_linea_accion', 'referencia',
 ];
 
 async function actualizar(id, datos) {
@@ -236,6 +307,37 @@ async function actualizar(id, datos) {
       err.codigo = 'DUPLICADO';
       err.existente = repetido[0];
       throw err;
+    }
+  }
+
+  // Cambiar tipo o unidad de una entrada que YA tiene proyectos
+  // vinculados alteraría el significado de valores ya capturados (un
+  // valor capturado como "Numero" pasaría a leerse como "Porcentaje"
+  // sin que nadie lo haya recapturado) — se bloquea sin excepción,
+  // igual que ya bloquean CATEGORIA_CON_APORTACIONES/
+  // INDICADOR_CON_APORTACIONES en indicadores.queries.js. El resto de
+  // campos (nombre, definicion, referencia, producto, etc.) siguen
+  // editables aunque la entrada ya esté en uso — solo tipo/unidad
+  // cambian el significado de un número ya capturado.
+  const cambiaTipoOUnidad = datos.tipo !== undefined || datos.unidad !== undefined;
+  if (cambiaTipoOUnidad) {
+    const { rows: [actual] } = await pool.query(
+      'SELECT tipo, unidad FROM catalogo_indicadores WHERE id = $1', [id]
+    );
+    if (actual) {
+      const tipoCambia = datos.tipo !== undefined && datos.tipo !== actual.tipo;
+      const unidadCambia = datos.unidad !== undefined && datos.unidad !== actual.unidad;
+      if (tipoCambia || unidadCambia) {
+        const { rows: [{ n }] } = await pool.query(
+          'SELECT COUNT(*)::int AS n FROM indicadores WHERE id_catalogo = $1', [id]
+        );
+        if (n > 0) {
+          const err = new Error(`Este indicador ya está vinculado a ${n} proyecto(s) — cambiar tipo o unidad alteraría el significado de valores ya capturados. Si necesitas un indicador distinto, crea uno nuevo.`);
+          err.statusCode = 409;
+          err.codigo = 'CATALOGO_EN_USO';
+          throw err;
+        }
+      }
     }
   }
 
@@ -324,4 +426,4 @@ async function fusionar(idSobrevive, idsFusionar) {
   }
 }
 
-module.exports = { listar, obtener, uso, obtenerNodosVinculados, crear, actualizar, cambiarActivo, generarClave, buscarSimilares, fusionar };
+module.exports = { listar, obtener, uso, obtenerNodosVinculados, crear, actualizar, cambiarActivo, generarClave, claveDisponible, buscarSimilares, fusionar, listarProductos, listarLineasAccion };
