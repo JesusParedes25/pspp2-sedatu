@@ -150,6 +150,14 @@ async function buscarDuplicadosSugeridos(umbral = 0.5) {
 // Gobierno/Labores, donde no hay código jerárquico) — acotado por
 // instrumento porque el usuario pidió agrupar "primero por instrumento
 // y después por producto".
+// Solo se sugieren valores de "producto" (mostrado en la interfaz como
+// "Categoría") que de verdad agrupan 2+ entradas del catálogo — cerca de
+// la mitad de los valores en Informe de Gobierno/Labores son narrativas
+// de una sola fila (ej. "1,173 viviendas con daños menores o sin daños"),
+// texto específico de UN indicador, no una categoría reutilizable.
+// Sugerirlos como si fueran categorías no tiene sentido para quien busca
+// (no hay nada más que encontrar filtrando por ese texto exacto) — con
+// HAVING COUNT(*) > 1 solo aparecen agrupaciones reales.
 async function listarProductos(busqueda, instrumento) {
   const condiciones = ['producto IS NOT NULL', 'activo = true'];
   const valores = [];
@@ -162,7 +170,12 @@ async function listarProductos(busqueda, instrumento) {
     condiciones.push(`instrumento = $${valores.length}`);
   }
   const { rows } = await pool.query(
-    `SELECT DISTINCT producto FROM catalogo_indicadores WHERE ${condiciones.join(' AND ')} ORDER BY producto LIMIT 20`,
+    `SELECT producto FROM catalogo_indicadores
+      WHERE ${condiciones.join(' AND ')}
+      GROUP BY producto
+     HAVING COUNT(*) > 1
+      ORDER BY producto
+      LIMIT 20`,
     valores
   );
   return rows.map(r => r.producto);

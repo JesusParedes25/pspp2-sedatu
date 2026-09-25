@@ -19,7 +19,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useRef } from 'react';
-import { X, Loader2, Search, Plus, BarChart3, BookOpen, Sparkles } from 'lucide-react';
+import { X, Loader2, Search, Plus, BarChart3, BookOpen, Sparkles, Tag } from 'lucide-react';
 import * as catalogoApi from '../../api/catalogo-indicadores';
 import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
 import { usePsedatuTitulos } from '../../hooks/usePsedatuTitulos';
@@ -165,7 +165,7 @@ export default function SelectorIndicadorCatalogo({ onElegir, onCerrar, yaUsados
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <span className="text-sm text-gray-800 leading-tight">{ind.nombre}</span>
+                        <span className="text-sm font-medium text-gray-800 leading-tight">{ind.nombre}</span>
                         {yaEsta
                           ? <span className="text-[10px] text-gray-400 flex-shrink-0">ya agregado</span>
                           : ind.usos > 0 && (
@@ -174,8 +174,14 @@ export default function SelectorIndicadorCatalogo({ onElegir, onCerrar, yaUsados
                             </span>
                           )}
                       </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
+                      {ind.producto && (
+                        <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-sky-700 bg-sky-50 border border-sky-100 rounded-full px-2 py-0.5 max-w-full" title={ind.producto}>
+                          <Tag size={10} className="flex-shrink-0 text-sky-400" />
+                          <span className="truncate">{ind.producto.length > 70 ? `${ind.producto.slice(0, 70)}…` : ind.producto}</span>
+                        </p>
+                      )}
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">
                           {TIPOS.find(t => t.valor === ind.tipo)?.etiqueta || ind.tipo}
                         </span>
                         <span className="text-[10px] text-gray-400">{etiquetaUnidad(ind)}</span>
