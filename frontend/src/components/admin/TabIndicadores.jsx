@@ -22,7 +22,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader2, Search, Pencil, EyeOff, Eye, X, ChevronRight, ExternalLink } from 'lucide-react';
 import * as catalogoApi from '../../api/catalogo-indicadores';
 import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
+import { usePsedatuTitulos } from '../../hooks/usePsedatuTitulos';
 import FiltrosCatalogoIndicadores from '../indicadores/FiltrosCatalogoIndicadores';
+import MigajaPsedatu from '../indicadores/MigajaPsedatu';
 
 const INSTRUMENTOS = ['Informe de Gobierno', 'Informe de Labores', 'PSEDATU 2025-2030'];
 
@@ -88,7 +90,8 @@ export default function TabIndicadores() {
   const [items, setItems] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState('');
-  const [filtros, setFiltros] = useState({ instrumento: null, producto: null, objetivo: null, estrategia: null });
+  const [filtros, setFiltros] = useState({ instrumento: null, producto: null, area: null });
+  const titulosPsedatu = usePsedatuTitulos();
   const [verRetirados, setVerRetirados] = useState(false);
   const [editando, setEditando] = useState(null);
   const [expandido, setExpandido] = useState(null);
@@ -109,8 +112,7 @@ export default function TabIndicadores() {
         incluirInactivos: verRetirados,
         instrumento: filtros.instrumento || undefined,
         producto: filtros.producto || undefined,
-        objetivo: filtros.objetivo || undefined,
-        estrategia: filtros.estrategia || undefined,
+        area: filtros.area || undefined,
       });
       setItems(res.datos || []);
     } catch {
@@ -212,6 +214,13 @@ export default function TabIndicadores() {
                       {ind.usos} proyecto{ind.usos !== 1 ? 's' : ''}
                       <ChevronRight size={10} className={expandido === ind.id ? 'rotate-90 transition-transform' : 'transition-transform'} />
                     </button>
+                  </div>
+                  <div className="mt-1">
+                    <MigajaPsedatu
+                      codigoLineaAccion={ind.codigo_linea_accion}
+                      instrumento={ind.instrumento}
+                      titulos={titulosPsedatu}
+                    />
                   </div>
                   {ind.definicion && <p className="text-[11px] text-gray-500 mt-1.5">{ind.definicion}</p>}
                   {ind.creador_nombre && (

@@ -21,8 +21,10 @@ import * as catalogoApi from '../../api/catalogo-indicadores';
 import { useAuth } from '../../context/AuthContext';
 import { useUI } from '../../context/UIContext';
 import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
+import { usePsedatuTitulos } from '../../hooks/usePsedatuTitulos';
 import { TIPOS_INDICADOR as TIPOS } from '../../utils/tiposIndicador';
 import FiltrosCatalogoIndicadores from './FiltrosCatalogoIndicadores';
+import MigajaPsedatu from './MigajaPsedatu';
 
 const INSTRUMENTOS = ['Informe de Gobierno', 'Informe de Labores', 'PSEDATU 2025-2030'];
 
@@ -112,7 +114,7 @@ function SeccionNodosVinculados({ catalogoId }) {
 // La ficha completa de una entrada, expandida — definición/fuente
 // siempre visibles (con placeholder si faltan, para que no parezca que
 // la sección no existe) + las dos secciones de arriba.
-function FichaExpandida({ indicador }) {
+function FichaExpandida({ indicador, titulos }) {
   return (
     <div className="bg-gray-50 border-t border-gray-200 px-4 py-3 space-y-3">
       <div>
@@ -123,10 +125,17 @@ function FichaExpandida({ indicador }) {
         <p className="text-[11px] font-semibold text-gray-600 mb-0.5">Fuente del dato</p>
         <p className="text-xs text-gray-600">{indicador.fuente || <span className="text-gray-400">Sin fuente capturada.</span>}</p>
       </div>
+      {indicador.instrumento === 'PSEDATU 2025-2030' && indicador.codigo_linea_accion && (
+        <MigajaPsedatu
+          codigoLineaAccion={indicador.codigo_linea_accion}
+          instrumento={indicador.instrumento}
+          titulos={titulos}
+        />
+      )}
       {(indicador.referencia || indicador.producto || indicador.instrumento) && (
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-gray-500">
           {indicador.instrumento && <span>{indicador.instrumento}</span>}
-          {indicador.codigo_linea_accion && <span>· Línea de acción {indicador.codigo_linea_accion}</span>}
+          {indicador.producto && <span title={indicador.producto}>· {indicador.producto.length > 80 ? `${indicador.producto.slice(0, 80)}…` : indicador.producto}</span>}
           {indicador.referencia && <span>· {indicador.referencia}</span>}
           {indicador.area_sugerida && <span>· Área: {indicador.area_sugerida}</span>}
         </div>
@@ -145,7 +154,8 @@ export default function CatalogoIndicadores() {
   const [items, setItems] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState('');
-  const [filtros, setFiltros] = useState({ instrumento: null, producto: null, objetivo: null, estrategia: null });
+  const [filtros, setFiltros] = useState({ instrumento: null, producto: null, area: null });
+  const titulosPsedatu = usePsedatuTitulos();
   const [verRetirados, setVerRetirados] = useState(false);
   const [editando, setEditando] = useState(null);
   const [expandido, setExpandido] = useState(null);
@@ -189,8 +199,7 @@ export default function CatalogoIndicadores() {
         incluirInactivos: esSuperadmin ? verRetirados : false,
         instrumento: filtros.instrumento || undefined,
         producto: filtros.producto || undefined,
-        objetivo: filtros.objetivo || undefined,
-        estrategia: filtros.estrategia || undefined,
+        area: filtros.area || undefined,
       });
       setItems(res.datos || []);
     } catch {
@@ -425,6 +434,11 @@ export default function CatalogoIndicadores() {
                     </span>
                     {ind.unidad_personalizada && <span className="text-[10px] text-gray-400">{ind.unidad_personalizada}</span>}
                   </div>
+                  <MigajaPsedatu
+                    codigoLineaAccion={ind.codigo_linea_accion}
+                    instrumento={ind.instrumento}
+                    titulos={titulosPsedatu}
+                  />
                   {/* Resumen de uso siempre visible, sin tener que expandir —
                       antes esto quedaba escondido detrás de un clic. */}
                   <button
@@ -448,7 +462,7 @@ export default function CatalogoIndicadores() {
                   </div>
                 )}
               </div>
-              {expandido === ind.id && <FichaExpandida indicador={ind} />}
+              {expandido === ind.id && <FichaExpandida indicador={ind} titulos={titulosPsedatu} />}
             </div>
           ))}
         </div>

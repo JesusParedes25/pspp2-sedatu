@@ -4,7 +4,7 @@
  */
 import client from './client';
 
-export async function listarCatalogoIndicadores({ busqueda, incluirInactivos, instrumento, producto, objetivo, estrategia } = {}) {
+export async function listarCatalogoIndicadores({ busqueda, incluirInactivos, instrumento, producto, objetivo, estrategia, area } = {}) {
   const { data } = await client.get('/catalogo-indicadores', {
     params: {
       busqueda: busqueda || undefined,
@@ -13,6 +13,7 @@ export async function listarCatalogoIndicadores({ busqueda, incluirInactivos, in
       producto: producto || undefined,
       objetivo: objetivo || undefined,
       estrategia: estrategia || undefined,
+      area: area || undefined,
     },
   });
   return data;
@@ -33,6 +34,23 @@ export async function listarProductosCatalogo(busqueda, instrumento) {
 export async function listarLineasAccionCatalogo() {
   const { data } = await client.get('/catalogo-indicadores/lineas-accion');
   return data.datos || [];
+}
+
+// Áreas responsables (UR) individuales presentes en el catálogo — filtro
+// secundario opcional "Área responsable" (útil para quien ya sabe desde
+// qué área trabaja, sin necesitar saber objetivo/estrategia numérico).
+export async function listarAreasCatalogo() {
+  const { data } = await client.get('/catalogo-indicadores/areas');
+  return data.datos || [];
+}
+
+// Títulos oficiales de objetivos/estrategias del PSEDATU 2025-2030, si ya
+// se cargaron (tablas nuevas, vacías hasta que alguien las llene desde el
+// documento oficial) — la migaja de pan de cada tarjeta los usa cuando
+// existen y muestra solo el número cuando no.
+export async function obtenerTitulosPsedatu() {
+  const { data } = await client.get('/catalogo-indicadores/psedatu/titulos');
+  return data.datos || { objetivos: {}, estrategias: {} };
 }
 
 // Entradas parecidas por similitud de texto (pg_trgm) — para sugerirlas
