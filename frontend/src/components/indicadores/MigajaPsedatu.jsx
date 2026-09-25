@@ -11,6 +11,8 @@
  * 076 — tablas nuevas, vacías hasta que alguien cargue los títulos
  * reales) — nunca rompe ni se ve incompleta por faltar el título.
  */
+import { Milestone } from 'lucide-react';
+
 const TRUNCAR = 60;
 
 function truncar(texto) {
@@ -41,15 +43,18 @@ export default function MigajaPsedatu({ codigoLineaAccion, instrumento, titulos 
   }
 
   return (
-    <p className="text-[11px] text-gray-500" title={codigoLineaAccion}>
-      {partes.map((p, i) => (
-        <span key={p.etiqueta}>
-          {i > 0 && <span className="text-gray-300 mx-1">›</span>}
-          <span title={p.titulo || undefined}>
-            {p.etiqueta}{p.titulo ? `: ${truncar(p.titulo)}` : ''}
+    <p className="mt-1 flex items-center gap-1 text-[11px] text-guinda-600/80" title={codigoLineaAccion}>
+      <Milestone size={11} className="flex-shrink-0 text-guinda-300" />
+      <span className="truncate">
+        {partes.map((p, i) => (
+          <span key={p.etiqueta}>
+            {i > 0 && <span className="text-gray-300 mx-1">›</span>}
+            <span title={p.titulo || undefined}>
+              {p.etiqueta}{p.titulo ? `: ${truncar(p.titulo)}` : ''}
+            </span>
           </span>
-        </span>
-      ))}
+        ))}
+      </span>
     </p>
   );
 }
