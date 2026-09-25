@@ -182,6 +182,36 @@ async function listarLineasAccion() {
   return rows.map(r => r.codigo_linea_accion);
 }
 
+// Áreas responsables (UR) individuales, para el filtro secundario
+// opcional "Área responsable" — area_sugerida guarda varias áreas
+// concatenadas con "; " (migración 073), así que hay que separarlas
+// antes de listarlas (si no, cada combinación distinta de áreas
+// aparecería como una opción propia en vez de una por área real).
+async function listarAreas() {
+  const { rows } = await pool.query(
+    `SELECT DISTINCT unnest(string_to_array(area_sugerida, '; ')) AS area
+       FROM catalogo_indicadores
+      WHERE area_sugerida IS NOT NULL AND activo = true
+      ORDER BY area`
+  );
+  return rows.map(r => r.area);
+}
+
+// Títulos oficiales de objetivos/estrategias del PSEDATU 2025-2030
+// (migración 076, tablas nuevas y vacías a propósito) — la migaja de pan
+// del catálogo los usa cuando existen y muestra solo el número cuando
+// no, sin romper nada mientras nadie los haya cargado todavía.
+async function obtenerTitulosPsedatu() {
+  const [objetivos, estrategias] = await Promise.all([
+    pool.query('SELECT clave, titulo FROM psedatu_objetivos'),
+    pool.query('SELECT clave, titulo FROM psedatu_estrategias'),
+  ]);
+  return {
+    objetivos: Object.fromEntries(objetivos.rows.map(r => [r.clave, r.titulo])),
+    estrategias: Object.fromEntries(estrategias.rows.map(r => [r.clave, r.titulo])),
+  };
+}
+
 // Lista el catálogo. `usos` dice en cuántos proyectos se está usando —
 // es el dato que necesita quien administra para saber si puede retirar
 // una entrada sin dejar a nadie colgado.
@@ -193,7 +223,7 @@ async function listarLineasAccion() {
 // dentro del COUNT/array_agg en vez de en el WHERE — un WHERE ahí
 // convertiría el LEFT JOIN en un INNER JOIN de facto y excluiría del
 // resultado las entradas del catálogo sin ningún proyecto vinculado.
-async function listar({ busqueda, incluirInactivos = false, instrumento, producto, objetivo, estrategia } = {}) {
+async function listar({ busqueda, incluirInactivos = false, instrumento, producto, objetivo, estrategia, area } = {}) {
   const condiciones = [];
   const valores = [];
   if (!incluirInactivos) condiciones.push('c.activo = true');
@@ -226,6 +256,14 @@ async function listar({ busqueda, incluirInactivos = false, instrumento, product
     // directo en objetivo.estrategia sin una línea de acción debajo).
     valores.push(`${estrategia}.%`, estrategia);
     condiciones.push(`(c.codigo_linea_accion LIKE $${valores.length - 1} OR c.codigo_linea_accion = $${valores.length})`);
+  }
+  // Filtro secundario opcional por área responsable (UR) — area_sugerida
+  // guarda varias áreas concatenadas con "; " (migración 073), así que
+  // se compara contra el arreglo separado, no con ILIKE (evita falsos
+  // positivos por substring, ej. "RAN" dentro de otra sigla más larga).
+  if (area) {
+    valores.push(area);
+    condiciones.push(`$${valores.length} = ANY(string_to_array(c.area_sugerida, '; '))`);
   }
   const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
   // Sin texto de búsqueda, un tope evita traer + agregar el catálogo
@@ -536,4 +574,4 @@ async function fusionar(idSobrevive, idsFusionar) {
   }
 }
 
-module.exports = { listar, obtener, uso, obtenerNodosVinculados, crear, actualizar, cambiarActivo, generarClave, claveDisponible, buscarSimilares, buscarDuplicadosSugeridos, fusionar, listarProductos, listarLineasAccion, validarMetadatosInstitucionales, INSTRUMENTOS_VALIDOS };
+module.exports = { listar, obtener, uso, obtenerNodosVinculados, crear, actualizar, cambiarActivo, generarClave, claveDisponible, buscarSimilares, buscarDuplicadosSugeridos, fusionar, listarProductos, listarLineasAccion, listarAreas, obtenerTitulosPsedatu, validarMetadatosInstitucionales, INSTRUMENTOS_VALIDOS };

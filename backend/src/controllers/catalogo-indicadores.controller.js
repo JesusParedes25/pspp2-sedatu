@@ -30,6 +30,7 @@ async function listar(req, res, next) {
       producto: req.query.producto || undefined,
       objetivo: req.query.objetivo || undefined,
       estrategia: req.query.estrategia || undefined,
+      area: req.query.area || undefined,
     });
     res.json({ datos });
   } catch (err) { next(err); }
@@ -45,6 +46,20 @@ async function listarProductos(req, res, next) {
 async function listarLineasAccion(req, res, next) {
   try {
     const datos = await catalogoQueries.listarLineasAccion();
+    res.json({ datos });
+  } catch (err) { next(err); }
+}
+
+async function listarAreas(req, res, next) {
+  try {
+    const datos = await catalogoQueries.listarAreas();
+    res.json({ datos });
+  } catch (err) { next(err); }
+}
+
+async function titulosPsedatu(req, res, next) {
+  try {
+    const datos = await catalogoQueries.obtenerTitulosPsedatu();
     res.json({ datos });
   } catch (err) { next(err); }
 }
@@ -150,4 +165,4 @@ async function cambiarActivo(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listar, obtener, uso, nodosVinculados, crear, actualizar, cambiarActivo, buscarSimilares, duplicadosSugeridos, fusionar, listarProductos, listarLineasAccion };
+module.exports = { listar, obtener, uso, nodosVinculados, crear, actualizar, cambiarActivo, buscarSimilares, duplicadosSugeridos, fusionar, listarProductos, listarLineasAccion, listarAreas, titulosPsedatu };

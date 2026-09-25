@@ -20,6 +20,11 @@ router.post('/', ctrl.crear);
 router.get('/similares', ctrl.buscarSimilares);
 router.get('/productos', ctrl.listarProductos);
 router.get('/lineas-accion', ctrl.listarLineasAccion);
+router.get('/areas', ctrl.listarAreas);
+// Títulos oficiales de objetivos/estrategias del PSEDATU (migración 076,
+// tablas vacías hasta que se carguen) — lectura abierta, alimenta la
+// migaja de pan de cada tarjeta.
+router.get('/psedatu/titulos', ctrl.titulosPsedatu);
 // Alimenta la pantalla "Fusionar duplicados" — mismo nivel de permiso que
 // /fusionar, ya que es parte del mismo flujo de curación.
 router.get('/duplicados-sugeridos', requiereRol(['superadmin']), ctrl.duplicadosSugeridos);

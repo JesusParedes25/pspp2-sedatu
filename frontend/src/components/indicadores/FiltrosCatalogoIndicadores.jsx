@@ -2,21 +2,24 @@
  * ARCHIVO: FiltrosCatalogoIndicadores.jsx
  * PROPÓSITO: Barra de filtros compartida del catálogo de indicadores —
  *            usada tanto en la pantalla de Catálogo como en el picker
- *            de vinculación (SelectorIndicadorCatalogo.jsx), para que
- *            ambos ofrezcan exactamente los mismos filtros, no una
- *            versión reducida en el segundo.
+ *            de vinculación (SelectorIndicadorCatalogo.jsx) y en el panel
+ *            de administración (TabIndicadores.jsx), para que los tres
+ *            ofrezcan exactamente los mismos filtros, no una versión
+ *            reducida en ninguno.
  *
- * MINI-CLASE: agrupar primero por instrumento, después por el eje que
- *             de verdad organiza a cada uno
+ * MINI-CLASE: filtrar por lo que el usuario reconoce, no por metadato
  * ─────────────────────────────────────────────────────────────────
- * El catálogo de SEDATU viene de 3 instrumentos oficiales (Informe de
- * Gobierno, Informe de Labores, PSEDATU 2025-2030). Cada uno se
- * organiza distinto: PSEDATU tiene un código jerárquico real
- * (objetivo.estrategia.línea — 4 objetivos, ~27 estrategias), mientras
- * que los otros dos solo tienen "producto" (un texto de objetivo
- * narrativo, sin código). Por eso el segundo nivel de filtro cambia
- * según el instrumento elegido, en vez de mostrar un único filtro
- * genérico que no encajaría bien en ninguno de los dos casos.
+ * La versión anterior reemplazaba, para PSEDATU, el buscador de texto
+ * por selects de Objetivo/Estrategia por NÚMERO — datos correctos para
+ * el tablero de la secretaría, pero ruido de navegación para alguien que
+ * solo quiere encontrar un indicador: nadie llega pensando "necesito el
+ * de la Estrategia 1.3". Ahora el segundo nivel es el mismo buscador de
+ * texto libre sobre "producto" (el texto de la línea de acción en
+ * PSEDATU, el objetivo narrativo en los otros 2 instrumentos) para los
+ * 3 instrumentos por igual — el número de objetivo/estrategia se movió a
+ * metadato visible por tarjeta (ver MigajaPsedatu.jsx), no un filtro que
+ * elegir de antemano. "Área responsable" se agrega como filtro
+ * secundario opcional, útil para quien ya sabe desde qué área trabaja.
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useRef } from 'react';
@@ -25,34 +28,21 @@ import * as catalogoApi from '../../api/catalogo-indicadores';
 
 const INSTRUMENTOS = ['Informe de Gobierno', 'Informe de Labores', 'PSEDATU 2025-2030'];
 
-// Sort natural (1.1.2 antes que 1.1.10) — un sort de texto plano deja
-// "1.1.10" entre "1.1.1" y "1.1.2".
-function compararCodigos(a, b) {
-  const pa = a.split('.').map(Number);
-  const pb = b.split('.').map(Number);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
-    if (diff !== 0) return diff;
-  }
-  return 0;
-}
-
 export default function FiltrosCatalogoIndicadores({ valor, onCambio }) {
-  const { instrumento, producto, objetivo, estrategia } = valor;
-  const [codigos, setCodigos] = useState([]);
+  const { instrumento, producto, area } = valor;
   const [busquedaProducto, setBusquedaProducto] = useState(producto || '');
   const [sugerenciasProducto, setSugerenciasProducto] = useState([]);
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
+  const [areas, setAreas] = useState([]);
   const cajaProductoRef = useRef(null);
 
-  // Códigos de línea de acción reales del PSEDATU — se cargan una sola
-  // vez, son ~220 valores, barato tenerlos todos en memoria.
+  // Áreas responsables reales del catálogo — ~36 valores, barato tenerlas
+  // todas en memoria como opciones de un <select> simple.
   useEffect(() => {
-    catalogoApi.listarLineasAccionCatalogo().then(setCodigos).catch(() => setCodigos([]));
+    catalogoApi.listarAreasCatalogo().then(setAreas).catch(() => setAreas([]));
   }, []);
 
   useEffect(() => {
-    if (instrumento === 'PSEDATU 2025-2030') return;
     let vivo = true;
     const t = setTimeout(async () => {
       try {
@@ -73,16 +63,11 @@ export default function FiltrosCatalogoIndicadores({ valor, onCambio }) {
     return () => document.removeEventListener('mousedown', alHacerClicFuera);
   }, []);
 
-  const objetivos = [...new Set(codigos.map(c => c.split('.')[0]))].sort((a, b) => Number(a) - Number(b));
-  const estrategias = objetivo
-    ? [...new Set(codigos.filter(c => c.startsWith(`${objetivo}.`)).map(c => c.split('.').slice(0, 2).join('.')))].sort(compararCodigos)
-    : [];
-
   function elegirInstrumento(nuevo) {
-    // Cambiar de instrumento invalida el filtro de segundo nivel del
-    // instrumento anterior — evita quedar con un objetivo de PSEDATU
-    // fijo mientras se mira Informe de Labores, por ejemplo.
-    onCambio({ instrumento: nuevo, producto: null, objetivo: null, estrategia: null });
+    // Cambiar de instrumento invalida el producto elegido del instrumento
+    // anterior — un texto de línea de acción de PSEDATU no tiene sentido
+    // filtrando Informe de Labores, por ejemplo.
+    onCambio({ instrumento: nuevo, producto: null });
     setBusquedaProducto('');
   }
 
@@ -113,31 +98,11 @@ export default function FiltrosCatalogoIndicadores({ valor, onCambio }) {
         ))}
       </div>
 
-      {/* Nivel 2: depende del instrumento activo */}
-      {instrumento === 'PSEDATU 2025-2030' && (
-        <div className="flex flex-wrap gap-2">
-          <select
-            value={objetivo || ''}
-            onChange={e => onCambio({ objetivo: e.target.value || null, estrategia: null })}
-            className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-guinda-400"
-          >
-            <option value="">Objetivo (todos)</option>
-            {objetivos.map(o => <option key={o} value={o}>Objetivo {o}</option>)}
-          </select>
-          <select
-            value={estrategia || ''}
-            onChange={e => onCambio({ estrategia: e.target.value || null })}
-            disabled={!objetivo}
-            className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-guinda-400 disabled:opacity-40"
-          >
-            <option value="">Estrategia (todas)</option>
-            {estrategias.map(e => <option key={e} value={e}>Estrategia {e}</option>)}
-          </select>
-        </div>
-      )}
-
-      {(instrumento === 'Informe de Gobierno' || instrumento === 'Informe de Labores') && (
-        <div className="relative max-w-sm" ref={cajaProductoRef}>
+      {/* Nivel 2: buscador de producto/línea de acción, con texto completo
+          (truncado con tooltip), igual para los 3 instrumentos — más
+          Área responsable como filtro secundario opcional. */}
+      <div className="flex flex-wrap items-start gap-2">
+        <div className="relative max-w-sm flex-1 min-w-[200px]" ref={cajaProductoRef}>
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             value={producto ? producto.slice(0, 80) : busquedaProducto}
@@ -147,7 +112,11 @@ export default function FiltrosCatalogoIndicadores({ valor, onCambio }) {
               setMostrarSugerencias(true);
             }}
             onFocus={() => setMostrarSugerencias(true)}
-            placeholder="Buscar por producto/objetivo..."
+            placeholder={
+              instrumento === 'PSEDATU 2025-2030'
+                ? 'Buscar por línea de acción...'
+                : 'Buscar por producto/objetivo...'
+            }
             className="w-full pl-7 pr-2.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400"
           />
           {mostrarSugerencias && sugerenciasProducto.length > 0 && (
@@ -166,7 +135,16 @@ export default function FiltrosCatalogoIndicadores({ valor, onCambio }) {
             </div>
           )}
         </div>
-      )}
+
+        <select
+          value={area || ''}
+          onChange={e => onCambio({ area: e.target.value || null })}
+          className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-guinda-400 flex-shrink-0"
+        >
+          <option value="">Área responsable (todas)</option>
+          {areas.map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+      </div>
     </div>
   );
 }

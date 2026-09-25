@@ -22,9 +22,11 @@ import { useState, useEffect, useRef } from 'react';
 import { X, Loader2, Search, Plus, BarChart3, BookOpen, Sparkles } from 'lucide-react';
 import * as catalogoApi from '../../api/catalogo-indicadores';
 import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
+import { usePsedatuTitulos } from '../../hooks/usePsedatuTitulos';
 import { etiquetaUnidadIndicador } from '../../utils/formatoMoneda';
 import { TIPOS_INDICADOR as TIPOS, UNIDADES_INDICADOR as UNIDADES } from '../../utils/tiposIndicador';
 import FiltrosCatalogoIndicadores from './FiltrosCatalogoIndicadores';
+import MigajaPsedatu from './MigajaPsedatu';
 
 export function etiquetaUnidad(ind) {
   return etiquetaUnidadIndicador(ind) || 'unidades';
@@ -34,7 +36,8 @@ export default function SelectorIndicadorCatalogo({ onElegir, onCerrar, yaUsados
   const [catalogo, setCatalogo] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState('');
-  const [filtros, setFiltros] = useState({ instrumento: null, producto: null, objetivo: null, estrategia: null });
+  const [filtros, setFiltros] = useState({ instrumento: null, producto: null, area: null });
+  const titulosPsedatu = usePsedatuTitulos();
   const [modoAlta, setModoAlta] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState(null);
@@ -70,8 +73,7 @@ export default function SelectorIndicadorCatalogo({ onElegir, onCerrar, yaUsados
           busqueda: busqueda || undefined,
           instrumento: filtros.instrumento || undefined,
           producto: filtros.producto || undefined,
-          objetivo: filtros.objetivo || undefined,
-          estrategia: filtros.estrategia || undefined,
+          area: filtros.area || undefined,
         });
         if (vivo) setCatalogo(res.datos || []);
       } catch {
@@ -178,6 +180,11 @@ export default function SelectorIndicadorCatalogo({ onElegir, onCerrar, yaUsados
                         </span>
                         <span className="text-[10px] text-gray-400">{etiquetaUnidad(ind)}</span>
                       </div>
+                      <MigajaPsedatu
+                        codigoLineaAccion={ind.codigo_linea_accion}
+                        instrumento={ind.instrumento}
+                        titulos={titulosPsedatu}
+                      />
                       {ind.definicion && (
                         <p className="text-[11px] text-gray-500 mt-1 line-clamp-2">{ind.definicion}</p>
                       )}
