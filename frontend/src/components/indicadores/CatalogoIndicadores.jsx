@@ -36,12 +36,16 @@ import { TIPOS_INDICADOR as TIPOS } from '../../utils/tiposIndicador';
 import FiltrosCatalogoIndicadores from './FiltrosCatalogoIndicadores';
 import MigajaPsedatu from './MigajaPsedatu';
 
+const LIMITE_PAGINA = 50;
+
 export default function CatalogoIndicadores() {
   const { usuario } = useAuth();
   const { mostrarToast } = useUI();
   const esSuperadmin = usuario?.rol === 'superadmin';
 
   const [items, setItems] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [pagina, setPagina] = useState(1);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState('');
   const [filtros, setFiltros] = useState({ instrumento: null, producto: null, area: null });
@@ -81,17 +85,22 @@ export default function CatalogoIndicadores() {
         instrumento: filtros.instrumento || undefined,
         producto: filtros.producto || undefined,
         area: filtros.area || undefined,
+        pagina,
+        limite: LIMITE_PAGINA,
       });
       setItems(res.datos || []);
+      setTotal(res.total || 0);
     } catch {
       setError('No se pudo cargar el catálogo.');
     } finally { setCargando(false); }
-  }, [busqueda, verRetirados, esSuperadmin, filtros]);
+  }, [busqueda, verRetirados, esSuperadmin, filtros, pagina]);
 
   useEffect(() => {
     const t = setTimeout(cargar, busqueda ? 250 : 0);
     return () => clearTimeout(t);
   }, [cargar, busqueda]);
+
+  const totalPaginas = Math.ceil(total / LIMITE_PAGINA);
 
   function alternarSeleccion(id) {
     setSeleccionados(prev => {
@@ -241,20 +250,22 @@ export default function CatalogoIndicadores() {
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             value={busqueda}
-            onChange={e => setBusqueda(e.target.value)}
+            onChange={e => { setBusqueda(e.target.value); setPagina(1); }}
             placeholder="Buscar por nombre, clave, categoría o área..."
             className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:border-guinda-400 focus:ring-2 focus:ring-guinda-100 transition-shadow"
           />
         </div>
         {esSuperadmin && !modoFusion && (
           <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer flex-shrink-0">
-            <input type="checkbox" checked={verRetirados} onChange={e => setVerRetirados(e.target.checked)} className="accent-guinda-600" />
+            <input type="checkbox" checked={verRetirados} onChange={e => { setVerRetirados(e.target.checked); setPagina(1); }} className="accent-guinda-600" />
             Ver retirados
           </label>
         )}
       </div>
 
-      <FiltrosCatalogoIndicadores valor={filtros} onCambio={patch => setFiltros(f => ({ ...f, ...patch }))} />
+      <FiltrosCatalogoIndicadores valor={filtros} onCambio={patch => { setFiltros(f => ({ ...f, ...patch })); setPagina(1); }} />
+
+      {!cargando && <p className="text-xs text-gray-500">{total} indicador{total !== 1 ? 'es' : ''} encontrado{total !== 1 ? 's' : ''}</p>}
 
       {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>}
 
@@ -276,6 +287,28 @@ export default function CatalogoIndicadores() {
               titulosPsedatu={titulosPsedatu}
             />
           ))}
+        </div>
+      )}
+
+      {totalPaginas > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-2">
+          <button
+            onClick={() => setPagina(p => p - 1)}
+            disabled={pagina <= 1}
+            className="btn-secondary text-xs disabled:opacity-50"
+          >
+            Anterior
+          </button>
+          <span className="text-sm text-gray-600">
+            Página {pagina} de {totalPaginas}
+          </span>
+          <button
+            onClick={() => setPagina(p => p + 1)}
+            disabled={pagina >= totalPaginas}
+            className="btn-secondary text-xs disabled:opacity-50"
+          >
+            Siguiente
+          </button>
         </div>
       )}
 
@@ -346,7 +379,7 @@ function FichaCatalogo({ indicador: ind, modoFusion, seleccionado, onAlternarSel
       </div>
       {!ind.activo && <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600 font-medium">retirado</span>}
       {ind.producto && (
-        <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-sky-700 bg-sky-50 border border-sky-100 rounded-full px-2 py-0.5 max-w-full" title={ind.producto}>
+        <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-sky-700 bg-sky-50 border border-sky-100 rounded-full px-2 py-0.5 max-w-full">
           <Tag size={10} className="flex-shrink-0 text-sky-400" />
           <span className="truncate">{ind.producto.length > 60 ? `${ind.producto.slice(0, 60)}…` : ind.producto}</span>
         </p>
@@ -370,7 +403,27 @@ function FichaCatalogo({ indicador: ind, modoFusion, seleccionado, onAlternarSel
     </>
   );
 
-  const clases = `block rounded-xl border bg-white p-3.5 transition-all ${
+  // Recuadro con el nombre y la categoría completos, sin truncar — la
+  // ficha en sí se queda truncada (line-clamp/slice), esto solo aparece
+  // al pasar el mouse. Primer tooltip propio de la app: no existe
+  // ningún componente de tooltip/popover reutilizable en el frontend,
+  // así que se arma con group/group-hover de Tailwind (ya usado en el
+  // resto del proyecto), sin dependencia nueva.
+  const infoHover = (
+    <div className="pointer-events-none absolute left-0 right-0 top-full mt-1.5 z-20 hidden group-hover:block">
+      <div className="bg-white border border-gray-200 shadow-lg rounded-lg p-3 text-xs space-y-1.5">
+        <p className="font-semibold text-gray-900">{ind.nombre}</p>
+        {ind.producto && (
+          <p className="flex items-start gap-1 text-gray-600">
+            <Tag size={11} className="flex-shrink-0 mt-0.5 text-sky-500" />
+            <span>{ind.producto}</span>
+          </p>
+        )}
+      </div>
+    </div>
+  );
+
+  const clases = `group relative block rounded-xl border bg-white p-3.5 transition-all ${
     ind.activo ? 'border-gray-200' : 'border-gray-200 bg-gray-50/70'
   } ${
     modoFusion
@@ -379,7 +432,7 @@ function FichaCatalogo({ indicador: ind, modoFusion, seleccionado, onAlternarSel
   }`;
 
   if (modoFusion) {
-    return <div className={clases} onClick={onAlternarSeleccion}>{contenido}</div>;
+    return <div className={clases} onClick={onAlternarSeleccion}>{contenido}{infoHover}</div>;
   }
-  return <Link to={`/indicadores/catalogo/${ind.id}`} className={clases}>{contenido}</Link>;
+  return <Link to={`/indicadores/catalogo/${ind.id}`} className={clases}>{contenido}{infoHover}</Link>;
 }

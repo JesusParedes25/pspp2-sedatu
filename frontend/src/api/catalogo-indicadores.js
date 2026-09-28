@@ -4,7 +4,7 @@
  */
 import client from './client';
 
-export async function listarCatalogoIndicadores({ busqueda, incluirInactivos, instrumento, producto, objetivo, estrategia, area } = {}) {
+export async function listarCatalogoIndicadores({ busqueda, incluirInactivos, instrumento, producto, objetivo, estrategia, area, pagina, limite } = {}) {
   const { data } = await client.get('/catalogo-indicadores', {
     params: {
       busqueda: busqueda || undefined,
@@ -14,6 +14,8 @@ export async function listarCatalogoIndicadores({ busqueda, incluirInactivos, in
       objetivo: objetivo || undefined,
       estrategia: estrategia || undefined,
       area: area || undefined,
+      pagina: pagina || undefined,
+      limite: limite || undefined,
     },
   });
   return data;

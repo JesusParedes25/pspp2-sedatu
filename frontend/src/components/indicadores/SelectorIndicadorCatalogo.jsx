@@ -74,6 +74,12 @@ export default function SelectorIndicadorCatalogo({ onElegir, onCerrar, yaUsados
           instrumento: filtros.instrumento || undefined,
           producto: filtros.producto || undefined,
           area: filtros.area || undefined,
+          // El backend ahora pagina siempre (antes solo topaba a 50 sin
+          // busqueda) — con texto de búsqueda se pide un límite más alto
+          // para no perder resultados que antes sí aparecían aquí; sin
+          // buscar, se queda en el default de 50 del backend, igual que
+          // antes (ver el aviso "Mostrando los primeros 50" más abajo).
+          limite: busqueda ? 200 : undefined,
         });
         if (vivo) setCatalogo(res.datos || []);
       } catch {
