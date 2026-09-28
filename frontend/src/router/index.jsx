@@ -27,6 +27,7 @@ import Notificaciones from '../pages/Notificaciones';
 import MapaTerritorial from '../pages/MapaTerritorial';
 import Indicadores from '../pages/Indicadores';
 import DetalleIndicador from '../pages/indicadores/DetalleIndicador';
+import DetalleCatalogo from '../pages/indicadores/DetalleCatalogo';
 import AdminCatalogos from '../pages/AdminCatalogos';
 import ActivarCuenta from '../pages/ActivarCuenta';
 import NotFound from '../pages/NotFound';
@@ -44,6 +45,7 @@ export default function AppRouter() {
         <Route path="carteras/:id" element={<CarteraDetalle />} />
         <Route path="mapa" element={<MapaTerritorial />} />
         <Route path="indicadores" element={<Indicadores />} />
+        <Route path="indicadores/catalogo/:id" element={<DetalleCatalogo />} />
         <Route path="indicadores/:id" element={<DetalleIndicador />} />
         <Route path="agenda" element={<Agenda />} />
         <Route path="mis-actividades" element={<MisActividades />} />

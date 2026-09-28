@@ -12,132 +12,29 @@
  * agrupan por catálogo activo). Fusionar reapunta esos proyectos hacia
  * la entrada que sobrevive antes de retirar la duplicada — es la
  * operación que de verdad corrige el catálogo, no solo lo esconde.
+ *
+ * MINI-CLASE: fichas, no filas — mismo criterio que TarjetaIndicador.jsx
+ * ─────────────────────────────────────────────────────────────────
+ * Cada entrada es una ficha en una grilla que enlaza de lleno al
+ * detalle (`/indicadores/catalogo/:id`, DetalleCatalogo.jsx) — ahí es
+ * donde se responde "¿algún proyecto ya le está aportando?", se edita y
+ * se retira. La ficha de la lista ya no tiene lápiz/ojo propios (mismo
+ * criterio que ya usa `TarjetaIndicador.jsx` en "Mis indicadores": la
+ * ficha entera ya es el link al editor, un ícono aparte sería
+ * redundante). En modo fusión, la ficha deja de navegar y se vuelve
+ * seleccionable — el resto del flujo de fusión no cambia.
  * ─────────────────────────────────────────────────────────────────
  */
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2, Search, Pencil, EyeOff, Eye, X, ChevronRight, GitMerge, CheckSquare, Square, Tag } from 'lucide-react';
+import { Loader2, Search, GitMerge, CheckSquare, Square, Tag, X } from 'lucide-react';
 import * as catalogoApi from '../../api/catalogo-indicadores';
 import { useAuth } from '../../context/AuthContext';
 import { useUI } from '../../context/UIContext';
-import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
 import { usePsedatuTitulos } from '../../hooks/usePsedatuTitulos';
 import { TIPOS_INDICADOR as TIPOS } from '../../utils/tiposIndicador';
 import FiltrosCatalogoIndicadores from './FiltrosCatalogoIndicadores';
 import MigajaPsedatu from './MigajaPsedatu';
-
-const INSTRUMENTOS = ['Informe de Gobierno', 'Informe de Labores', 'PSEDATU 2025-2030'];
-
-const ETIQUETA_TIPO_NODO = { etapa: 'Etapa', accion: 'Acción', tarea: 'Tarea' };
-const ETIQUETA_MODO_APORTACION = { al_concluir: 'Manual', proporcional: 'Automático' };
-
-// Sección "Proyectos vinculados" de la ficha — cada fila navega al
-// detalle de ESE indicador de proyecto (Pantalla de detalle del
-// módulo), que es donde se edita su meta/temporalidad — antes esta
-// tabla no llevaba a ningún lado, solo mostraba el número.
-function SeccionProyectosVinculados({ catalogoId }) {
-  const [usos, setUsos] = useState(null);
-  useEffect(() => {
-    catalogoApi.obtenerUsoIndicadorCatalogo(catalogoId)
-      .then(r => setUsos(r.datos || []))
-      .catch(() => setUsos([]));
-  }, [catalogoId]);
-
-  return (
-    <div>
-      <p className="text-[11px] font-semibold text-gray-600 mb-1.5">Proyectos vinculados</p>
-      {usos === null ? (
-        <Loader2 size={14} className="animate-spin text-gray-400" />
-      ) : usos.length === 0 ? (
-        <p className="text-xs text-gray-500">Ningún proyecto lo usa todavía.</p>
-      ) : (
-        <div className="space-y-0.5">
-          {usos.map(u => (
-            <Link
-              key={u.indicador_id}
-              to={`/indicadores/${u.indicador_id}`}
-              className="flex items-center justify-between gap-2 text-xs px-2 py-1.5 rounded hover:bg-white transition-colors"
-            >
-              <span className="min-w-0 truncate text-guinda-700">
-                {u.proyecto_nombre}{u.dg_siglas ? <span className="text-gray-400"> · {u.dg_siglas}</span> : ''}
-              </span>
-              <span className="text-gray-500 tabular-nums flex-shrink-0">
-                {u.valor_actual ?? '—'} / {u.meta_global ?? '—'}
-              </span>
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Sección "Nodos vinculados" (nueva) — qué etapa/acción/tarea, de
-// cualquier proyecto, aporta a este indicador de catálogo. Antes esta
-// información no existía en ningún lado del catálogo.
-function SeccionNodosVinculados({ catalogoId }) {
-  const [nodos, setNodos] = useState(null);
-  useEffect(() => {
-    catalogoApi.obtenerNodosVinculadosCatalogo(catalogoId)
-      .then(setNodos)
-      .catch(() => setNodos([]));
-  }, [catalogoId]);
-
-  return (
-    <div>
-      <p className="text-[11px] font-semibold text-gray-600 mb-1.5">Nodos vinculados</p>
-      {nodos === null ? (
-        <Loader2 size={14} className="animate-spin text-gray-400" />
-      ) : nodos.length === 0 ? (
-        <p className="text-xs text-gray-500">Ninguna etapa/acción/tarea aporta a este indicador todavía.</p>
-      ) : (
-        <div className="space-y-0.5">
-          {nodos.map(n => (
-            <Link
-              key={`${n.indicador_id}-${n.id_nodo}`}
-              to={`/proyectos/${n.proyecto_id}?tab=seguimiento&nodo=${n.id_nodo}`}
-              className="flex items-center justify-between gap-2 text-xs px-2 py-1.5 rounded hover:bg-white transition-colors"
-            >
-              <span className="min-w-0 truncate">
-                <span className="text-gray-800">{n.nombre_nodo}</span>
-                <span className="text-gray-400"> · {ETIQUETA_TIPO_NODO[n.tipo_nodo] || n.tipo_nodo} · {n.proyecto_nombre}{n.dg_siglas ? ` (${n.dg_siglas})` : ''}</span>
-              </span>
-              <span className="text-gray-400 flex-shrink-0">{ETIQUETA_MODO_APORTACION[n.modo] || n.modo}</span>
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// La ficha completa de una entrada, expandida — definición/fuente
-// siempre visibles (con placeholder si faltan, para que no parezca que
-// la sección no existe) + las dos secciones de arriba.
-function FichaExpandida({ indicador }) {
-  return (
-    <div className="bg-gray-50 border-t border-gray-200 px-4 py-3 space-y-3">
-      <div>
-        <p className="text-[11px] font-semibold text-gray-600 mb-0.5">Cómo se mide</p>
-        <p className="text-xs text-gray-600">{indicador.definicion || <span className="text-gray-400">Sin definición capturada.</span>}</p>
-      </div>
-      <div>
-        <p className="text-[11px] font-semibold text-gray-600 mb-0.5">Fuente del dato</p>
-        <p className="text-xs text-gray-600">{indicador.fuente || <span className="text-gray-400">Sin fuente capturada.</span>}</p>
-      </div>
-      {/* La categoría (producto) y la migaja de pan del PSEDATU ya se
-          muestran arriba, en la fila colapsada — no repetirlas aquí. */}
-      {(indicador.referencia || indicador.area_sugerida) && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-gray-500">
-          {indicador.referencia && <span>{indicador.referencia}</span>}
-          {indicador.area_sugerida && <span>· Área: {indicador.area_sugerida}</span>}
-        </div>
-      )}
-      <SeccionProyectosVinculados catalogoId={indicador.id} />
-      <SeccionNodosVinculados catalogoId={indicador.id} />
-    </div>
-  );
-}
 
 export default function CatalogoIndicadores() {
   const { usuario } = useAuth();
@@ -150,11 +47,7 @@ export default function CatalogoIndicadores() {
   const [filtros, setFiltros] = useState({ instrumento: null, producto: null, area: null });
   const titulosPsedatu = usePsedatuTitulos();
   const [verRetirados, setVerRetirados] = useState(false);
-  const [editando, setEditando] = useState(null);
-  const [expandido, setExpandido] = useState(null);
-  const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
-  const editandoInicialRef = useRef(null);
 
   // Modo fusión: selección múltiple entre entradas duplicadas.
   const [modoFusion, setModoFusion] = useState(false);
@@ -179,11 +72,6 @@ export default function CatalogoIndicadores() {
       .finally(() => setCargandoSugerencias(false));
   }, [modoFusion, umbralSugerencias]);
 
-  function abrirEdicion(ind) {
-    editandoInicialRef.current = { ...ind };
-    setEditando(editandoInicialRef.current);
-  }
-
   const cargar = useCallback(async () => {
     setCargando(true);
     try {
@@ -204,33 +92,6 @@ export default function CatalogoIndicadores() {
     const t = setTimeout(cargar, busqueda ? 250 : 0);
     return () => clearTimeout(t);
   }, [cargar, busqueda]);
-
-  async function guardar() {
-    setGuardando(true);
-    setError('');
-    try {
-      await catalogoApi.actualizarIndicadorCatalogo(editando.id, editando);
-      setEditando(null);
-      mostrarToast('Indicador actualizado', 'exito');
-      cargar();
-    } catch (err) {
-      setError(err.response?.data?.mensaje || 'No se pudo guardar.');
-    } finally { setGuardando(false); }
-  }
-
-  async function alternarActivo(ind) {
-    setError('');
-    try {
-      await catalogoApi.cambiarActivoIndicadorCatalogo(ind.id, !ind.activo);
-      mostrarToast(ind.activo ? 'Indicador retirado' : 'Indicador reactivado', 'exito');
-      cargar();
-    } catch (err) {
-      mostrarToast(err.response?.data?.mensaje || 'No se pudo cambiar el estado.', 'error');
-    }
-  }
-
-  const hayCambiosSinGuardar = !!editando && JSON.stringify(editando) !== JSON.stringify(editandoInicialRef.current);
-  const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(hayCambiosSinGuardar, () => setEditando(null));
 
   function alternarSeleccion(id) {
     setSeleccionados(prev => {
@@ -404,172 +265,17 @@ export default function CatalogoIndicadores() {
           {busqueda ? 'Ningún indicador coincide con la búsqueda.' : 'El catálogo está vacío.'}
         </p>
       ) : (
-        <div className="border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden shadow-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
           {items.map(ind => (
-            <div key={ind.id} className={`transition-colors ${ind.activo ? 'hover:bg-guinda-50/30' : 'bg-gray-50/70'}`}>
-              <div className="flex items-start gap-3 px-4 py-3.5">
-                {modoFusion && (
-                  <button onClick={() => alternarSeleccion(ind.id)} className="flex-shrink-0 mt-0.5 text-guinda-600">
-                    {seleccionados.has(ind.id) ? <CheckSquare size={16} /> : <Square size={16} className="text-gray-300" />}
-                  </button>
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`text-sm font-semibold ${ind.activo ? 'text-gray-800' : 'text-gray-400 line-through'}`}>
-                      {ind.nombre}
-                    </span>
-                    {!ind.activo && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600 font-medium">retirado</span>}
-                  </div>
-                  {ind.producto && (
-                    <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-sky-700 bg-sky-50 border border-sky-100 rounded-full px-2 py-0.5 max-w-full" title={ind.producto}>
-                      <Tag size={10} className="flex-shrink-0 text-sky-400" />
-                      <span className="truncate">{ind.producto.length > 70 ? `${ind.producto.slice(0, 70)}…` : ind.producto}</span>
-                    </p>
-                  )}
-                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">
-                      {TIPOS.find(t => t.valor === ind.tipo)?.etiqueta || ind.tipo}
-                    </span>
-                    {ind.unidad_personalizada && <span className="text-[10px] text-gray-400">{ind.unidad_personalizada}</span>}
-                    <code className="text-[10px] px-1.5 py-0.5 rounded bg-gray-50 text-gray-400 font-mono">{ind.clave}</code>
-                  </div>
-                  <MigajaPsedatu
-                    codigoLineaAccion={ind.codigo_linea_accion}
-                    instrumento={ind.instrumento}
-                    titulos={titulosPsedatu}
-                  />
-                  {/* Resumen de uso siempre visible, sin tener que expandir —
-                      antes esto quedaba escondido detrás de un clic. */}
-                  <button
-                    onClick={() => setExpandido(expandido === ind.id ? null : ind.id)}
-                    className="mt-1.5 text-[11px] text-gray-500 hover:text-guinda-600 inline-flex items-center gap-1"
-                  >
-                    <ChevronRight size={11} className={expandido === ind.id ? 'rotate-90 transition-transform flex-shrink-0' : 'transition-transform flex-shrink-0'} />
-                    {ind.usos > 0
-                      ? `${ind.usos} proyecto${ind.usos !== 1 ? 's' : ''}${ind.dgs?.length ? ` · ${ind.dgs.join(', ')}` : ''}`
-                      : 'Sin proyectos todavía'}
-                  </button>
-                </div>
-                {esSuperadmin && !modoFusion && (
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <button onClick={() => abrirEdicion(ind)} title="Editar"
-                      className="p-1.5 text-gray-400 hover:text-blue-600 rounded hover:bg-gray-100"><Pencil size={13} /></button>
-                    <button onClick={() => alternarActivo(ind)} title={ind.activo ? 'Retirar del catálogo' : 'Reactivar'}
-                      className="p-1.5 text-gray-400 hover:text-amber-600 rounded hover:bg-gray-100">
-                      {ind.activo ? <EyeOff size={13} /> : <Eye size={13} />}
-                    </button>
-                  </div>
-                )}
-              </div>
-              {expandido === ind.id && <FichaExpandida indicador={ind} />}
-            </div>
+            <FichaCatalogo
+              key={ind.id}
+              indicador={ind}
+              modoFusion={modoFusion}
+              seleccionado={seleccionados.has(ind.id)}
+              onAlternarSeleccion={() => alternarSeleccion(ind.id)}
+              titulosPsedatu={titulosPsedatu}
+            />
           ))}
-        </div>
-      )}
-
-      {/* ─── Edición ─── */}
-      {editando && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={cerrarPorFondo}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
-              <h3 className="text-sm font-semibold text-gray-900">Editar indicador</h3>
-              <button onClick={cerrarConConfirmacion} className="p-1 text-gray-400 hover:text-gray-700"><X size={16} /></button>
-            </div>
-            <div className="px-5 py-4 space-y-3 overflow-y-auto">
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Clave</label>
-                <code className="block text-xs px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-500 font-mono">{editando.clave}</code>
-                <p className="text-[10px] text-gray-400 mt-1">
-                  No se puede cambiar: es el identificador con el que otra plataforma consumirá
-                  este indicador. Renombrarlo partiría la serie histórica en dos.
-                </p>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Nombre</label>
-                <input value={editando.nombre || ''} onChange={e => setEditando(v => ({ ...v, nombre: e.target.value }))}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Tipo</label>
-                  <select value={editando.tipo || 'Otro'} onChange={e => setEditando(v => ({ ...v, tipo: e.target.value }))}
-                    className="w-full px-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400">
-                    {TIPOS.map(t => <option key={t.valor} value={t.valor}>{t.etiqueta}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Unidad</label>
-                  <input value={editando.unidad_personalizada || ''} onChange={e => setEditando(v => ({ ...v, unidad_personalizada: e.target.value }))}
-                    placeholder="viviendas, hectáreas..."
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Cómo se mide</label>
-                <textarea value={editando.definicion || ''} onChange={e => setEditando(v => ({ ...v, definicion: e.target.value }))}
-                  rows={3}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Fuente del dato</label>
-                <input value={editando.fuente || ''} onChange={e => setEditando(v => ({ ...v, fuente: e.target.value }))}
-                  placeholder="De dónde viene el dato, ej. INEGI, CONAPO..."
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Referencia</label>
-                <input value={editando.referencia || ''} onChange={e => setEditando(v => ({ ...v, referencia: e.target.value }))}
-                  placeholder="Dónde ubicarlo, ej. página 261 del informe"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400" />
-              </div>
-              <div className="pt-2 border-t border-gray-100">
-                <p className="text-[11px] font-semibold text-gray-500 mb-2">Metadatos de importación institucional</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Instrumento</label>
-                    <select value={editando.instrumento || ''} onChange={e => setEditando(v => ({ ...v, instrumento: e.target.value || null }))}
-                      className="w-full px-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400">
-                      <option value="">— ninguno —</option>
-                      {INSTRUMENTOS.map(i => <option key={i} value={i}>{i}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Área sugerida</label>
-                    <input value={editando.area_sugerida || ''} onChange={e => setEditando(v => ({ ...v, area_sugerida: e.target.value }))}
-                      placeholder="Ej. DGOTU; DGPV"
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Categoría</label>
-                  <textarea value={editando.producto || ''} onChange={e => setEditando(v => ({ ...v, producto: e.target.value }))}
-                    rows={2}
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400" />
-                </div>
-                {editando.instrumento === 'PSEDATU 2025-2030' && (
-                  <div className="mt-3">
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Código de línea de acción</label>
-                    <input value={editando.codigo_linea_accion || ''} onChange={e => setEditando(v => ({ ...v, codigo_linea_accion: e.target.value }))}
-                      placeholder="Ej. 1.1.1"
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400" />
-                  </div>
-                )}
-              </div>
-              {editando.usos > 0 && (
-                <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                  Este indicador se usa en {editando.usos} proyecto{editando.usos !== 1 ? 's' : ''}. Cambiar el nombre
-                  lo cambia en todos.
-                </p>
-              )}
-            </div>
-            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-100">
-              <button onClick={cerrarConConfirmacion} className="btn-secondary text-sm">Cancelar</button>
-              <button onClick={guardar} disabled={guardando || !editando.nombre?.trim()}
-                className="btn-primary text-sm disabled:opacity-40">
-                {guardando ? 'Guardando...' : 'Guardar'}
-              </button>
-            </div>
-          </div>
         </div>
       )}
 
@@ -617,4 +323,63 @@ export default function CatalogoIndicadores() {
       )}
     </div>
   );
+}
+
+// Una ficha del catálogo. Fuera de modo fusión, la ficha ENTERA es el
+// link al detalle (mismo criterio que TarjetaIndicador.jsx: sin lápiz/
+// ojo propios, el detalle es donde se edita/retira con más contexto).
+// En modo fusión deja de navegar y se vuelve seleccionable.
+function FichaCatalogo({ indicador: ind, modoFusion, seleccionado, onAlternarSeleccion, titulosPsedatu }) {
+  const contenido = (
+    <>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          <span className={`text-sm font-semibold line-clamp-2 ${ind.activo ? 'text-gray-800' : 'text-gray-400 line-through'}`}>
+            {ind.nombre}
+          </span>
+        </div>
+        {modoFusion && (
+          <span className="flex-shrink-0 text-guinda-600 mt-0.5">
+            {seleccionado ? <CheckSquare size={16} /> : <Square size={16} className="text-gray-300" />}
+          </span>
+        )}
+      </div>
+      {!ind.activo && <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600 font-medium">retirado</span>}
+      {ind.producto && (
+        <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-sky-700 bg-sky-50 border border-sky-100 rounded-full px-2 py-0.5 max-w-full" title={ind.producto}>
+          <Tag size={10} className="flex-shrink-0 text-sky-400" />
+          <span className="truncate">{ind.producto.length > 60 ? `${ind.producto.slice(0, 60)}…` : ind.producto}</span>
+        </p>
+      )}
+      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">
+          {TIPOS.find(t => t.valor === ind.tipo)?.etiqueta || ind.tipo}
+        </span>
+        {ind.unidad_personalizada && <span className="text-[10px] text-gray-400">{ind.unidad_personalizada}</span>}
+      </div>
+      <MigajaPsedatu
+        codigoLineaAccion={ind.codigo_linea_accion}
+        instrumento={ind.instrumento}
+        titulos={titulosPsedatu}
+      />
+      <p className="mt-2 pt-2 border-t border-gray-100 text-[11px] text-gray-500">
+        {ind.usos > 0
+          ? `${ind.usos} proyecto${ind.usos !== 1 ? 's' : ''}${ind.dgs?.length ? ` · ${ind.dgs.join(', ')}` : ''}`
+          : 'Sin proyectos todavía'}
+      </p>
+    </>
+  );
+
+  const clases = `block rounded-xl border bg-white p-3.5 transition-all ${
+    ind.activo ? 'border-gray-200' : 'border-gray-200 bg-gray-50/70'
+  } ${
+    modoFusion
+      ? seleccionado ? 'border-guinda-300 ring-1 ring-guinda-200 cursor-pointer' : 'hover:border-gray-300 cursor-pointer'
+      : 'hover:border-guinda-200 hover:shadow-sm'
+  }`;
+
+  if (modoFusion) {
+    return <div className={clases} onClick={onAlternarSeleccion}>{contenido}</div>;
+  }
+  return <Link to={`/indicadores/catalogo/${ind.id}`} className={clases}>{contenido}</Link>;
 }

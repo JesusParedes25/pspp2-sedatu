@@ -89,6 +89,13 @@ export async function cambiarActivoIndicadorCatalogo(id, activo) {
   return data;
 }
 
+// Una sola entrada del catálogo, completa — alimenta la página de
+// detalle (DetalleCatalogo.jsx).
+export async function obtenerIndicadorCatalogo(id) {
+  const { data } = await client.get(`/catalogo-indicadores/${id}`);
+  return data.datos;
+}
+
 // En qué proyectos se usa — lectura abierta a cualquier usuario, igual
 // que el resto del catálogo (no es una operación que afecte el proyecto
 // de nadie, a diferencia de editar/retirar/fusionar).
