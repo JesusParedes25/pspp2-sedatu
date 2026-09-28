@@ -23,7 +23,7 @@ async function listar(req, res, next) {
     const incluirInactivos = req.query.incluir_inactivos === 'true'
       && req.usuario?.rol === 'superadmin';
 
-    const datos = await catalogoQueries.listar({
+    const { datos, total } = await catalogoQueries.listar({
       busqueda: req.query.busqueda || undefined,
       incluirInactivos,
       instrumento: req.query.instrumento || undefined,
@@ -31,8 +31,10 @@ async function listar(req, res, next) {
       objetivo: req.query.objetivo || undefined,
       estrategia: req.query.estrategia || undefined,
       area: req.query.area || undefined,
+      pagina: parseInt(req.query.pagina) || 1,
+      limite: parseInt(req.query.limite) || 50,
     });
-    res.json({ datos });
+    res.json({ datos, total });
   } catch (err) { next(err); }
 }
 

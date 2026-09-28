@@ -236,7 +236,7 @@ async function obtenerTitulosPsedatu() {
 // dentro del COUNT/array_agg en vez de en el WHERE — un WHERE ahí
 // convertiría el LEFT JOIN en un INNER JOIN de facto y excluiría del
 // resultado las entradas del catálogo sin ningún proyecto vinculado.
-async function listar({ busqueda, incluirInactivos = false, instrumento, producto, objetivo, estrategia, area } = {}) {
+async function listar({ busqueda, incluirInactivos = false, instrumento, producto, objetivo, estrategia, area, pagina = 1, limite = 50 } = {}) {
   const condiciones = [];
   const valores = [];
   if (!incluirInactivos) condiciones.push('c.activo = true');
@@ -279,10 +279,16 @@ async function listar({ busqueda, incluirInactivos = false, instrumento, product
     condiciones.push(`$${valores.length} = ANY(string_to_array(c.area_sugerida, '; '))`);
   }
   const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
-  // Sin texto de búsqueda, un tope evita traer + agregar el catálogo
-  // completo de una sola vez — con texto ya viene acotado por el
-  // ILIKE, no hace falta.
-  const limite = busqueda ? '' : 'LIMIT 50';
+
+  // Paginación real de servidor — mismo patrón que
+  // proyectos.queries.js::listarProyectos: LIMIT/OFFSET siempre
+  // (con o sin busqueda), más una consulta de conteo aparte para que
+  // el frontend sepa cuántas páginas hay en total. Antes había un
+  // LIMIT 50 fijo, sin OFFSET ni total, que dejaba invisibles el resto
+  // de las 1387 entradas del catálogo sin ningún aviso.
+  const offset = (pagina - 1) * limite;
+  const valoresConteo = [...valores];
+  valores.push(limite, offset);
 
   const { rows } = await pool.query(`
     SELECT c.*,
@@ -300,10 +306,21 @@ async function listar({ busqueda, incluirInactivos = false, instrumento, product
     ${where}
     GROUP BY c.id, u.nombre_completo
     ORDER BY c.activo DESC, c.nombre
-    ${limite}
+    LIMIT $${valores.length - 1} OFFSET $${valores.length}
   `, valores);
 
-  return rows.map(r => ({ ...r, usos: parseInt(r.usos, 10) || 0 }));
+  // Conteo total para paginación — mismo WHERE, sin los parámetros de
+  // limite/offset ni los JOIN (condiciones solo referencia columnas de
+  // c., no hace falta repetir los LEFT JOIN aquí).
+  const { rows: conteo } = await pool.query(
+    `SELECT COUNT(*) AS total FROM catalogo_indicadores c ${where}`,
+    valoresConteo
+  );
+
+  return {
+    datos: rows.map(r => ({ ...r, usos: parseInt(r.usos, 10) || 0 })),
+    total: parseInt(conteo[0].total, 10),
+  };
 }
 
 async function obtener(id) {

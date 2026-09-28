@@ -113,6 +113,10 @@ export default function TabIndicadores() {
         instrumento: filtros.instrumento || undefined,
         producto: filtros.producto || undefined,
         area: filtros.area || undefined,
+        // El backend ahora pagina siempre (antes solo topaba a 50 sin
+        // busqueda) — con texto de búsqueda se pide un límite más alto
+        // para no perder resultados que antes sí aparecían aquí.
+        limite: busqueda ? 200 : undefined,
       });
       setItems(res.datos || []);
     } catch {
