@@ -52,9 +52,9 @@ export function useProyecto(proyectoId) {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
 
-  const cargar = useCallback(async () => {
+  const cargar = useCallback(async (silencioso = false) => {
     if (!proyectoId) return;
-    setCargando(true);
+    if (!silencioso) setCargando(true);
     setError(null);
     try {
       const respuesta = await proyectosApi.obtenerProyecto(proyectoId);
@@ -62,13 +62,18 @@ export function useProyecto(proyectoId) {
     } catch (err) {
       setError(err.response?.data?.mensaje || 'Error al cargar proyecto');
     } finally {
-      setCargando(false);
+      if (!silencioso) setCargando(false);
     }
   }, [proyectoId]);
+
+  // Recarga silenciosa: actualiza datos sin mostrar el esqueleto de carga
+  // (que desmontaría toda la página, incluyendo cualquier modal abierto —
+  // ver DetalleProyecto.jsx, mismo patrón que useEtapas::recargarSilencioso).
+  const recargarSilencioso = useCallback(() => cargar(true), [cargar]);
 
   useEffect(() => {
     cargar();
   }, [cargar]);
 
-  return { proyecto, cargando, error, recargar: cargar };
+  return { proyecto, cargando, error, recargar: cargar, recargarSilencioso };
 }

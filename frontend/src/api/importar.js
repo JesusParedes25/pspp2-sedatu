@@ -53,3 +53,13 @@ export async function confirmarMultiHoja({ fileId, configMultiHoja, proyectoId }
   });
   return data;
 }
+
+export async function listarLotes(proyectoId) {
+  const { data } = await client.get('/importar/lotes', { params: { proyectoId } });
+  return data;
+}
+
+export async function eliminarLote(loteId, proyectoId) {
+  const { data } = await client.post(`/importar/lotes/${loteId}/eliminar`, { proyectoId });
+  return data;
+}

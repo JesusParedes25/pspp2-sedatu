@@ -205,7 +205,8 @@ async function confirmar(req, res, next) {
     const dataRows = parser.obtenerFilasDatos(rawData, config);
 
     const resultado = await service.ejecutarImportacion(
-      dataRows, config, headers, proyectoId, skipDuplicados !== false
+      dataRows, config, headers, proyectoId, skipDuplicados !== false,
+      req.usuario?.id || null, entry.filename
     );
 
     // Limpiar archivo de memoria tras importación exitosa
@@ -283,7 +284,7 @@ async function extraerHeaders(req, res, next) {
       dataStartRow: dataStartRow || 2,
     };
 
-    const { headers, superHeaders, sampleRows, totalDataRows } = parser.extraerConConfig(rawData, config);
+    const { headers, superHeaders, sampleRows, totalDataRows, totalDataRowsValidas } = parser.extraerConConfig(rawData, config);
 
     res.json({
       datos: {
@@ -291,6 +292,7 @@ async function extraerHeaders(req, res, next) {
         superHeaders,
         sampleRows,
         totalDataRows,
+        totalDataRowsValidas,
       },
       mensaje: 'Headers extraídos correctamente.',
     });
@@ -369,7 +371,9 @@ async function confirmarMultiHoja(req, res, next) {
     }
 
     const hojas = parser.extraerDatosMultiHoja(entry.buffer, entry.filename);
-    const resultado = await service.ejecutarImportacionMultiHoja(hojas, configMultiHoja, proyectoId);
+    const resultado = await service.ejecutarImportacionMultiHoja(
+      hojas, configMultiHoja, proyectoId, req.usuario?.id || null, entry.filename
+    );
 
     // Limpiar archivo
     fileStore.delete(fileId);
@@ -383,6 +387,49 @@ async function confirmarMultiHoja(req, res, next) {
   }
 }
 
+// ─── GET /importar/lotes?proyectoId= ───────────────────────────
+
+async function listarLotes(req, res, next) {
+  try {
+    const { proyectoId } = req.query;
+    if (!proyectoId) {
+      return res.status(400).json({ error: true, mensaje: 'Se requiere proyectoId.', codigo: 'DATOS_INVALIDOS' });
+    }
+    const lotes = await service.listarLotes(proyectoId);
+    res.json({ datos: lotes, mensaje: 'Lotes listados correctamente.' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ─── POST /importar/lotes/:loteId/eliminar ─────────────────────
+// Deshacer una importación completa. Mismo nivel de permiso que
+// importar — deshacer una captura masiva exige el mismo acceso que
+// hacerla.
+
+async function eliminarLote(req, res, next) {
+  try {
+    const { loteId } = req.params;
+    const { proyectoId } = req.body;
+    if (!proyectoId) {
+      return res.status(400).json({ error: true, mensaje: 'Se requiere proyectoId.', codigo: 'DATOS_INVALIDOS' });
+    }
+    if (await rechazarSiNoPuedeCapturar(req, res, proyectoId)) return;
+
+    const resultado = await service.eliminarLote(loteId, proyectoId);
+    if (!resultado.encontrado) {
+      return res.status(404).json({
+        error: true,
+        mensaje: 'Ese lote ya no existe o no pertenece a este proyecto.',
+        codigo: 'LOTE_NO_ENCONTRADO',
+      });
+    }
+    res.json({ datos: resultado, mensaje: 'Importación deshecha correctamente.' });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   upload,
   preview,
@@ -391,4 +438,6 @@ module.exports = {
   extraerHeaders,
   previewMultiHoja,
   confirmarMultiHoja,
+  listarLotes,
+  eliminarLote,
 };

@@ -12,6 +12,7 @@
  * - Ejecutar inserción transaccional (todo o nada)
  * - Preview sin tocar BD
  */
+const crypto = require('crypto');
 const pool = require('../db/pool');
 const { recalcularPesosEtapa } = require('../db/queries/acciones.queries');
 const { recalcularEtapa } = require('../utils/recalculos');
@@ -397,11 +398,118 @@ async function detectarDuplicados(entidades, proyectoId) {
   return duplicados;
 }
 
+// ─── Posibles variantes de nombre de un padre, DENTRO del mismo lote ──
+// Reportado en junta con usuarios reales: si el nombre del padre no
+// calza exacto contra uno ya existente en el proyecto, hoy se crea un
+// Componente/Acción nuevo EN SILENCIO — así un typo o una mayúscula de
+// más duplica un nodo sin que nadie lo note. Alcance deliberadamente
+// acotado: solo compara, entre sí, los nombres de padre que esta
+// importación va a CREAR (no calzaron exacto contra la BD) — no escanea
+// toda la base, el universo por archivo es un puñado de nombres.
+
+// Candidatos = nombres de padre (a nivel `nivelHijo`) que NO calzan
+// exacto contra ninguno ya existente — deduplicados por nombre
+// normalizado, con la lista de filas de origen de cada variante.
+function extraerCandidatosPadresNuevos(entidadesRaw, nivelHijo, existentesNorm) {
+  const porNombre = new Map();
+  for (const ent of entidadesRaw) {
+    if (ent.nivel !== nivelHijo || !ent.parentName) continue;
+    const norm = normalizarTexto(ent.parentName);
+    if (existentesNorm.has(norm)) continue; // ya existe exacto, sin ambigüedad
+    if (!porNombre.has(norm)) porNombre.set(norm, { nombre: ent.parentName, filas: [] });
+    porNombre.get(norm).filas.push(ent.filaOrigen);
+  }
+  return [...porNombre.values()];
+}
+
+// Agrupa candidatos por similitud de texto (pg_trgm, mismo mecanismo ya
+// probado en catalogo-indicadores.queries.js::buscarSimilares) y
+// devuelve solo los grupos con 2+ variantes — un nombre nuevo sin
+// parecido a ningún otro candidato no es ambiguo, no se reporta.
+async function agruparCandidatosPorSimilitud(candidatos) {
+  if (candidatos.length < 2) return [];
+  const nombres = candidatos.map(c => c.nombre);
+  const { rows: pares } = await pool.query(`
+    SELECT a.nombre AS nombre1, b.nombre AS nombre2
+      FROM unnest($1::text[]) a(nombre)
+      CROSS JOIN unnest($1::text[]) b(nombre)
+     WHERE a.nombre < b.nombre
+       AND similarity(lower(a.nombre), lower(b.nombre)) >= 0.45
+  `, [nombres]);
+
+  const padre = new Map(nombres.map(n => [n, n]));
+  function raiz(n) { while (padre.get(n) !== n) n = padre.get(n); return n; }
+  for (const p of pares) {
+    const ra = raiz(p.nombre1), rb = raiz(p.nombre2);
+    if (ra !== rb) padre.set(ra, rb);
+  }
+
+  const grupos = new Map();
+  for (const c of candidatos) {
+    const r = raiz(c.nombre);
+    if (!grupos.has(r)) grupos.set(r, []);
+    grupos.get(r).push(c);
+  }
+  return [...grupos.values()]
+    .filter(g => g.length > 1)
+    .map(g => ({ variantes: g.map(c => c.nombre), filas: g.flatMap(c => c.filas) }));
+}
+
+// Comparte la misma detección entre preview y confirmar, para que nunca
+// diverjan (mismo criterio que ya usa transformarFilas en ambos casos).
+async function detectarPosiblesDuplicadosPadre(entidadesRaw, proyectoId) {
+  const { rows: etapasExistentes } = await pool.query(
+    'SELECT nombre FROM etapas WHERE id_proyecto = $1', [proyectoId]
+  );
+  const etapasNorm = new Set(etapasExistentes.map(e => normalizarTexto(e.nombre)));
+
+  const { rows: accionesExistentes } = await pool.query(
+    'SELECT nombre FROM acciones WHERE id_proyecto = $1 AND id_accion_padre IS NULL', [proyectoId]
+  );
+  const accionesNorm = new Set(accionesExistentes.map(a => normalizarTexto(a.nombre)));
+
+  const candidatosEtapa = extraerCandidatosPadresNuevos(entidadesRaw, 'accion', etapasNorm);
+  const candidatosAccion = extraerCandidatosPadresNuevos(entidadesRaw, 'subaccion', accionesNorm);
+
+  const gruposEtapa = (await agruparCandidatosPorSimilitud(candidatosEtapa)).map(g => ({ ...g, nivel: 'etapa' }));
+  const gruposAccion = (await agruparCandidatosPorSimilitud(candidatosAccion)).map(g => ({ ...g, nivel: 'accion' }));
+
+  return [...gruposEtapa, ...gruposAccion];
+}
+
+// Un grupo está resuelto cuando CADA variante tiene una entrada en
+// resolucionesPadre (mapa normalizado → nombre canónico o '__nuevo__')
+// — el valor exacto no importa aquí, solo que el usuario ya decidió.
+function grupoEstaResuelto(grupo, resolucionesPadre) {
+  if (!resolucionesPadre) return false;
+  return grupo.variantes.every(v => resolucionesPadre[normalizarTexto(v)] !== undefined);
+}
+
+// Aplica, en el lugar, la resolución elegida por el usuario para cada
+// parentName — '__nuevo__' deja el nombre tal cual (son Componentes/
+// Acciones distintos); cualquier otro valor es el nombre canónico con
+// el que se deben fusionar todas las variantes de ese grupo.
+function aplicarResolucionesPadre(entidadesRaw, resolucionesPadre) {
+  if (!resolucionesPadre) return entidadesRaw;
+  for (const ent of entidadesRaw) {
+    if (!ent.parentName) continue;
+    const alias = resolucionesPadre[normalizarTexto(ent.parentName)];
+    if (alias && alias !== '__nuevo__') ent.parentName = alias;
+  }
+  return entidadesRaw;
+}
+
 // ─── Preview (no toca BD) ──────────────────────────────────────
 
 async function generarPreview(dataRows, config, headers, proyectoId) {
   const { entidades, errores, warnings } = transformarFilas(dataRows, config, headers);
   const duplicados = await detectarDuplicados(entidades, proyectoId);
+  const posiblesDuplicadosPadre = await detectarPosiblesDuplicadosPadre(entidades, proyectoId);
+
+  // El árbol de preview ya refleja la resolución elegida hasta ahora
+  // (fusionar variantes bajo un nombre canónico), para que lo que se ve
+  // aquí sea exactamente lo que se va a crear al confirmar.
+  aplicarResolucionesPadre(entidades, config.resolucionesPadre);
 
   // Resolver geografía estricta si hay campos mapeados
   const tieneGeo = Object.values(config.columnMap || {}).some(f =>
@@ -433,17 +541,35 @@ async function generarPreview(dataRows, config, headers, proyectoId) {
     errores,
     warnings: [...warnings, ...geoWarnings],
     duplicados,
+    posiblesDuplicadosPadre,
   };
 }
 
 // ─── Confirmar importación (transaccional) ─────────────────────
 
-async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDuplicados = true) {
+async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDuplicados = true, usuarioId = null, archivoOrigen = null) {
   const { entidades, errores } = transformarFilas(dataRows, config, headers);
 
   if (errores.length > 0) {
     throw new Error(`Hay ${errores.length} error(es) que impiden la importación. Use preview primero.`);
   }
+
+  // Candado de servidor: nunca crear un padre "parecido" a otro sin que
+  // el usuario lo haya resuelto explícitamente en preview — cierra la
+  // vía de saltarse la pantalla de resolución llamando este endpoint
+  // directo (curl, replay, bug de frontend).
+  const gruposPadre = await detectarPosiblesDuplicadosPadre(entidades, proyectoId);
+  const gruposSinResolver = gruposPadre.filter(g => !grupoEstaResuelto(g, config.resolucionesPadre));
+  if (gruposSinResolver.length > 0) {
+    const err = new Error(`Hay ${gruposSinResolver.length} variación(es) de nombre de padre sin resolver. Use preview primero.`);
+    err.statusCode = 400;
+    err.codigo = 'DUPLICADOS_PADRE_SIN_RESOLVER';
+    throw err;
+  }
+  aplicarResolucionesPadre(entidades, config.resolucionesPadre);
+
+  const loteImportacionId = crypto.randomUUID();
+  const importadoEn = new Date();
 
   // Resolver geografía estricta antes de insertar
   const tieneGeo = Object.values(config.columnMap || {}).some(f =>
@@ -497,13 +623,14 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
     // Set para trackear IDs de etapas que necesitan recálculo de pesos
     const etapasParaRecalculo = new Set();
 
-    // userId para evidencias y comentarios (usamos null si no disponible)
-    // Note: req.usuario.id would be ideal but service doesn't have access;
-    // the controller should pass it. For now, we use a project creator fallback.
+    // userId para evidencias y comentarios: preferir el usuario real de la
+    // petición (usuarioId, pasado por el controller); si no viene, caer al
+    // creador del proyecto — mismo fallback de siempre, ahora solo como
+    // respaldo en vez de única fuente.
     const { rows: proyectoRows } = await client.query(
       'SELECT id_creador FROM proyectos WHERE id = $1', [proyectoId]
     );
-    const userId = proyectoRows[0]?.id_creador || null;
+    const userId = usuarioId || proyectoRows[0]?.id_creador || null;
 
     // ─── Helper: insertar evidencia relacional ─────────────
     async function insertarEvidencia(entidadId, link) {
@@ -544,8 +671,9 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
 
         const { rows } = await client.query(`
           INSERT INTO etapas (nombre, descripcion, orden, tipo_meta, id_proyecto,
-                              fecha_inicio, fecha_fin, estado, semaforo, porcentaje_calculado, campos_extra)
-          VALUES ($1, $2, $3, 'Sin_meta', $4, $5, $6, $7, $8, $9, $10)
+                              fecha_inicio, fecha_fin, estado, semaforo, porcentaje_calculado, campos_extra,
+                              lote_importacion_id, importado_en, importado_por, archivo_origen)
+          VALUES ($1, $2, $3, 'Sin_meta', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
           RETURNING id
         `, [
           ent.nombre,
@@ -558,6 +686,7 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
           semaforoParaBD(ent.campos._semaforo),
           porcentaje,
           JSON.stringify(ent.campos._campos_extra || {}),
+          loteImportacionId, importadoEn, userId, archivoOrigen,
         ]);
         const etapaId = rows[0].id;
         resultado.etapas_creadas++;
@@ -592,10 +721,11 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
           if (!etapaId) {
             ordenEtapa++;
             const { rows: newEtapa } = await client.query(`
-              INSERT INTO etapas (nombre, orden, tipo_meta, id_proyecto, estado)
-              VALUES ($1, $2, 'Sin_meta', $3, 'Pendiente')
+              INSERT INTO etapas (nombre, orden, tipo_meta, id_proyecto, estado,
+                                  lote_importacion_id, importado_en, importado_por, archivo_origen)
+              VALUES ($1, $2, 'Sin_meta', $3, 'Pendiente', $4, $5, $6, $7)
               RETURNING id
-            `, [ent.parentName, ordenEtapa, proyectoId]);
+            `, [ent.parentName, ordenEtapa, proyectoId, loteImportacionId, importadoEn, userId, archivoOrigen]);
             etapaId = newEtapa[0].id;
             etapaPorNombre[normalizarTexto(ent.parentName)] = etapaId;
             resultado.etapas_creadas++;
@@ -609,8 +739,9 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
         const { rows } = await client.query(`
           INSERT INTO acciones (
             nombre, descripcion, tipo, fecha_inicio, fecha_fin,
-            estado, porcentaje_avance, id_etapa, id_proyecto, semaforo, campos_extra
-          ) VALUES ($1, $2, 'Accion_programada', $3, $4, $5, $6, $7, $8, $9, $10)
+            estado, porcentaje_avance, id_etapa, id_proyecto, semaforo, campos_extra,
+            lote_importacion_id, importado_en, importado_por, archivo_origen
+          ) VALUES ($1, $2, 'Accion_programada', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
           RETURNING id
         `, [
           ent.nombre,
@@ -623,6 +754,7 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
           proyectoId,
           semaforoParaBD(ent.campos._semaforo),
           JSON.stringify(ent.campos._campos_extra || {}),
+          loteImportacionId, importadoEn, userId, archivoOrigen,
         ]);
         const accionId = rows[0].id;
         resultado.acciones_creadas++;
@@ -673,10 +805,11 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
             if (!etapaDefault) {
               ordenEtapa++;
               const { rows: newE } = await client.query(`
-                INSERT INTO etapas (nombre, orden, tipo_meta, id_proyecto, estado)
-                VALUES ('General', $1, 'Sin_meta', $2, 'Pendiente')
+                INSERT INTO etapas (nombre, orden, tipo_meta, id_proyecto, estado,
+                                    lote_importacion_id, importado_en, importado_por, archivo_origen)
+                VALUES ('General', $1, 'Sin_meta', $2, 'Pendiente', $3, $4, $5, $6)
                 RETURNING id
-              `, [ordenEtapa, proyectoId]);
+              `, [ordenEtapa, proyectoId, loteImportacionId, importadoEn, userId, archivoOrigen]);
               etapaDefault = newE[0].id;
               etapaPorNombre[normalizarTexto('General')] = etapaDefault;
               resultado.etapas_creadas++;
@@ -684,10 +817,12 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
             }
             etapaId = etapaDefault;
             const { rows: newA } = await client.query(`
-              INSERT INTO acciones (nombre, tipo, fecha_inicio, fecha_fin, estado, id_etapa, id_proyecto)
-              VALUES ($1, 'Accion_programada', $2, $3, 'Pendiente', $4, $5)
+              INSERT INTO acciones (nombre, tipo, fecha_inicio, fecha_fin, estado, id_etapa, id_proyecto,
+                                    lote_importacion_id, importado_en, importado_por, archivo_origen)
+              VALUES ($1, 'Accion_programada', $2, $3, 'Pendiente', $4, $5, $6, $7, $8, $9)
               RETURNING id
-            `, [ent.parentName, new Date().toISOString().split('T')[0], new Date().toISOString().split('T')[0], etapaId, proyectoId]);
+            `, [ent.parentName, new Date().toISOString().split('T')[0], new Date().toISOString().split('T')[0], etapaId, proyectoId,
+                loteImportacionId, importadoEn, userId, archivoOrigen]);
             accionPadreId = newA[0].id;
             accionPorNombre[normalizarTexto(ent.parentName)] = accionPadreId;
             resultado.acciones_creadas++;
@@ -715,8 +850,9 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
         await client.query(`
           INSERT INTO tareas (
             nombre, descripcion, id_accion, estado, avance_actual, avance_override,
-            fecha_inicio, fecha_limite, semaforo, orden
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            fecha_inicio, fecha_limite, semaforo, orden,
+            lote_importacion_id, importado_en, importado_por, archivo_origen
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         `, [
           ent.nombre,
           emptyToNull(ent.campos.descripcion),
@@ -728,6 +864,7 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
           fechaFin || fechaInicio || new Date().toISOString().split('T')[0],
           semaforoParaBD(ent.campos._semaforo),
           ent.filaOrigen,
+          loteImportacionId, importadoEn, userId, archivoOrigen,
         ]);
         resultado.tareas_creadas++;
 
@@ -761,6 +898,7 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
     // tarea(s) creada(s)". Se espeja el conteo para que un frontend viejo
     // contra un backend nuevo siga informando bien.
     resultado.subacciones_creadas = resultado.tareas_creadas;
+    resultado.lote_importacion_id = loteImportacionId;
     return resultado;
 
   } catch (err) {
@@ -956,8 +1094,10 @@ async function generarPreviewMultiHoja(hojas, configMultiHoja, proyectoId) {
 /**
  * Ejecuta importación transaccional para formato multi-hoja con mapeo completo.
  */
-async function ejecutarImportacionMultiHoja(hojas, configMultiHoja, proyectoId) {
+async function ejecutarImportacionMultiHoja(hojas, configMultiHoja, proyectoId, usuarioId = null, archivoOrigen = null) {
   const hojasConfig = configMultiHoja.hojas;
+  const loteImportacionId = crypto.randomUUID();
+  const importadoEn = new Date();
 
   function getMapeo(hCfg) {
     if (hCfg.mapeo) return hCfg.mapeo;
@@ -973,6 +1113,11 @@ async function ejecutarImportacionMultiHoja(hojas, configMultiHoja, proyectoId) 
     await client.query('BEGIN');
 
     const resultado = { etapas_creadas: 0, acciones_creadas: 0, subacciones_creadas: 0, tareas_creadas: 0 };
+
+    const { rows: proyectoRows } = await client.query(
+      'SELECT id_creador FROM proyectos WHERE id = $1', [proyectoId]
+    );
+    const userId = usuarioId || proyectoRows[0]?.id_creador || null;
 
     const { rows: [{ max_orden }] } = await client.query(
       'SELECT COALESCE(MAX(orden), 0) AS max_orden FROM etapas WHERE id_proyecto = $1', [proyectoId]
@@ -1008,11 +1153,13 @@ async function ejecutarImportacionMultiHoja(hojas, configMultiHoja, proyectoId) 
       ordenEtapa++;
       const { rows } = await client.query(`
         INSERT INTO etapas (nombre, descripcion, orden, tipo_meta, id_proyecto,
-          fecha_inicio, fecha_fin, estado, prioridad, enlace_responsable, observaciones)
-        VALUES ($1, $2, $3, 'Sin_meta', $4, $5, $6, $7, $8, $9, $10)
+          fecha_inicio, fecha_fin, estado, prioridad, enlace_responsable, observaciones,
+          lote_importacion_id, importado_en, importado_por, archivo_origen)
+        VALUES ($1, $2, $3, 'Sin_meta', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         RETURNING id
       `, [nombre, descripcion, ordenEtapa, proyectoId, fechaInicio, fechaFin, estado,
-          prioridad, enlaceResponsable, observaciones]);
+          prioridad, enlaceResponsable, observaciones,
+          loteImportacionId, importadoEn, userId, archivoOrigen]);
 
       etapaIdMap[idLocal] = rows[0].id;
       etapasParaRecalculo.add(rows[0].id);
@@ -1045,11 +1192,13 @@ async function ejecutarImportacionMultiHoja(hojas, configMultiHoja, proyectoId) 
 
         const { rows } = await client.query(`
           INSERT INTO acciones (nombre, descripcion, tipo, fecha_inicio, fecha_fin, estado,
-            porcentaje_avance, id_etapa, id_proyecto, prioridad, enlace_responsable, observaciones)
-          VALUES ($1, $2, $3, $4, $5, $6, 0, $7, $8, $9, $10, $11)
+            porcentaje_avance, id_etapa, id_proyecto, prioridad, enlace_responsable, observaciones,
+            lote_importacion_id, importado_en, importado_por, archivo_origen)
+          VALUES ($1, $2, $3, $4, $5, $6, 0, $7, $8, $9, $10, $11, $12, $13, $14, $15)
           RETURNING id
         `, [nombre, descripcion, tipo, fechaInicio, fechaFin, estado,
-            etapaBdId, proyectoId, prioridad, enlaceResponsable, observaciones]);
+            etapaBdId, proyectoId, prioridad, enlaceResponsable, observaciones,
+            loteImportacionId, importadoEn, userId, archivoOrigen]);
 
         accionIdMap[idLocal] = rows[0].id;
         etapasParaRecalculo.add(etapaBdId);
@@ -1092,10 +1241,12 @@ async function ejecutarImportacionMultiHoja(hojas, configMultiHoja, proyectoId) 
         // buscaba.
         await client.query(`
           INSERT INTO tareas (nombre, descripcion, id_accion, estado, avance_actual, avance_override,
-            fecha_inicio, fecha_limite, prioridad, orden)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            fecha_inicio, fecha_limite, prioridad, orden,
+            lote_importacion_id, importado_en, importado_por, archivo_origen)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         `, [nombre, descripcion, accionBdId, estado, avance, avance === 100,
-            fechaInicio, fechaFin, prioridad, i + 1]);
+            fechaInicio, fechaFin, prioridad, i + 1,
+            loteImportacionId, importadoEn, userId, archivoOrigen]);
 
         resultado.tareas_creadas++;
       }
@@ -1115,6 +1266,7 @@ async function ejecutarImportacionMultiHoja(hojas, configMultiHoja, proyectoId) 
     // tarea(s) creada(s)". Se espeja el conteo para que un frontend viejo
     // contra un backend nuevo siga informando bien.
     resultado.subacciones_creadas = resultado.tareas_creadas;
+    resultado.lote_importacion_id = loteImportacionId;
     return resultado;
 
   } catch (err) {
@@ -1123,6 +1275,122 @@ async function ejecutarImportacionMultiHoja(hojas, configMultiHoja, proyectoId) 
   } finally {
     client.release();
   }
+}
+
+// ─── Deshacer un lote importado ─────────────────────────────────
+
+async function contarLote(loteImportacionId, proyectoId) {
+  const { rows: [r] } = await pool.query(`
+    SELECT
+      (SELECT COUNT(*) FROM etapas WHERE lote_importacion_id=$1 AND id_proyecto=$2) AS etapas,
+      (SELECT COUNT(*) FROM acciones WHERE lote_importacion_id=$1 AND id_proyecto=$2) AS acciones,
+      (SELECT COUNT(*) FROM tareas t JOIN acciones a ON a.id=t.id_accion
+        WHERE t.lote_importacion_id=$1 AND a.id_proyecto=$2) AS tareas
+  `, [loteImportacionId, proyectoId]);
+  return { etapas: +r.etapas, acciones: +r.acciones, tareas: +r.tareas };
+}
+
+// Borra en bloque todo lo que quedó marcado con este lote_importacion_id
+// dentro del proyecto dado — mismo estilo transaccional y mismo orden
+// (comentarios/cobertura_geografica primero, luego tareas→acciones→etapas)
+// que ya usan etapas.queries.js::eliminarEtapa y acciones.queries.js::eliminarAccion.
+async function eliminarLote(loteImportacionId, proyectoId) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rows: etapaRows } = await client.query(
+      'SELECT id FROM etapas WHERE lote_importacion_id=$1 AND id_proyecto=$2', [loteImportacionId, proyectoId]);
+    const { rows: accionRows } = await client.query(
+      'SELECT id, id_etapa FROM acciones WHERE lote_importacion_id=$1 AND id_proyecto=$2', [loteImportacionId, proyectoId]);
+    const { rows: tareaRows } = await client.query(
+      `SELECT t.id FROM tareas t JOIN acciones a ON a.id=t.id_accion
+        WHERE t.lote_importacion_id=$1 AND a.id_proyecto=$2`, [loteImportacionId, proyectoId]);
+
+    const etapaIds = etapaRows.map(r => r.id);
+    const accionIds = accionRows.map(r => r.id);
+    const tareaIds = tareaRows.map(r => r.id);
+
+    if (etapaIds.length === 0 && accionIds.length === 0 && tareaIds.length === 0) {
+      await client.query('ROLLBACK');
+      return { encontrado: false, etapas: 0, acciones: 0, tareas: 0 };
+    }
+
+    // comentarios/cobertura_geografica son polimórficos (sin FK real) —
+    // no se limpian solos al borrar el nodo, mismo motivo ya documentado
+    // en eliminarEtapa/eliminarAccion.
+    await client.query(
+      `DELETE FROM comentarios WHERE (entidad_tipo='Etapa' AND entidad_id = ANY($1))
+                                  OR (entidad_tipo='Accion' AND entidad_id = ANY($2))`,
+      [etapaIds, accionIds]);
+
+    await client.query(
+      `DELETE FROM cobertura_geografica
+        WHERE (tipo_entidad='etapa'  AND id_entidad = ANY($1))
+           OR (tipo_entidad='accion' AND id_entidad = ANY($2))
+           OR (tipo_entidad='tarea'  AND id_entidad = ANY($3))`,
+      [etapaIds, accionIds, tareaIds]);
+
+    // Orden leaf-first explícito: una tarea/acción del lote puede colgar
+    // de un padre que NO es del lote (ej. se agregó manualmente después).
+    if (tareaIds.length)  await client.query('DELETE FROM tareas WHERE id = ANY($1)', [tareaIds]);
+    if (accionIds.length) await client.query('DELETE FROM acciones WHERE id = ANY($1)', [accionIds]);
+    if (etapaIds.length)  await client.query('DELETE FROM etapas WHERE id = ANY($1)', [etapaIds]);
+
+    // Recalcular solo las etapas que sobreviven pero perdieron una acción
+    // del lote (la etapa padre no era parte del lote).
+    const etapasSobrevivientes = [...new Set(
+      accionRows.map(a => a.id_etapa).filter(id => id && !etapaIds.includes(id))
+    )];
+    for (const id of etapasSobrevivientes) {
+      await recalcularPesosEtapa(id, client);
+      await recalcularEtapa(id, client);
+    }
+
+    const { recalcularIndicadoresProyecto } = require('../db/queries/indicadores.queries');
+    await recalcularIndicadoresProyecto(proyectoId, client);
+
+    await client.query('COMMIT');
+    return { encontrado: true, etapas: etapaIds.length, acciones: accionIds.length, tareas: tareaIds.length };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function listarLotes(proyectoId, limite = 20) {
+  const { rows } = await pool.query(`
+    WITH todos AS (
+      SELECT lote_importacion_id, importado_en, importado_por, archivo_origen, 'etapa' AS nivel
+        FROM etapas WHERE id_proyecto=$1 AND lote_importacion_id IS NOT NULL
+      UNION ALL
+      SELECT lote_importacion_id, importado_en, importado_por, archivo_origen, 'accion'
+        FROM acciones WHERE id_proyecto=$1 AND lote_importacion_id IS NOT NULL
+      UNION ALL
+      SELECT t.lote_importacion_id, t.importado_en, t.importado_por, t.archivo_origen, 'tarea'
+        FROM tareas t JOIN acciones a ON a.id=t.id_accion
+        WHERE a.id_proyecto=$1 AND t.lote_importacion_id IS NOT NULL
+    )
+    SELECT lote_importacion_id AS id,
+           MIN(importado_en) AS importado_en,
+           -- MIN/MAX no existen para UUID; el valor es constante por lote,
+           -- así que basta con tomar cualquiera (min de su representación
+           -- en texto, que sí tiene orden).
+           MIN(importado_por::text)::uuid AS importado_por,
+           MIN(archivo_origen) AS archivo_origen,
+           MIN(u.nombre_completo) AS importado_por_nombre,
+           COUNT(*) FILTER (WHERE nivel='etapa')  AS etapas,
+           COUNT(*) FILTER (WHERE nivel='accion') AS acciones,
+           COUNT(*) FILTER (WHERE nivel='tarea')  AS tareas
+      FROM todos
+      LEFT JOIN usuarios u ON u.id = todos.importado_por
+     GROUP BY lote_importacion_id
+     ORDER BY MIN(importado_en) DESC
+     LIMIT $2
+  `, [proyectoId, limite]);
+  return rows;
 }
 
 /**
@@ -1143,10 +1411,14 @@ function extraerCamposPorHeader(headers, fila, excluir = []) {
 module.exports = {
   transformarFilas,
   detectarDuplicados,
+  detectarPosiblesDuplicadosPadre,
   generarPreview,
   ejecutarImportacion,
   generarPreviewMultiHoja,
   ejecutarImportacionMultiHoja,
+  contarLote,
+  eliminarLote,
+  listarLotes,
   normalizarTexto,
   ESTADOS_VALIDOS,
 };

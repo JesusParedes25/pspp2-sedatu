@@ -298,6 +298,7 @@ export default function NodoCard({
     await crearRiesgo(datos);
     setMostrarModalRiesgo(false);
     cargarActividad();
+    onCambiado?.();
   }
 
   // El banner ámbar solo trae lo que ya viene en el stream de actividad
@@ -327,6 +328,7 @@ export default function NodoCard({
     await actualizarRiesgo(riesgoEditando.id, datos);
     setRiesgoEditando(null);
     cargarActividad();
+    onCambiado?.();
   }
 
   // Solo para 'tarea': etapa/accion usan HiloComentarios (tabla vieja) directamente.
