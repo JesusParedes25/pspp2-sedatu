@@ -30,6 +30,7 @@ import { permisosDeNodo } from '../../../hooks/usePermisos';
 export default function PanelDetalle({
   foco, seleccion, proyectoId, permisos: permisosProyecto, onActualizado, mostrarToast, arbol,
   expandidosCentro, onToggleCentro, onSeleccionarEnCentro, onNavegarFoco, onAbrirArbol,
+  riesgoAAbrir, onRiesgoConsumido,
 }) {
   const { tipo, id, data } = foco;
   const permisos = permisosDeNodo(permisosProyecto, tipo, id);
@@ -175,7 +176,10 @@ export default function PanelDetalle({
             onCreado={onActualizado}
           />
           <ActividadStream tipo={seleccion.tipo} id={seleccion.id} titulo={seleccion.data.nombre}
-            soloLectura={permisosDeNodo(permisosProyecto, seleccion.tipo, seleccion.id).esSoloLectura} />
+            soloLectura={permisosDeNodo(permisosProyecto, seleccion.tipo, seleccion.id).esSoloLectura}
+            onCambiado={onActualizado}
+            riesgoIdInicial={riesgoAAbrir}
+            onRiesgoConsumido={onRiesgoConsumido} />
         </div>
       </div>
 

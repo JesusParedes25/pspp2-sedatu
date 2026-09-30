@@ -25,8 +25,11 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'rec
 import { MessageSquare, Paperclip, AlertTriangle, ArrowRightCircle, Send, Loader2, ExternalLink, X, FileText, Upload, Link2, Sparkles, TrendingUp } from 'lucide-react';
 import * as actividadApi from '../../api/actividad';
 import * as evidenciasApi from '../../api/evidencias';
+import * as riesgosApi from '../../api/riesgos';
 import FilePreviewModal from '../evidencias/FilePreviewModal';
+import ModalRiesgo from '../riesgos/ModalRiesgo';
 import { useCandado } from '../../hooks/useEnvioUnico';
+import { useUI } from '../../context/UIContext';
 
 // El stream mezcla 3 orígenes de archivo: la tabla nueva `actividad`, una
 // evidencia del modelo viejo (trae metadata.evidencia_id), o un link externo
@@ -122,7 +125,8 @@ function rel(fecha) {
 // Quien no fue invitado lee el stream pero no escribe en él; el servidor
 // aplica la misma regla en POST /comentarios y en las evidencias, así que
 // sin esto el compositor existía y la petición fallaba con 403.
-export default function ActividadStream({ tipo, id, titulo, soloLectura = false }) {
+export default function ActividadStream({ tipo, id, titulo, soloLectura = false, onCambiado, riesgoIdInicial, onRiesgoConsumido }) {
+  const { mostrarToast } = useUI();
   const [items, setItems] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [filtro, setFiltro] = useState('todo');
@@ -132,6 +136,12 @@ export default function ActividadStream({ tipo, id, titulo, soloLectura = false 
   const [ejecutar, enviando] = useCandado();
   const [detalleItem, setDetalleItem] = useState(null);
   const [previewItem, setPreviewItem] = useState(null);
+  // Riesgo abierto para ver/editar desde el stream — separado de
+  // `detalleItem` (que es solo para archivos/enlaces): un riesgo necesita
+  // el objeto completo (ModalRiesgo), no solo lo que ya trae el item del
+  // feed (aquí solo viaja nivel/estado/riesgo_id, no el resto del formulario).
+  const [riesgoAbierto, setRiesgoAbierto] = useState(null);
+  const [cargandoRiesgo, setCargandoRiesgo] = useState(false);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -143,6 +153,18 @@ export default function ActividadStream({ tipo, id, titulo, soloLectura = false 
   }, [tipo, id]);
 
   useEffect(() => { cargar(); }, [cargar]);
+
+  // Deep-link "abre este riesgo ya" (desde Panorama del proyecto, vía
+  // ?riesgo=<id> — ver DetalleProyecto.jsx::irANodo y EtapasAvancesMD):
+  // se abre una sola vez y de inmediato se avisa al padre que lo limpie
+  // de la URL, para que un re-render posterior (o volver a este mismo
+  // nodo más tarde sin venir de un riesgo) no lo vuelva a abrir solo.
+  useEffect(() => {
+    if (!riesgoIdInicial) return;
+    if (!soloLectura) abrirRiesgo(riesgoIdInicial);
+    onRiesgoConsumido?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [riesgoIdInicial]);
 
   const puntosAvance = useMemo(() => serieAvance(items), [items]);
 
@@ -165,6 +187,28 @@ export default function ActividadStream({ tipo, id, titulo, soloLectura = false 
       await actividadApi.adjuntarArchivo(tipo, id, archivo);
       cargar();
     }).finally(() => { e.target.value = ''; });
+  }
+
+  // Un riesgo reportado desde una tarea (sin riesgo_id) vive solo en
+  // `actividad`, sin fila propia en `riesgos` — no hay nada que abrir.
+  async function abrirRiesgo(riesgoId) {
+    setCargandoRiesgo(true);
+    try {
+      const res = await riesgosApi.obtenerRiesgo(riesgoId);
+      setRiesgoAbierto(res.datos);
+    } catch (err) {
+      mostrarToast(err.response?.data?.mensaje || 'No se pudo abrir el riesgo', 'error');
+    } finally {
+      setCargandoRiesgo(false);
+    }
+  }
+
+  async function guardarRiesgo(datos) {
+    await riesgosApi.actualizarRiesgo(riesgoAbierto.id, datos);
+    setRiesgoAbierto(null);
+    cargar();
+    onCambiado?.();
+    mostrarToast('Riesgo actualizado', 'exito');
   }
 
   return (
@@ -269,13 +313,26 @@ export default function ActividadStream({ tipo, id, titulo, soloLectura = false 
 
                   {soloUnEvento && principal.tipo_evento === 'riesgo' && principal.metadata?.nivel && (
                     <span className="inline-flex items-center gap-1 flex-wrap">
-                      <span className="inline-block text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded mt-0.5">
-                        Nivel: {principal.metadata.nivel}{principal.metadata.estado ? ` · ${principal.metadata.estado}` : ''}
-                      </span>
+                      {principal.metadata?.riesgo_id && !soloLectura ? (
+                        <button
+                          onClick={() => abrirRiesgo(principal.metadata.riesgo_id)}
+                          disabled={cargandoRiesgo}
+                          className="inline-block text-[10px] font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 px-1.5 py-0.5 rounded mt-0.5 disabled:opacity-50"
+                          title="Ver/editar este riesgo"
+                        >
+                          Nivel: {principal.metadata.nivel}{principal.metadata.estado ? ` · ${principal.metadata.estado}` : ''} · Ver detalle
+                        </button>
+                      ) : (
+                        <span className="inline-block text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded mt-0.5">
+                          Nivel: {principal.metadata.nivel}{principal.metadata.estado ? ` · ${principal.metadata.estado}` : ''}
+                        </span>
+                      )}
                       {/* Un riesgo reportado desde una tarea vive en la tabla nueva
                           `actividad` (sin riesgo_id ni estado propio) en vez de la
                           tabla `riesgos` que sí leen Inicio y Panorama del proyecto
-                          — sin esta etiqueta, parece que "desaparece" del resumen. */}
+                          — sin esta etiqueta, parece que "desaparece" del resumen.
+                          Tampoco es clickeable (botón de arriba): no hay nada que
+                          abrir, no tiene fila propia en `riesgos`. */}
                       {!principal.metadata?.riesgo_id && (
                         <span className="inline-block text-[10px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded mt-0.5" title="Los riesgos reportados desde una tarea no se incluyen en los resúmenes de riesgos de Inicio ni Panorama del proyecto, solo aquí.">
                           No visible en Panorama
@@ -392,6 +449,20 @@ export default function ActividadStream({ tipo, id, titulo, soloLectura = false 
           }}
           urlOverride={previewItem.metadata?.tipo_medio === 'link' ? undefined : urlArchivo(previewItem)}
           onClose={() => setPreviewItem(null)}
+        />
+      )}
+
+      {/* Detalle/edición de un riesgo desde el stream. entidadTipo/entidadId
+          del propio riesgo (no necesariamente el nodo de este feed, que
+          puede estar mostrando un descendiente) — actualizarRiesgo() nunca
+          los usa en una edición, solo importan si se creara uno nuevo. */}
+      {riesgoAbierto && (
+        <ModalRiesgo
+          riesgo={riesgoAbierto}
+          entidadTipo={riesgoAbierto.entidad_tipo}
+          entidadId={riesgoAbierto.entidad_id}
+          onGuardar={guardarRiesgo}
+          onCerrar={() => setRiesgoAbierto(null)}
         />
       )}
     </div>

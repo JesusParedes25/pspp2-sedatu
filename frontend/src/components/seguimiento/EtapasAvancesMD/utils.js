@@ -8,26 +8,75 @@
 export const ESTADOS = ['Pendiente', 'En_proceso', 'Bloqueada', 'Completada', 'Cancelada'];
 export const PRIORIDADES = ['Baja', 'Media', 'Alta', 'Muy Alta', 'Crítica'];
 
+// Visita cada nodo del árbol (etapa, acción, subacción, tarea) — única
+// fuente para "recorrer todo sin dejar nada fuera". Antes cada callsite
+// (DGs del árbol, auto-expandir tras filtrar) reimplementaba su propia
+// recursión bajando solo a `acciones`→`tareas`, sin pasar nunca por
+// `subacciones` — cualquier nodo colgado de una subacción quedaba fuera
+// de los tres (invisible en el selector de DG, nunca auto-expandido).
+export function recorrerArbol(etapas, fn) {
+  etapas.forEach(etapa => {
+    fn(etapa);
+    (etapa.acciones || []).forEach(accion => {
+      fn(accion);
+      (accion.subacciones || []).forEach(sub => {
+        fn(sub);
+        (sub.tareas || []).forEach(fn);
+      });
+      (accion.tareas || []).forEach(fn);
+    });
+  });
+}
+
 // ─── Filtro recursivo del árbol ────────────────────────────────
-export function filtrarArbol(nodos, nivelTipo, estado, usuario, dg) {
-  return nodos.reduce((acc, nodo) => {
-    const hijosKey = nivelTipo === 'etapa' ? 'acciones' : 'tareas';
-    const hijos = nodo[hijosKey] || [];
-    const nextTipo = nivelTipo === 'etapa' ? 'accion' : 'tarea';
-    const hijosFiltrados = hijos.length > 0 ? filtrarArbol(hijos, nextTipo, estado, usuario, dg) : [];
+// usuarioId: UUID de un responsable o colaborador (ya no texto libre —
+// el selector del panel de filtros ahora es una lista desplegable de
+// personas reales, ver EtapasAvancesMD/index.jsx). Compara contra
+// `id_responsable` y contra cada entrada de `colaboradores` (ver
+// backend/src/utils/avance-semaforo.js::obtenerSubarbol, que ahora trae
+// ambos por nodo) — antes solo comparaba texto contra el nombre del
+// responsable principal, así que un colaborador (no responsable) de un
+// nodo nunca aparecía al filtrar por su nombre.
+// riesgo: '' (todos) | 'con' | 'sin' — compara contra `riesgos_abiertos`
+// (conteo ya resuelto por el backend, no algo que el frontend calcule).
+function coincideNodo(nodo, estado, usuarioId, dg, riesgo) {
+  const matchEstado = !estado || nodo.estado === estado;
+  const matchUsuario = !usuarioId ||
+    String(nodo.id_responsable) === String(usuarioId) ||
+    (nodo.colaboradores || []).some(c => String(c.id) === String(usuarioId));
+  const matchDG = !dg ||
+    String(nodo.responsable_dg_id) === String(dg) ||
+    String(nodo.id_dg) === String(dg);
+  const matchRiesgo = !riesgo ||
+    (riesgo === 'con' ? (nodo.riesgos_abiertos || 0) > 0 : (nodo.riesgos_abiertos || 0) === 0);
+  return matchEstado && matchUsuario && matchDG && matchRiesgo;
+}
 
-    const matchEstado = !estado || nodo.estado === estado;
-    const q = usuario.toLowerCase();
-    const matchUsuario = !usuario ||
-      (nodo.responsable_nombre || '').toLowerCase().includes(q) ||
-      nodo.nombre.toLowerCase().includes(q);
-    const matchDG = !dg ||
-      String(nodo.responsable_dg_id) === String(dg) ||
-      String(nodo.id_dg) === String(dg);
-    const coincide = matchEstado && matchUsuario && matchDG;
-
-    if (coincide || hijosFiltrados.length > 0) {
-      acc.push({ ...nodo, [hijosKey]: hijosFiltrados });
+// Recorre etapa → acción/subacción → tarea explícitamente (en vez de un
+// solo `hijosKey` genérico) porque una acción tiene DOS arreglos de hijos
+// distintos (`subacciones` y `tareas`) que hay que filtrar cada uno por
+// su cuenta — la versión anterior solo bajaba a `acciones`→`tareas` y
+// nunca entraba a `subacciones`, así que cualquier nodo colgado de una
+// subacción (la subacción misma, o sus tareas) desaparecía en silencio
+// en cuanto algún filtro estaba activo, sin importar si coincidía o no.
+export function filtrarArbol(etapas, estado, usuarioId, dg, riesgo) {
+  return etapas.reduce((acc, etapa) => {
+    const acciones = (etapa.acciones || []).reduce((accAcc, accion) => {
+      const subacciones = (accion.subacciones || []).reduce((subAcc, sub) => {
+        const tareasSub = (sub.tareas || []).filter(t => coincideNodo(t, estado, usuarioId, dg, riesgo));
+        if (coincideNodo(sub, estado, usuarioId, dg, riesgo) || tareasSub.length > 0) {
+          subAcc.push({ ...sub, tareas: tareasSub });
+        }
+        return subAcc;
+      }, []);
+      const tareas = (accion.tareas || []).filter(t => coincideNodo(t, estado, usuarioId, dg, riesgo));
+      if (coincideNodo(accion, estado, usuarioId, dg, riesgo) || subacciones.length > 0 || tareas.length > 0) {
+        accAcc.push({ ...accion, subacciones, tareas });
+      }
+      return accAcc;
+    }, []);
+    if (coincideNodo(etapa, estado, usuarioId, dg, riesgo) || acciones.length > 0) {
+      acc.push({ ...etapa, acciones });
     }
     return acc;
   }, []);

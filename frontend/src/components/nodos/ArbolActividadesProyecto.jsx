@@ -164,7 +164,7 @@ export default function ArbolActividadesProyecto({ items, onCambiado, vacio = 'N
                 </button>
                 {mostrarActividad && (
                   <div className="card p-3.5 mt-1.5">
-                    <ActividadStream tipo={it.tipo} id={it.id} titulo={it.nombre} />
+                    <ActividadStream tipo={it.tipo} id={it.id} titulo={it.nombre} onCambiado={onCambiado} />
                   </div>
                 )}
               </div>

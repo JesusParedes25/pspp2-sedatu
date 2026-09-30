@@ -209,13 +209,19 @@ export default function DetalleProyecto() {
 
   // Deep-link a un nodo específico (etapa/acción/tarea) desde Panorama:
   // cambia de pestaña y setea ?nodo=<id>, que EtapasAvancesMD ya sabe leer.
-  function irANodo(nodoId) {
+  // `riesgoId` opcional (clic en un riesgo, no solo en el nodo): además
+  // deja ?riesgo=<id> para que EtapasAvancesMD abra directo su ficha de
+  // edición, en vez de solo llevar al nodo y dejar que el usuario busque
+  // el riesgo dentro del feed de Actividad por su cuenta.
+  function irANodo(nodoId, riesgoId) {
     cambiarPestana('seguimiento');
     setSubseccionActiva('etapas');
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       next.set('tab', 'seguimiento');
       next.set('nodo', nodoId);
+      if (riesgoId) next.set('riesgo', riesgoId);
+      else next.delete('riesgo');
       return next;
     });
   }

@@ -365,7 +365,7 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
           <ul className="space-y-2">
             {riesgos.slice(0, 8).map(r => (
               <li key={r.id}>
-                <button onClick={() => onNavegarNodo?.(r.entidad_id)} className="w-full flex items-center gap-2 py-1 px-1 -mx-1 rounded hover:bg-orange-50 transition-colors text-left">
+                <button onClick={() => onNavegarNodo?.(r.entidad_id, r.id)} className="w-full flex items-center gap-2 py-1 px-1 -mx-1 rounded hover:bg-orange-50 transition-colors text-left">
                   <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
                     r.nivel === 'Critico' ? 'bg-red-600' :
                     r.nivel === 'Alto' ? 'bg-orange-500' :
