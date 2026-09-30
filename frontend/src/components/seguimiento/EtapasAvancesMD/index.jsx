@@ -8,7 +8,7 @@
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Loader2, X, SlidersHorizontal, CheckCircle2, Search, Filter, Layers } from 'lucide-react';
+import { Loader2, X, SlidersHorizontal, CheckCircle2, Filter, Layers } from 'lucide-react';
 import * as etapasApi from '../../../api/etapas';
 import { useUI } from '../../../context/UIContext';
 import { useAuth } from '../../../context/AuthContext';
@@ -18,7 +18,7 @@ import ResizeHandle from '../../common/ResizeHandle';
 import NodoArbol from './NodoArbol';
 import PanelDetalle from './PanelDetalle';
 import CrearInline from './CrearInline';
-import { ESTADOS, filtrarArbol, buscarNodoEnArbol, encontrarPath } from './utils';
+import { ESTADOS, filtrarArbol, buscarNodoEnArbol, encontrarPath, recorrerArbol } from './utils';
 
 export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSeleccionada, onStatsChange }) {
   const { mostrarToast } = useUI();
@@ -56,27 +56,38 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
   const [filtroDG, setFiltroDG] = useState(dgSeleccionada || '');
   const [filtroEstado, setFiltroEstado] = useState('');
   const [filtroUsuario, setFiltroUsuario] = useState('');
-  const filtrosActivos = [filtroDG, filtroEstado, filtroUsuario].filter(Boolean).length;
+  const [filtroRiesgo, setFiltroRiesgo] = useState('');
+  const filtrosActivos = [filtroDG, filtroEstado, filtroUsuario, filtroRiesgo].filter(Boolean).length;
 
   // DGs únicas derivadas del árbol (responsable de cada nodo)
   const dgsEnArbol = useMemo(() => {
     const mapa = new Map();
-    function recoger(ns) {
-      ns.forEach(n => {
-        if (n.responsable_dg_id) mapa.set(n.responsable_dg_id, n.responsable_dg_siglas || String(n.responsable_dg_id));
-        if (n.acciones?.length) recoger(n.acciones);
-        if (n.tareas?.length) recoger(n.tareas);
-      });
-    }
-    recoger(arbol);
+    recorrerArbol(arbol, n => {
+      if (n.responsable_dg_id) mapa.set(n.responsable_dg_id, n.responsable_dg_siglas || String(n.responsable_dg_id));
+    });
     return Array.from(mapa.entries()).map(([id, siglas]) => ({ id, siglas })).sort((a, b) => a.siglas.localeCompare(b.siglas));
   }, [arbol]);
 
-  // Árbol filtrado (client-side: estado, usuario y DG de responsable)
+  // Personas únicas derivadas del árbol (responsable principal O
+  // colaborador de cualquier nodo) — alimenta el selector desplegable de
+  // "Usuario/Nombre". Antes era un input de texto libre que solo comparaba
+  // contra `responsable_nombre` (y, por error, también contra el nombre
+  // del propio nodo) — un colaborador (no responsable principal) de
+  // cualquier nivel nunca coincidía, sin importar qué se escribiera.
+  const personasEnArbol = useMemo(() => {
+    const mapa = new Map();
+    recorrerArbol(arbol, n => {
+      if (n.id_responsable) mapa.set(n.id_responsable, n.responsable_nombre || 'Sin nombre');
+      (n.colaboradores || []).forEach(c => mapa.set(c.id, c.nombre || 'Sin nombre'));
+    });
+    return Array.from(mapa.entries()).map(([id, nombre]) => ({ id, nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [arbol]);
+
+  // Árbol filtrado (client-side: estado, usuario, DG de responsable y riesgo)
   const arbolFiltrado = useMemo(() => {
-    if (!filtroEstado && !filtroUsuario && !filtroDG) return arbol;
-    return filtrarArbol(arbol, 'etapa', filtroEstado, filtroUsuario, filtroDG);
-  }, [arbol, filtroEstado, filtroUsuario, filtroDG]);
+    if (!filtroEstado && !filtroUsuario && !filtroDG && !filtroRiesgo) return arbol;
+    return filtrarArbol(arbol, filtroEstado, filtroUsuario, filtroDG, filtroRiesgo);
+  }, [arbol, filtroEstado, filtroUsuario, filtroDG, filtroRiesgo]);
 
   // Cargar árbol (dgSeleccionada = filtro de DG propietaria del proyecto, server-side)
   const cargarArbol = useCallback(async (silencioso = false) => {
@@ -96,36 +107,41 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
 
   // Auto-expandir todo cuando hay filtros activos
   useEffect(() => {
-    if (filtroEstado || filtroUsuario || filtroDG) {
+    if (filtroEstado || filtroUsuario || filtroDG || filtroRiesgo) {
       const ids = new Set();
-      function recoger(ns) {
-        ns.forEach(n => {
-          ids.add(n.id);
-          if (n.acciones?.length) recoger(n.acciones);
-          if (n.tareas?.length) recoger(n.tareas);
-        });
-      }
-      recoger(arbolFiltrado);
+      recorrerArbol(arbolFiltrado, n => ids.add(n.id));
       setExpandidos(ids);
     }
-  }, [filtroEstado, filtroUsuario, filtroDG, arbolFiltrado]);
+  }, [filtroEstado, filtroUsuario, filtroDG, filtroRiesgo, arbolFiltrado]);
 
   function limpiarFiltros() {
     setFiltroDG('');
     setFiltroEstado('');
     setFiltroUsuario('');
+    setFiltroRiesgo('');
   }
 
-  // Sincronizar foco/selección con la URL (?foco=&nodo=) — solo la
-  // PRIMERA vez que el árbol carga con datos; después el estado interno
-  // manda y esta misma función escribe la URL, no al revés. Compatible
-  // con enlaces viejos que solo traían `?nodo=`: si falta `foco`, se usa
-  // el mismo id (equivale al comportamiento de antes, foco = selección).
+  // Sincronizar foco/selección con la URL (?foco=&nodo=) — tanto en la
+  // carga inicial como en cualquier deep-link posterior mientras este
+  // componente sigue montado (Seguimiento/Panorama/Resumen conviven en el
+  // mismo DetalleProyecto con CSS `hidden`, no con montaje condicional —
+  // ver DetalleProyecto.jsx — así que EtapasAvancesMD nunca se desmonta al
+  // cambiar de pestaña). Antes esto solo corría "la primera vez que el
+  // árbol carga" (guardado con `if (foco) return`) — un clic en un riesgo
+  // desde Panorama SÍ actualizaba la URL, pero como `foco` ya tenía algo
+  // de la carga inicial, el efecto nunca volvía a correr y el panel se
+  // quedaba mostrando el nodo de antes, no el del riesgo. Comparar contra
+  // lo que YA está reflejado (en vez de "ya corrió alguna vez") deja
+  // resincronizar en cada deep-link nuevo sin generar un loop con
+  // irAFoco/seleccionarEnCentro, que escriben la URL DESPUÉS de haber
+  // actualizado este mismo estado (por eso, cuando ellos disparan el
+  // cambio, la comparación de abajo ya coincide y el efecto no repite).
   useEffect(() => {
-    if (foco || arbol.length === 0) return;
+    if (arbol.length === 0) return;
     const focoId = searchParams.get('foco') || searchParams.get('nodo');
     const nodoId = searchParams.get('nodo') || searchParams.get('foco');
     if (!focoId) return;
+    if (foco?.id === focoId && seleccionId === nodoId) return;
     const encontradoFoco = buscarNodoEnArbol(arbol, focoId);
     if (!encontradoFoco) return;
     setFoco(encontradoFoco);
@@ -137,7 +153,7 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
       const pathSeleccion = encontrarPath(arbol, nodoId);
       if (pathSeleccion) setExpandidosCentro(new Set(pathSeleccion));
     }
-  }, [arbol]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [arbol, searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function expandirHasta(nodo, arbolData) {
     const path = encontrarPath(arbolData, nodo.id);
@@ -349,24 +365,36 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
               </select>
             </div>
 
-            {/* Usuario */}
-            <div>
-              <label className="text-[10px] text-gray-400 font-medium uppercase tracking-wide block mb-0.5">Usuario / Nombre</label>
-              <div className="relative">
-                <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Responsable o nombre..."
+            {/* Usuario — responsable o colaborador de cualquier nodo, lista
+                desplegable en vez de texto libre (ver personasEnArbol). */}
+            {personasEnArbol.length > 0 && (
+              <div>
+                <label className="text-[10px] text-gray-400 font-medium uppercase tracking-wide block mb-0.5">Usuario / Nombre</label>
+                <select
                   value={filtroUsuario}
                   onChange={e => setFiltroUsuario(e.target.value)}
-                  className="w-full text-xs border border-gray-200 rounded-md px-2 py-1 pl-6 bg-white focus:outline-none focus:border-guinda-300"
-                />
-                {filtroUsuario && (
-                  <button onClick={() => setFiltroUsuario('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                    <X size={11} />
-                  </button>
-                )}
+                  className="w-full text-xs border border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:border-guinda-300"
+                >
+                  <option value="">Todos los usuarios</option>
+                  {personasEnArbol.map(p => (
+                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                  ))}
+                </select>
               </div>
+            )}
+
+            {/* Riesgos */}
+            <div>
+              <label className="text-[10px] text-gray-400 font-medium uppercase tracking-wide block mb-0.5">Riesgos</label>
+              <select
+                value={filtroRiesgo}
+                onChange={e => setFiltroRiesgo(e.target.value)}
+                className="w-full text-xs border border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:border-guinda-300"
+              >
+                <option value="">Todas</option>
+                <option value="con">Con riesgo abierto</option>
+                <option value="sin">Sin riesgo abierto</option>
+              </select>
             </div>
           </div>
         )}
@@ -440,6 +468,12 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
             onSeleccionarEnCentro={seleccionarEnCentro}
             onNavegarFoco={navegarFocoPorId}
             onAbrirArbol={() => setTreePanelAbierto(true)}
+            riesgoAAbrir={searchParams.get('riesgo')}
+            onRiesgoConsumido={() => setSearchParams(prev => {
+              const next = new URLSearchParams(prev);
+              next.delete('riesgo');
+              return next;
+            }, { replace: true })}
           />
         )}
       </div>

@@ -293,7 +293,13 @@ async function obtenerSubarbol(etapaId, db) {
            dg.id AS responsable_dg_id, dg.siglas AS responsable_dg_siglas,
            (SELECT COALESCE(json_agg(json_build_object('cve_mun', em.cve_mun, 'nombre', gm.nombre) ORDER BY gm.nombre), '[]'::json)
               FROM etapa_municipios em JOIN geo_municipios gm ON gm.cvegeo = em.cve_mun
-              WHERE em.etapa_id = e.id) AS municipios
+              WHERE em.etapa_id = e.id) AS municipios,
+           (SELECT COALESCE(json_agg(json_build_object('id', nm.id_usuario, 'nombre', u2.nombre_completo)), '[]'::json)
+              FROM nodo_miembros nm JOIN usuarios u2 ON u2.id = nm.id_usuario
+              WHERE nm.tipo_nodo = 'etapa' AND nm.id_nodo = e.id
+                AND nm.rol = 'colaborador' AND nm.estado = 'aceptada') AS colaboradores,
+           (SELECT COUNT(*)::int FROM riesgos r WHERE r.entidad_tipo = 'Etapa' AND r.entidad_id = e.id
+              AND r.estado IN ('Abierto','En_mitigacion')) AS riesgos_abiertos
     FROM etapas e
     LEFT JOIN usuarios u ON u.id = e.id_responsable
     LEFT JOIN direcciones_generales dg ON dg.id = u.id_dg
@@ -310,7 +316,13 @@ async function obtenerSubarbol(etapaId, db) {
            dg.id AS responsable_dg_id, dg.siglas AS responsable_dg_siglas,
            (SELECT COALESCE(json_agg(json_build_object('cve_mun', am.cve_mun, 'nombre', gm.nombre) ORDER BY gm.nombre), '[]'::json)
               FROM accion_municipios am JOIN geo_municipios gm ON gm.cvegeo = am.cve_mun
-              WHERE am.accion_id = a.id) AS municipios
+              WHERE am.accion_id = a.id) AS municipios,
+           (SELECT COALESCE(json_agg(json_build_object('id', nm.id_usuario, 'nombre', u2.nombre_completo)), '[]'::json)
+              FROM nodo_miembros nm JOIN usuarios u2 ON u2.id = nm.id_usuario
+              WHERE nm.tipo_nodo = 'accion' AND nm.id_nodo = a.id
+                AND nm.rol = 'colaborador' AND nm.estado = 'aceptada') AS colaboradores,
+           (SELECT COUNT(*)::int FROM riesgos r WHERE r.entidad_tipo = 'Accion' AND r.entidad_id = a.id
+              AND r.estado IN ('Abierto','En_mitigacion')) AS riesgos_abiertos
     FROM acciones a
     LEFT JOIN usuarios u ON u.id = a.id_responsable
     LEFT JOIN direcciones_generales dg ON dg.id = u.id_dg
@@ -337,7 +349,13 @@ async function obtenerSubarbol(etapaId, db) {
              dg.id AS responsable_dg_id, dg.siglas AS responsable_dg_siglas,
              (SELECT COALESCE(json_agg(json_build_object('cve_mun', am.cve_mun, 'nombre', gm.nombre) ORDER BY gm.nombre), '[]'::json)
                 FROM accion_municipios am JOIN geo_municipios gm ON gm.cvegeo = am.cve_mun
-                WHERE am.accion_id = s.id) AS municipios
+                WHERE am.accion_id = s.id) AS municipios,
+             (SELECT COALESCE(json_agg(json_build_object('id', nm.id_usuario, 'nombre', u2.nombre_completo)), '[]'::json)
+                FROM nodo_miembros nm JOIN usuarios u2 ON u2.id = nm.id_usuario
+                WHERE nm.tipo_nodo = 'accion' AND nm.id_nodo = s.id
+                  AND nm.rol = 'colaborador' AND nm.estado = 'aceptada') AS colaboradores,
+             (SELECT COUNT(*)::int FROM riesgos r WHERE r.entidad_tipo = 'Subaccion' AND r.entidad_id = s.id
+                AND r.estado IN ('Abierto','En_mitigacion')) AS riesgos_abiertos
       FROM acciones s
       LEFT JOIN usuarios u ON u.id = s.id_responsable
       LEFT JOIN direcciones_generales dg ON dg.id = u.id_dg
@@ -371,7 +389,13 @@ async function tareasDe(idAccion, conn) {
     SELECT t.*, u.nombre_completo AS responsable_nombre,
            (SELECT COALESCE(json_agg(json_build_object('cve_mun', tm.cve_mun, 'nombre', gm.nombre) ORDER BY gm.nombre), '[]'::json)
               FROM tarea_municipios tm JOIN geo_municipios gm ON gm.cvegeo = tm.cve_mun
-              WHERE tm.tarea_id = t.id) AS municipios
+              WHERE tm.tarea_id = t.id) AS municipios,
+           (SELECT COALESCE(json_agg(json_build_object('id', nm.id_usuario, 'nombre', u2.nombre_completo)), '[]'::json)
+              FROM nodo_miembros nm JOIN usuarios u2 ON u2.id = nm.id_usuario
+              WHERE nm.tipo_nodo = 'tarea' AND nm.id_nodo = t.id
+                AND nm.rol = 'colaborador' AND nm.estado = 'aceptada') AS colaboradores,
+           (SELECT COUNT(*)::int FROM riesgos r WHERE r.entidad_tipo = 'Tarea' AND r.entidad_id = t.id
+              AND r.estado IN ('Abierto','En_mitigacion')) AS riesgos_abiertos
     FROM tareas t
     LEFT JOIN usuarios u ON u.id = t.id_responsable
     WHERE t.id_accion = $1
