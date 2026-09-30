@@ -170,7 +170,27 @@ function extraerConConfig(rawData, config) {
     superHeaders,
     sampleRows,
     totalDataRows: dataRows.length,
+    totalDataRowsValidas: contarFilasValidas(dataRows),
   };
+}
+
+// Mismo predicado de "fila vacía" que ya usa
+// importar.service.js::transformarFilas (línea ~230) — duplicado a
+// propósito: ese archivo no importa este, y es un one-liner, no vale la
+// pena crear una dependencia cruzada por esto. Si se cambia uno, cambiar
+// el otro. Sirve para mostrar, durante el mapeo/relación, el conteo REAL
+// de filas que se van a crear (sin las en blanco) en vez del total crudo
+// de renglones del archivo — antes el número mostrado ahí no bajaba
+// hasta llegar al paso de Vista previa, causando desfases del tipo
+// "esperaba 25, dio 24".
+function filaEstaVacia(fila) {
+  return !fila || fila.every(c => !c || String(c).trim() === '');
+}
+
+function contarFilasValidas(dataRows) {
+  let n = 0;
+  for (const fila of dataRows) if (!filaEstaVacia(fila)) n++;
+  return n;
 }
 
 /**
@@ -423,4 +443,5 @@ module.exports = {
   obtenerVistaPrevia,
   parsearMultiHoja,
   extraerDatosMultiHoja,
+  contarFilasValidas,
 };

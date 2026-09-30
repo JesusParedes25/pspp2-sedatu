@@ -39,7 +39,7 @@ const ETIQUETAS_NIVEL = {
   subaccion: 'tarea',
 };
 
-export default function PasoMapeo({ headers, superHeaders, sampleRows, config, totalDataRows: totalDataRowsProp, onCambiar, onAvanzar, proyectoId }) {
+export default function PasoMapeo({ headers, superHeaders, sampleRows, config, totalDataRows: totalDataRowsProp, totalDataRowsValidas, onCambiar, onAvanzar, proyectoId }) {
   const [columnMap, setColumnMap] = useState(() => config.columnMap || {});
   const [extraNames, setExtraNames] = useState(() => {
     const names = {};
@@ -167,7 +167,10 @@ export default function PasoMapeo({ headers, superHeaders, sampleRows, config, t
     })
     .filter(Boolean);
 
-  const totalDataRows = totalDataRowsProp || sampleRows?.length || 0;
+  // Conteo real (filas en blanco ya descontadas) cuando el backend lo trae
+  // — antes se mostraba el total crudo de renglones del archivo, causando
+  // desfases del tipo "esperaba 25, dio 24" contra el paso de Vista previa.
+  const totalDataRows = totalDataRowsValidas ?? totalDataRowsProp ?? sampleRows?.length ?? 0;
 
   // ─── Determinar el valor actual del select para cada columna ───
   const getSelectValue = (colIdx) => {
@@ -297,7 +300,8 @@ export default function PasoMapeo({ headers, superHeaders, sampleRows, config, t
               </p>
               {totalDataRows > 0 && (
                 <p className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-200">
-                  Total estimado: <strong>{totalDataRows} {etiquetaNivel}(s)</strong>
+                  Se crearán <strong>{totalDataRows} {etiquetaNivel}(s)</strong>
+                  <span className="text-gray-400"> (filas en blanco ya descontadas — se confirma en Vista previa)</span>
                 </p>
               )}
             </>

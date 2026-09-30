@@ -21,5 +21,7 @@ router.post('/confirmar', ctrl.confirmar);
 router.post('/sugerir', ctrl.sugerir);
 router.post('/preview-multihoja', ctrl.previewMultiHoja);
 router.post('/confirmar-multihoja', ctrl.confirmarMultiHoja);
+router.get('/lotes', ctrl.listarLotes);
+router.post('/lotes/:loteId/eliminar', ctrl.eliminarLote);
 
 module.exports = router;

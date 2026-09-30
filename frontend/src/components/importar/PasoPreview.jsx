@@ -3,16 +3,25 @@
  * PROPÓSITO: Paso 5 del wizard — preview jerárquico + confirmar importación.
  */
 import { useState, useEffect } from 'react';
-import { Check, AlertTriangle, AlertCircle, Loader2 } from 'lucide-react';
+import { Check, AlertTriangle, AlertCircle, Loader2, Undo2 } from 'lucide-react';
 import ArbolPreview from './ArbolPreview';
 import * as importarApi from '../../api/importar';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
+import ConfirmDialog from '../common/ConfirmDialog';
+import ResolucionDuplicadosPadre from './ResolucionDuplicadosPadre';
 
-export default function PasoPreview({ fileId, config, proyectoId, sheetIndex, onImportado, onCerrar }) {
+function normalizarTexto(t) {
+  return String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+}
+
+export default function PasoPreview({ fileId, config, proyectoId, sheetIndex, onCambiarConfig, onImportado, onCerrar }) {
   const [preview, setPreview] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
   const [resultado, setResultado] = useState(null);
+  const [confirmandoDeshacer, setConfirmandoDeshacer] = useState(false);
+  const [deshaciendo, setDeshaciendo] = useState(false);
+  const [loteDeshecho, setLoteDeshecho] = useState(false);
 
   useEffect(() => {
     cargarPreview();
@@ -44,6 +53,36 @@ export default function PasoPreview({ fileId, config, proyectoId, sheetIndex, on
 
   // Estado: resultado exitoso
   if (resultado) {
+    async function deshacer() {
+      setDeshaciendo(true);
+      try {
+        await importarApi.eliminarLote(resultado.lote_importacion_id, proyectoId);
+        setConfirmandoDeshacer(false);
+        setLoteDeshecho(true);
+      } catch (e) {
+        setError(e.response?.data?.mensaje || 'No se pudo deshacer la importación.');
+        setConfirmandoDeshacer(false);
+      } finally {
+        setDeshaciendo(false);
+      }
+    }
+
+    if (loteDeshecho) {
+      return (
+        <div className="space-y-4 text-center py-8">
+          <Undo2 size={40} className="mx-auto text-gray-400" />
+          <h3 className="text-base font-semibold text-gray-700">Importación deshecha</h3>
+          <p className="text-sm text-gray-500">Todo lo creado en este lote fue eliminado.</p>
+          <button
+            onClick={onCerrar}
+            className="px-6 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
+          >
+            Cerrar
+          </button>
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-4 text-center py-8">
         <div className="w-16 h-16 mx-auto bg-green-100 rounded-full flex items-center justify-center">
@@ -60,12 +99,33 @@ export default function PasoPreview({ fileId, config, proyectoId, sheetIndex, on
             <p className="text-amber-600"><strong>{resultado.duplicados_saltados}</strong> duplicados saltados</p>
           )}
         </div>
-        <button
-          onClick={onCerrar}
-          className="px-6 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
-        >
-          Cerrar
-        </button>
+        {error && <p className="text-xs text-red-600">{error}</p>}
+        <div className="flex items-center justify-center gap-2">
+          <button
+            onClick={onCerrar}
+            className="px-6 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
+          >
+            Cerrar
+          </button>
+          {resultado.lote_importacion_id && (
+            <button
+              onClick={() => setConfirmandoDeshacer(true)}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm rounded-md font-medium text-red-600 hover:bg-red-50"
+            >
+              <Undo2 size={14} /> Deshacer esta importación
+            </button>
+          )}
+        </div>
+
+        <ConfirmDialog
+          abierto={confirmandoDeshacer}
+          titulo="¿Deshacer esta importación?"
+          mensaje={`Se eliminarán ${resultado.etapas_creadas || 0} componente(s), ${resultado.acciones_creadas || 0} acción(es) y ${resultado.subacciones_creadas || 0} tarea(s) de esta importación, incluyendo cualquier evidencia/comentario/tarea que hayas agregado manualmente después dentro de ellas. Esta acción no se puede deshacer.`}
+          textoConfirmar={deshaciendo ? 'Eliminando…' : 'Sí, deshacer'}
+          onConfirmar={deshacer}
+          onCancelar={() => setConfirmandoDeshacer(false)}
+          variante="danger"
+        />
       </div>
     );
   }
@@ -103,8 +163,16 @@ export default function PasoPreview({ fileId, config, proyectoId, sheetIndex, on
 
   if (!preview) return null;
 
-  const { entidades, conteo, errores, warnings, duplicados } = preview;
-  const tieneProblemas = errores.length > 0;
+  const { entidades, conteo, errores, warnings, duplicados, posiblesDuplicadosPadre } = preview;
+  const gruposPadre = posiblesDuplicadosPadre || [];
+  const todosLosGruposResueltos = gruposPadre.every(g =>
+    g.variantes.every(v => (config.resolucionesPadre || {})[normalizarTexto(v)] !== undefined)
+  );
+  const tieneProblemas = errores.length > 0 || !todosLosGruposResueltos;
+
+  function actualizarResoluciones(nuevasResoluciones) {
+    onCambiarConfig?.({ resolucionesPadre: nuevasResoluciones });
+  }
 
   return (
     <div className="space-y-4">
@@ -172,6 +240,15 @@ export default function PasoPreview({ fileId, config, proyectoId, sheetIndex, on
             ))}
           </ul>
         </div>
+      )}
+
+      {/* Posibles variantes de nombre de padre — bloquea confirmar hasta resolver */}
+      {gruposPadre.length > 0 && (
+        <ResolucionDuplicadosPadre
+          grupos={gruposPadre}
+          resoluciones={config.resolucionesPadre || {}}
+          onCambiar={actualizarResoluciones}
+        />
       )}
 
       {/* Árbol */}

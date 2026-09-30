@@ -215,6 +215,15 @@ export default function MisActividades() {
             {filtrosEstado.size === 0 && (
               <span className="text-xs text-gray-400 px-1">{filtrados.length} resultado{filtrados.length !== 1 ? 's' : ''}</span>
             )}
+            {filtrosEstado.size === 0 && resumen.completadas > 0 && (
+              <button
+                onClick={() => toggleFiltroEstado('completadas')}
+                className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full text-gray-500 hover:bg-gray-100"
+              >
+                <CheckCircle2 size={11} className="text-emerald-400" />
+                {resumen.completadas} completada{resumen.completadas !== 1 ? 's' : ''} oculta{resumen.completadas !== 1 ? 's' : ''} · Mostrar
+              </button>
+            )}
           </div>
 
           {/* Lista — ArbolActividadesProyecto: agrupada por proyecto,

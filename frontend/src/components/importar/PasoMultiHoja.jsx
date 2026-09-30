@@ -9,9 +9,10 @@
  *   4. importando / exito
  */
 import { useState } from 'react';
-import { Layers, Zap, ListChecks, ChevronDown, ChevronRight, AlertTriangle, CheckCircle2, Loader2, ArrowRight } from 'lucide-react';
+import { Layers, Zap, ListChecks, ChevronDown, ChevronRight, AlertTriangle, CheckCircle2, Loader2, ArrowRight, Info, Undo2 } from 'lucide-react';
 import * as importarApi from '../../api/importar';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
+import ConfirmDialog from '../common/ConfirmDialog';
 
 // ─── Propiedades destino por nivel ─────────────────────────────
 const PROPS_CONTENEDOR = [
@@ -136,6 +137,9 @@ export default function PasoMultiHoja({ fileId, multiHoja, proyectoId, onImporta
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState(null);
   const [resultado, setResultado] = useState(null);
+  const [confirmandoDeshacer, setConfirmandoDeshacer] = useState(false);
+  const [deshaciendo, setDeshaciendo] = useState(false);
+  const [loteDeshecho, setLoteDeshecho] = useState(false);
 
   // Actualizar mapeo de una hoja
   function actualizarMapeo(hojaIdx, propKey, colIdx) {
@@ -206,6 +210,18 @@ export default function PasoMultiHoja({ fileId, multiHoja, proyectoId, onImporta
           <p className="text-xs text-gray-500 mt-1">
             Asigna cada columna del Excel a la propiedad destino. Las columnas sin mapear se ignoran.
           </p>
+        </div>
+
+        <div className="p-3.5 bg-sky-50 border border-sky-200 rounded-lg">
+          <p className="text-xs font-semibold text-sky-800 flex items-center gap-1.5 mb-1">
+            <Info size={13} />
+            Este archivo vincula por ID
+          </p>
+          <ul className="text-xs text-sky-700 space-y-1 list-disc list-inside">
+            <li>Cada hoja hija debe traer una columna "ID Padre" que coincida EXACTO con el ID de su fila padre en la hoja anterior.</li>
+            <li>Más confiable para archivos grandes — no depende de cómo esté escrito el nombre.</li>
+            <li>Si un ID no coincide, esa fila se omite (no se crea, no se duplica) — revisa las advertencias "Referencia no encontrada" en la Vista previa antes de confirmar.</li>
+          </ul>
         </div>
 
         {config.hojas.map((hoja, hojaIdx) => {
@@ -387,6 +403,36 @@ export default function PasoMultiHoja({ fileId, multiHoja, proyectoId, onImporta
 
   // ─── ÉXITO ─────────────────────────────────────────────────
   if (paso === 'exito') {
+    async function deshacer() {
+      setDeshaciendo(true);
+      try {
+        await importarApi.eliminarLote(resultado.lote_importacion_id, proyectoId);
+        setConfirmandoDeshacer(false);
+        setLoteDeshecho(true);
+      } catch (e) {
+        setError(e.response?.data?.mensaje || 'No se pudo deshacer la importación.');
+        setConfirmandoDeshacer(false);
+      } finally {
+        setDeshaciendo(false);
+      }
+    }
+
+    if (loteDeshecho) {
+      return (
+        <div className="flex flex-col items-center justify-center py-10 gap-4">
+          <Undo2 size={40} className="text-gray-400" />
+          <h3 className="text-base font-semibold text-gray-700">Importación deshecha</h3>
+          <p className="text-sm text-gray-500 text-center">Todo lo creado en este lote fue eliminado.</p>
+          <button
+            onClick={() => { if (onImportado) onImportado(); else onCerrar(); }}
+            className="mt-2 px-5 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 font-medium"
+          >
+            Cerrar
+          </button>
+        </div>
+      );
+    }
+
     return (
       <div className="flex flex-col items-center justify-center py-10 gap-4">
         <CheckCircle2 size={48} className="text-green-500" />
@@ -396,12 +442,33 @@ export default function PasoMultiHoja({ fileId, multiHoja, proyectoId, onImporta
           {resultado.acciones_creadas > 0 && <p>{resultado.acciones_creadas} acción(es) creada(s)</p>}
           {(resultado.tareas_creadas ?? resultado.subacciones_creadas) > 0 && <p>{resultado.tareas_creadas ?? resultado.subacciones_creadas} tarea(s) creada(s)</p>}
         </div>
-        <button
-          onClick={() => { if (onImportado) onImportado(); else onCerrar(); }}
-          className="mt-2 px-5 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 font-medium"
-        >
-          Cerrar
-        </button>
+        {error && <p className="text-xs text-red-600">{error}</p>}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { if (onImportado) onImportado(); else onCerrar(); }}
+            className="mt-2 px-5 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 font-medium"
+          >
+            Cerrar
+          </button>
+          {resultado.lote_importacion_id && (
+            <button
+              onClick={() => setConfirmandoDeshacer(true)}
+              className="mt-2 flex items-center gap-1.5 px-4 py-2 text-sm rounded-md font-medium text-red-600 hover:bg-red-50"
+            >
+              <Undo2 size={14} /> Deshacer esta importación
+            </button>
+          )}
+        </div>
+
+        <ConfirmDialog
+          abierto={confirmandoDeshacer}
+          titulo="¿Deshacer esta importación?"
+          mensaje={`Se eliminarán ${resultado.etapas_creadas || 0} etapa(s), ${resultado.acciones_creadas || 0} acción(es) y ${resultado.tareas_creadas ?? resultado.subacciones_creadas ?? 0} tarea(s) de esta importación, incluyendo cualquier evidencia/comentario/tarea que hayas agregado manualmente después dentro de ellas. Esta acción no se puede deshacer.`}
+          textoConfirmar={deshaciendo ? 'Eliminando…' : 'Sí, deshacer'}
+          onConfirmar={deshacer}
+          onCancelar={() => setConfirmandoDeshacer(false)}
+          variante="danger"
+        />
       </div>
     );
   }

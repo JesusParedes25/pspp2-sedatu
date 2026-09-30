@@ -38,6 +38,7 @@ import FilePreviewModal from '../../components/evidencias/FilePreviewModal';
 import EmptyState from '../../components/common/EmptyState';
 import ModalNuevaEtapa from '../../components/seguimiento/ModalNuevaEtapa';
 import ImportarWizard from '../../components/importar/ImportarWizard';
+import PanelLotesImportacion from '../../components/importar/PanelLotesImportacion';
 import BotonExportar from '../../components/proyectos/BotonExportar';
 import EtapasAvancesMD from '../../components/seguimiento/EtapasAvancesMD';
 // Carga diferida: @xyflow/react + d3-hierarchy son pesados y solo hacen
@@ -110,7 +111,7 @@ export default function DetalleProyecto() {
   const { id } = useParams();
   const { usuario } = useAuth();
   const { mostrarToast, sidebarAbierto } = useUI();
-  const { proyecto, cargando, error, recargar: recargarProyecto } = useProyecto(id);
+  const { proyecto, cargando, error, recargar: recargarProyecto, recargarSilencioso: recargarProyectoSilencioso } = useProyecto(id);
   const permisos = usePermisosProyecto(proyecto);
   const { puedeCrearProyecto } = usePermisosGlobales();
   const [dgSeleccionada, setDgSeleccionada] = useState(null);
@@ -583,6 +584,10 @@ export default function DetalleProyecto() {
                   className="btn-secondary text-sm flex items-center gap-1.5">
                   <FileSpreadsheet size={14} /> Importar
                 </button>
+                <PanelLotesImportacion
+                  proyectoId={id}
+                  onDeshecho={() => { recargarEtapasSilencioso(); recargarProyectoSilencioso(); incrementarStats(); }}
+                />
                 <BotonExportar proyectoId={id} />
                 <GenerarReporteBtn
                   proyectoId={id}
@@ -752,7 +757,7 @@ export default function DetalleProyecto() {
       {modalCSV && (
         <ImportarWizard
           proyectoId={id}
-          onImportado={() => { recargarEtapas(); recargarProyecto(); incrementarStats(); }}
+          onImportado={() => { recargarEtapasSilencioso(); recargarProyectoSilencioso(); incrementarStats(); }}
           onCerrar={() => setModalCSV(false)}
         />
       )}

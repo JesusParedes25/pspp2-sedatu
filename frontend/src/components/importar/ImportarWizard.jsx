@@ -56,6 +56,7 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
   const [superHeaders, setSuperHeaders] = useState(null);
   const [sampleRows, setSampleRows] = useState([]);
   const [totalDataRows, setTotalDataRows] = useState(0);
+  const [totalDataRowsValidas, setTotalDataRowsValidas] = useState(0);
 
   // Multi-hoja (formato universal)
   const [multiHoja, setMultiHoja] = useState(null);
@@ -155,6 +156,7 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
       setSuperHeaders(headersRes.datos.superHeaders);
       setSampleRows(headersRes.datos.sampleRows);
       setTotalDataRows(headersRes.datos.totalDataRows);
+      setTotalDataRowsValidas(headersRes.datos.totalDataRowsValidas);
       actualizarConfig({ headerRow: hRow, superHeaderRow: shRow, dataStartRow: dRow });
 
       // Intentar sugerir plantilla por coincidencia de headers
@@ -198,6 +200,7 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
             sampleRows={sampleRows}
             config={config}
             totalDataRows={totalDataRows}
+            totalDataRowsValidas={totalDataRowsValidas}
             onCambiar={actualizarConfig}
             onAvanzar={avanzar}
             proyectoId={proyectoId}
@@ -209,6 +212,8 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
             headers={headers}
             sampleRows={sampleRows}
             config={config}
+            proyectoId={proyectoId}
+            fileId={fileId}
             onCambiar={actualizarConfig}
             onAvanzar={avanzar}
           />
@@ -220,6 +225,7 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
             config={config}
             proyectoId={proyectoId}
             sheetIndex={sheetIndex}
+            onCambiarConfig={actualizarConfig}
             onImportado={onImportado}
             onCerrar={onCerrar}
           />
@@ -290,6 +296,7 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
                     setSuperHeaders(headersRes.datos.superHeaders);
                     setSampleRows(headersRes.datos.sampleRows);
                     setTotalDataRows(headersRes.datos.totalDataRows);
+                    setTotalDataRowsValidas(headersRes.datos.totalDataRowsValidas);
                     actualizarConfig({ headerRow: 1, superHeaderRow: null, dataStartRow: 2 });
                   } catch (_) {}
                 }

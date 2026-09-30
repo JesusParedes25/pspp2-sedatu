@@ -5,23 +5,75 @@
  * Solo se muestra si el usuario eligió "Acciones" o "Tareas" en PasoNivel.
  * Pide al usuario que identifique qué columna del archivo contiene
  * el nombre del componente padre (para acciones) o la acción padre (para tareas).
+ *
+ * Explica explícitamente que este archivo vincula POR NOMBRE (a
+ * diferencia del formato multi-hoja, que vincula por ID) — reportado
+ * por usuarios reales en junta: no sabían cuál mecanismo se estaba
+ * usando ni que un typo en el nombre del padre crea un Componente/
+ * Acción nuevo. Ahora, además, detecta variantes de nombre parecidas
+ * (vía el mismo preview que usa el paso siguiente) y exige resolverlas
+ * antes de avanzar.
  */
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ChevronRight, Info, Link2 } from 'lucide-react';
+import * as importarApi from '../../api/importar';
+import ResolucionDuplicadosPadre from './ResolucionDuplicadosPadre';
 
-export default function PasoRelacion({ headers, sampleRows, config, onCambiar, onAvanzar }) {
+export default function PasoRelacion({ headers, sampleRows, config, proyectoId, fileId, onCambiar, onAvanzar }) {
   const rowLevel = config.rowLevel || 'etapa';
   const [parentColumn, setParentColumn] = useState(
     config.parentColumn != null ? config.parentColumn : ''
   );
+  const [resolucionesPadre, setResolucionesPadre] = useState(config.resolucionesPadre || {});
+  const [posiblesDuplicadosPadre, setPosiblesDuplicadosPadre] = useState([]);
+  const [conteoReal, setConteoReal] = useState(null);
+  const [cargandoPreview, setCargandoPreview] = useState(false);
+  const debounceRef = useRef(null);
 
   const esAccion = rowLevel === 'accion';
-  const esTarea = rowLevel === 'subaccion';
   const etiquetaPadre = esAccion ? 'Componente' : 'Acción';
+
+  // Vista previa en vivo (debounced) apenas se elige la columna padre —
+  // trae el conteo real y las posibles variantes de nombre detectadas,
+  // mismo cálculo que usará la confirmación final.
+  useEffect(() => {
+    if (parentColumn === '' || !fileId || !proyectoId) {
+      setPosiblesDuplicadosPadre([]);
+      setConteoReal(null);
+      return;
+    }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setCargandoPreview(true);
+      try {
+        const configConPadre = { ...config, parentColumn: parseInt(parentColumn), resolucionesPadre };
+        const res = await importarApi.preview({ fileId, config: configConPadre, proyectoId });
+        setPosiblesDuplicadosPadre(res.datos.posiblesDuplicadosPadre || []);
+        const c = res.datos.conteo || {};
+        setConteoReal((c.acciones || 0) + (c.subacciones || 0));
+      } catch (_) {
+        setPosiblesDuplicadosPadre([]);
+        setConteoReal(null);
+      } finally {
+        setCargandoPreview(false);
+      }
+    }, 500);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [parentColumn, resolucionesPadre, fileId, proyectoId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const todosLosGruposResueltos = posiblesDuplicadosPadre.every(g =>
+    g.variantes.every(v => resolucionesPadre[normalizarTexto(v)] !== undefined)
+  );
+  const puedeAvanzar = parentColumn !== '' && todosLosGruposResueltos;
+
+  function normalizarTexto(t) {
+    return String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+  }
 
   const guardar = () => {
     onCambiar({
       parentColumn: parentColumn !== '' ? parseInt(parentColumn) : null,
+      resolucionesPadre,
     });
     onAvanzar();
   };
@@ -38,6 +90,21 @@ export default function PasoRelacion({ headers, sampleRows, config, onCambiar, o
             ? 'Cada acción necesita pertenecer a un componente. Indica qué columna de tu archivo contiene el nombre del componente padre.'
             : 'Cada tarea necesita pertenecer a una acción. Indica qué columna de tu archivo contiene el nombre de la acción padre.'}
         </p>
+      </div>
+
+      <div className="p-3.5 bg-sky-50 border border-sky-200 rounded-lg">
+        <p className="text-xs font-semibold text-sky-800 flex items-center gap-1.5 mb-1">
+          <Info size={13} />
+          Este archivo vincula por NOMBRE
+        </p>
+        <ul className="text-xs text-sky-700 space-y-1 list-disc list-inside">
+          <li>No necesitas una columna de ID.</li>
+          <li>
+            Si escribes el nombre del padre con una variación (mayúsculas, acentos, un espacio de
+            más, un typo), el sistema te lo va a marcar como "posible variante" antes de crear un
+            {' '}{etiquetaPadre.toLowerCase()} nuevo — nunca lo hará en silencio.
+          </li>
+        </ul>
       </div>
 
       <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -86,27 +153,31 @@ export default function PasoRelacion({ headers, sampleRows, config, onCambiar, o
                 ));
               })()}
             </div>
+            {conteoReal != null && (
+              <p className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-200">
+                Se crearán aproximadamente <strong>{conteoReal} {etiquetaPadre === 'Componente' ? 'acción(es)' : 'tarea(s)'}</strong>
+                <span className="text-gray-400"> — se confirma en el paso de Vista previa.</span>
+              </p>
+            )}
+            {cargandoPreview && <p className="text-xs text-gray-400 mt-2">Calculando…</p>}
           </div>
         </div>
       )}
 
-      <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-        <p className="text-xs text-amber-700 flex items-start gap-1.5">
-          <Info size={12} className="text-amber-500 mt-0.5 flex-shrink-0" />
-          <span>
-            {esAccion
-              ? 'Si el componente padre no existe en el proyecto, se creará automáticamente durante la importación.'
-              : 'Si la acción padre no existe en el proyecto, se creará automáticamente durante la importación.'}
-          </span>
-        </p>
-      </div>
+      {posiblesDuplicadosPadre.length > 0 && (
+        <ResolucionDuplicadosPadre
+          grupos={posiblesDuplicadosPadre}
+          resoluciones={resolucionesPadre}
+          onCambiar={setResolucionesPadre}
+        />
+      )}
 
       <div className="flex justify-end pt-2">
         <button
           onClick={guardar}
-          disabled={parentColumn === ''}
+          disabled={!puedeAvanzar}
           className={`flex items-center gap-1.5 px-4 py-2 text-sm rounded-md font-medium transition-colors ${
-            parentColumn !== ''
+            puedeAvanzar
               ? 'bg-blue-600 text-white hover:bg-blue-700'
               : 'bg-gray-200 text-gray-400 cursor-not-allowed'
           }`}
