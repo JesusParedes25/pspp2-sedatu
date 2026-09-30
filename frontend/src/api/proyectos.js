@@ -111,6 +111,18 @@ export async function obtenerActividadRecienteProyecto(id) {
   return data.datos;
 }
 
+// Pestaña "Bitácora" — TODO lo que pasa en el proyecto (comentarios,
+// archivos, riesgos, avance/estatus, miembros, indicadores), paginado y
+// filtrable. A diferencia de obtenerActividadRecienteProyecto (widget
+// chico, 50 filas fijas, solo actividad_log), esta combina las fuentes
+// reales sin duplicar — ver bitacora.queries.js en el backend.
+export async function obtenerBitacoraProyecto(id, { categoria, usuarioId, desde, hasta, busqueda, pagina, limite } = {}) {
+  const { data } = await client.get(`/proyectos/${id}/bitacora`, {
+    params: { categoria, usuarioId, desde, hasta, busqueda, pagina, limite },
+  });
+  return data;
+}
+
 export async function subirImagenProyecto(id, archivo) {
   const formData = new FormData();
   formData.append('imagen', archivo);

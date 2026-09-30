@@ -39,11 +39,22 @@ export function recorrerArbol(etapas, fn) {
 // nodo nunca aparecía al filtrar por su nombre.
 // riesgo: '' (todos) | 'con' | 'sin' — compara contra `riesgos_abiertos`
 // (conteo ya resuelto por el backend, no algo que el frontend calcule).
-function coincideNodo(nodo, estado, usuarioId, dg, riesgo) {
-  const matchEstado = !estado || nodo.estado === estado;
-  const matchUsuario = !usuarioId ||
-    String(nodo.id_responsable) === String(usuarioId) ||
+function nodoTieneUsuario(nodo, usuarioId) {
+  return String(nodo.id_responsable) === String(usuarioId) ||
     (nodo.colaboradores || []).some(c => String(c.id) === String(usuarioId));
+}
+
+// `usuarioHeredado`: true si YA se resolvió que un ANCESTRO de este nodo
+// (etapa/acción) es responsable o colaborador de la persona filtrada —
+// se propaga hacia abajo (ver filtrarArbol). Sin esto, ser colaborador
+// de una Etapa completa no servía de nada para filtrar sus Acciones/
+// Tareas: alguien a cargo de supervisar toda una etapa quedaba sin
+// forma de ver "lo suyo" en conjunto con otro filtro (ej. "con riesgo
+// abierto"), porque el riesgo vivía en una Acción hija donde esa
+// persona nunca estaba etiquetada nodo por nodo.
+function coincideNodo(nodo, estado, usuarioId, dg, riesgo, usuarioHeredado) {
+  const matchEstado = !estado || nodo.estado === estado;
+  const matchUsuario = !usuarioId || usuarioHeredado || nodoTieneUsuario(nodo, usuarioId);
   const matchDG = !dg ||
     String(nodo.responsable_dg_id) === String(dg) ||
     String(nodo.id_dg) === String(dg);
@@ -59,23 +70,35 @@ function coincideNodo(nodo, estado, usuarioId, dg, riesgo) {
 // nunca entraba a `subacciones`, así que cualquier nodo colgado de una
 // subacción (la subacción misma, o sus tareas) desaparecía en silencio
 // en cuanto algún filtro estaba activo, sin importar si coincidía o no.
+//
+// El filtro de usuario SÍ hereda hacia abajo (una Acción cuenta como "de
+// esa persona" si ella es responsable/colaboradora de la Etapa que la
+// contiene, aunque no esté etiquetada en la Acción misma) — a
+// diferencia de DG y Riesgo, que son estrictamente por nodo: una Etapa
+// puede tener Acciones de otra DG perfectamente válidas colgando de
+// ella, y el riesgo de un hijo ya sube solo por la regla de abajo
+// ("mostrar si algún hijo coincide"), sin necesitar heredarse hacia
+// abajo también.
 export function filtrarArbol(etapas, estado, usuarioId, dg, riesgo) {
   return etapas.reduce((acc, etapa) => {
+    const etapaTieneUsuario = !!usuarioId && nodoTieneUsuario(etapa, usuarioId);
     const acciones = (etapa.acciones || []).reduce((accAcc, accion) => {
+      const accionHereda = etapaTieneUsuario || (!!usuarioId && nodoTieneUsuario(accion, usuarioId));
       const subacciones = (accion.subacciones || []).reduce((subAcc, sub) => {
-        const tareasSub = (sub.tareas || []).filter(t => coincideNodo(t, estado, usuarioId, dg, riesgo));
-        if (coincideNodo(sub, estado, usuarioId, dg, riesgo) || tareasSub.length > 0) {
+        const subHereda = accionHereda || (!!usuarioId && nodoTieneUsuario(sub, usuarioId));
+        const tareasSub = (sub.tareas || []).filter(t => coincideNodo(t, estado, usuarioId, dg, riesgo, subHereda));
+        if (coincideNodo(sub, estado, usuarioId, dg, riesgo, accionHereda) || tareasSub.length > 0) {
           subAcc.push({ ...sub, tareas: tareasSub });
         }
         return subAcc;
       }, []);
-      const tareas = (accion.tareas || []).filter(t => coincideNodo(t, estado, usuarioId, dg, riesgo));
-      if (coincideNodo(accion, estado, usuarioId, dg, riesgo) || subacciones.length > 0 || tareas.length > 0) {
+      const tareas = (accion.tareas || []).filter(t => coincideNodo(t, estado, usuarioId, dg, riesgo, accionHereda));
+      if (coincideNodo(accion, estado, usuarioId, dg, riesgo, etapaTieneUsuario) || subacciones.length > 0 || tareas.length > 0) {
         accAcc.push({ ...accion, subacciones, tareas });
       }
       return accAcc;
     }, []);
-    if (coincideNodo(etapa, estado, usuarioId, dg, riesgo) || acciones.length > 0) {
+    if (coincideNodo(etapa, estado, usuarioId, dg, riesgo, false) || acciones.length > 0) {
       acc.push({ ...etapa, acciones });
     }
     return acc;

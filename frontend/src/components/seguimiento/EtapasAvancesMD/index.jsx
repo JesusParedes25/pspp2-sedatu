@@ -10,6 +10,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Loader2, X, SlidersHorizontal, CheckCircle2, Filter, Layers } from 'lucide-react';
 import * as etapasApi from '../../../api/etapas';
+import * as miembrosApi from '../../../api/miembros';
 import { useUI } from '../../../context/UIContext';
 import { useAuth } from '../../../context/AuthContext';
 import { usePanelWidth } from '../../../hooks/usePanelWidth';
@@ -31,6 +32,11 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
   const [searchParams, setSearchParams] = useSearchParams();
   const [arbol, setArbol] = useState([]);
   const [cargando, setCargando] = useState(true);
+  // Miembros del PROYECTO (proyecto_usuarios) — separado del árbol: una
+  // persona puede ser responsable/colaboradora del proyecto entero sin
+  // estar etiquetada nodo por nodo en ningún `nodo_miembros` — ver el
+  // filtro de usuario más abajo.
+  const [miembrosProyecto, setMiembrosProyecto] = useState([]);
   // "foco": la rama que muestra el centro (encabezado + lista) — cambia
   // solo desde el árbol izquierdo o el lineage del propio encabezado.
   // "seleccionId": el elemento cuya ficha muestra el panel derecho y cuya
@@ -68,26 +74,44 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
     return Array.from(mapa.entries()).map(([id, siglas]) => ({ id, siglas })).sort((a, b) => a.siglas.localeCompare(b.siglas));
   }, [arbol]);
 
-  // Personas únicas derivadas del árbol (responsable principal O
-  // colaborador de cualquier nodo) — alimenta el selector desplegable de
-  // "Usuario/Nombre". Antes era un input de texto libre que solo comparaba
-  // contra `responsable_nombre` (y, por error, también contra el nombre
-  // del propio nodo) — un colaborador (no responsable principal) de
-  // cualquier nivel nunca coincidía, sin importar qué se escribiera.
+  // IDs de quienes son responsable/colaborador del PROYECTO completo
+  // (no de un nodo puntual) — alguien así se cuenta como "de todo el
+  // árbol" al filtrar: no tiene sentido pedirle que además esté
+  // etiquetado nodo por nodo para que el filtro lo encuentre.
+  const idsMiembrosProyecto = useMemo(() => new Set(
+    miembrosProyecto.filter(m => m.estado === 'aceptada').map(m => String(m.id_usuario))
+  ), [miembrosProyecto]);
+
+  // Personas para el selector desplegable de "Usuario/Nombre": responsable
+  // principal o colaborador de CUALQUIER nodo del árbol, más quien
+  // participa a nivel de todo el proyecto (proyecto_usuarios) aunque no
+  // tenga ninguna etiqueta puntual en `nodo_miembros`. Antes era un input
+  // de texto libre que solo comparaba contra `responsable_nombre` (y, por
+  // error, también contra el nombre del propio nodo) — un colaborador (no
+  // responsable principal) de cualquier nivel nunca coincidía, sin
+  // importar qué se escribiera.
   const personasEnArbol = useMemo(() => {
     const mapa = new Map();
     recorrerArbol(arbol, n => {
       if (n.id_responsable) mapa.set(n.id_responsable, n.responsable_nombre || 'Sin nombre');
       (n.colaboradores || []).forEach(c => mapa.set(c.id, c.nombre || 'Sin nombre'));
     });
+    miembrosProyecto.forEach(m => {
+      if (m.estado === 'aceptada') mapa.set(m.id_usuario, m.nombre_completo || 'Sin nombre');
+    });
     return Array.from(mapa.entries()).map(([id, nombre]) => ({ id, nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre));
-  }, [arbol]);
+  }, [arbol, miembrosProyecto]);
 
-  // Árbol filtrado (client-side: estado, usuario, DG de responsable y riesgo)
+  // Árbol filtrado (client-side: estado, usuario, DG de responsable y riesgo).
+  // Si la persona elegida participa a nivel de TODO el proyecto, filtrar
+  // por ella no debe restringir nada — se trata como "sin filtro de
+  // usuario" y se dejan actuar solo los demás filtros activos.
+  const usuarioEsDeTodoElProyecto = !!filtroUsuario && idsMiembrosProyecto.has(String(filtroUsuario));
+  const usuarioParaFiltrar = usuarioEsDeTodoElProyecto ? '' : filtroUsuario;
   const arbolFiltrado = useMemo(() => {
-    if (!filtroEstado && !filtroUsuario && !filtroDG && !filtroRiesgo) return arbol;
-    return filtrarArbol(arbol, filtroEstado, filtroUsuario, filtroDG, filtroRiesgo);
-  }, [arbol, filtroEstado, filtroUsuario, filtroDG, filtroRiesgo]);
+    if (!filtroEstado && !usuarioParaFiltrar && !filtroDG && !filtroRiesgo) return arbol;
+    return filtrarArbol(arbol, filtroEstado, usuarioParaFiltrar, filtroDG, filtroRiesgo);
+  }, [arbol, filtroEstado, usuarioParaFiltrar, filtroDG, filtroRiesgo]);
 
   // Cargar árbol (dgSeleccionada = filtro de DG propietaria del proyecto, server-side)
   const cargarArbol = useCallback(async (silencioso = false) => {
@@ -104,6 +128,17 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
   }, [proyectoId, dgSeleccionada]);
 
   useEffect(() => { cargarArbol(); }, [cargarArbol]);
+
+  // Miembros del proyecto completo (para el selector de usuario) — carga
+  // aparte y liviana (proyecto_usuarios), no depende del árbol.
+  useEffect(() => {
+    if (!proyectoId) return;
+    let vivo = true;
+    miembrosApi.listarMiembros(proyectoId)
+      .then(res => { if (vivo) setMiembrosProyecto(res.datos || []); })
+      .catch(() => { if (vivo) setMiembrosProyecto([]); });
+    return () => { vivo = false; };
+  }, [proyectoId]);
 
   // Auto-expandir todo cuando hay filtros activos
   useEffect(() => {

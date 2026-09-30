@@ -19,7 +19,7 @@
  */
 import { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Star, FileText, Settings, BarChart3, LayoutDashboard, Search, Pencil, FileSpreadsheet, Trash2, Table2, MapPin, GitBranch, Loader2, ChevronUp, ChevronDown, Copy } from 'lucide-react';
+import { ArrowLeft, Star, FileText, Settings, BarChart3, LayoutDashboard, Search, Pencil, FileSpreadsheet, Trash2, Table2, MapPin, GitBranch, Loader2, ChevronUp, ChevronDown, Copy, BookText } from 'lucide-react';
 import { prefersReducedMotion } from '../../utils/motion';
 import { useProyecto } from '../../hooks/useProyectos';
 import { useEtapas } from '../../hooks/useEtapas';
@@ -31,6 +31,7 @@ import ChipFuncion from '../../components/proyectos/ChipFuncion';
 import SelectorEstado from '../../components/common/SelectorEstado';
 import GanttCronograma from '../../components/seguimiento/GanttCronograma';
 import PanoramaProyecto from '../../components/seguimiento/PanoramaProyecto';
+import BitacoraProyecto from '../../components/seguimiento/BitacoraProyecto';
 import SelectorDG from '../../components/proyectos/SelectorDG';
 import EvidenciaListItem from '../../components/evidencias/EvidenciaListItem';
 import EvidenciaDetallePanel from '../../components/evidencias/EvidenciaDetallePanel';
@@ -55,11 +56,12 @@ import * as evidenciasApi from '../../api/evidencias';
 import * as etapasApi from '../../api/etapas';
 import * as proyectosApi from '../../api/proyectos';
 
-// Pestañas principales: Seguimiento (default), Panorama del proyecto, Evidencias
+// Pestañas principales: Seguimiento (default), Panorama del proyecto, Documentos, Bitácora
 const PESTANAS = [
   { id: 'seguimiento', etiqueta: 'Seguimiento', icono: Settings },
   { id: 'resumen', etiqueta: 'Panorama del proyecto', icono: LayoutDashboard },
   { id: 'evidencias', etiqueta: 'Documentos', icono: FileText },
+  { id: 'bitacora', etiqueta: 'Bitácora', icono: BookText },
 ];
 
 // Subsecciones dentro de Seguimiento. Los `id` internos se mantienen sin
@@ -747,6 +749,13 @@ export default function DetalleProyecto() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ═══ PESTAÑA BITÁCORA ═══ */}
+      {pestanasVisitadas.has('bitacora') && (
+        <div className={pestanaActiva === 'bitacora' ? '' : 'hidden'}>
+          <BitacoraProyecto proyectoId={id} />
         </div>
       )}
       {evidenciaPreview && <FilePreviewModal evidencia={evidenciaPreview} onClose={() => setEvidenciaPreview(null)} />}
