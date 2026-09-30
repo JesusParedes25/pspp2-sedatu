@@ -21,6 +21,7 @@ const {
 const permisosQueries = require('../db/queries/permisos.queries');
 const indicadoresQueries = require('../db/queries/indicadores.queries');
 const inicioQueries = require('../db/queries/inicio.queries');
+const bitacoraQueries = require('../db/queries/bitacora.queries');
 const miembrosQueries = require('../db/queries/miembros.queries');
 const pool = require('../db/pool');
 const { cambiarEstado: cambiarEstadoUtil } = require('../utils/validaciones-estado');
@@ -494,4 +495,27 @@ async function actividadReciente(req, res, next) {
   }
 }
 
-module.exports = { listar, obtenerPorId, crear, duplicar, actualizar, eliminar, listarEliminados, restaurar, eliminarDefinitivamente, obtenerDGs, agregarDG, eliminarDG, obtenerEtiquetas, subirImagen, servirImagen, misPermisos, actividadReciente };
+// GET /proyectos/:id/bitacora — pestaña "Bitácora": TODO lo que pasa en
+// el proyecto (comentarios, archivos, riesgos, avance/estatus, miembros,
+// indicadores), paginado y filtrable — a diferencia de
+// `actividad-reciente` (widget chico, 50 filas, solo actividad_log), esta
+// combina las 5 fuentes reales sin duplicar (ver bitacora.queries.js).
+async function bitacora(req, res, next) {
+  try {
+    const { categoria, usuarioId, desde, hasta, busqueda, pagina, limite } = req.query;
+    const resultado = await bitacoraQueries.obtenerBitacoraProyecto(req.params.id, {
+      categoria: categoria || undefined,
+      usuarioId: usuarioId || undefined,
+      desde: desde || undefined,
+      hasta: hasta || undefined,
+      busqueda: busqueda || undefined,
+      pagina: parseInt(pagina) || 1,
+      limite: Math.min(parseInt(limite) || 30, 100),
+    });
+    res.json({ datos: resultado.datos, total: resultado.total });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { listar, obtenerPorId, crear, duplicar, actualizar, eliminar, listarEliminados, restaurar, eliminarDefinitivamente, obtenerDGs, agregarDG, eliminarDG, obtenerEtiquetas, subirImagen, servirImagen, misPermisos, actividadReciente, bitacora };
