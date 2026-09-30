@@ -37,7 +37,7 @@ import { permisosDeNodo } from '../../hooks/usePermisos';
 // Campos que vive este formulario (fuera de Nombre/Estatus, que se
 // guardan solos en FichaNodo) — de aquí sale tanto el valor inicial como
 // el diff contra lo que el usuario va cambiando.
-const CAMPOS_FORM = ['semaforo', 'prioridad', 'fecha_inicio', 'fecha_limite', 'instrumento', 'escala_territorial'];
+const CAMPOS_FORM = ['semaforo', 'prioridad', 'fecha_inicio', 'fecha_limite', 'instrumento', 'escala_territorial', 'instancia_responsable', 'enlace_responsable', 'observaciones'];
 function valoresDe(data) {
   const v = {};
   for (const c of CAMPOS_FORM) v[c] = data[c] ?? null;
@@ -93,20 +93,22 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
     onCancelar?.();
   }
 
-  const [catalogs, setCatalogs] = useState({ escalas: [], instrumentos: [], usuarios: [] });
+  const [catalogs, setCatalogs] = useState({ escalas: [], instrumentos: [], unidadesResponsables: [], usuarios: [] });
 
   // Cargar catálogos una vez
   useEffect(() => {
     (async () => {
       try {
-        const [escRes, instRes, usrRes] = await Promise.all([
+        const [escRes, instRes, urRes, usrRes] = await Promise.all([
           client.get('/catalogos/valores', { params: { tipo: 'escala_territorial' } }),
           client.get('/catalogos/valores', { params: { tipo: 'instrumento' } }),
+          client.get('/catalogos/valores', { params: { tipo: 'unidad_responsable' } }),
           client.get('/catalogos/usuarios'),
         ]);
         setCatalogs({
           escalas: (escRes.data.datos || []).map(c => c.valor),
           instrumentos: (instRes.data.datos || []).map(c => c.valor),
+          unidadesResponsables: (urRes.data.datos || []).map(c => c.valor),
           usuarios: usrRes.data.datos || [],
         });
       } catch (e) { console.error('Error cargando catálogos:', e); }
@@ -218,6 +220,49 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
           />
         </div>
       )}
+
+      {/* Instancia/enlace responsable — capturados al crear (ModalNuevaAccion),
+          no aplican a tarea (misma lógica que Instrumento/Escala). */}
+      {tipo !== 'tarea' && (
+        <div className="grid grid-cols-2 gap-2.5 mb-3">
+          <CampoSelect
+            label="Instancia responsable" valor={valores.instancia_responsable || ''}
+            opciones={catalogs.unidadesResponsables}
+            onChange={v => set('instancia_responsable', v || null)}
+            soloLectura={permisos.esSoloLectura}
+          />
+          <div>
+            <span className="text-[10px] text-gray-400 block mb-0.5">Enlace responsable</span>
+            {permisos.esSoloLectura ? (
+              <p className="text-xs text-gray-700">{valores.enlace_responsable || '—'}</p>
+            ) : (
+              <input
+                type="text"
+                value={valores.enlace_responsable || ''}
+                onChange={e => set('enlace_responsable', e.target.value || null)}
+                placeholder="Nombre del enlace"
+                className="input-base text-xs"
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Observaciones — aplica también a tarea (única de las 3 capturadas
+          al crear que sí existe en esa tabla). */}
+      <div className="mb-3">
+        <span className="text-[10px] text-gray-400 block mb-0.5">Observaciones</span>
+        {permisos.esSoloLectura ? (
+          <p className="text-xs text-gray-700 whitespace-pre-wrap">{valores.observaciones || '—'}</p>
+        ) : (
+          <textarea
+            value={valores.observaciones || ''}
+            onChange={e => set('observaciones', e.target.value || null)}
+            rows={2}
+            className="input-base text-xs resize-none"
+          />
+        )}
+      </div>
 
       {/* Modo de cálculo del avance — informativo, no editable: lo decide
           la estructura (si tiene hijos o no), no una casilla aparte. */}

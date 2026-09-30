@@ -301,64 +301,53 @@ async function crearAccionEnProyecto(proyectoId, datos) {
   }
 }
 
+// Columnas de actualizarAccionCampos que solo entran al SET cuando su
+// clave está presente en `datos` — a diferencia de las de abajo
+// (nombre, fecha_fin_real, tipo), que siguen aceptando COALESCE porque
+// nunca conviene limpiarlas a NULL a propósito desde este camino.
+const CAMPOS_ACCION_SET_DINAMICO = [
+  'descripcion', 'porcentaje_avance', 'fecha_inicio', 'fecha_fin',
+  'id_responsable', 'id_dg', 'id_direccion_area',
+  'prioridad', 'fecha_limite', 'instancia_responsable', 'enlace_responsable', 'observaciones',
+];
+
 // Actualiza campos no-estado de una acción (nombre, descripcion, porcentaje, fechas, responsable, DG, DA, tipo).
 // El cambio de estado se maneja en el controller vía validaciones-estado.js.
 // Acepta client de transacción para uso atómico.
+//
+// Las columnas de CAMPOS_ACCION_SET_DINAMICO solo entran al SET cuando su
+// clave está presente en `datos` (nunca por COALESCE) — necesario porque
+// PropiedadesElemento.jsx manda un payload diff-only (solo lo que cambió),
+// y con COALESCE/asignación directa un guardado parcial que omite, p.ej.,
+// `instancia_responsable` la borraba en silencio. Mismo patrón que
+// catalogo-indicadores.queries.js::actualizar().
 async function actualizarAccionCampos(accionId, datos, client) {
   const db = client || pool;
 
-  // Si no hay campos que actualizar, retornar la acción actual
-  const tienesCampos = datos.nombre || datos.descripcion !== undefined ||
-    datos.porcentaje_avance !== undefined || datos.fecha_fin_real ||
-    datos.fecha_inicio || datos.fecha_fin ||
-    datos.id_responsable !== undefined || datos.id_dg !== undefined ||
-    datos.id_direccion_area !== undefined || datos.tipo ||
-    datos.prioridad !== undefined || datos.fecha_limite !== undefined ||
-    datos.instancia_responsable !== undefined || datos.enlace_responsable !== undefined ||
-    datos.observaciones !== undefined;
-  if (!tienesCampos) {
+  const sets = [];
+  const valores = [];
+
+  if (datos.nombre) { valores.push(datos.nombre); sets.push(`nombre = $${valores.length}`); }
+  if (datos.fecha_fin_real) { valores.push(datos.fecha_fin_real); sets.push(`fecha_fin_real = $${valores.length}`); }
+  if (datos.tipo) { valores.push(datos.tipo); sets.push(`tipo = $${valores.length}`); }
+
+  for (const campo of CAMPOS_ACCION_SET_DINAMICO) {
+    if (datos[campo] === undefined) continue;
+    valores.push(datos[campo] === '' ? null : datos[campo]);
+    sets.push(`${campo} = $${valores.length}`);
+  }
+
+  if (sets.length === 0) {
     const actual = await db.query('SELECT * FROM acciones WHERE id = $1', [accionId]);
     return actual.rows[0] || null;
   }
 
+  valores.push(accionId);
   const resultado = await db.query(`
-    UPDATE acciones SET
-      nombre                = COALESCE($1, nombre),
-      descripcion           = COALESCE($2, descripcion),
-      porcentaje_avance     = COALESCE($3, porcentaje_avance),
-      fecha_fin_real        = COALESCE($4, fecha_fin_real),
-      fecha_inicio          = COALESCE($5, fecha_inicio),
-      fecha_fin             = COALESCE($6, fecha_fin),
-      id_responsable        = COALESCE($7, id_responsable),
-      id_dg                 = COALESCE($8, id_dg),
-      id_direccion_area     = COALESCE($9, id_direccion_area),
-      tipo                  = COALESCE($10, tipo),
-      prioridad             = $12,
-      fecha_limite          = $13,
-      instancia_responsable = $14,
-      enlace_responsable    = $15,
-      observaciones         = $16,
-      updated_at            = NOW()
-    WHERE id = $11
+    UPDATE acciones SET ${sets.join(', ')}, updated_at = NOW()
+    WHERE id = $${valores.length}
     RETURNING *
-  `, [
-    datos.nombre || null,
-    datos.descripcion !== undefined ? (datos.descripcion || null) : null,
-    datos.porcentaje_avance !== undefined ? datos.porcentaje_avance : null,
-    datos.fecha_fin_real || null,
-    datos.fecha_inicio || null,
-    datos.fecha_fin || null,
-    datos.id_responsable !== undefined ? (datos.id_responsable || null) : null,
-    datos.id_dg !== undefined ? (datos.id_dg || null) : null,
-    datos.id_direccion_area !== undefined ? (datos.id_direccion_area || null) : null,
-    datos.tipo || null,
-    accionId,
-    datos.prioridad !== undefined ? (datos.prioridad || null) : null,
-    datos.fecha_limite !== undefined ? (datos.fecha_limite || null) : null,
-    datos.instancia_responsable !== undefined ? (datos.instancia_responsable || null) : null,
-    datos.enlace_responsable !== undefined ? (datos.enlace_responsable || null) : null,
-    datos.observaciones !== undefined ? (datos.observaciones || null) : null,
-  ]);
+  `, valores);
 
   return resultado.rows[0] || null;
 }

@@ -201,52 +201,42 @@ async function crearEtapa(proyectoId, datos) {
   }
 }
 
+// Campos de actualizarEtapa que solo entran al SET cuando su clave está
+// presente en `datos` — todos menos `nombre`/`tipo_meta` (los únicos que
+// conviene seguir tratando con COALESCE: nunca hace falta limpiarlos a
+// propósito). Sin esto, un guardado parcial (p.ej. PropiedadesElemento.jsx,
+// que manda solo lo que cambió) borraba en silencio cualquiera de estos
+// campos que no viniera incluido — mismo bug y mismo fix que
+// actualizarAccionCampos()/catalogo-indicadores.queries.js::actualizar().
+const CAMPOS_ETAPA_SET_DINAMICO = [
+  'descripcion', 'id_dg', 'id_direccion_area', 'id_responsable', 'depende_de',
+  'meta_descripcion', 'meta_valor', 'meta_unidad', 'tipo',
+  'prioridad', 'fecha_limite', 'instancia_responsable', 'enlace_responsable', 'observaciones',
+];
+
 // Actualiza una etapa (campos directos + indicadores asociados en transacción).
 // Acepta un client externo para participar en una transacción del controller.
 async function actualizarEtapa(etapaId, datos, externalClient) {
-  const n = (v) => (v === '' || v === undefined) ? null : v;
   const gestionaTransaccion = !externalClient;
   const client = externalClient || await pool.connect();
   try {
     if (gestionaTransaccion) await client.query('BEGIN');
 
+    const sets = ['nombre = COALESCE($1, nombre)', 'tipo_meta = COALESCE($2, tipo_meta)'];
+    const valores = [datos.nombre, datos.tipo_meta || null];
+
+    for (const campo of CAMPOS_ETAPA_SET_DINAMICO) {
+      if (datos[campo] === undefined) continue;
+      valores.push(datos[campo] === '' ? null : datos[campo]);
+      sets.push(`${campo} = $${valores.length}`);
+    }
+
+    valores.push(etapaId);
     const resultado = await client.query(`
-      UPDATE etapas SET
-        nombre                = COALESCE($1, nombre),
-        descripcion           = $2,
-        id_dg                 = $3,
-        id_direccion_area     = $4,
-        id_responsable        = $5,
-        depende_de            = $6,
-        tipo_meta             = COALESCE($7, tipo_meta),
-        meta_descripcion      = $8,
-        meta_valor            = $9,
-        meta_unidad           = $10,
-        tipo                  = $12,
-        prioridad             = $13,
-        fecha_limite          = $14,
-        instancia_responsable = $15,
-        enlace_responsable    = $16,
-        observaciones         = $17,
-        updated_at            = NOW()
-      WHERE id = $11
+      UPDATE etapas SET ${sets.join(', ')}, updated_at = NOW()
+      WHERE id = $${valores.length}
       RETURNING *
-    `, [
-      datos.nombre,
-      n(datos.descripcion),
-      n(datos.id_dg),
-      n(datos.id_direccion_area),
-      n(datos.id_responsable),
-      n(datos.depende_de),
-      datos.tipo_meta || null,
-      n(datos.meta_descripcion),
-      n(datos.meta_valor),
-      n(datos.meta_unidad),
-      etapaId,
-      n(datos.tipo), n(datos.prioridad),
-      n(datos.fecha_limite), n(datos.instancia_responsable),
-      n(datos.enlace_responsable), n(datos.observaciones),
-    ]);
+    `, valores);
 
     const etapa = resultado.rows[0];
     if (!etapa) {

@@ -307,7 +307,8 @@ async function patchCampo(req, res, next) {
 async function patchAvanceSemaforo(req, res, next) {
   const accionId = req.params.id;
   const { avance_actual, semaforo, estado, prioridad, fecha_limite, fecha_inicio,
-          escala_territorial, instrumento, cve_ent, cve_mun, id_zm, tipo, id_responsable, nombre, descripcion, observaciones,
+          escala_territorial, instrumento, cve_ent, cve_mun, id_zm, tipo, id_responsable,
+          instancia_responsable, enlace_responsable, nombre, descripcion, observaciones,
           estatus_cualitativo, municipios, motivo_bloqueo, nota_resolucion } = req.body;
 
   const client = await pool.connect();
@@ -454,6 +455,8 @@ async function patchAvanceSemaforo(req, res, next) {
     }
     if (tipo !== undefined) { sets.push(`tipo = $${idx}`); params.push(tipo || null); idx++; }
     if (id_responsable !== undefined) { sets.push(`id_responsable = $${idx}`); params.push(id_responsable || null); idx++; }
+    if (instancia_responsable !== undefined) { sets.push(`instancia_responsable = $${idx}`); params.push(instancia_responsable || null); idx++; }
+    if (enlace_responsable !== undefined) { sets.push(`enlace_responsable = $${idx}`); params.push(enlace_responsable || null); idx++; }
     if (nombre !== undefined) { sets.push(`nombre = $${idx}`); params.push(nombre); idx++; }
     if (descripcion !== undefined) { sets.push(`descripcion = $${idx}`); params.push(descripcion); idx++; }
     if (observaciones !== undefined) { sets.push(`observaciones = $${idx}`); params.push(observaciones || null); idx++; }
