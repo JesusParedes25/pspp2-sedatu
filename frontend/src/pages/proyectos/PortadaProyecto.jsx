@@ -84,11 +84,11 @@ export default function PortadaProyecto() {
           <>
             <span><strong className="text-gray-700">{resumen.avance_pct}%</strong> de avance</span>
             <span className="text-gray-300">·</span>
-            <span className={resumen.acciones_vencidas > 0 ? 'text-red-600 font-medium' : ''}>
-              {resumen.acciones_vencidas} acción{resumen.acciones_vencidas !== 1 ? 'es' : ''} vencida{resumen.acciones_vencidas !== 1 ? 's' : ''}
+            <span className={resumen.nodos_vencidos > 0 ? 'text-red-600 font-medium' : ''}>
+              {resumen.nodos_vencidos} vencida{resumen.nodos_vencidos !== 1 ? 's' : ''} (etapas, acciones y tareas)
             </span>
             <span className="text-gray-300">·</span>
-            <span>{resumen.acciones_por_vencer} por vencer en 30 días</span>
+            <span>{resumen.nodos_por_vencer} por vencer en 30 días</span>
             <span className="text-gray-300">·</span>
             <span className={resumen.riesgos_abiertos > 0 ? 'text-amber-600 font-medium' : ''}>
               {resumen.riesgos_abiertos} riesgo{resumen.riesgos_abiertos !== 1 ? 's' : ''} abierto{resumen.riesgos_abiertos !== 1 ? 's' : ''}
@@ -103,7 +103,7 @@ export default function PortadaProyecto() {
 
       <div>
         <h2 className="text-base font-semibold text-gray-800">¿Qué quieres hacer en este proyecto?</h2>
-        <p className="text-xs text-gray-400 mt-0.5">Elige una sección — cada una tiene su propio objetivo.</p>
+        <p className="text-xs text-gray-400 mt-0.5">Elige una sección: cada una tiene su propio objetivo.</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
@@ -114,9 +114,13 @@ export default function PortadaProyecto() {
           descripcion="Registra y actualiza el trabajo del proyecto: etapas, acciones y tareas, con su avance, responsable y fechas."
           cargandoContadores={cargandoResumen}
           contadores={!errorResumen && resumen && (
-            <>{resumen.etapas_total} etapa{resumen.etapas_total !== 1 ? 's' : ''} · {resumen.acciones_vencidas} vencida{resumen.acciones_vencidas !== 1 ? 's' : ''} · {formatoFechaRelativa(resumen.ultimo_movimiento?.created_at)}</>
+            <>{resumen.etapas_total} etapa{resumen.etapas_total !== 1 ? 's' : ''} · {resumen.nodos_vencidos} vencida{resumen.nodos_vencidos !== 1 ? 's' : ''} · {formatoFechaRelativa(resumen.ultimo_movimiento?.created_at)}</>
           )}
-          atajos={soloLectura ? [] : [{ etiqueta: 'Ver lo vencido', to: `/proyectos/${proyectoId}/seguimiento` }]}
+          atajos={soloLectura ? [] : [
+            { etiqueta: 'Ver lo vencido', to: `/proyectos/${proyectoId}/seguimiento` },
+            { etiqueta: 'Registrar avance', to: `/proyectos/${proyectoId}/seguimiento` },
+            { etiqueta: 'Importar desde Excel', to: `/proyectos/${proyectoId}/seguimiento?importar=1` },
+          ]}
           destacada
         />
         <FichaSeccion
@@ -139,6 +143,7 @@ export default function PortadaProyecto() {
           contadores={!errorResumen && resumen && (
             <>{resumen.documentos_total} documento{resumen.documentos_total !== 1 ? 's' : ''}</>
           )}
+          atajos={soloLectura ? [] : [{ etiqueta: 'Subir documento', to: `/proyectos/${proyectoId}/seguimiento` }]}
         />
         <FichaSeccion
           to={`/proyectos/${proyectoId}/bitacora`}
@@ -159,6 +164,7 @@ export default function PortadaProyecto() {
           contadores={!errorResumen && resumen && (
             <>{resumen.personas_total} persona{resumen.personas_total !== 1 ? 's' : ''} · {resumen.dgs_total} DG{resumen.dgs_total !== 1 ? 's' : ''}</>
           )}
+          atajos={soloLectura ? [] : [{ etiqueta: 'Invitar persona', to: `/proyectos/${proyectoId}/configuracion?invitar=1` }]}
         />
       </div>
     </div>

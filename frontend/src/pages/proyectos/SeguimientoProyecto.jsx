@@ -8,8 +8,8 @@
  *            reportes", botón "Registrar avance") es trabajo de la
  *            Fase 3 de este rediseño, no de esta fase.
  */
-import { useState, Suspense, lazy } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useState, useEffect, Suspense, lazy } from 'react';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { FileSpreadsheet, Table2, MapPin, GitBranch, BarChart3, Settings, Loader2 } from 'lucide-react';
 import EtapasAvancesMD from '../../components/seguimiento/EtapasAvancesMD';
 const VistaDiagrama = lazy(() => import('../../components/seguimiento/VistaDiagrama'));
@@ -38,9 +38,22 @@ export default function SeguimientoProyecto() {
     recargarEtapas, recargarEtapasSilencioso, recargarProyectoSilencioso, incrementarStats,
   } = useOutletContext();
   const { mostrarToast } = useUI();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [subseccionActiva, setSubseccionActiva] = useState('etapas');
   const [modalEtapa, setModalEtapa] = useState(false);
   const [modalCSV, setModalCSV] = useState(false);
+
+  // Atajo "Importar desde Excel" de la Portada (?importar=1): abre el
+  // wizard directo al llegar, sin que el usuario tenga que encontrar el
+  // botón. Se limpia el query param al consumirlo para no reabrir el
+  // modal en cada re-render ni al volver con el botón atrás.
+  useEffect(() => {
+    if (searchParams.get('importar') === '1') {
+      setModalCSV(true);
+      setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete('importar'); return p; }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function crearEtapaHandler(datos) {
     try {

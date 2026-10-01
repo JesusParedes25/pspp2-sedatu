@@ -22,7 +22,7 @@
  * hace sin confirmar antes con el responsable del producto.
  */
 import { useState, useEffect } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
 import {
   Users, FileText, Target, Eye, Copy, ShieldAlert, Pencil, Loader2,
 } from 'lucide-react';
@@ -70,9 +70,21 @@ export default function ConfiguracionProyecto() {
   const { proyecto, proyectoId, permisos, recargarProyecto, incrementarStats, etapas } = useOutletContext();
   const { mostrarToast } = useUI();
   const { puedeCrearProyecto } = usePermisosGlobales();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const abrirInvitar = searchParams.get('invitar') === '1';
   const [apartado, setApartado] = useState('equipo');
   const [modalEditar, setModalEditar] = useState(false);
   const [modalDuplicar, setModalDuplicar] = useState(false);
+
+  // Atajo "Invitar persona" de la Portada: fuerza el apartado "Equipo y
+  // permisos" y limpia el query param al consumirlo (no reabrir el
+  // modal en cada re-render ni al volver con el botón atrás).
+  useEffect(() => {
+    if (abrirInvitar) {
+      setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete('invitar'); return p; }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [indicadores, setIndicadores] = useState(null);
   useEffect(() => {
@@ -101,7 +113,7 @@ export default function ConfiguracionProyecto() {
 
       <div className="flex-1 min-w-0 space-y-4">
         {apartado === 'equipo' && (
-          <GestorUsuariosProyecto proyecto={proyecto} proyectoId={proyectoId} etapas={etapas} />
+          <GestorUsuariosProyecto proyecto={proyecto} proyectoId={proyectoId} etapas={etapas} abrirInvitarAlMontar={abrirInvitar} />
         )}
 
         {apartado === 'datos' && (
@@ -131,7 +143,7 @@ export default function ConfiguracionProyecto() {
         {apartado === 'indicadores' && (
           <Tarjeta
             titulo="Indicadores vinculados"
-            descripcion="Qué indicadores del catálogo mide este proyecto. Vincular, desvincular y editar metas se hace desde “Editar” — la captura de valores sigue viviendo en Seguimiento."
+            descripcion="Qué indicadores del catálogo mide este proyecto. Vincular, desvincular y editar metas se hace desde “Editar”: la captura de valores sigue viviendo en Seguimiento."
             accion={permisos.puedeEditar && (
               <button onClick={() => setModalEditar(true)} className="btn-secondary text-sm flex items-center gap-1.5">
                 <Pencil size={14} /> Editar
@@ -160,12 +172,12 @@ export default function ConfiguracionProyecto() {
         {apartado === 'visibilidad' && (
           <Tarjeta
             titulo="Visibilidad y acceso"
-            descripcion="Quién puede ver, capturar, importar y exportar en este proyecto — reglas ya vigentes en la plataforma."
+            descripcion="Quién puede ver, capturar, importar y exportar en este proyecto: reglas ya vigentes en la plataforma."
           >
             <ul className="space-y-3 text-sm text-gray-700">
               <li>
                 <span className="font-medium">Quién ve este proyecto:</span>{' '}
-                superadministradores, personal ejecutivo, y cualquier persona asignada como responsable o colaborador — de todo el proyecto o de alguna de sus etapas, acciones o tareas.
+                superadministradores, personal ejecutivo, y cualquier persona asignada como responsable o colaborador, de todo el proyecto o de alguna de sus etapas, acciones o tareas.
               </li>
               <li>
                 <span className="font-medium">Quién puede capturar avance:</span>{' '}
@@ -177,7 +189,7 @@ export default function ConfiguracionProyecto() {
               </li>
             </ul>
             <p className="text-xs text-gray-400 mt-4">
-              Estas reglas se calculan automáticamente a partir de quién participa en el proyecto — no hay un interruptor
+              Estas reglas se calculan automáticamente a partir de quién participa en el proyecto: no hay un interruptor
               aparte que las cambie todavía. Si tu equipo necesita reglas de visibilidad distintas (por ejemplo, un reporte
               PDF que se pueda desactivar), dilo y se diseña como un cambio de producto aparte.
             </p>
@@ -221,7 +233,7 @@ export default function ConfiguracionProyecto() {
                 </button>
               </div>
               <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                Estas dos acciones no existen todavía en el sistema — "Archivado" no es un estado que la base de datos
+                Estas dos acciones no existen todavía en el sistema: "Archivado" no es un estado que la base de datos
                 reconozca hoy, y no hay un mecanismo para transferir quién es responsable de un proyecto. Son cambios al
                 modelo de datos, así que quedan a la espera de que se confirme cómo deben comportarse antes de construirlos.
               </p>
