@@ -502,13 +502,14 @@ async function actividadReciente(req, res, next) {
 // combina las 5 fuentes reales sin duplicar (ver bitacora.queries.js).
 async function bitacora(req, res, next) {
   try {
-    const { categoria, usuarioId, desde, hasta, busqueda, pagina, limite } = req.query;
+    const { categoria, usuarioId, desde, hasta, busqueda, etapaId, pagina, limite } = req.query;
     const resultado = await bitacoraQueries.obtenerBitacoraProyecto(req.params.id, {
       categoria: categoria || undefined,
       usuarioId: usuarioId || undefined,
       desde: desde || undefined,
       hasta: hasta || undefined,
       busqueda: busqueda || undefined,
+      etapaId: etapaId || undefined,
       pagina: parseInt(pagina) || 1,
       limite: Math.min(parseInt(limite) || 30, 100),
     });
