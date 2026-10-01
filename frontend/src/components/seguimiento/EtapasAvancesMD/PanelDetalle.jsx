@@ -30,7 +30,7 @@ import { permisosDeNodo } from '../../../hooks/usePermisos';
 export default function PanelDetalle({
   foco, seleccion, proyectoId, permisos: permisosProyecto, onActualizado, mostrarToast, arbol,
   expandidosCentro, onToggleCentro, onSeleccionarEnCentro, onNavegarFoco, onAbrirArbol,
-  riesgoAAbrir, onRiesgoConsumido,
+  riesgoAAbrir, onRiesgoConsumido, avanceAAbrir,
 }) {
   const { tipo, id, data } = foco;
   const permisos = permisosDeNodo(permisosProyecto, tipo, id);
@@ -242,6 +242,7 @@ export default function PanelDetalle({
             onActualizado?.();
           }}
           mostrarToast={mostrarToast}
+          abrirAvanceAlMontar={avanceAAbrir}
         />
       </aside>
     </div>

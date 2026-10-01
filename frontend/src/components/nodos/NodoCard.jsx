@@ -128,6 +128,8 @@ export default function NodoCard({
   // Comentarios/Evidencia/Riesgos que agrupado oculta). Sin esta prop
   // no pasa nada distinto — es un aviso adicional, no un control.
   onToggleAbierto,
+  // Opcional: abre "Registrar avance" de una vez al montar — ver arriba.
+  abrirAvanceAlMontar = false,
 }) {
   const { mostrarToast } = useUI();
   const [abierto, setAbierto] = useState(defaultAbierto);
@@ -136,7 +138,12 @@ export default function NodoCard({
   // genérico de patch() (checklist, etc.) — no deben bloquearse entre sí,
   // son acciones independientes.
   const [ejecutarComentario, enviandoComentario] = useCandado();
-  const [mostrarModalAvance, setMostrarModalAvance] = useState(false);
+  // Arranca abierto cuando el atajo "Registrar avance" de la Portada trae
+  // aquí a un nodo recién elegido en el selector explícito (ver
+  // EtapasAvancesMD/index.jsx) — se evalúa solo una vez, al montar esta
+  // tarjeta (que remonta por `key` cada vez que cambia el nodo
+  // seleccionado), no en cada render.
+  const [mostrarModalAvance, setMostrarModalAvance] = useState(() => !!abrirAvanceAlMontar);
   const [mostrarModalRiesgo, setMostrarModalRiesgo] = useState(false);
   // Modal completo para crear el hijo (Acción bajo Etapa, Tarea bajo
   // Acción) — reemplaza el antiguo input de solo-nombre en este panel:

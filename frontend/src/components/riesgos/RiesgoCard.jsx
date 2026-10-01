@@ -14,7 +14,7 @@
  */
 import EstadoChip from '../common/EstadoChip';
 import { formatFecha } from '../../utils/fecha';
-import { AlertTriangle, Shield, User, Calendar } from 'lucide-react';
+import { AlertTriangle, Shield, User, Calendar, MapPin } from 'lucide-react';
 
 const bordePorNivel = {
   Bajo:    'border-l-green-500',
@@ -23,24 +23,39 @@ const bordePorNivel = {
   Critico: 'border-l-red-500',
 };
 
-export default function RiesgoCard({ riesgo, compacto = false }) {
+const ETIQUETA_ENTIDAD = { Proyecto: 'Proyecto', Etapa: 'Etapa', Accion: 'Acción', Subaccion: 'Acción', Tarea: 'Tarea' };
+
+// mostrarNodo: a qué etapa/acción/tarea pertenece — útil cuando la tarjeta
+// se ve fuera del contexto de ESE nodo (la sección de Riesgos a nivel
+// proyecto, que mezcla riesgos de toda la jerarquía); PanelRiesgos.jsx (ya
+// dentro de un nodo puntual) lo deja apagado a propósito, sería redundante
+// ahí.
+export default function RiesgoCard({ riesgo, compacto = false, mostrarNodo = false }) {
   return (
     <div className={`card border-l-4 ${compacto ? 'p-3' : 'p-4'} ${bordePorNivel[riesgo.nivel] || 'border-l-gray-300'}`}>
       {/* Header */}
       <div className="flex items-start justify-between mb-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           {riesgo.tipo === 'Problema' ? (
-            <AlertTriangle size={16} className="text-red-500" />
+            <AlertTriangle size={16} className="text-red-500 flex-shrink-0" />
           ) : (
-            <Shield size={16} className="text-orange-500" />
+            <Shield size={16} className="text-orange-500 flex-shrink-0" />
           )}
-          <h4 className="text-sm font-semibold text-gray-900">{riesgo.titulo}</h4>
+          <h4 className="text-sm font-semibold text-gray-900 truncate">{riesgo.titulo}</h4>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <EstadoChip estado={riesgo.nivel} />
           <EstadoChip estado={riesgo.estado} />
         </div>
       </div>
+
+      {mostrarNodo && (riesgo.nombre_entidad || riesgo.entidad_tipo) && (
+        <p className="text-[11px] text-gray-400 flex items-center gap-1 mb-2 -mt-1">
+          <MapPin size={11} />
+          {ETIQUETA_ENTIDAD[riesgo.entidad_tipo] || riesgo.entidad_tipo}
+          {riesgo.nombre_entidad ? `: ${riesgo.nombre_entidad}` : ''}
+        </p>
+      )}
 
       {/* Descripción */}
       {riesgo.descripcion && (
@@ -92,6 +107,13 @@ export default function RiesgoCard({ riesgo, compacto = false }) {
         )}
         <span className="text-xs px-1.5 py-0.5 bg-gray-100 rounded">{riesgo.tipo}</span>
       </div>
+
+      {!compacto && (
+        <div className="flex items-center gap-3 text-[11px] text-gray-400 pt-1.5">
+          {riesgo.created_at && <span>Identificado: {formatFecha(riesgo.created_at, { day: '2-digit', month: 'short', year: 'numeric' })}</span>}
+          {riesgo.fecha_cierre && <span>Cerrado: {formatFecha(riesgo.fecha_cierre, { day: '2-digit', month: 'short', year: 'numeric' })}</span>}
+        </div>
+      )}
     </div>
   );
 }

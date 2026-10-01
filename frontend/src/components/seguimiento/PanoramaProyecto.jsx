@@ -166,26 +166,26 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
         </div>
       )}
 
-      {/* ═══ RIESGOS Y BLOQUEOS ═══ */}
+      {/* ═══ RIESGOS ═══ — bloque compacto: la lista completa, filtros y
+          alta/edición/cierre viven en su propia sección (/riesgos), no
+          aquí. Mostrar la lista entera en Resumen era justo la
+          duplicación que se quitó: esto solo responde "¿hay algo que
+          atender?" con un enlace a donde sí se puede hacer algo. */}
       {riesgos.length > 0 && (
-        <SeccionCard titulo={`Riesgos abiertos (${riesgos.length})`} icono={Shield}>
-          <ul className="space-y-2">
-            {riesgos.slice(0, 8).map(r => (
-              <li key={r.id}>
-                <button onClick={() => onNavegarNodo?.(r.entidad_id, r.id)} className="w-full flex items-center gap-2 py-1 px-1 -mx-1 rounded hover:bg-orange-50 transition-colors text-left">
-                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                    r.nivel === 'Critico' ? 'bg-red-600' :
-                    r.nivel === 'Alto' ? 'bg-orange-500' :
-                    r.nivel === 'Medio' ? 'bg-yellow-500' : 'bg-gray-400'
-                  }`} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-gray-800 truncate">{r.titulo}</p>
-                    <p className="text-[11px] text-gray-500">{r.entidad_tipo} · {r.nivel}</p>
-                  </div>
-                </button>
-              </li>
-            ))}
-          </ul>
+        <SeccionCard titulo="Riesgos" icono={Shield}>
+          <Link
+            to={`/proyectos/${proyectoId}/riesgos`}
+            className="flex items-center justify-between gap-3 -m-1 p-1 rounded-lg hover:bg-orange-50 transition-colors"
+          >
+            <p className="text-sm text-gray-700">
+              <span className="font-semibold text-gray-900">{riesgos.length}</span> riesgo{riesgos.length !== 1 ? 's' : ''} abierto{riesgos.length !== 1 ? 's' : ''}
+              {' · '}
+              <span className="font-semibold text-gray-900">{riesgos.filter(r => r.nivel === 'Alto' || r.nivel === 'Critico').length}</span> de impacto alto
+            </p>
+            <span className="flex items-center gap-0.5 text-xs font-medium text-guinda-600 flex-shrink-0">
+              Ver todos <ChevronRight size={14} />
+            </span>
+          </Link>
         </SeccionCard>
       )}
 

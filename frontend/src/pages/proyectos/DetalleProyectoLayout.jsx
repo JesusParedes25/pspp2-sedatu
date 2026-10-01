@@ -25,7 +25,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate, useLocation, useSearchParams, Outlet } from 'react-router-dom';
-import { Star, Pencil, Trash2, Settings, LayoutDashboard, FileText, BookText, LayoutGrid, SlidersHorizontal } from 'lucide-react';
+import { Star, Pencil, Trash2, Settings, LayoutDashboard, FileText, BookText, LayoutGrid, SlidersHorizontal, ShieldAlert } from 'lucide-react';
 import { useProyecto } from '../../hooks/useProyectos';
 import { useEtapas } from '../../hooks/useEtapas';
 import { useUI } from '../../context/UIContext';
@@ -46,6 +46,7 @@ const SECCIONES = [
   { to: '', etiqueta: 'Portada', icono: LayoutGrid, fin: true },
   { to: 'seguimiento', etiqueta: 'Seguimiento', icono: Settings },
   { to: 'resumen', etiqueta: 'Resumen', icono: LayoutDashboard },
+  { to: 'riesgos', etiqueta: 'Riesgos', icono: ShieldAlert },
   { to: 'documentos', etiqueta: 'Documentos', icono: FileText },
   { to: 'bitacora', etiqueta: 'Bitácora', icono: BookText },
   { to: 'configuracion', etiqueta: 'Configuración', icono: SlidersHorizontal },
@@ -257,6 +258,9 @@ export default function DetalleProyectoLayout() {
               ) : (
                 <div className="flex items-center gap-2.5 flex-wrap">
                   <h1 className="text-lg font-semibold text-gray-900 truncate">{proyecto.nombre}</h1>
+                  <span className="font-medium text-guinda-600 text-sm flex-shrink-0">
+                    {proyecto.dg_lider_siglas}{proyecto.direccion_area_lider_siglas && ` / ${proyecto.direccion_area_lider_siglas}`}
+                  </span>
                   <ChipFuncion proyecto={proyecto} permisos={permisos} />
                   <SelectorEstado
                     entidadTipo="Proyecto"

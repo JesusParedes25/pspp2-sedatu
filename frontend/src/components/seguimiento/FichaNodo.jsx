@@ -53,7 +53,7 @@ function entidadTipoDeNodo(tipo, data) {
   return null;
 }
 
-export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto, ruta, onNavegarLineage, onActualizado, onEliminado, mostrarToast }) {
+export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto, ruta, onNavegarLineage, onActualizado, onEliminado, mostrarToast, abrirAvanceAlMontar }) {
   const { tipo, id, data } = nodo;
   const permisos = permisosDeNodo(permisosProyecto, tipo, id);
   const nivel = NIVELES[tipo];
@@ -123,6 +123,7 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
           defaultAbierto
           agrupado
           onIrAFicha={irAFicha}
+          abrirAvanceAlMontar={abrirAvanceAlMontar}
         />
 
         {/* c) Ficha — resumen en lectura, "Editar" revela los mismos

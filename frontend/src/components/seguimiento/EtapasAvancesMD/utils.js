@@ -52,7 +52,7 @@ function nodoTieneUsuario(nodo, usuarioId) {
 // forma de ver "lo suyo" en conjunto con otro filtro (ej. "con riesgo
 // abierto"), porque el riesgo vivía en una Acción hija donde esa
 // persona nunca estaba etiquetada nodo por nodo.
-function coincideNodo(nodo, estado, usuarioId, dg, riesgo, usuarioHeredado) {
+function coincideNodo(nodo, estado, usuarioId, dg, riesgo, usuarioHeredado, vencido) {
   const matchEstado = !estado || nodo.estado === estado;
   const matchUsuario = !usuarioId || usuarioHeredado || nodoTieneUsuario(nodo, usuarioId);
   const matchDG = !dg ||
@@ -60,7 +60,8 @@ function coincideNodo(nodo, estado, usuarioId, dg, riesgo, usuarioHeredado) {
     String(nodo.id_dg) === String(dg);
   const matchRiesgo = !riesgo ||
     (riesgo === 'con' ? (nodo.riesgos_abiertos || 0) > 0 : (nodo.riesgos_abiertos || 0) === 0);
-  return matchEstado && matchUsuario && matchDG && matchRiesgo;
+  const matchVencido = !vencido || (nodo.semaforo_efectivo || '') === 'rojo';
+  return matchEstado && matchUsuario && matchDG && matchRiesgo && matchVencido;
 }
 
 // Recorre etapa → acción/subacción → tarea explícitamente (en vez de un
@@ -79,26 +80,26 @@ function coincideNodo(nodo, estado, usuarioId, dg, riesgo, usuarioHeredado) {
 // ella, y el riesgo de un hijo ya sube solo por la regla de abajo
 // ("mostrar si algún hijo coincide"), sin necesitar heredarse hacia
 // abajo también.
-export function filtrarArbol(etapas, estado, usuarioId, dg, riesgo) {
+export function filtrarArbol(etapas, estado, usuarioId, dg, riesgo, vencido) {
   return etapas.reduce((acc, etapa) => {
     const etapaTieneUsuario = !!usuarioId && nodoTieneUsuario(etapa, usuarioId);
     const acciones = (etapa.acciones || []).reduce((accAcc, accion) => {
       const accionHereda = etapaTieneUsuario || (!!usuarioId && nodoTieneUsuario(accion, usuarioId));
       const subacciones = (accion.subacciones || []).reduce((subAcc, sub) => {
         const subHereda = accionHereda || (!!usuarioId && nodoTieneUsuario(sub, usuarioId));
-        const tareasSub = (sub.tareas || []).filter(t => coincideNodo(t, estado, usuarioId, dg, riesgo, subHereda));
-        if (coincideNodo(sub, estado, usuarioId, dg, riesgo, accionHereda) || tareasSub.length > 0) {
+        const tareasSub = (sub.tareas || []).filter(t => coincideNodo(t, estado, usuarioId, dg, riesgo, subHereda, vencido));
+        if (coincideNodo(sub, estado, usuarioId, dg, riesgo, accionHereda, vencido) || tareasSub.length > 0) {
           subAcc.push({ ...sub, tareas: tareasSub });
         }
         return subAcc;
       }, []);
-      const tareas = (accion.tareas || []).filter(t => coincideNodo(t, estado, usuarioId, dg, riesgo, accionHereda));
-      if (coincideNodo(accion, estado, usuarioId, dg, riesgo, etapaTieneUsuario) || subacciones.length > 0 || tareas.length > 0) {
+      const tareas = (accion.tareas || []).filter(t => coincideNodo(t, estado, usuarioId, dg, riesgo, accionHereda, vencido));
+      if (coincideNodo(accion, estado, usuarioId, dg, riesgo, etapaTieneUsuario, vencido) || subacciones.length > 0 || tareas.length > 0) {
         accAcc.push({ ...accion, subacciones, tareas });
       }
       return accAcc;
     }, []);
-    if (coincideNodo(etapa, estado, usuarioId, dg, riesgo, false) || acciones.length > 0) {
+    if (coincideNodo(etapa, estado, usuarioId, dg, riesgo, false, vencido) || acciones.length > 0) {
       acc.push({ ...etapa, acciones });
     }
     return acc;

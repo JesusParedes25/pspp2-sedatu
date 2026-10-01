@@ -9,7 +9,7 @@
  */
 import { useEffect, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
-import { Settings, LayoutDashboard, FileText, BookText, Loader2, AlertTriangle, Clock, SlidersHorizontal } from 'lucide-react';
+import { Settings, LayoutDashboard, FileText, BookText, Loader2, AlertTriangle, Clock, SlidersHorizontal, ShieldAlert } from 'lucide-react';
 import * as proyectosApi from '../../api/proyectos';
 
 function formatoFechaRelativa(iso) {
@@ -117,8 +117,8 @@ export default function PortadaProyecto() {
             <>{resumen.etapas_total} etapa{resumen.etapas_total !== 1 ? 's' : ''} · {resumen.nodos_vencidos} vencida{resumen.nodos_vencidos !== 1 ? 's' : ''} · {formatoFechaRelativa(resumen.ultimo_movimiento?.created_at)}</>
           )}
           atajos={soloLectura ? [] : [
-            { etiqueta: 'Ver lo vencido', to: `/proyectos/${proyectoId}/seguimiento` },
-            { etiqueta: 'Registrar avance', to: `/proyectos/${proyectoId}/seguimiento` },
+            { etiqueta: 'Ver lo vencido', to: `/proyectos/${proyectoId}/seguimiento?vencido=1` },
+            { etiqueta: 'Registrar avance', to: `/proyectos/${proyectoId}/seguimiento?avance=1` },
             { etiqueta: 'Importar desde Excel', to: `/proyectos/${proyectoId}/seguimiento?importar=1` },
           ]}
           destacada
@@ -132,7 +132,6 @@ export default function PortadaProyecto() {
           contadores={!errorResumen && resumen && (
             <>{resumen.avance_pct}% de avance · {resumen.indicadores_total} indicador{resumen.indicadores_total !== 1 ? 'es' : ''} · {resumen.riesgos_abiertos} riesgo{resumen.riesgos_abiertos !== 1 ? 's' : ''} abierto{resumen.riesgos_abiertos !== 1 ? 's' : ''}</>
           )}
-          atajos={[{ etiqueta: 'Ver riesgos', to: `/proyectos/${proyectoId}/resumen` }]}
         />
         <FichaSeccion
           to={`/proyectos/${proyectoId}/documentos`}
@@ -165,6 +164,17 @@ export default function PortadaProyecto() {
             <>{resumen.personas_total} persona{resumen.personas_total !== 1 ? 's' : ''} · {resumen.dgs_total} DG{resumen.dgs_total !== 1 ? 's' : ''}</>
           )}
           atajos={soloLectura ? [] : [{ etiqueta: 'Invitar persona', to: `/proyectos/${proyectoId}/configuracion?invitar=1` }]}
+        />
+        <FichaSeccion
+          to={`/proyectos/${proyectoId}/riesgos`}
+          icono={ShieldAlert}
+          titulo="Riesgos"
+          descripcion="Identifica y da seguimiento a lo que puede frenar el proyecto."
+          cargandoContadores={cargandoResumen}
+          contadores={!errorResumen && resumen && (
+            <>{resumen.riesgos_abiertos} riesgo{resumen.riesgos_abiertos !== 1 ? 's' : ''} abierto{resumen.riesgos_abiertos !== 1 ? 's' : ''} · {resumen.riesgos_criticos} de impacto alto</>
+          )}
+          atajos={soloLectura ? [] : [{ etiqueta: 'Registrar riesgo', to: `/proyectos/${proyectoId}/riesgos?nuevo=1` }]}
         />
       </div>
     </div>
