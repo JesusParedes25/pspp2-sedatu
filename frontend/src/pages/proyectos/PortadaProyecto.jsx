@@ -6,13 +6,10 @@
  *            propios contadores (de GET /proyectos/:id/portada-resumen,
  *            UNA sola llamada) y 1-2 atajos directos.
  *
- * La ficha "Configuración" se agrega en la Fase 2 de este rediseño,
- * cuando esa sección exista de verdad — no tiene sentido mostrar una
- * ficha que lleva a una ruta que todavía no existe.
  */
 import { useEffect, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
-import { Settings, LayoutDashboard, FileText, BookText, Loader2, AlertTriangle, Clock } from 'lucide-react';
+import { Settings, LayoutDashboard, FileText, BookText, Loader2, AlertTriangle, Clock, SlidersHorizontal } from 'lucide-react';
 import * as proyectosApi from '../../api/proyectos';
 
 function formatoFechaRelativa(iso) {
@@ -109,7 +106,7 @@ export default function PortadaProyecto() {
         <p className="text-xs text-gray-400 mt-0.5">Elige una sección — cada una tiene su propio objetivo.</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
         <FichaSeccion
           to={`/proyectos/${proyectoId}/seguimiento`}
           icono={Settings}
@@ -151,6 +148,16 @@ export default function PortadaProyecto() {
           cargandoContadores={cargandoResumen}
           contadores={!errorResumen && resumen && (
             <>Último: {formatoFechaRelativa(resumen.ultimo_movimiento?.created_at)}</>
+          )}
+        />
+        <FichaSeccion
+          to={`/proyectos/${proyectoId}/configuracion`}
+          icono={SlidersHorizontal}
+          titulo="Configuración"
+          descripcion="Administra quién participa, sus permisos y los datos generales del proyecto."
+          cargandoContadores={cargandoResumen}
+          contadores={!errorResumen && resumen && (
+            <>{resumen.personas_total} persona{resumen.personas_total !== 1 ? 's' : ''} · {resumen.dgs_total} DG{resumen.dgs_total !== 1 ? 's' : ''}</>
           )}
         />
       </div>
