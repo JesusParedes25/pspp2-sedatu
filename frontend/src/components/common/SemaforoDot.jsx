@@ -23,16 +23,26 @@ export const LEYENDA_SEMAFORO = {
 
 // estado='Completada' se muestra con un ícono de check en vez del punto
 // verde plano — si no, "completado" y "en proceso sano" se ven idénticos.
-export default function SemaforoDot({ semaforo, estado, size = 8, className = '' }) {
+//
+// `avance` es opcional: el color rojo ("Vencida") depende SOLO de la
+// fecha límite, nunca del avance — un nodo con 95% y fecha vencida sale
+// rojo igual que uno con 5%, lo cual es correcto pero nada obvio a
+// simple vista. Cuando el llamador pasa `avance` y el color es rojo con
+// avance > 0, el tooltip lo explica en vez de solo decir "Vencida".
+export default function SemaforoDot({ semaforo, estado, avance, size = 8, className = '' }) {
   if (estado === 'Completada') {
     return <CheckCircle2 size={size + 3} className={`text-emerald-600 flex-shrink-0 ${className}`} aria-label="Completada" />;
   }
   const sem = semaforo && COLORES_SEMAFORO[semaforo] ? semaforo : 'gris';
+  const avanceNum = typeof avance === 'number' ? avance : parseFloat(avance);
+  const titulo = sem === 'rojo' && avanceNum > 0
+    ? `Vencida: la fecha límite pasó. El avance (${Math.round(avanceNum)}%) no determina este color.`
+    : LEYENDA_SEMAFORO[sem];
   return (
     <span
       className={`rounded-full flex-shrink-0 inline-block ${className}`}
       style={{ width: size, height: size, backgroundColor: COLORES_SEMAFORO[sem] }}
-      title={LEYENDA_SEMAFORO[sem]}
+      title={titulo}
     />
   );
 }

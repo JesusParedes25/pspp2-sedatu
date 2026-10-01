@@ -56,7 +56,7 @@ export default function FilaCentro({ tipo, nodo, profundidad, expandidos, onTogg
           ) : <span className="w-3" />}
         </button>
         <Icono size={11} style={{ color: nivelInfo.color }} className="flex-shrink-0" aria-hidden="true" />
-        <SemaforoDot semaforo={sem} estado={nodo.estado} size={7} />
+        <SemaforoDot semaforo={sem} estado={nodo.estado} avance={avance} size={7} />
         <span className={`flex-1 min-w-0 text-xs truncate ${seleccionado ? 'font-semibold text-guinda-700' : 'text-gray-700'}`} title={nodo.nombre}>
           {nodo.nombre}
         </span>

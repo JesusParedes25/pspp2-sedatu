@@ -17,6 +17,7 @@ const pool = require('../db/pool');
 const { recalcularPesosEtapa } = require('../db/queries/acciones.queries');
 const { recalcularEtapa } = require('../utils/recalculos');
 const { calcularSemaforo } = require('../utils/semaforo');
+const avanceSemaforo = require('../utils/avance-semaforo');
 
 const ESTADOS_VALIDOS = ['Pendiente', 'En_proceso', 'Bloqueada', 'Completada', 'Cancelada'];
 const SEMAFOROS_VALIDOS = ['verde', 'amarillo', 'naranja', 'rojo', 'gris', 'azul', 'negro'];
@@ -622,6 +623,10 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
 
     // Set para trackear IDs de etapas que necesitan recálculo de pesos
     const etapasParaRecalculo = new Set();
+    // Set para trackear IDs de Acciones que recibieron Tareas nuevas — su
+    // avance/estado contenedor no se escribe en el INSERT de la tarea, hay
+    // que propagarlo explícitamente (ver recalcularPadres más abajo).
+    const accionesParaRecalculo = new Set();
 
     // userId para evidencias y comentarios: preferir el usuario real de la
     // petición (usuarioId, pasado por el controller); si no viene, caer al
@@ -868,6 +873,14 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
         ]);
         resultado.tareas_creadas++;
 
+        // Esta Tarea cambia el avance/estado agregado de su Acción (y de
+        // ahí el de su Etapa) — sin esto, la Acción/Etapa se quedaban con
+        // su valor previo hasta que algo más forzara un recálculo manual
+        // (mismo patrón que tareas.controller.js ya usa al crear una tarea
+        // desde la plataforma, en vez de desde el importador).
+        if (accionPadreId) accionesParaRecalculo.add(accionPadreId);
+        if (etapaId) etapasParaRecalculo.add(etapaId);
+
         // La evidencia y el comentario de una tarea se cuelgan de su ACCIÓN
         // padre. No es un capricho: la tabla evidencias no tiene columna
         // id_tarea, y el CHECK de comentarios.entidad_tipo no admite
@@ -881,6 +894,14 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
           await insertarComentario('Accion', accionPadreId, ent.comentario);
         }
       }
+    }
+
+    // Propagar primero el avance/estado de las Tareas importadas a su
+    // Acción contenedora (y de ahí a la Etapa) — tiene que correr ANTES
+    // del recálculo de etapas de abajo, que lee acciones.porcentaje_avance
+    // tal cual esté en ese momento.
+    for (const accionId of accionesParaRecalculo) {
+      await avanceSemaforo.recalcularPadres('accion', accionId, client);
     }
 
     // Recalcular pesos y progreso de todas las etapas afectadas
@@ -1127,6 +1148,10 @@ async function ejecutarImportacionMultiHoja(hojas, configMultiHoja, proyectoId, 
     const etapaIdMap = {};
     const accionIdMap = {};
     const etapasParaRecalculo = new Set();
+    // Set para trackear IDs de Acciones que recibieron Tareas nuevas (Hoja
+    // 3) — su avance/estado contenedor no se escribe en el INSERT de la
+    // tarea, hay que propagarlo explícitamente (ver recalcularPadres).
+    const accionesParaRecalculo = new Set();
 
     // ─── Hoja 1: Etapas / Contenedores ──────────────
     const h1 = hojasConfig[0];
@@ -1249,7 +1274,18 @@ async function ejecutarImportacionMultiHoja(hojas, configMultiHoja, proyectoId, 
             loteImportacionId, importadoEn, userId, archivoOrigen]);
 
         resultado.tareas_creadas++;
+        // Esta Tarea cambia el avance/estado agregado de su Acción (y de
+        // ahí el de su Etapa) — ver el mismo comentario en ejecutarImportacion.
+        accionesParaRecalculo.add(accionBdId);
       }
+    }
+
+    // Propagar primero el avance/estado de las Tareas importadas a su
+    // Acción contenedora (y de ahí a la Etapa) — tiene que correr ANTES
+    // del recálculo de etapas de abajo, que lee acciones.porcentaje_avance
+    // tal cual esté en ese momento.
+    for (const accionId of accionesParaRecalculo) {
+      await avanceSemaforo.recalcularPadres('accion', accionId, client);
     }
 
     // Recalcular

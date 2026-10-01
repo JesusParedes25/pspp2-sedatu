@@ -48,7 +48,7 @@ export default function NodoArbol({ nodo, tipo, nivel: profundidad, expandidos, 
 
         {/* Punto semáforo — componente compartido con Vista Lista para que
             el mismo nodo se vea con el mismo color en ambas vistas */}
-        <SemaforoDot semaforo={sem} estado={nodo.estado} size={8} />
+        <SemaforoDot semaforo={sem} estado={nodo.estado} avance={avance} size={8} />
 
         {/* Nombre */}
         <button
