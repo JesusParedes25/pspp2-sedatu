@@ -123,6 +123,15 @@ export async function obtenerBitacoraProyecto(id, { categoria, usuarioId, desde,
   return data;
 }
 
+// Portada del proyecto — todos los contadores de las fichas (Seguimiento,
+// Resumen, Documentos, Bitácora, Configuración) en una sola llamada. La
+// Portada es la primera pantalla que se ve al abrir un proyecto; nunca
+// debe depender de 5+ llamadas por separado.
+export async function obtenerPortadaResumen(id) {
+  const { data } = await client.get(`/proyectos/${id}/portada-resumen`);
+  return data.datos;
+}
+
 export async function subirImagenProyecto(id, archivo) {
   const formData = new FormData();
   formData.append('imagen', archivo);

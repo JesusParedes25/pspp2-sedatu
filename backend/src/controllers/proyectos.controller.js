@@ -23,6 +23,7 @@ const indicadoresQueries = require('../db/queries/indicadores.queries');
 const inicioQueries = require('../db/queries/inicio.queries');
 const bitacoraQueries = require('../db/queries/bitacora.queries');
 const miembrosQueries = require('../db/queries/miembros.queries');
+const statsQueries = require('../db/queries/proyectos.stats.queries');
 const pool = require('../db/pool');
 const { cambiarEstado: cambiarEstadoUtil } = require('../utils/validaciones-estado');
 const { recalcularProyecto } = require('../utils/recalculos');
@@ -519,4 +520,64 @@ async function bitacora(req, res, next) {
   }
 }
 
-module.exports = { listar, obtenerPorId, crear, duplicar, actualizar, eliminar, listarEliminados, restaurar, eliminarDefinitivamente, obtenerDGs, agregarDG, eliminarDG, obtenerEtiquetas, subirImagen, servirImagen, misPermisos, actividadReciente, bitacora };
+// GET /proyectos/:id/portada-resumen — alimenta la Portada del proyecto
+// (ficha de Seguimiento/Resumen/Documentos/Bitácora/Configuración con
+// contadores reales) en UNA sola llamada — la Portada es la primera
+// pantalla que se ve al abrir un proyecto y no puede depender de 5+
+// llamadas por separado. La mayoría de estos conteos ya existían como
+// query reutilizable (riesgos, documentos, DGs, actividad reciente); los
+// nuevos (etapas, vencidas/por vencer SIN el LIMIT 10 de otras pantallas,
+// indicadores, personas) viven en proyectos.stats.queries.js.
+async function portadaResumen(req, res, next) {
+  try {
+    const proyectoId = req.params.id;
+    const [
+      proyecto,
+      etapasTotal,
+      accionesPorEstado,
+      accionesVencidas,
+      accionesPorVencer,
+      indicadoresTotal,
+      riesgos,
+      documentosTotal,
+      personasTotal,
+      dgs,
+      actividadReciente,
+    ] = await Promise.all([
+      proyectosQueries.obtenerProyectoPorId(proyectoId),
+      statsQueries.contarEtapasProyecto(proyectoId),
+      statsQueries.contarAccionesPorEstado(proyectoId),
+      statsQueries.contarAtrasadas(proyectoId),
+      statsQueries.contarPorVencer(proyectoId),
+      statsQueries.contarIndicadoresProyecto(proyectoId),
+      statsQueries.contarRiesgosActivos(proyectoId),
+      statsQueries.contarEvidenciasProyecto(proyectoId),
+      statsQueries.contarParticipantesProyecto(proyectoId),
+      proyectosQueries.obtenerDGsProyecto(proyectoId),
+      statsQueries.obtenerActividadReciente(proyectoId),
+    ]);
+
+    if (!proyecto) return res.status(404).json({ mensaje: 'Proyecto no encontrado' });
+
+    res.json({
+      datos: {
+        avance_pct: parseFloat(proyecto.porcentaje_calculado) || 0,
+        etapas_total: etapasTotal,
+        acciones_total: accionesPorEstado.total,
+        acciones_vencidas: accionesVencidas,
+        acciones_por_vencer: accionesPorVencer,
+        indicadores_total: indicadoresTotal,
+        riesgos_abiertos: riesgos.total,
+        riesgos_criticos: riesgos.criticos,
+        documentos_total: documentosTotal,
+        personas_total: personasTotal,
+        dgs_total: (dgs || []).length,
+        ultimo_movimiento: actividadReciente[0] || null,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { listar, obtenerPorId, crear, duplicar, actualizar, eliminar, listarEliminados, restaurar, eliminarDefinitivamente, obtenerDGs, agregarDG, eliminarDG, obtenerEtiquetas, subirImagen, servirImagen, misPermisos, actividadReciente, bitacora, portadaResumen };

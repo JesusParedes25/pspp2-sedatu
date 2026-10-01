@@ -214,6 +214,7 @@ router.get('/proyectos/:id/indicadores/resumen', indicadoresController.resumenCo
 router.get('/proyectos/:id/stats', proyectosStatsController.obtenerStats);
 router.get('/proyectos/:id/actividad-reciente', proyectosController.actividadReciente);
 router.get('/proyectos/:id/bitacora', proyectosController.bitacora);
+router.get('/proyectos/:id/portada-resumen', proyectosController.portadaResumen);
 
 // Conteo de descendientes (para confirm de cancelación en cascada)
 router.get('/conteo-descendientes', estadoController.conteoDescendientes);

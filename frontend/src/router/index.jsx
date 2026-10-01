@@ -18,7 +18,12 @@ import Layout from '../components/layout/Layout';
 import Inicio from '../pages/Inicio';
 import ListadoProyectos from '../pages/proyectos/ListadoProyectos';
 import NuevoProyecto from '../pages/proyectos/NuevoProyecto';
-import DetalleProyecto from '../pages/proyectos/DetalleProyecto';
+import DetalleProyectoLayout from '../pages/proyectos/DetalleProyectoLayout';
+import PortadaProyecto from '../pages/proyectos/PortadaProyecto';
+import SeguimientoProyecto from '../pages/proyectos/SeguimientoProyecto';
+import ResumenProyecto from '../pages/proyectos/ResumenProyecto';
+import DocumentosProyecto from '../pages/proyectos/DocumentosProyecto';
+import BitacoraProyectoPage from '../pages/proyectos/BitacoraProyectoPage';
 import CarteraDetalle from '../pages/carteras/CarteraDetalle';
 import Agenda from '../pages/Agenda';
 import MisActividades from '../pages/MisActividades';
@@ -41,7 +46,13 @@ export default function AppRouter() {
         <Route index element={<Inicio />} />
         <Route path="proyectos" element={<ListadoProyectos />} />
         <Route path="proyectos/nuevo" element={<NuevoProyecto />} />
-        <Route path="proyectos/:id" element={<DetalleProyecto />} />
+        <Route path="proyectos/:id" element={<DetalleProyectoLayout />}>
+          <Route index element={<PortadaProyecto />} />
+          <Route path="seguimiento" element={<SeguimientoProyecto />} />
+          <Route path="resumen" element={<ResumenProyecto />} />
+          <Route path="documentos" element={<DocumentosProyecto />} />
+          <Route path="bitacora" element={<BitacoraProyectoPage />} />
+        </Route>
         <Route path="carteras/:id" element={<CarteraDetalle />} />
         <Route path="mapa" element={<MapaTerritorial />} />
         <Route path="indicadores" element={<Indicadores />} />
