@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import * as proyectosApi from '../../api/proyectos';
 import * as miembrosApi from '../../api/miembros';
+import * as etapasApi from '../../api/etapas';
 
 const CATEGORIAS = [
   { id: '', label: 'Todos los tipos' },
@@ -52,22 +53,27 @@ export default function BitacoraProyecto({ proyectoId }) {
   const [cargando, setCargando] = useState(true);
   const [pagina, setPagina] = useState(1);
   const [miembros, setMiembros] = useState([]);
+  const [etapas, setEtapas] = useState([]);
 
   const [categoria, setCategoria] = useState('');
   const [usuarioId, setUsuarioId] = useState('');
+  const [etapaId, setEtapaId] = useState('');
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
   const [busquedaInput, setBusquedaInput] = useState('');
   const [busqueda, setBusqueda] = useState('');
   const debounceRef = useRef(null);
 
-  const filtrosActivos = [categoria, usuarioId, desde, hasta, busqueda].filter(Boolean).length;
+  const filtrosActivos = [categoria, usuarioId, etapaId, desde, hasta, busqueda].filter(Boolean).length;
 
   useEffect(() => {
     if (!proyectoId) return;
     miembrosApi.listarMiembros(proyectoId)
       .then(res => setMiembros((res.datos || []).filter(m => m.estado === 'aceptada')))
       .catch(() => setMiembros([]));
+    etapasApi.obtenerEtapasProyecto(proyectoId)
+      .then(res => setEtapas(res.datos || res || []))
+      .catch(() => setEtapas([]));
   }, [proyectoId]);
 
   const cargar = useCallback(async () => {
@@ -77,6 +83,7 @@ export default function BitacoraProyecto({ proyectoId }) {
       const res = await proyectosApi.obtenerBitacoraProyecto(proyectoId, {
         categoria: categoria || undefined,
         usuarioId: usuarioId || undefined,
+        etapaId: etapaId || undefined,
         desde: desde || undefined,
         hasta: hasta || undefined,
         busqueda: busqueda || undefined,
@@ -91,7 +98,7 @@ export default function BitacoraProyecto({ proyectoId }) {
     } finally {
       setCargando(false);
     }
-  }, [proyectoId, categoria, usuarioId, desde, hasta, busqueda, pagina]);
+  }, [proyectoId, categoria, usuarioId, etapaId, desde, hasta, busqueda, pagina]);
 
   useEffect(() => { cargar(); }, [cargar]);
 
@@ -111,6 +118,7 @@ export default function BitacoraProyecto({ proyectoId }) {
   function limpiarFiltros() {
     setCategoria('');
     setUsuarioId('');
+    setEtapaId('');
     setDesde('');
     setHasta('');
     setBusquedaInput('');
@@ -153,6 +161,22 @@ export default function BitacoraProyecto({ proyectoId }) {
                 <option value="">Todos los usuarios</option>
                 {miembros.map(m => (
                   <option key={m.id_usuario} value={m.id_usuario}>{m.nombre_completo}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {etapas.length > 0 && (
+            <div className="min-w-[180px]">
+              <label className="text-[10px] text-gray-400 font-medium uppercase tracking-wide block mb-0.5">Etapa</label>
+              <select
+                value={etapaId}
+                onChange={e => { setEtapaId(e.target.value); setPagina(1); }}
+                className="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:border-guinda-300"
+              >
+                <option value="">Todas las etapas</option>
+                {etapas.map(e => (
+                  <option key={e.id} value={e.id}>{e.nombre}</option>
                 ))}
               </select>
             </div>

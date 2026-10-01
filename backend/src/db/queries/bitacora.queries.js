@@ -40,8 +40,28 @@ async function obtenerEtapaAccionIds(proyectoId) {
   return { etapaIds: etapas.map(e => e.id), accionIds: acciones.map(a => a.id) };
 }
 
+// Subárbol completo de UNA etapa (sus acciones, las subacciones de esas
+// acciones, y las tareas de ambas) — usado por el filtro "Etapa" de la
+// bitácora para acotar los 5 orígenes a lo que vive bajo ese nodo.
+async function obtenerSubarbolEtapa(etapaId) {
+  const { rows: accionesTop } = await pool.query('SELECT id FROM acciones WHERE id_etapa = $1', [etapaId]);
+  const topIds = accionesTop.map(r => r.id);
+  let subIds = [];
+  if (topIds.length) {
+    const { rows: subs } = await pool.query('SELECT id FROM acciones WHERE id_accion_padre = ANY($1)', [topIds]);
+    subIds = subs.map(r => r.id);
+  }
+  const accionIds = [...topIds, ...subIds];
+  let tareaIds = [];
+  if (accionIds.length) {
+    const { rows: tareas } = await pool.query('SELECT id FROM tareas WHERE id_accion = ANY($1)', [accionIds]);
+    tareaIds = tareas.map(r => r.id);
+  }
+  return { accionIds, tareaIds };
+}
+
 async function obtenerBitacoraProyecto(proyectoId, opciones = {}) {
-  const { categoria, usuarioId, desde, hasta, busqueda, pagina = 1, limite = 30 } = opciones;
+  const { categoria, usuarioId, desde, hasta, busqueda, etapaId, pagina = 1, limite = 30 } = opciones;
   const { etapaIds, accionIds } = await obtenerEtapaAccionIds(proyectoId);
 
   const union = `
@@ -180,6 +200,18 @@ async function obtenerBitacoraProyecto(proyectoId, opciones = {}) {
     idx++;
     condiciones.push(`(titulo ILIKE $${idx} OR contenido ILIKE $${idx} OR nodo_nombre ILIKE $${idx} OR autor_nombre ILIKE $${idx})`);
     valores.push(`%${busqueda}%`);
+  }
+  if (etapaId) {
+    const { accionIds: accionIdsEtapa, tareaIds: tareaIdsEtapa } = await obtenerSubarbolEtapa(etapaId);
+    const idxEtapa = ++idx;
+    const idxAcciones = ++idx;
+    const idxTareas = ++idx;
+    condiciones.push(`(
+      (nodo_tipo = 'etapa' AND nodo_id = $${idxEtapa})
+      OR (nodo_tipo = 'accion' AND nodo_id = ANY($${idxAcciones}))
+      OR (nodo_tipo = 'tarea' AND nodo_id = ANY($${idxTareas}))
+    )`);
+    valores.push(etapaId, accionIdsEtapa, tareaIdsEtapa);
   }
   const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
 
