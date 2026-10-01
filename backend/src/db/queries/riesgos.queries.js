@@ -16,16 +16,31 @@
 const pool = require('../pool');
 const { condicionRiesgoDeProyecto } = require('../../utils/condicion-riesgo');
 
-// Obtiene todos los riesgos de un proyecto (en todos sus niveles)
+// Obtiene todos los riesgos de un proyecto (en todos sus niveles), con el
+// nombre del nodo al que está asociado cada uno — mismo patrón de JOINs ya
+// usado en proyectos.stats.queries.js::obtenerRiesgosDetalle (ahí acotado
+// a Abierto/En_mitigacion con LIMIT 15, para el bloque compacto de
+// Resumen; aquí sin filtro de estado ni límite, para la sección completa
+// de Riesgos del proyecto).
 async function obtenerRiesgosPorProyecto(proyectoId) {
   const resultado = await pool.query(`
     SELECT
       r.*,
       u_resp.nombre_completo AS responsable_nombre,
-      u_rep.nombre_completo AS reportador_nombre
+      u_rep.nombre_completo AS reportador_nombre,
+      CASE
+        WHEN r.entidad_tipo = 'Proyecto' THEN p.nombre
+        WHEN r.entidad_tipo = 'Etapa' THEN et.nombre
+        WHEN r.entidad_tipo IN ('Accion','Subaccion') THEN ac.nombre
+        WHEN r.entidad_tipo = 'Tarea' THEN ta.nombre
+      END AS nombre_entidad
     FROM riesgos r
     LEFT JOIN usuarios u_resp ON u_resp.id = r.id_responsable
     LEFT JOIN usuarios u_rep ON u_rep.id = r.id_reportador
+    LEFT JOIN proyectos p  ON r.entidad_tipo = 'Proyecto' AND p.id  = r.entidad_id
+    LEFT JOIN etapas    et ON r.entidad_tipo = 'Etapa'    AND et.id = r.entidad_id
+    LEFT JOIN acciones  ac ON r.entidad_tipo IN ('Accion','Subaccion') AND ac.id = r.entidad_id
+    LEFT JOIN tareas    ta ON r.entidad_tipo = 'Tarea'    AND ta.id = r.entidad_id
     WHERE ${condicionRiesgoDeProyecto('$1')}
     ORDER BY
       CASE r.nivel WHEN 'Critico' THEN 1 WHEN 'Alto' THEN 2 WHEN 'Medio' THEN 3 ELSE 4 END,
@@ -129,6 +144,11 @@ async function actualizarRiesgo(riesgoId, datos, quienEdita) {
         estado = COALESCE($7, estado),
         medida_mitigacion = COALESCE($8, medida_mitigacion),
         fecha_limite_resolucion = COALESCE($9, fecha_limite_resolucion),
+        fecha_cierre = CASE
+          WHEN COALESCE($7, estado) = 'Cerrado' AND estado IS DISTINCT FROM 'Cerrado' THEN NOW()
+          WHEN COALESCE($7, estado) != 'Cerrado' THEN NULL
+          ELSE fecha_cierre
+        END,
         updated_at = NOW()
       WHERE id = $10
       RETURNING *
@@ -155,6 +175,11 @@ async function actualizarRiesgo(riesgoId, datos, quienEdita) {
       estado = COALESCE($7, estado),
       medida_mitigacion = COALESCE($8, medida_mitigacion),
       fecha_limite_resolucion = COALESCE($9, fecha_limite_resolucion),
+      fecha_cierre = CASE
+        WHEN COALESCE($7, estado) = 'Cerrado' AND estado IS DISTINCT FROM 'Cerrado' THEN NOW()
+        WHEN COALESCE($7, estado) != 'Cerrado' THEN NULL
+        ELSE fecha_cierre
+      END,
       id_responsable = $10,
       id_asignado_por = $11,
       estado_responsable = $12::varchar,

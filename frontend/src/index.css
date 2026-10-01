@@ -26,6 +26,22 @@
     line-height: 1.428;
   }
 
+  /* Primer toque "muerto" en tablet (hay que tocar dos veces para que un
+   * link/botón responda): WebKit/Chrome móvil, sin esto, a veces usan el
+   * primer toque sobre un elemento con estilos :hover para simular ese
+   * hover (como lo haría un mouse) y recién el segundo toque dispara el
+   * click real — exactamente el síntoma reportado en los atajos de la
+   * Portada y en la subnavegación de Configuración, ambos con
+   * hover:-algo pero sin esto. touch-action: manipulation le dice al
+   * navegador que no hay ambigüedad que resolver (nada de doble-tap-para-
+   * zoom aquí) y conviene tratar el primer toque como el click real.
+   * No se aplica a todo el documento (seguiría permitiendo pellizcar/zoom
+   * donde haga falta, p. ej. el mapa) — solo a los elementos realmente
+   * interactivos. */
+  a, button, [role="button"] {
+    touch-action: manipulation;
+  }
+
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     font-weight: 700;

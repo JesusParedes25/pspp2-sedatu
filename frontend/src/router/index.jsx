@@ -25,6 +25,7 @@ import ResumenProyecto from '../pages/proyectos/ResumenProyecto';
 import DocumentosProyecto from '../pages/proyectos/DocumentosProyecto';
 import BitacoraProyectoPage from '../pages/proyectos/BitacoraProyectoPage';
 import ConfiguracionProyecto from '../pages/proyectos/ConfiguracionProyecto';
+import RiesgosProyecto from '../pages/proyectos/RiesgosProyecto';
 import CarteraDetalle from '../pages/carteras/CarteraDetalle';
 import Agenda from '../pages/Agenda';
 import MisActividades from '../pages/MisActividades';
@@ -54,6 +55,7 @@ export default function AppRouter() {
           <Route path="documentos" element={<DocumentosProyecto />} />
           <Route path="bitacora" element={<BitacoraProyectoPage />} />
           <Route path="configuracion" element={<ConfiguracionProyecto />} />
+          <Route path="riesgos" element={<RiesgosProyecto />} />
         </Route>
         <Route path="carteras/:id" element={<CarteraDetalle />} />
         <Route path="mapa" element={<MapaTerritorial />} />

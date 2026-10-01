@@ -14,6 +14,7 @@ import * as miembrosApi from '../../../api/miembros';
 import { useUI } from '../../../context/UIContext';
 import { useAuth } from '../../../context/AuthContext';
 import { usePanelWidth } from '../../../hooks/usePanelWidth';
+import { NIVELES } from '../../../config/niveles';
 import { COLORES_SEMAFORO } from '../../common/SemaforoDot';
 import ResizeHandle from '../../common/ResizeHandle';
 import NodoArbol from './NodoArbol';
@@ -63,7 +64,69 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
   const [filtroEstado, setFiltroEstado] = useState('');
   const [filtroUsuario, setFiltroUsuario] = useState('');
   const [filtroRiesgo, setFiltroRiesgo] = useState('');
-  const filtrosActivos = [filtroDG, filtroEstado, filtroUsuario, filtroRiesgo].filter(Boolean).length;
+  const [filtroVencido, setFiltroVencido] = useState(false);
+  const filtrosActivos = [filtroDG, filtroEstado, filtroUsuario, filtroRiesgo].filter(Boolean).length + (filtroVencido ? 1 : 0);
+
+  // Atajo "Ver lo vencido" de la Portada (?vencido=1): aplica el filtro de
+  // vencidas de una vez al llegar, en vez de dejar el árbol completo sin
+  // filtrar — se consume y limpia de la URL para no quedar "pegado" si el
+  // usuario luego lo quita a mano y recarga.
+  useEffect(() => {
+    if (searchParams.get('vencido') === '1') {
+      setFiltroVencido(true);
+      setMostrarFiltros(true);
+      setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete('vencido'); return p; }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Atajo "Registrar avance" de la Portada (?avance=1): si ya hay un nodo
+  // enfocado (deep-link futuro con ?nodo=), abre el modal de avance
+  // directo para él. Si no hay ninguno, el panel derecho muestra abajo un
+  // selector explícito en vez del mensaje genérico "Selecciona un
+  // elemento" — ver mostrarBuscadorAvance.
+  const avanceSolicitado = searchParams.get('avance') === '1';
+  const [abrirAvanceParaId, setAbrirAvanceParaId] = useState(null);
+  useEffect(() => {
+    if (avanceSolicitado && foco && abrirAvanceParaId !== foco.id) {
+      setAbrirAvanceParaId(foco.id);
+      setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete('avance'); return p; }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [avanceSolicitado, foco]);
+
+  function elegirNodoParaAvance(tipo, id, data) {
+    seleccionarDesdeArbol(tipo, id, data);
+    setAbrirAvanceParaId(id);
+    setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete('avance'); return p; }, { replace: true });
+  }
+
+  // Resultados del buscador "¿A qué elemento quieres registrarle avance?"
+  // (solo se usa cuando se llega con ?avance=1 y todavía no hay nada
+  // enfocado) — búsqueda plana por nombre en todo el árbol, mismo criterio
+  // simple que ya usa el buscador de proyectos del Header.
+  const [busquedaAvance, setBusquedaAvance] = useState('');
+  const resultadosBusquedaAvance = useMemo(() => {
+    const q = busquedaAvance.trim().toLowerCase();
+    if (q.length < 2) return [];
+    const resultados = [];
+    for (const etapa of arbol) {
+      if (etapa.nombre?.toLowerCase().includes(q)) resultados.push({ tipo: 'etapa', id: etapa.id, data: etapa, etiqueta: etapa.nombre });
+      for (const accion of (etapa.acciones || [])) {
+        if (accion.nombre?.toLowerCase().includes(q)) resultados.push({ tipo: 'accion', id: accion.id, data: accion, etiqueta: accion.nombre });
+        for (const tarea of (accion.tareas || [])) {
+          if (tarea.nombre?.toLowerCase().includes(q)) resultados.push({ tipo: 'tarea', id: tarea.id, data: tarea, etiqueta: tarea.nombre });
+        }
+        for (const sub of (accion.subacciones || [])) {
+          if (sub.nombre?.toLowerCase().includes(q)) resultados.push({ tipo: 'accion', id: sub.id, data: sub, etiqueta: sub.nombre });
+          for (const tarea of (sub.tareas || [])) {
+            if (tarea.nombre?.toLowerCase().includes(q)) resultados.push({ tipo: 'tarea', id: tarea.id, data: tarea, etiqueta: tarea.nombre });
+          }
+        }
+      }
+    }
+    return resultados.slice(0, 8);
+  }, [arbol, busquedaAvance]);
 
   // DGs únicas derivadas del árbol (responsable de cada nodo)
   const dgsEnArbol = useMemo(() => {
@@ -109,9 +172,9 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
   const usuarioEsDeTodoElProyecto = !!filtroUsuario && idsMiembrosProyecto.has(String(filtroUsuario));
   const usuarioParaFiltrar = usuarioEsDeTodoElProyecto ? '' : filtroUsuario;
   const arbolFiltrado = useMemo(() => {
-    if (!filtroEstado && !usuarioParaFiltrar && !filtroDG && !filtroRiesgo) return arbol;
-    return filtrarArbol(arbol, filtroEstado, usuarioParaFiltrar, filtroDG, filtroRiesgo);
-  }, [arbol, filtroEstado, usuarioParaFiltrar, filtroDG, filtroRiesgo]);
+    if (!filtroEstado && !usuarioParaFiltrar && !filtroDG && !filtroRiesgo && !filtroVencido) return arbol;
+    return filtrarArbol(arbol, filtroEstado, usuarioParaFiltrar, filtroDG, filtroRiesgo, filtroVencido);
+  }, [arbol, filtroEstado, usuarioParaFiltrar, filtroDG, filtroRiesgo, filtroVencido]);
 
   // Cargar árbol (dgSeleccionada = filtro de DG propietaria del proyecto, server-side)
   const cargarArbol = useCallback(async (silencioso = false) => {
@@ -142,18 +205,19 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
 
   // Auto-expandir todo cuando hay filtros activos
   useEffect(() => {
-    if (filtroEstado || filtroUsuario || filtroDG || filtroRiesgo) {
+    if (filtroEstado || filtroUsuario || filtroDG || filtroRiesgo || filtroVencido) {
       const ids = new Set();
       recorrerArbol(arbolFiltrado, n => ids.add(n.id));
       setExpandidos(ids);
     }
-  }, [filtroEstado, filtroUsuario, filtroDG, filtroRiesgo, arbolFiltrado]);
+  }, [filtroEstado, filtroUsuario, filtroDG, filtroRiesgo, filtroVencido, arbolFiltrado]);
 
   function limpiarFiltros() {
     setFiltroDG('');
     setFiltroEstado('');
     setFiltroUsuario('');
     setFiltroRiesgo('');
+    setFiltroVencido(false);
   }
 
   // Sincronizar foco/selección con la URL (?foco=&nodo=) — tanto en la
@@ -431,6 +495,18 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
                 <option value="sin">Sin riesgo abierto</option>
               </select>
             </div>
+
+            {/* Vencidas — mismo criterio que el punto rojo del árbol
+                (semaforo_efectivo), no un campo nuevo que calcular aquí. */}
+            <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={filtroVencido}
+                onChange={e => setFiltroVencido(e.target.checked)}
+                className="rounded border-gray-300 text-guinda-600 focus:ring-guinda-400"
+              />
+              Solo vencidas
+            </label>
           </div>
         )}
 
@@ -482,12 +558,48 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
           </button>
         )}
         {!foco ? (
-          <div className="flex-1 flex items-center justify-center text-gray-400">
-            <div className="text-center">
-              <Layers size={40} className="mx-auto mb-3 opacity-30" />
-              <p className="text-sm">Selecciona un elemento del árbol para ver su detalle</p>
+          avanceSolicitado ? (
+            <div className="flex-1 flex items-center justify-center text-gray-500 px-6">
+              <div className="w-full max-w-sm text-center">
+                <Layers size={32} className="mx-auto mb-3 text-guinda-300" />
+                <p className="text-sm font-semibold text-gray-700 mb-0.5">¿A qué elemento quieres registrarle avance?</p>
+                <p className="text-xs text-gray-400 mb-3">Busca una etapa, acción o tarea por su nombre.</p>
+                <input
+                  autoFocus
+                  type="text"
+                  value={busquedaAvance}
+                  onChange={e => setBusquedaAvance(e.target.value)}
+                  placeholder="Escribe para buscar…"
+                  className="w-full h-9 px-3 text-sm border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-guinda-300 text-left"
+                />
+                {resultadosBusquedaAvance.length > 0 && (
+                  <ul className="mt-2 border border-gray-200 rounded-lg overflow-hidden text-left divide-y divide-gray-100">
+                    {resultadosBusquedaAvance.map(r => (
+                      <li key={r.id}>
+                        <button
+                          onClick={() => elegirNodoParaAvance(r.tipo, r.id, r.data)}
+                          className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-guinda-50 transition-colors"
+                        >
+                          {r.etiqueta}
+                          <span className="ml-1.5 text-[11px] text-gray-400">{NIVELES[r.tipo]?.label}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {busquedaAvance.trim().length >= 2 && resultadosBusquedaAvance.length === 0 && (
+                  <p className="mt-2 text-xs text-gray-400">Sin resultados. También puedes elegir directamente desde el árbol.</p>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-gray-400">
+              <div className="text-center">
+                <Layers size={40} className="mx-auto mb-3 opacity-30" />
+                <p className="text-sm">Selecciona un elemento del árbol para ver su detalle</p>
+              </div>
+            </div>
+          )
         ) : (
           <PanelDetalle
             key={foco.id}
@@ -509,6 +621,7 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
               next.delete('riesgo');
               return next;
             }, { replace: true })}
+            avanceAAbrir={abrirAvanceParaId === foco.id}
           />
         )}
       </div>
