@@ -25,11 +25,9 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate, useLocation, useSearchParams, Outlet } from 'react-router-dom';
-import { ArrowLeft, Star, Pencil, Trash2, ChevronUp, ChevronDown, Settings, LayoutDashboard, FileText, BookText, LayoutGrid, SlidersHorizontal } from 'lucide-react';
-import { prefersReducedMotion } from '../../utils/motion';
+import { Star, Pencil, Trash2, Settings, LayoutDashboard, FileText, BookText, LayoutGrid, SlidersHorizontal } from 'lucide-react';
 import { useProyecto } from '../../hooks/useProyectos';
 import { useEtapas } from '../../hooks/useEtapas';
-import { useAuth } from '../../context/AuthContext';
 import { useUI } from '../../context/UIContext';
 import { usePermisosProyecto } from '../../hooks/usePermisos';
 import ChipFuncion from '../../components/proyectos/ChipFuncion';
@@ -87,7 +85,6 @@ function DescripcionColapsable({ texto, lineasColapsado = 2 }) {
 
 export default function DetalleProyectoLayout() {
   const { id } = useParams();
-  const { usuario } = useAuth();
   const { mostrarToast, sidebarAbierto } = useUI();
   const { proyecto, cargando, error, recargar: recargarProyecto, recargarSilencioso: recargarProyectoSilencioso } = useProyecto(id);
   const permisos = usePermisosProyecto(proyecto);
@@ -122,18 +119,6 @@ export default function DetalleProyectoLayout() {
   // mutación relevante, compartida por todas las secciones hijas.
   const [statsKey, setStatsKey] = useState(0);
   const incrementarStats = useCallback(() => setStatsKey(k => k + 1), []);
-
-  // Encabezado contraíble por el usuario: arranca contraído la primera
-  // vez, y la preferencia se recuerda por USUARIO, no por proyecto.
-  const HEADER_EXPANDIDO_KEY = usuario?.id ? `pspp_header_proyecto_expandido_${usuario.id}` : null;
-  const [headerExpandido, setHeaderExpandido] = useState(() => {
-    if (!HEADER_EXPANDIDO_KEY) return false;
-    try { return localStorage.getItem(HEADER_EXPANDIDO_KEY) === 'true'; } catch { return false; }
-  });
-  useEffect(() => {
-    if (!HEADER_EXPANDIDO_KEY) return;
-    try { localStorage.setItem(HEADER_EXPANDIDO_KEY, String(headerExpandido)); } catch {}
-  }, [headerExpandido, HEADER_EXPANDIDO_KEY]);
 
   // Encabezado compacto al hacer scroll (barra fija de una línea cuando
   // el encabezado completo sale de vista) — mismo mecanismo de siempre,
@@ -187,6 +172,11 @@ export default function DetalleProyectoLayout() {
   const segmentos = location.pathname.replace(/\/+$/, '').split('/');
   const seccionActivaId = segmentos.length > 3 ? segmentos[3] : '';
   const seccionActiva = SECCIONES.find(s => (s.fin ? seccionActivaId === '' : s.to === seccionActivaId)) || SECCIONES[0];
+  // Encabezado completo solo en Portada; en cualquier otra sección se
+  // contrae automáticamente a una línea — ya no es una preferencia que
+  // el usuario alterna ni se recuerda en localStorage, se deriva de la
+  // ruta (lo que el usuario pidió explícitamente).
+  const enPortada = seccionActiva.fin === true;
 
   if (cargando) {
     return (
@@ -232,39 +222,41 @@ export default function DetalleProyectoLayout() {
           { etiqueta: seccionActiva.etiqueta },
         ]} />
 
-        {/* Header del proyecto — contraíble */}
+        {/* Header del proyecto — completo solo en Portada, se contrae
+            automáticamente a una línea en cualquier otra sección. */}
         <div>
           <div ref={sentinelHeaderRef} />
 
-          <div
-            id="detalle-header-volver"
-            className={`overflow-hidden ${prefersReducedMotion ? '' : 'transition-all duration-200'} ${headerExpandido ? 'max-h-8 opacity-100 mb-3' : 'max-h-0 opacity-0'}`}
-          >
-            <Link to="/proyectos" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-guinda-500 transition-colors">
-              <ArrowLeft size={16} />
-              Volver a proyectos
-            </Link>
-          </div>
-
           <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-1.5 flex-1 min-w-0">
-              {!headerExpandido && (
-                <Link
-                  to="/proyectos"
-                  title="Volver a proyectos"
-                  aria-label="Volver a proyectos"
-                  className="p-1 -ml-1 mt-1 text-gray-400 hover:text-guinda-500 rounded hover:bg-gray-50 transition-colors flex-shrink-0"
-                >
-                  <ArrowLeft size={16} />
-                </Link>
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2.5 flex-wrap mb-1">
-                  <h1 className="text-2xl font-bold text-gray-900">{proyecto.nombre}</h1>
-                  {proyecto.es_prioritario && <Star size={18} className="text-yellow-500 fill-yellow-500 flex-shrink-0" />}
-                  <span className="font-medium text-guinda-600 text-sm flex-shrink-0">
-                    {proyecto.dg_lider_siglas}{proyecto.direccion_area_lider_siglas && ` / ${proyecto.direccion_area_lider_siglas}`}
-                  </span>
+            <div className="flex-1 min-w-0">
+              {enPortada ? (
+                <>
+                  <div className="flex items-center gap-2.5 flex-wrap mb-1">
+                    <h1 className="text-2xl font-bold text-gray-900">{proyecto.nombre}</h1>
+                    {proyecto.es_prioritario && <Star size={18} className="text-yellow-500 fill-yellow-500 flex-shrink-0" />}
+                    <span className="font-medium text-guinda-600 text-sm flex-shrink-0">
+                      {proyecto.dg_lider_siglas}{proyecto.direccion_area_lider_siglas && ` / ${proyecto.direccion_area_lider_siglas}`}
+                    </span>
+                    <ChipFuncion proyecto={proyecto} permisos={permisos} />
+                    <SelectorEstado
+                      entidadTipo="Proyecto"
+                      entidadId={proyecto.id}
+                      estadoActual={proyecto.estado}
+                      estadoOverride={proyecto.estado_override}
+                      onCambio={() => { recargarProyecto(); incrementarStats(); }}
+                      soloLectura={!permisos.puedeEditar}
+                    />
+                    <span className="text-sm text-gray-500 flex-shrink-0">{proyecto.tipo?.replace(/_/g, ' ')}</span>
+                    {proyecto.programa_clave && <span className="text-sm text-gray-400 flex-shrink-0">{proyecto.programa_clave}</span>}
+                    {proyecto.dgs && proyecto.dgs.length > 1 && (
+                      <SelectorDG dgs={proyecto.dgs} dgSeleccionada={dgSeleccionada} onSeleccionar={setDgSeleccionada} />
+                    )}
+                  </div>
+                  {proyecto.descripcion && <DescripcionColapsable texto={proyecto.descripcion} lineasColapsado={2} />}
+                </>
+              ) : (
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 className="text-lg font-semibold text-gray-900 truncate">{proyecto.nombre}</h1>
                   <ChipFuncion proyecto={proyecto} permisos={permisos} />
                   <SelectorEstado
                     entidadTipo="Proyecto"
@@ -274,14 +266,11 @@ export default function DetalleProyectoLayout() {
                     onCambio={() => { recargarProyecto(); incrementarStats(); }}
                     soloLectura={!permisos.puedeEditar}
                   />
-                  <span className="text-sm text-gray-500 flex-shrink-0">{proyecto.tipo?.replace(/_/g, ' ')}</span>
-                  {proyecto.programa_clave && <span className="text-sm text-gray-400 flex-shrink-0">{proyecto.programa_clave}</span>}
-                  {!headerExpandido && proyecto.dgs && proyecto.dgs.length > 1 && (
+                  {proyecto.dgs && proyecto.dgs.length > 1 && (
                     <SelectorDG dgs={proyecto.dgs} dgSeleccionada={dgSeleccionada} onSeleccionar={setDgSeleccionada} />
                   )}
                 </div>
-                {proyecto.descripcion && <DescripcionColapsable texto={proyecto.descripcion} lineasColapsado={1} />}
-              </div>
+              )}
             </div>
 
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -296,16 +285,6 @@ export default function DetalleProyectoLayout() {
                   <Trash2 size={14} /> Eliminar
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => setHeaderExpandido(v => !v)}
-                aria-expanded={headerExpandido}
-                aria-controls="detalle-header-volver detalle-header-dgs"
-                title={headerExpandido ? 'Contraer encabezado' : 'Expandir encabezado'}
-                className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 outline-none focus-visible:ring-2 focus-visible:ring-guinda-400 transition-colors"
-              >
-                {headerExpandido ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-              </button>
             </div>
           </div>
 
@@ -325,15 +304,6 @@ export default function DetalleProyectoLayout() {
               onGuardado={() => { mostrarToast('Proyecto actualizado', 'exito'); recargarProyecto(); incrementarStats(); }}
             />
           )}
-
-          <div
-            id="detalle-header-dgs"
-            className={`overflow-hidden ${prefersReducedMotion ? '' : 'transition-all duration-200'} ${headerExpandido && proyecto.dgs && proyecto.dgs.length > 1 ? 'max-h-20 opacity-100 mt-3' : 'max-h-0 opacity-0'}`}
-          >
-            {proyecto.dgs && proyecto.dgs.length > 1 && (
-              <SelectorDG dgs={proyecto.dgs} dgSeleccionada={dgSeleccionada} onSeleccionar={setDgSeleccionada} />
-            )}
-          </div>
         </div>
 
         {/* Barra de secciones — scroll horizontal en pantallas chicas, nunca envuelve en dos filas */}

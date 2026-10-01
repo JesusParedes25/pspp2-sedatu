@@ -28,13 +28,20 @@ import BotonSolicitarParticipar from './BotonSolicitarParticipar';
 const GUINDA = '#7B1C3E';
 const ETIQUETA_ALCANCE = { etapa: 'etapa', accion: 'acción', tarea: 'tarea' };
 
-export default function GestorUsuariosProyecto({ proyecto, proyectoId, etapas }) {
+export default function GestorUsuariosProyecto({ proyecto, proyectoId, etapas, abrirInvitarAlMontar = false }) {
   const { usuario } = useAuth();
   const { mostrarToast } = useUI();
   const permisos = usePermisosProyecto(proyecto);
   const [miembros, setMiembros] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [modalInvitar, setModalInvitar] = useState(false);
+
+  // Atajo "Invitar persona" de la Portada: abre el modal de invitación
+  // directo al llegar a este apartado.
+  useEffect(() => {
+    if (abrirInvitarAlMontar) setModalInvitar(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const cargar = useCallback(() => {
     if (!proyectoId) return;

@@ -37,16 +37,15 @@ export default function Header({ pendientes = 0 }) {
   const navigate = useNavigate();
 
   // Generar breadcrumb desde la URL actual. Dentro del detalle de un
-  // proyecto (/proyectos/:id y sus secciones) se corta en "Proyectos" —
-  // esa área ya tiene su propio breadcrumb completo (con el nombre real
-  // del proyecto y la sección), mostrar también este genérico ahí
-  // duplicaba la migaja y, con rutas anidadas, el id/la sección caían en
-  // el fallback "Detalle" dos veces seguidas ("Detalle / Detalle").
+  // proyecto (/proyectos/:id y sus secciones) este breadcrumb genérico
+  // se suprime por completo (no solo se trunca) — esa área ya muestra su
+  // propio breadcrumb completo (con el nombre real del proyecto y la
+  // sección) en DetalleProyectoLayout, y mostrar los dos a la vez era la
+  // duplicación reportada por el usuario.
   const segmentos = location.pathname.split('/').filter(Boolean);
   const enDetalleProyecto = segmentos[0] === 'proyectos' && segmentos[1] && segmentos[1] !== 'nuevo';
-  const segmentosBreadcrumb = enDetalleProyecto ? segmentos.slice(0, 1) : segmentos;
-  const breadcrumbs = segmentosBreadcrumb.map((segmento, indice) => {
-    const ruta = '/' + segmentosBreadcrumb.slice(0, indice + 1).join('/');
+  const breadcrumbs = enDetalleProyecto ? [] : segmentos.map((segmento, indice) => {
+    const ruta = '/' + segmentos.slice(0, indice + 1).join('/');
     const nombre = nombresRutas[segmento] || 'Detalle';
     return { nombre, ruta };
   });
@@ -93,24 +92,27 @@ export default function Header({ pendientes = 0 }) {
 
   return (
     <header className="h-16 bg-white flex items-center justify-between px-6 flex-shrink-0" style={{ borderBottom: '1px solid #E5E5E5' }}>
-      {/* Breadcrumb */}
-      <div className="flex items-center text-sm">
-        <Link to="/" className="transition-colors" style={{ color: '#98989A' }} onMouseEnter={e => e.target.style.color='#7B1C3E'} onMouseLeave={e => e.target.style.color='#98989A'}>
-          Inicio
-        </Link>
-        {breadcrumbs.map((bc, i) => (
-          <span key={i} className="flex items-center">
-            <span className="mx-2" style={{ color: '#E5E5E5' }}>/</span>
-            {i === breadcrumbs.length - 1 ? (
-              <span className="font-semibold" style={{ color: '#545454' }}>{bc.nombre}</span>
-            ) : (
-              <Link to={bc.ruta} className="transition-colors" style={{ color: '#98989A' }} onMouseEnter={e => e.target.style.color='#7B1C3E'} onMouseLeave={e => e.target.style.color='#98989A'}>
-                {bc.nombre}
-              </Link>
-            )}
-          </span>
-        ))}
-      </div>
+      {/* Breadcrumb — suprimido por completo dentro del detalle de un
+          proyecto; DetalleProyectoLayout ya muestra el suyo ahí. */}
+      {enDetalleProyecto ? <div /> : (
+        <div className="flex items-center text-sm">
+          <Link to="/" className="transition-colors" style={{ color: '#98989A' }} onMouseEnter={e => e.target.style.color='#7B1C3E'} onMouseLeave={e => e.target.style.color='#98989A'}>
+            Inicio
+          </Link>
+          {breadcrumbs.map((bc, i) => (
+            <span key={i} className="flex items-center">
+              <span className="mx-2" style={{ color: '#E5E5E5' }}>/</span>
+              {i === breadcrumbs.length - 1 ? (
+                <span className="font-semibold" style={{ color: '#545454' }}>{bc.nombre}</span>
+              ) : (
+                <Link to={bc.ruta} className="transition-colors" style={{ color: '#98989A' }} onMouseEnter={e => e.target.style.color='#7B1C3E'} onMouseLeave={e => e.target.style.color='#98989A'}>
+                  {bc.nombre}
+                </Link>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Acciones del header */}
       <div className="flex items-center space-x-4">

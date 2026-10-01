@@ -535,8 +535,7 @@ async function portadaResumen(req, res, next) {
       proyecto,
       etapasTotal,
       accionesPorEstado,
-      accionesVencidas,
-      accionesPorVencer,
+      nodosVencidos,
       indicadoresTotal,
       riesgos,
       documentosTotal,
@@ -547,8 +546,7 @@ async function portadaResumen(req, res, next) {
       proyectosQueries.obtenerProyectoPorId(proyectoId),
       statsQueries.contarEtapasProyecto(proyectoId),
       statsQueries.contarAccionesPorEstado(proyectoId),
-      statsQueries.contarAtrasadas(proyectoId),
-      statsQueries.contarPorVencer(proyectoId),
+      statsQueries.contarNodosVencidos(proyectoId),
       statsQueries.contarIndicadoresProyecto(proyectoId),
       statsQueries.contarRiesgosActivos(proyectoId),
       statsQueries.contarEvidenciasProyecto(proyectoId),
@@ -561,11 +559,14 @@ async function portadaResumen(req, res, next) {
 
     res.json({
       datos: {
-        avance_pct: parseFloat(proyecto.porcentaje_calculado) || 0,
+        avance_pct: Math.round(parseFloat(proyecto.porcentaje_calculado) || 0),
         etapas_total: etapasTotal,
         acciones_total: accionesPorEstado.total,
-        acciones_vencidas: accionesVencidas,
-        acciones_por_vencer: accionesPorVencer,
+        // Cuentan etapas + acciones + tareas vencidas/por vencer — el
+        // mismo criterio que pinta de rojo/ámbar el árbol de
+        // Seguimiento (calcularSemaforo), no solo filas de `acciones`.
+        nodos_vencidos: nodosVencidos.vencidos,
+        nodos_por_vencer: nodosVencidos.por_vencer,
         indicadores_total: indicadoresTotal,
         riesgos_abiertos: riesgos.total,
         riesgos_criticos: riesgos.criticos,

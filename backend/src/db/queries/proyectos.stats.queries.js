@@ -397,33 +397,50 @@ async function contarEtapasProyecto(proyectoId) {
  * obtenerAtrasadas(), pero sin el LIMIT 10 (ahí es para listar, aquí es
  * para un contador exacto en la Portada).
  */
-async function contarAtrasadas(proyectoId) {
-  const resultado = await pool.query(`
-    SELECT COUNT(*)::int AS total
-    FROM acciones a
-    WHERE a.id_proyecto = $1
-      AND a.fecha_fin < NOW()
-      AND a.estado NOT IN ('Completada', 'Cancelada')
-  `, [proyectoId]);
-  return resultado.rows[0]?.total || 0;
-}
-
 /**
- * Cuenta acciones/subacciones por vencer en los próximos 30 días — mismo
- * criterio que obtenerProximasAVencer() pero sin LIMIT y con ventana de
- * 30 días (la de obtenerProximasAVencer es de 14, para otra pantalla;
- * la Portada pide explícitamente "próximas a vencer en 30 días").
+ * Cuenta nodos vencidos y próximos a vencer EN TODO EL ÁRBOL (etapas +
+ * acciones/subacciones + tareas), con el mismo criterio de "vencido" que
+ * ya usa calcularSemaforo() (utils/avance-semaforo.js) para pintar el
+ * punto rojo en el árbol de Seguimiento: fecha efectiva
+ * (fecha_limite, con fecha_fin como respaldo) ya pasada y estado
+ * distinto de Completada/Cancelada. Si el nodo tiene semaforo_override,
+ * se respeta el color que la persona fijó a mano en vez de recalcular.
+ *
+ * Antes esta cuenta solo miraba la tabla `acciones` (ignorando etapas y
+ * tareas) — una etapa podía mostrarse vencida (roja) en el árbol, y en
+ * la Portada seguir leyéndose "0 vencidas", porque ninguna fila de
+ * `acciones` por sí sola estaba atrasada. El contador ahora cuenta
+ * exactamente lo mismo que el usuario ve en rojo en el árbol.
  */
-async function contarPorVencer(proyectoId) {
+async function contarNodosVencidos(proyectoId) {
   const resultado = await pool.query(`
-    SELECT COUNT(*)::int AS total
-    FROM acciones a
-    WHERE a.id_proyecto = $1
-      AND a.fecha_fin >= NOW()
-      AND a.fecha_fin <= NOW() + INTERVAL '30 days'
-      AND a.estado NOT IN ('Completada', 'Cancelada')
+    WITH nodos AS (
+      SELECT estado, fecha_limite, fecha_fin, semaforo, semaforo_override
+      FROM etapas WHERE id_proyecto = $1
+      UNION ALL
+      SELECT estado, fecha_limite, fecha_fin, semaforo, semaforo_override
+      FROM acciones WHERE id_proyecto = $1
+      UNION ALL
+      SELECT t.estado, t.fecha_limite, NULL::date AS fecha_fin, t.semaforo, t.semaforo_override
+      FROM tareas t JOIN acciones a ON t.id_accion = a.id
+      WHERE a.id_proyecto = $1
+    )
+    SELECT
+      COUNT(*) FILTER (WHERE
+        CASE WHEN semaforo_override THEN semaforo = 'rojo'
+        ELSE estado NOT IN ('Completada', 'Cancelada')
+          AND COALESCE(fecha_limite, fecha_fin) < NOW()
+        END
+      )::int AS vencidos,
+      COUNT(*) FILTER (WHERE
+        NOT semaforo_override
+        AND estado NOT IN ('Completada', 'Cancelada')
+        AND COALESCE(fecha_limite, fecha_fin) >= NOW()
+        AND COALESCE(fecha_limite, fecha_fin) <= NOW() + INTERVAL '30 days'
+      )::int AS por_vencer
+    FROM nodos
   `, [proyectoId]);
-  return resultado.rows[0]?.total || 0;
+  return resultado.rows[0] || { vencidos: 0, por_vencer: 0 };
 }
 
 /**
@@ -479,8 +496,7 @@ module.exports = {
   obtenerRiesgosDetalle,
   obtenerIndicadoresConProgreso,
   contarEtapasProyecto,
-  contarAtrasadas,
-  contarPorVencer,
+  contarNodosVencidos,
   contarIndicadoresProyecto,
   contarParticipantesProyecto,
 };

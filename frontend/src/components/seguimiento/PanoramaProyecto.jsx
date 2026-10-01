@@ -8,10 +8,9 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Target, MapPin, AlertTriangle, Clock, Activity,
-  TrendingUp, Calendar, Shield, ChevronRight, MessageSquare,
+  TrendingUp, Shield, ChevronRight, MessageSquare,
 } from 'lucide-react';
 import { obtenerPanorama } from '../../api/miembros';
-import { calcularColorSemaforo } from '../../utils/semaforoColor';
 import TarjetaIndicador from '../indicadores/TarjetaIndicador';
 import GraficaIndicador from '../indicadores/GraficaIndicador';
 import ListaEstatusCualitativo from '../indicadores/ListaEstatusCualitativo';
@@ -75,48 +74,9 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
   if (!datos) return <p className="text-center text-gray-500 py-10">Error al cargar panorama</p>;
 
   const { indicadores, cobertura, vencidos, por_vencer, riesgos, actividad, estatus_cualitativo = [] } = datos;
-  const pct = parseFloat(proyecto?.porcentaje_calculado) || 0;
-  const sem = calcularColorSemaforo(pct, proyecto?.fecha_inicio, proyecto?.fecha_limite);
 
   return (
     <div className="space-y-5">
-      {/* ═══ ENCABEZADO ═══ */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-        <div className="flex items-start gap-4">
-          {/* Anillo de avance */}
-          <div className="relative flex-shrink-0 w-16 h-16">
-            <svg width={64} height={64} className="-rotate-90">
-              <circle cx={32} cy={32} r={26} fill="none" stroke="#f3f4f6" strokeWidth={6} />
-              <circle cx={32} cy={32} r={26} fill="none" stroke={sem.color} strokeWidth={6}
-                strokeDasharray={`${(pct / 100) * 163.36} 163.36`} strokeLinecap="round" />
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-sm font-bold" style={{ color: sem.color }}>{pct.toFixed(0)}%</span>
-            </div>
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-lg font-bold text-gray-900 truncate">{proyecto.nombre}</h2>
-              <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${
-                proyecto.estado === 'En_proceso' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                proyecto.estado === 'Concluido' ? 'bg-green-50 text-green-700 border-green-200' :
-                proyecto.estado === 'Pausado' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-                'bg-gray-50 text-gray-600 border-gray-200'
-              }`}>{proyecto.estado?.replace('_', ' ')}</span>
-            </div>
-            <div className="flex items-center gap-4 mt-1 text-xs text-gray-500 flex-wrap">
-              <span className="flex items-center gap-1"><Calendar size={12} /> {fmt(proyecto.fecha_inicio)} — {fmt(proyecto.fecha_limite)}</span>
-              {proyecto.dg_lider_siglas && <span className="font-medium text-gray-700">{proyecto.dg_lider_siglas}</span>}
-              {proyecto.direccion_area_siglas && <span>{proyecto.direccion_area_siglas}</span>}
-            </div>
-            {proyecto.descripcion && (
-              <p className="text-xs text-gray-600 mt-2 line-clamp-2">{proyecto.descripcion}</p>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* ═══ INDICADORES ═══ */}
       {indicadores.length > 0 && (
         <SeccionCard titulo="Indicadores" icono={Target}>
