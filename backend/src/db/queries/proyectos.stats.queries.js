@@ -380,6 +380,94 @@ async function obtenerRiesgosDetalle(proyectoId) {
   return resultado.rows;
 }
 
+/**
+ * Cuenta las etapas del proyecto — liviano (sin el árbol completo que
+ * trae etapasQueries.obtenerEtapasPorProyecto), para la Portada.
+ */
+async function contarEtapasProyecto(proyectoId) {
+  const resultado = await pool.query(
+    'SELECT COUNT(*)::int AS total FROM etapas WHERE id_proyecto = $1',
+    [proyectoId]
+  );
+  return resultado.rows[0]?.total || 0;
+}
+
+/**
+ * Cuenta acciones/subacciones vencidas — mismo criterio que
+ * obtenerAtrasadas(), pero sin el LIMIT 10 (ahí es para listar, aquí es
+ * para un contador exacto en la Portada).
+ */
+async function contarAtrasadas(proyectoId) {
+  const resultado = await pool.query(`
+    SELECT COUNT(*)::int AS total
+    FROM acciones a
+    WHERE a.id_proyecto = $1
+      AND a.fecha_fin < NOW()
+      AND a.estado NOT IN ('Completada', 'Cancelada')
+  `, [proyectoId]);
+  return resultado.rows[0]?.total || 0;
+}
+
+/**
+ * Cuenta acciones/subacciones por vencer en los próximos 30 días — mismo
+ * criterio que obtenerProximasAVencer() pero sin LIMIT y con ventana de
+ * 30 días (la de obtenerProximasAVencer es de 14, para otra pantalla;
+ * la Portada pide explícitamente "próximas a vencer en 30 días").
+ */
+async function contarPorVencer(proyectoId) {
+  const resultado = await pool.query(`
+    SELECT COUNT(*)::int AS total
+    FROM acciones a
+    WHERE a.id_proyecto = $1
+      AND a.fecha_fin >= NOW()
+      AND a.fecha_fin <= NOW() + INTERVAL '30 days'
+      AND a.estado NOT IN ('Completada', 'Cancelada')
+  `, [proyectoId]);
+  return resultado.rows[0]?.total || 0;
+}
+
+/**
+ * Cuenta indicadores activos del proyecto.
+ */
+async function contarIndicadoresProyecto(proyectoId) {
+  const resultado = await pool.query(
+    'SELECT COUNT(*)::int AS total FROM indicadores WHERE id_proyecto = $1 AND activo = true',
+    [proyectoId]
+  );
+  return resultado.rows[0]?.total || 0;
+}
+
+/**
+ * Cuenta personas únicas participando en el proyecto (miembros del
+ * proyecto + miembros de cualquier nodo) — mismo universo que
+ * panorama.controller.js::obtenerTodosParticipantes, solo que aquí se
+ * envuelve en COUNT DISTINCT en vez de traer el detalle de cada quién,
+ * porque la Portada solo necesita el número.
+ */
+async function contarParticipantesProyecto(proyectoId) {
+  const resultado = await pool.query(`
+    WITH fuentes AS (
+      SELECT pu.id_usuario FROM proyecto_usuarios pu
+      WHERE pu.id_proyecto = $1 AND pu.estado <> 'rechazada'
+      UNION ALL
+      SELECT nm.id_usuario FROM nodo_miembros nm
+      JOIN etapas e ON nm.tipo_nodo = 'etapa' AND nm.id_nodo = e.id
+      WHERE e.id_proyecto = $1 AND nm.estado <> 'rechazada'
+      UNION ALL
+      SELECT nm.id_usuario FROM nodo_miembros nm
+      JOIN acciones a ON nm.tipo_nodo = 'accion' AND nm.id_nodo = a.id
+      WHERE a.id_proyecto = $1 AND nm.estado <> 'rechazada'
+      UNION ALL
+      SELECT nm.id_usuario FROM nodo_miembros nm
+      JOIN tareas t ON nm.tipo_nodo = 'tarea' AND nm.id_nodo = t.id
+      JOIN acciones a2 ON t.id_accion = a2.id
+      WHERE a2.id_proyecto = $1 AND nm.estado <> 'rechazada'
+    )
+    SELECT COUNT(DISTINCT id_usuario)::int AS total FROM fuentes
+  `, [proyectoId]);
+  return resultado.rows[0]?.total || 0;
+}
+
 module.exports = {
   contarAccionesPorEstado,
   contarEvidenciasProyecto,
@@ -390,4 +478,9 @@ module.exports = {
   obtenerProximasAVencer,
   obtenerRiesgosDetalle,
   obtenerIndicadoresConProgreso,
+  contarEtapasProyecto,
+  contarAtrasadas,
+  contarPorVencer,
+  contarIndicadoresProyecto,
+  contarParticipantesProyecto,
 };
