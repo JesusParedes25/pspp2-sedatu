@@ -25,22 +25,20 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate, useLocation, useSearchParams, Outlet } from 'react-router-dom';
-import { ArrowLeft, Star, Pencil, Trash2, Copy, ChevronUp, ChevronDown, Settings, LayoutDashboard, FileText, BookText, LayoutGrid } from 'lucide-react';
+import { ArrowLeft, Star, Pencil, Trash2, ChevronUp, ChevronDown, Settings, LayoutDashboard, FileText, BookText, LayoutGrid, SlidersHorizontal } from 'lucide-react';
 import { prefersReducedMotion } from '../../utils/motion';
 import { useProyecto } from '../../hooks/useProyectos';
 import { useEtapas } from '../../hooks/useEtapas';
 import { useAuth } from '../../context/AuthContext';
 import { useUI } from '../../context/UIContext';
-import { usePermisosProyecto, usePermisosGlobales } from '../../hooks/usePermisos';
+import { usePermisosProyecto } from '../../hooks/usePermisos';
 import ChipFuncion from '../../components/proyectos/ChipFuncion';
 import SelectorEstado from '../../components/common/SelectorEstado';
 import SelectorDG from '../../components/proyectos/SelectorDG';
 import EmptyState from '../../components/common/EmptyState';
 import ModalEditarProyecto from '../../components/proyectos/ModalEditarProyecto';
 import ModalEliminarProyecto from '../../components/proyectos/ModalEliminarProyecto';
-import ModalDuplicarProyecto from '../../components/proyectos/ModalDuplicarProyecto';
 import Breadcrumb from '../../components/common/Breadcrumb';
-import { urlSeguimientoProyecto } from '../../utils/navegacionProyecto';
 import * as proyectosApi from '../../api/proyectos';
 
 // Secciones del proyecto — "Portada" siempre primero, luego las 4 de
@@ -52,6 +50,7 @@ const SECCIONES = [
   { to: 'resumen', etiqueta: 'Resumen', icono: LayoutDashboard },
   { to: 'documentos', etiqueta: 'Documentos', icono: FileText },
   { to: 'bitacora', etiqueta: 'Bitácora', icono: BookText },
+  { to: 'configuracion', etiqueta: 'Configuración', icono: SlidersHorizontal },
 ];
 
 function DescripcionColapsable({ texto, lineasColapsado = 2 }) {
@@ -92,7 +91,6 @@ export default function DetalleProyectoLayout() {
   const { mostrarToast, sidebarAbierto } = useUI();
   const { proyecto, cargando, error, recargar: recargarProyecto, recargarSilencioso: recargarProyectoSilencioso } = useProyecto(id);
   const permisos = usePermisosProyecto(proyecto);
-  const { puedeCrearProyecto } = usePermisosGlobales();
   const [dgSeleccionada, setDgSeleccionada] = useState(null);
   const { etapas, cargando: cargandoEtapas, recargar: recargarEtapas, recargarSilencioso: recargarEtapasSilencioso } = useEtapas(id, dgSeleccionada);
   const navigate = useNavigate();
@@ -169,7 +167,6 @@ export default function DetalleProyectoLayout() {
   // Modales
   const [modalEditar, setModalEditar] = useState(false);
   const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
-  const [mostrarDuplicar, setMostrarDuplicar] = useState(false);
   const [eliminando, setEliminando] = useState(false);
 
   async function eliminarProyecto() {
@@ -293,13 +290,6 @@ export default function DetalleProyectoLayout() {
                   <Pencil size={14} /> Editar
                 </button>
               )}
-              {puedeCrearProyecto && (
-                <button onClick={() => setMostrarDuplicar(true)}
-                  title="Crear un proyecto nuevo con esta misma estructura"
-                  className="btn-secondary text-sm flex items-center gap-1.5">
-                  <Copy size={14} /> Duplicar
-                </button>
-              )}
               {permisos.puedeEliminar && (
                 <button onClick={() => setConfirmandoEliminar(true)}
                   className="text-sm flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-red-500 border border-red-200 hover:bg-red-50 transition-colors">
@@ -318,18 +308,6 @@ export default function DetalleProyectoLayout() {
               </button>
             </div>
           </div>
-
-          {mostrarDuplicar && (
-            <ModalDuplicarProyecto
-              proyectoOrigen={proyecto}
-              onCerrar={() => setMostrarDuplicar(false)}
-              mostrarToast={mostrarToast}
-              onDuplicado={(nuevo) => {
-                setMostrarDuplicar(false);
-                navigate(urlSeguimientoProyecto(nuevo.id));
-              }}
-            />
-          )}
 
           {confirmandoEliminar && (
             <ModalEliminarProyecto
