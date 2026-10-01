@@ -36,10 +36,17 @@ export default function Header({ pendientes = 0 }) {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Generar breadcrumb desde la URL actual
+  // Generar breadcrumb desde la URL actual. Dentro del detalle de un
+  // proyecto (/proyectos/:id y sus secciones) se corta en "Proyectos" —
+  // esa área ya tiene su propio breadcrumb completo (con el nombre real
+  // del proyecto y la sección), mostrar también este genérico ahí
+  // duplicaba la migaja y, con rutas anidadas, el id/la sección caían en
+  // el fallback "Detalle" dos veces seguidas ("Detalle / Detalle").
   const segmentos = location.pathname.split('/').filter(Boolean);
-  const breadcrumbs = segmentos.map((segmento, indice) => {
-    const ruta = '/' + segmentos.slice(0, indice + 1).join('/');
+  const enDetalleProyecto = segmentos[0] === 'proyectos' && segmentos[1] && segmentos[1] !== 'nuevo';
+  const segmentosBreadcrumb = enDetalleProyecto ? segmentos.slice(0, 1) : segmentos;
+  const breadcrumbs = segmentosBreadcrumb.map((segmento, indice) => {
+    const ruta = '/' + segmentosBreadcrumb.slice(0, indice + 1).join('/');
     const nombre = nombresRutas[segmento] || 'Detalle';
     return { nombre, ruta };
   });
