@@ -113,9 +113,9 @@ test.describe('Configuración — un solo clic cambia de apartado', () => {
     await expect(page.getByRole('heading', { name: 'Datos generales' })).toBeVisible({ timeout: 5000 });
   });
 
-  test('cambiar a "Zona de riesgo" con un solo clic muestra su contenido', async ({ page }) => {
+  test('cambiar a "Plantilla y estructura" con un solo clic muestra su contenido', async ({ page }) => {
     const nav = page.locator('nav[aria-label="Apartados de configuración"]');
-    await nav.getByRole('button', { name: 'Zona de riesgo' }).click();
-    await expect(page.getByRole('heading', { name: 'Zona de riesgo' })).toBeVisible({ timeout: 5000 });
+    await nav.getByRole('button', { name: 'Plantilla y estructura' }).click();
+    await expect(page.getByRole('heading', { name: 'Plantilla y estructura' })).toBeVisible({ timeout: 5000 });
   });
 });

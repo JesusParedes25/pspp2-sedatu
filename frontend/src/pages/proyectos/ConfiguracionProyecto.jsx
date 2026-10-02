@@ -2,9 +2,9 @@
  * ARCHIVO: ConfiguracionProyecto.jsx
  * PROPÓSITO: Ruta /proyectos/:id/configuracion — sección nueva de la
  *            Fase 2 del rediseño de navegación. Sub-navegación vertical
- *            con 6 apartados: Equipo y permisos, Datos generales,
+ *            con 5 apartados: Equipo y permisos, Datos generales,
  *            Indicadores vinculados, Visibilidad y acceso, Plantilla y
- *            estructura, Zona de riesgo.
+ *            estructura.
  *
  * Reusa deliberadamente lo que ya existe en vez de duplicar lógica:
  * - Equipo y permisos: GestorUsuariosProyecto (extraído de Panorama).
@@ -14,17 +14,18 @@
  * - Plantilla y estructura: el mismo ModalDuplicarProyecto que antes
  *   vivía suelto en el encabezado.
  *
- * Zona de riesgo (Archivar / Transferir responsable) queda como
- * apartado visible pero sin acción funcional todavía: ninguna de las
- * dos operaciones existe hoy en el modelo de datos (no hay estado
- * "Archivado" ni mecanismo de "transferir responsable" en el backend),
- * y agregarlas es justo el tipo de cambio de modelo de datos que no se
- * hace sin confirmar antes con el responsable del producto.
+ * "Zona de riesgo" (Archivar / Transferir responsable) existió aquí como
+ * apartado sin acción funcional (ninguna de las dos operaciones existe
+ * en el modelo de datos) — se quitó por pedido explícito del usuario, no
+ * por confundirse con la sección nueva de Riesgos del proyecto
+ * (/proyectos/:id/riesgos, RiesgosProyecto.jsx), que es un concepto
+ * completamente distinto (riesgos/problemas del trabajo, no "operaciones
+ * delicadas sobre el proyecto").
  */
 import { useState, useEffect } from 'react';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import {
-  Users, FileText, Target, Eye, Copy, ShieldAlert, Pencil, Loader2,
+  Users, FileText, Target, Eye, Copy, Pencil, Loader2,
 } from 'lucide-react';
 import GestorUsuariosProyecto from '../../components/proyectos/GestorUsuariosProyecto';
 import ModalEditarProyecto from '../../components/proyectos/ModalEditarProyecto';
@@ -39,7 +40,6 @@ const APARTADOS = [
   { id: 'indicadores', etiqueta: 'Indicadores vinculados', icono: Target },
   { id: 'visibilidad', etiqueta: 'Visibilidad y acceso', icono: Eye },
   { id: 'plantilla', etiqueta: 'Plantilla y estructura', icono: Copy },
-  { id: 'riesgo', etiqueta: 'Zona de riesgo', icono: ShieldAlert },
 ];
 
 function Tarjeta({ titulo, descripcion, accion, children }) {
@@ -211,35 +211,6 @@ export default function ConfiguracionProyecto() {
           </Tarjeta>
         )}
 
-        {apartado === 'riesgo' && (
-          <Tarjeta titulo="Zona de riesgo" descripcion="Acciones delicadas sobre este proyecto.">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-gray-200">
-                <div>
-                  <p className="text-sm font-medium text-gray-800">Transferir responsable</p>
-                  <p className="text-xs text-gray-400">Pasa la responsabilidad del proyecto a otra persona.</p>
-                </div>
-                <button disabled className="btn-secondary text-sm opacity-50 cursor-not-allowed" title="Pendiente de diseño">
-                  Próximamente
-                </button>
-              </div>
-              <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-gray-200">
-                <div>
-                  <p className="text-sm font-medium text-gray-800">Archivar proyecto</p>
-                  <p className="text-xs text-gray-400">Lo saca de las vistas activas sin borrar su información.</p>
-                </div>
-                <button disabled className="btn-secondary text-sm opacity-50 cursor-not-allowed" title="Pendiente de diseño">
-                  Próximamente
-                </button>
-              </div>
-              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                Estas dos acciones no existen todavía en el sistema: "Archivado" no es un estado que la base de datos
-                reconozca hoy, y no hay un mecanismo para transferir quién es responsable de un proyecto. Son cambios al
-                modelo de datos, así que quedan a la espera de que se confirme cómo deben comportarse antes de construirlos.
-              </p>
-            </div>
-          </Tarjeta>
-        )}
       </div>
 
       {modalEditar && (

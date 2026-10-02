@@ -60,8 +60,18 @@ async function obtenerSubarbolEtapa(etapaId) {
   return { accionIds, tareaIds };
 }
 
+// Tareas directas de UNA acción/subacción — usado por el filtro "Acción"
+// (en cascada bajo "Etapa"): a diferencia del subárbol de una etapa, aquí
+// no hace falta bajar a subacciones (la acción elegida YA es la hoja de
+// ese nivel; si fuera una subacción, sus tareas son las suyas propias,
+// igual de directas).
+async function obtenerTareasDeAccion(accionId) {
+  const { rows } = await pool.query('SELECT id FROM tareas WHERE id_accion = $1', [accionId]);
+  return rows.map(r => r.id);
+}
+
 async function obtenerBitacoraProyecto(proyectoId, opciones = {}) {
-  const { categoria, usuarioId, desde, hasta, busqueda, etapaId, pagina = 1, limite = 30 } = opciones;
+  const { categoria, usuarioId, desde, hasta, busqueda, etapaId, accionId, tareaId, pagina = 1, limite = 30 } = opciones;
   const { etapaIds, accionIds } = await obtenerEtapaAccionIds(proyectoId);
 
   const union = `
@@ -201,7 +211,24 @@ async function obtenerBitacoraProyecto(proyectoId, opciones = {}) {
     condiciones.push(`(titulo ILIKE $${idx} OR contenido ILIKE $${idx} OR nodo_nombre ILIKE $${idx} OR autor_nombre ILIKE $${idx})`);
     valores.push(`%${busqueda}%`);
   }
-  if (etapaId) {
+  // Los tres filtros de nodo (Etapa/Acción/Tarea) son excluyentes entre
+  // sí en la UI (Acción solo se puede elegir con una Etapa ya elegida,
+  // Tarea solo con una Acción ya elegida — ver BitacoraProyecto.jsx) —
+  // el más específico que venga manda, sin necesidad de combinarlos.
+  if (tareaId) {
+    idx++;
+    condiciones.push(`(nodo_tipo = 'tarea' AND nodo_id = $${idx})`);
+    valores.push(tareaId);
+  } else if (accionId) {
+    const tareaIdsAccion = await obtenerTareasDeAccion(accionId);
+    const idxAccion = ++idx;
+    const idxTareas = ++idx;
+    condiciones.push(`(
+      (nodo_tipo = 'accion' AND nodo_id = $${idxAccion})
+      OR (nodo_tipo = 'tarea' AND nodo_id = ANY($${idxTareas}))
+    )`);
+    valores.push(accionId, tareaIdsAccion);
+  } else if (etapaId) {
     const { accionIds: accionIdsEtapa, tareaIds: tareaIdsEtapa } = await obtenerSubarbolEtapa(etapaId);
     const idxEtapa = ++idx;
     const idxAcciones = ++idx;

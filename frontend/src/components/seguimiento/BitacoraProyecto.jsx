@@ -53,27 +53,62 @@ export default function BitacoraProyecto({ proyectoId }) {
   const [cargando, setCargando] = useState(true);
   const [pagina, setPagina] = useState(1);
   const [miembros, setMiembros] = useState([]);
-  const [etapas, setEtapas] = useState([]);
+  // Árbol completo (etapas → acciones → subacciones/tareas) — no el
+  // listado plano de etapas que se usaba antes: el filtro de Acción/Tarea
+  // en cascada necesita los hijos de la etapa elegida, no solo sus
+  // nombres.
+  const [arbol, setArbol] = useState([]);
 
   const [categoria, setCategoria] = useState('');
   const [usuarioId, setUsuarioId] = useState('');
   const [etapaId, setEtapaId] = useState('');
+  const [accionId, setAccionId] = useState('');
+  const [tareaId, setTareaId] = useState('');
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
   const [busquedaInput, setBusquedaInput] = useState('');
   const [busqueda, setBusqueda] = useState('');
   const debounceRef = useRef(null);
 
-  const filtrosActivos = [categoria, usuarioId, etapaId, desde, hasta, busqueda].filter(Boolean).length;
+  const filtrosActivos = [categoria, usuarioId, etapaId, accionId, tareaId, desde, hasta, busqueda].filter(Boolean).length;
+
+  // Acción depende de la Etapa elegida (sus acciones de primer nivel +
+  // las subacciones de cada una, aplanadas — la bitácora ya las trata
+  // igual, ambas llegan como nodo_tipo='accion'); Tarea depende de la
+  // Acción elegida. Elegir una etapa/acción nueva limpia lo que colgaba
+  // de la anterior, para no dejar un filtro de tarea apuntando a un nodo
+  // que ya no es hijo de la acción recién elegida.
+  const etapaSeleccionada = arbol.find(e => e.id === etapaId);
+  const accionesDisponibles = etapaSeleccionada
+    ? (etapaSeleccionada.acciones || []).flatMap(a => [
+        { ...a, etiqueta: a.nombre },
+        ...(a.subacciones || []).map(sub => ({ ...sub, etiqueta: `${a.nombre} › ${sub.nombre}` })),
+      ])
+    : [];
+  const accionSeleccionada = accionesDisponibles.find(a => a.id === accionId);
+  const tareasDisponibles = accionSeleccionada?.tareas || [];
+
+  function cambiarEtapa(valor) {
+    setEtapaId(valor);
+    setAccionId('');
+    setTareaId('');
+    setPagina(1);
+  }
+
+  function cambiarAccion(valor) {
+    setAccionId(valor);
+    setTareaId('');
+    setPagina(1);
+  }
 
   useEffect(() => {
     if (!proyectoId) return;
     miembrosApi.listarMiembros(proyectoId)
       .then(res => setMiembros((res.datos || []).filter(m => m.estado === 'aceptada')))
       .catch(() => setMiembros([]));
-    etapasApi.obtenerEtapasProyecto(proyectoId)
-      .then(res => setEtapas(res.datos || res || []))
-      .catch(() => setEtapas([]));
+    etapasApi.obtenerArbol(proyectoId)
+      .then(res => setArbol(res.datos || res || []))
+      .catch(() => setArbol([]));
   }, [proyectoId]);
 
   const cargar = useCallback(async () => {
@@ -84,6 +119,8 @@ export default function BitacoraProyecto({ proyectoId }) {
         categoria: categoria || undefined,
         usuarioId: usuarioId || undefined,
         etapaId: etapaId || undefined,
+        accionId: accionId || undefined,
+        tareaId: tareaId || undefined,
         desde: desde || undefined,
         hasta: hasta || undefined,
         busqueda: busqueda || undefined,
@@ -98,7 +135,7 @@ export default function BitacoraProyecto({ proyectoId }) {
     } finally {
       setCargando(false);
     }
-  }, [proyectoId, categoria, usuarioId, etapaId, desde, hasta, busqueda, pagina]);
+  }, [proyectoId, categoria, usuarioId, etapaId, accionId, tareaId, desde, hasta, busqueda, pagina]);
 
   useEffect(() => { cargar(); }, [cargar]);
 
@@ -119,6 +156,8 @@ export default function BitacoraProyecto({ proyectoId }) {
     setCategoria('');
     setUsuarioId('');
     setEtapaId('');
+    setAccionId('');
+    setTareaId('');
     setDesde('');
     setHasta('');
     setBusquedaInput('');
@@ -166,17 +205,52 @@ export default function BitacoraProyecto({ proyectoId }) {
             </div>
           )}
 
-          {etapas.length > 0 && (
+          {arbol.length > 0 && (
             <div className="min-w-[180px]">
               <label className="text-[10px] text-gray-400 font-medium uppercase tracking-wide block mb-0.5">Etapa</label>
               <select
                 value={etapaId}
-                onChange={e => { setEtapaId(e.target.value); setPagina(1); }}
+                onChange={e => cambiarEtapa(e.target.value)}
                 className="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:border-guinda-300"
               >
                 <option value="">Todas las etapas</option>
-                {etapas.map(e => (
+                {arbol.map(e => (
                   <option key={e.id} value={e.id}>{e.nombre}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Acción: solo tiene sentido con una Etapa ya elegida (sus
+              opciones salen de ahí) — por eso no se muestra suelto. */}
+          {etapaId && accionesDisponibles.length > 0 && (
+            <div className="min-w-[180px]">
+              <label className="text-[10px] text-gray-400 font-medium uppercase tracking-wide block mb-0.5">Acción</label>
+              <select
+                value={accionId}
+                onChange={e => cambiarAccion(e.target.value)}
+                className="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:border-guinda-300"
+              >
+                <option value="">Todas las acciones</option>
+                {accionesDisponibles.map(a => (
+                  <option key={a.id} value={a.id}>{a.etiqueta}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Tarea: solo con una Acción ya elegida, mismo criterio. */}
+          {accionId && tareasDisponibles.length > 0 && (
+            <div className="min-w-[180px]">
+              <label className="text-[10px] text-gray-400 font-medium uppercase tracking-wide block mb-0.5">Tarea</label>
+              <select
+                value={tareaId}
+                onChange={e => { setTareaId(e.target.value); setPagina(1); }}
+                className="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:border-guinda-300"
+              >
+                <option value="">Todas las tareas</option>
+                {tareasDisponibles.map(t => (
+                  <option key={t.id} value={t.id}>{t.nombre}</option>
                 ))}
               </select>
             </div>
