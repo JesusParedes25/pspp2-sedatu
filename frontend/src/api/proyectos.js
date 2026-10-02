@@ -116,9 +116,9 @@ export async function obtenerActividadRecienteProyecto(id) {
 // filtrable. A diferencia de obtenerActividadRecienteProyecto (widget
 // chico, 50 filas fijas, solo actividad_log), esta combina las fuentes
 // reales sin duplicar — ver bitacora.queries.js en el backend.
-export async function obtenerBitacoraProyecto(id, { categoria, usuarioId, desde, hasta, busqueda, etapaId, pagina, limite } = {}) {
+export async function obtenerBitacoraProyecto(id, { categoria, usuarioId, desde, hasta, busqueda, etapaId, accionId, tareaId, pagina, limite } = {}) {
   const { data } = await client.get(`/proyectos/${id}/bitacora`, {
-    params: { categoria, usuarioId, desde, hasta, busqueda, etapaId, pagina, limite },
+    params: { categoria, usuarioId, desde, hasta, busqueda, etapaId, accionId, tareaId, pagina, limite },
   });
   return data;
 }
