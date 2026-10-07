@@ -2,9 +2,9 @@
  * ARCHIVO: useJerarquiaProyecto.js
  * PROPÓSITO: Consolida el despacho "según tipo de nodo (etapa/acción/tarea)
  *            → qué función de la API llamar" que antes estaba repetido de
- *            forma casi idéntica en CrearInline, AvanceInlineArbol y
- *            guardarCampo de PanelDetalle. Lo consume tanto "Detalle" como
- *            la futura vista "Diagrama".
+ *            forma casi idéntica en CrearInline y guardarCampo de
+ *            PanelDetalle. Lo consume tanto "Detalle" como la futura
+ *            vista "Diagrama".
  *
  * MINI-CLASE: envoltorio delgado, no lógica nueva
  * ─────────────────────────────────────────────────────────────────
@@ -42,13 +42,6 @@ export function useJerarquiaProyecto(proyectoId) {
     return accionesApi.patchAccion(id, datos);
   }
 
-  // Registrar avance — mismo despacho que ya hacía AvanceInlineArbol
-  // (solo aplica a acción/tarea; una etapa nunca tiene avance propio).
-  async function registrarAvance(tipo, id, valor) {
-    if (tipo === 'accion') return accionesApi.patchAccion(id, { avance_actual: valor });
-    return tareasApi.patchTarea(id, { avance_actual: valor });
-  }
-
   // Eliminar — no se usa todavía dentro de "Detalle" (hoy ese flujo vive
   // aparte, en ModalEditarProyecto), se expone para que "Diagrama" lo use.
   async function eliminar(tipo, id) {
@@ -57,5 +50,5 @@ export function useJerarquiaProyecto(proyectoId) {
     return accionesApi.eliminarAccion(id);
   }
 
-  return { crear, actualizar, registrarAvance, eliminar };
+  return { crear, actualizar, eliminar };
 }

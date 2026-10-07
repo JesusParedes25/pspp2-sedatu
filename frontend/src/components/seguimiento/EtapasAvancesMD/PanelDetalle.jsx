@@ -1,250 +1,77 @@
 /**
  * ARCHIVO: PanelDetalle.jsx
- * PROPÓSITO: Columna central (identidad de nivel de la rama ENFOCADA,
- *            lista de hijos navegable/expandible, Actividad al fondo
- *            atada a la SELECCIÓN) + rail derecho (ficha de la selección).
- *            "Foco" es la rama que muestra el centro (cambia solo desde el
- *            árbol izquierdo o el lineage); "selección" es el elemento
- *            cuya ficha muestra la derecha y cuya actividad muestra el
- *            feed (cambia también al hacer clic en un hijo del centro, sin
- *            mover el foco). Ver EtapasAvancesMD/index.jsx para el estado.
+ * PROPÓSITO: Panel derecho de Detalle — ficha completa del nodo
+ *            seleccionado (FichaNodo, el mismo componente compartido con
+ *            el drawer de Diagrama — no se toca en este rediseño, ver
+ *            nota de la Fase 1 abajo) + Actividad al fondo.
+ *
+ * Fase 1 del rediseño: antes este archivo componía una columna central
+ * (encabezado de la rama enfocada + lista de hijos navegable) y un rail
+ * aparte con la ficha de la selección, que podía ser un nodo distinto al
+ * de la columna central. Con "foco" y "selección" fusionados en un único
+ * concepto (ver EtapasAvancesMD/index.jsx) y la lista de hijos retirada
+ * (no ofrecía ninguna acción que el árbol no tuviera ya), este panel se
+ * reduce a lo que de verdad es nuevo aquí: mostrar completa la ficha de
+ * UN nodo. Las fases siguientes de este rediseño reemplazan el contenido
+ * (encabezado propio, fila de acciones, subpestañas) por componentes
+ * nuevos construidos para Detalle — pero deliberadamente NO se toca
+ * FichaNodo/NodoCard en esta fase: son compartidos con el drawer de
+ * Diagrama, Agenda y Mis actividades, y una regresión ahí no estaba
+ * pedida. Mientras tanto, se sigue usando tal cual.
  */
-import { useState, useEffect } from 'react';
-import { ChevronRight, Layers, X } from 'lucide-react';
-import { useJerarquiaProyecto } from '../../../hooks/useJerarquiaProyecto';
-import { useAuth } from '../../../context/AuthContext';
-import { usePanelWidth, keyAnchoPanelPropiedades } from '../../../hooks/usePanelWidth';
 import ActividadStream from '../../nodos/ActividadStream';
-import ResizeHandle from '../../common/ResizeHandle';
-import { COLORES_SEMAFORO } from '../../common/SemaforoDot';
-import { NIVELES } from '../../../config/niveles';
-import EmblemaNivel from '../EmblemaNivel';
-import StepperNivel from '../StepperNivel';
-import LineageClicable from '../LineageClicable';
 import FichaNodo from '../FichaNodo';
-import ListaHijos from '../ListaHijos';
-import { CampoTextoInline } from './Campos';
-import { resolverRutaConIds, hijosDe } from './utils';
+import { resolverRutaConIds } from './utils';
 import { permisosDeNodo } from '../../../hooks/usePermisos';
 
 export default function PanelDetalle({
-  foco, seleccion, proyectoId, permisos: permisosProyecto, onActualizado, mostrarToast, arbol,
-  expandidosCentro, onToggleCentro, onSeleccionarEnCentro, onNavegarFoco, onAbrirArbol,
+  seleccion, proyectoId, permisos: permisosProyecto, onActualizado, mostrarToast, arbol,
+  onNavegarNodo, onAbrirArbol,
   riesgoAAbrir, onRiesgoConsumido, avanceAAbrir,
 }) {
-  const { tipo, id, data } = foco;
+  const { tipo, id, data } = seleccion;
   const permisos = permisosDeNodo(permisosProyecto, tipo, id);
-  const { actualizar } = useJerarquiaProyecto(proyectoId);
-  const { usuario } = useAuth();
-  // Mismo ancho (misma key) que el drawer de Diagrama — ver
-  // keyAnchoPanelPropiedades. Rango generoso: 280px (compacto) a 720px
-  // (más ancho que el 44vw/640px original, para quien lo quiera así).
-  const [anchoRail, ajustarAnchoRail] = usePanelWidth(
-    keyAnchoPanelPropiedades(usuario), { default: 384, min: 280, max: 720 }
-  );
-  const [railAbierto, setRailAbierto] = useState(false);
-  const [descExpandida, setDescExpandida] = useState(false);
-
-  useEffect(() => { setDescExpandida(false); setRailAbierto(false); }, [id]);
-
-  const nivel = NIVELES[tipo];
-  const sem = data.semaforo_efectivo || 'gris';
-  const avance = data.avance_efectivo ?? (tipo === 'etapa' ? parseFloat(data.porcentaje_calculado || 0) : parseFloat(data.porcentaje_avance || 0));
-  const esContenedor = tipo === 'etapa' || (data.es_hoja === false);
-  const hijos = hijosDe(tipo, data);
-
-  // ─── PATCH handler (título/descripción de la columna central) ───
-  async function guardarCampo(campo, valor) {
-    try {
-      await actualizar(tipo, id, campo, valor);
-      mostrarToast('Actualizado', 'exito');
-      onActualizado?.();
-    } catch (err) {
-      mostrarToast(err.response?.data?.mensaje || 'Error al actualizar', 'error');
-    }
-  }
-
-  const rutaFoco = resolverRutaConIds(arbol, id) || [{ tipo, id, nombre: data.nombre }];
-  const rutaSeleccion = seleccion.id === id ? rutaFoco : (resolverRutaConIds(arbol, seleccion.id) || [{ tipo: seleccion.tipo, id: seleccion.id, nombre: seleccion.data.nombre }]);
-
-  const resumenHijos = (() => {
-    if (hijos.length === 0) return null;
-    const completadas = hijos.filter(h => h.nodo.estado === 'Completada').length;
-    return `${completadas} de ${hijos.length} ${(nivel.hijoLabelPlural || '').toLowerCase()} completadas`;
-  })();
+  const ruta = resolverRutaConIds(arbol, id) || [{ tipo, id, nombre: data.nombre }];
 
   return (
-    <div className="flex flex-1 min-w-0 overflow-hidden h-full">
-
-      {/* ── COLUMNA CENTRAL ─────────────────────────────────────── */}
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-
-        {/* Cabecera pegajosa de la rama ENFOCADA — no cambia al seleccionar
-            hijos, solo al elegir otra rama en el árbol o navegar la ruta. */}
-        <div className="flex-shrink-0 px-5 pt-4 border-b border-gray-100">
-          <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-            <div className="flex items-center gap-3 flex-wrap min-w-0">
-              <StepperNivel tipoActual={tipo} compacto />
-              <LineageClicable ruta={rutaFoco} onNavegar={onNavegarFoco} />
-            </div>
-            <div className="flex items-center gap-1 flex-shrink-0">
-              <button
-                onClick={onAbrirArbol}
-                className="lg:hidden flex items-center gap-1 text-[10px] border border-gray-200 px-2 py-0.5 rounded text-gray-500 hover:bg-gray-50 transition-colors"
-                title="Ver estructura"
-              >
-                <Layers size={10} />
-              </button>
-              <button
-                onClick={() => setRailAbierto(v => !v)}
-                className="xl:hidden flex items-center gap-1 text-[10px] border border-gray-200 px-2 py-0.5 rounded text-gray-500 hover:bg-gray-50 transition-colors"
-              >
-                Propiedades {railAbierto ? <X size={10} /> : <ChevronRight size={10} />}
-              </button>
-            </div>
-          </div>
-
-          <div className="mb-2.5">
-            <EmblemaNivel tipo={tipo} esContenedor={esContenedor} estado={data.estado} sem={sem} />
-          </div>
-
-          <CampoTextoInline
-            valor={data.nombre}
-            campo="nombre"
-            onGuardar={v => guardarCampo('nombre', v)}
-            soloLectura={permisos.esSoloLectura}
-            className="text-xl font-bold text-gray-900 leading-tight"
-            iconoEditar
-            requerido
-          />
-
-          <div className="mt-1.5 mb-1">
-            {permisos.esSoloLectura ? (
-              <>
-                <p className={`text-xs text-gray-500 leading-relaxed ${descExpandida ? '' : 'line-clamp-2'}`}>
-                  {data.descripcion || <span className="italic text-gray-300">Sin descripción…</span>}
-                </p>
-                {(data.descripcion || '').length > 100 && (
-                  <button onClick={() => setDescExpandida(v => !v)} className="text-[10px] text-[#7B1C3E] hover:text-[#5a1430] font-medium">
-                    {descExpandida ? 'Ver menos' : 'Ver más'}
-                  </button>
-                )}
-              </>
-            ) : (
-              <CampoTextoInline
-                valor={data.descripcion || ''}
-                campo="descripcion"
-                onGuardar={v => guardarCampo('descripcion', v)}
-                soloLectura={false}
-                placeholder="Agregar descripción…"
-                className="text-xs text-gray-500"
-                multiline
-              />
-            )}
-          </div>
-
-          <div className="mt-2 flex items-center gap-3">
-            <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-300"
-                style={{ width: `${Math.min(avance, 100)}%`, backgroundColor: COLORES_SEMAFORO[sem] }}
-              />
-            </div>
-            <span className="text-sm font-bold tabular-nums w-10 text-right" style={{ color: COLORES_SEMAFORO[sem] }}>
-              {Math.round(avance)}%
-            </span>
-          </div>
-          {resumenHijos && (
-            <p className="text-[10px] text-gray-400 mt-1">{resumenHijos}</p>
-          )}
-        </div>
-
-        {/* Lista de navegación de la rama enfocada (expande en sitio, sin
-            botones de acción) + Actividad al fondo, atada a la SELECCIÓN */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
-          <ListaHijos
-            tipo={tipo}
-            esContenedor={esContenedor}
-            hijos={hijos}
-            expandidos={expandidosCentro}
-            onToggle={onToggleCentro}
-            seleccionId={seleccion.id}
-            onSeleccionar={onSeleccionarEnCentro}
-            proyectoId={proyectoId}
-            padreId={id}
-            permisos={permisos}
-            onCreado={onActualizado}
-          />
-          <ActividadStream tipo={seleccion.tipo} id={seleccion.id} titulo={seleccion.data.nombre}
-            soloLectura={permisosDeNodo(permisosProyecto, seleccion.tipo, seleccion.id).esSoloLectura}
-            onCambiado={onActualizado}
-            riesgoIdInicial={riesgoAAbrir}
-            onRiesgoConsumido={onRiesgoConsumido} />
-        </div>
-      </div>
-
-      {/* ── RAIL DERECHO — ficha de la SELECCIÓN ────────────────── */}
-      {railAbierto && (
-        <div
-          className="fixed inset-0 bg-black/20 z-20 xl:hidden"
-          onClick={() => setRailAbierto(false)}
-        />
-      )}
-      {/* Handle a la izquierda del rail — homologado en ancho (misma key
-          de localStorage) con el drawer de Diagrama. Solo en desktop
-          (xl+); en móvil el rail es un slide-over, no tiene sentido
-          arrastrarlo. */}
-      {/* xl:flex (no xl:block): el handle depende de que su padre lo
-          estire a lo alto vía flex — con "block" su altura colapsaba a 0
-          y quedaba imposible de arrastrar (bug reportado). */}
-      <div className="hidden xl:flex flex-shrink-0">
-        <ResizeHandle lado="izquierdo" label="Redimensionar panel de propiedades" onResize={ajustarAnchoRail} />
-      </div>
-      <aside
-        style={{ '--ancho-rail': `${anchoRail}px` }}
-        className={[
-          'flex-shrink-0 border-l border-gray-200 bg-white overflow-hidden flex flex-col',
-          /* Desktop: ancho ajustable por el usuario, arrastrando el handle
-             de arriba (por defecto ~60% de lo que era antes de pedirlo) */
-          'xl:w-[var(--ancho-rail)] xl:relative xl:translate-x-0',
-          railAbierto
-            ? 'fixed right-0 top-0 bottom-0 w-[320px] max-w-[85vw] z-30 shadow-2xl translate-x-0'
-            : 'fixed right-0 top-0 bottom-0 w-[320px] max-w-[85vw] z-30 shadow-2xl translate-x-full xl:translate-x-0',
-          'transition-transform duration-200',
-        ].join(' ')}
+    <div className="flex flex-col flex-1 min-w-0 overflow-hidden h-full">
+      {/* Botón "Ver estructura" en móvil — el árbol es un slide-over ahí */}
+      <button
+        onClick={onAbrirArbol}
+        className="lg:hidden flex-shrink-0 flex items-center gap-1.5 px-4 py-2 text-[11px] text-gray-500 border-b border-gray-100 hover:bg-gray-50 text-left"
       >
-        <div className="xl:hidden flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex-shrink-0">
-          <span className="text-xs font-semibold text-gray-600">Propiedades</span>
-          <button onClick={() => setRailAbierto(false)} className="p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-200">
-            <X size={14} />
-          </button>
-        </div>
+        Ver estructura del proyecto
+      </button>
+
+      <div className="flex-1 overflow-y-auto px-4 py-3 max-w-2xl">
         <FichaNodo
-          key={seleccion.id}
           nodo={seleccion}
           proyectoId={proyectoId}
           permisos={permisos}
-          ruta={rutaSeleccion}
-          // Los ancestros que se ven aquí siempre están dentro de la rama ya
-          // enfocada (la selección nunca sale de ahí) — así que subir de
-          // nivel desde la ficha solo mueve la selección, no reconstruye el
-          // centro ni resetea qué está expandido. Refocar de verdad solo
-          // pasa desde el árbol o desde el lineage del propio encabezado
-          // central (onNavegarFoco, arriba).
-          onNavegarLineage={onSeleccionarEnCentro}
+          ruta={ruta}
+          onNavegarLineage={onNavegarNodo}
           onActualizado={onActualizado}
-          // Al eliminar el nodo seleccionado, la selección tiene que subir a
-          // su padre antes de recargar — si se queda en el id borrado, el
-          // rail busca un nodo que ya no está en el árbol.
+          // Al eliminar el nodo seleccionado, subir a su padre antes de
+          // recargar — si se queda en el id borrado, el panel busca un
+          // nodo que ya no está en el árbol.
           onEliminado={() => {
-            const padre = rutaSeleccion[rutaSeleccion.length - 2];
-            if (padre) onSeleccionarEnCentro(padre.tipo, padre.id);
+            const padre = ruta[ruta.length - 2];
+            if (padre) onNavegarNodo(padre.tipo, padre.id);
             onActualizado?.();
           }}
           mostrarToast={mostrarToast}
           abrirAvanceAlMontar={avanceAAbrir}
         />
-      </aside>
+
+        <ActividadStream
+          tipo={tipo}
+          id={id}
+          soloLectura={permisos.esSoloLectura}
+          onCambiado={onActualizado}
+          riesgoIdInicial={riesgoAAbrir}
+          onRiesgoConsumido={onRiesgoConsumido}
+        />
+      </div>
     </div>
   );
 }

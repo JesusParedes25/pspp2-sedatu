@@ -14,8 +14,18 @@ export const COLORES_SEMAFORO = { verde: '#16a34a', ambar: '#d97706', rojo: '#dc
 // estado — evita que el texto de color sobre blanco se pierda como chip.
 export const CHIP_BG = { verde: '#e7f3e8', ambar: '#fdeee0', rojo: '#fbe9e9', gris: '#eef0f2' };
 
+// Texto corto, exacto según la regla real de cálculo (ver
+// backend/src/utils/avance-semaforo.js::calcularSemaforo) — el riesgo
+// reportado en un nodo NUNCA entra en este cálculo, así que "verde" no
+// puede leerse como "sin riesgo": un nodo en tiempo con un riesgo abierto
+// sigue siendo verde. El detalle completo de cada regla (p. ej. que
+// ámbar también cubre "bloqueada con margen" y Muy Alta por vencer en
+// <14 días) vive en el `title` que arma SemaforoDot más abajo, no aquí
+// — este texto es la etiqueta corta para leyendas (pie del árbol de
+// Detalle, Diagrama, Cronograma, Agenda: los cuatro la importan de aquí
+// en vez de redactarla cada uno por su cuenta).
 export const LEYENDA_SEMAFORO = {
-  verde: 'En proceso, sin riesgo',
+  verde: 'En proceso, en tiempo',
   ambar: 'Por vencer',
   rojo: 'Vencida',
   gris: 'Sin iniciar / cancelada',
