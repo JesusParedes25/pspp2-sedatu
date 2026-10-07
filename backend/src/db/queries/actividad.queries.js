@@ -4,6 +4,7 @@
  *            (etapa/acción/tarea) y sus descendientes.
  */
 const pool = require('../pool');
+const { idsDescendientes } = require('../../utils/descendientes-nodo');
 
 // Resuelve id_proyecto/id_etapa/id_accion/id_tarea a partir de tipo+id de nodo,
 // para poder insertar una fila de actividad con la atribución correcta.
@@ -26,38 +27,6 @@ async function resolverContextoNodo(tipoNodo, idNodo, client = pool) {
     return { id_proyecto: rows[0].id_proyecto, id_etapa: null, id_accion: null, id_tarea: idNodo };
   }
   return null;
-}
-
-// IDs de los descendientes de un nodo (para agregar su actividad al stream).
-async function idsDescendientes(tipoNodo, idNodo) {
-  if (tipoNodo === 'tarea') return { etapaIds: [], accionIds: [], tareaIds: [idNodo] };
-
-  if (tipoNodo === 'accion') {
-    const { rows: sub } = await pool.query(
-      'SELECT id FROM acciones WHERE id_accion_padre = $1', [idNodo]
-    );
-    const accionIds = [idNodo, ...sub.map(r => r.id)];
-    const { rows: tareas } = await pool.query(
-      'SELECT id FROM tareas WHERE id_accion = ANY($1)', [accionIds]
-    );
-    return { etapaIds: [], accionIds, tareaIds: tareas.map(r => r.id) };
-  }
-
-  // etapa
-  const { rows: acc } = await pool.query('SELECT id FROM acciones WHERE id_etapa = $1', [idNodo]);
-  const accionIds = acc.map(r => r.id);
-  let subIds = [];
-  if (accionIds.length) {
-    const { rows: sub } = await pool.query('SELECT id FROM acciones WHERE id_accion_padre = ANY($1)', [accionIds]);
-    subIds = sub.map(r => r.id);
-  }
-  const todasAcciones = [...accionIds, ...subIds];
-  let tareaIds = [];
-  if (todasAcciones.length) {
-    const { rows: tareas } = await pool.query('SELECT id FROM tareas WHERE id_accion = ANY($1)', [todasAcciones]);
-    tareaIds = tareas.map(r => r.id);
-  }
-  return { etapaIds: [idNodo], accionIds: todasAcciones, tareaIds };
 }
 
 // Stream UNIFICADO: combina el modelo histórico (comentarios, evidencias,

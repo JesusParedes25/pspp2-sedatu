@@ -190,6 +190,22 @@ async function subirParaSubaccion(req, res, next) {
   }
 }
 
+// GET /etapas/:id/documentos, /acciones/:id/documentos, /tareas/:id/documentos
+// — pestaña "Documentos" de Detalle (Fase 4): agrega los documentos del
+// nodo y de sus descendientes (?incluirHijos=false para solo el propio).
+async function obtenerDocumentosAgregados(req, res, next) {
+  try {
+    const tipo = req.originalUrl.includes('/etapas/') ? 'etapa'
+      : req.originalUrl.includes('/tareas/') ? 'tarea'
+      : 'accion';
+    const incluirHijos = req.query.incluirHijos !== 'false' && req.query.incluirHijos !== '0';
+    const datos = await evidenciasQueries.obtenerDocumentosAgregados(tipo, req.params.id, incluirHijos);
+    res.json({ datos, mensaje: 'Documentos obtenidos' });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // GET /proyectos/:id/evidencias — Listar todas las evidencias del proyecto
 async function listarPorProyecto(req, res, next) {
   try {
@@ -371,5 +387,6 @@ module.exports = {
   subirParaSubaccion,
   descargar,
   eliminar,
-  listarTodas
+  listarTodas,
+  obtenerDocumentosAgregados,
 };

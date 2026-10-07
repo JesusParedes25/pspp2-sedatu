@@ -67,7 +67,8 @@ async function listarPorProyecto(req, res, next) {
 // GET /etapas/:id/riesgos — Listar riesgos de una etapa
 async function listarPorEtapa(req, res, next) {
   try {
-    const riesgos = await riesgosQueries.obtenerRiesgosPorEtapa(req.params.id);
+    const incluirHijos = req.query.incluirHijos !== 'false' && req.query.incluirHijos !== '0';
+    const riesgos = await riesgosQueries.obtenerRiesgosPorEtapa(req.params.id, incluirHijos);
     res.json({ datos: riesgos, mensaje: 'Riesgos de etapa obtenidos' });
   } catch (err) {
     next(err);
@@ -239,7 +240,8 @@ async function listarAsignacionesPendientes(req, res, next) {
 // GET /acciones/:id/riesgos — Listar riesgos de una acción
 async function listarPorAccion(req, res, next) {
   try {
-    const riesgos = await riesgosQueries.obtenerRiesgosPorAccion(req.params.id);
+    const incluirHijos = req.query.incluirHijos !== 'false' && req.query.incluirHijos !== '0';
+    const riesgos = await riesgosQueries.obtenerRiesgosPorAccion(req.params.id, incluirHijos);
     res.json({ datos: riesgos, mensaje: 'Riesgos de acción obtenidos' });
   } catch (err) {
     next(err);

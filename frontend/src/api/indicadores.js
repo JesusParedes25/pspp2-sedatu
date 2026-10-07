@@ -70,8 +70,8 @@ export async function togglePublicable(indicadorId, esPublicable) {
 // Aportaciones
 const RUTA_NODO = { etapa: 'etapas', accion: 'acciones', tarea: 'tareas' };
 
-export async function obtenerAportacionesNodo(tipo, nodoId) {
-  const { data } = await client.get(`/${RUTA_NODO[tipo] || 'acciones'}/${nodoId}/aportaciones`);
+export async function obtenerAportacionesNodo(tipo, nodoId, incluirHijos = false) {
+  const { data } = await client.get(`/${RUTA_NODO[tipo] || 'acciones'}/${nodoId}/aportaciones`, { params: { incluirHijos } });
   return data;
 }
 

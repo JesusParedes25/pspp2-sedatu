@@ -30,7 +30,8 @@ async function listarPorNodo(req, res, next) {
     const tipo = req.originalUrl.includes('/etapas/') ? 'etapa'
       : req.originalUrl.includes('/tareas/') ? 'tarea'
       : 'accion';
-    const datos = await aportacionesQueries.listarPorNodo(tipo, req.params.id);
+    const incluirHijos = req.query.incluirHijos === 'true' || req.query.incluirHijos === '1';
+    const datos = await aportacionesQueries.listarPorNodo(tipo, req.params.id, incluirHijos);
     res.json({ datos });
   } catch (err) { next(err); }
 }
