@@ -3,7 +3,7 @@
  * PROPÓSITO: Fila de acciones del panel derecho de Detalle (Fase 3 del
  *            rediseño) — "Registrar avance" (primaria), "Agregar acción/
  *            tarea" (secundaria, ausente en Tarea) y un menú "Más
- *            acciones" (Adjuntar documento/Vincular indicador/Ligar
+ *            acciones" (Adjuntar documento/Vincular indicador/Vincular
  *            territorio/Reportar riesgo/Invitar participante/Editar
  *            ficha/Duplicar/Eliminar). Toda acción abre un modal — nunca
  *            un panel de solo lectura que se queda a medias en la
@@ -206,7 +206,7 @@ export default function FilaAcciones({
               onClick={() => { abrirModalAccion('adjuntar'); cerrar(); }} />
             <ItemMenu icono={BarChart3} label="Vincular indicador"
               onClick={() => { abrirModalAccion('indicador'); cerrar(); }} />
-            <ItemMenu icono={MapPin} label="Ligar territorio"
+            <ItemMenu icono={MapPin} label="Vincular territorio"
               onClick={() => { abrirModalAccion('territorio'); cerrar(); }} />
             <ItemMenu icono={AlertTriangle} label="Reportar riesgo"
               disabled={soloLectura} title="Sin permiso para reportar riesgos en este elemento"
@@ -303,6 +303,7 @@ export default function FilaAcciones({
             id={id}
             permisos={permisosProyecto}
             onRecargar={async () => { await cargarEvidenciasNodo(); onCambiado?.(); }}
+            capturaPrimero
           />
         </ModalAccionNodo>
       )}
@@ -314,7 +315,7 @@ export default function FilaAcciones({
       )}
 
       {modalAccion === 'territorio' && (
-        <ModalAccionNodo titulo="Ligar territorio" onCerrar={() => setModalAccion(null)}>
+        <ModalAccionNodo titulo="Vincular territorio" onCerrar={() => setModalAccion(null)}>
           <TerritorioSelector
             data={nodo}
             soloLectura={soloLectura}

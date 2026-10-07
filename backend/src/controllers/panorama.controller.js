@@ -204,7 +204,7 @@ async function obtenerTodosParticipantes(proyectoId) {
       WHERE a2.id_proyecto = $1 AND nm.estado <> 'rechazada'
     )
     SELECT DISTINCT ON (u.id)
-      u.id AS id_usuario, u.nombre_completo, u.correo, u.cargo,
+      u.id AS id_usuario, u.nombre_completo, u.correo, u.cargo, u.activo AS usuario_activo,
       dg.siglas AS dg_siglas,
       da.siglas AS da_siglas,
       f.rol, f.alcance, f.nodo_nombre, f.nodo_tipo, f.nodo_id, f.estado

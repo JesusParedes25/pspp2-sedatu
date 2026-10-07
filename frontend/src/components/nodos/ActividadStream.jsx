@@ -242,6 +242,14 @@ export default function ActividadStream({ tipo, id, titulo, soloLectura = false,
           </ResponsiveContainer>
         </div>
       )}
+      {/* Con 0 o 1 registro de avance no hay línea que trazar — antes se
+          omitía el gráfico sin más, dejando el título y los filtros
+          flotando sobre nada, como si la sección estuviera rota. */}
+      {puntosAvance.length < 2 && items.length > 0 && (
+        <p className="text-[11px] text-gray-400 italic mb-3 -mt-1">
+          Aún no hay suficientes registros para mostrar la evolución.
+        </p>
+      )}
 
       <div className="flex items-center justify-end mb-3">
         <div className="flex gap-1">

@@ -165,7 +165,17 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto
               >
                 <Iniciales nombre={m.nombre_completo} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-gray-800 truncate">{m.nombre_completo}</p>
+                  <p className="text-xs font-medium text-gray-800 truncate flex items-center gap-1.5">
+                    {m.nombre_completo}
+                    {/* No se quita a nadie que ya tenga acceso solo por
+                        desactivarse después — se marca, y quien
+                        administra el equipo decide si lo retira. */}
+                    {m.usuario_activo === false && (
+                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-500 flex-shrink-0">
+                        Inactivo
+                      </span>
+                    )}
+                  </p>
                   {m.dg_siglas && <p className="text-[10px] text-gray-400">{m.dg_siglas}</p>}
                   {ESTADO_INVITACION[m.estado] && (
                     <p className={`text-[10px] ${ESTADO_INVITACION[m.estado].clase}`}>

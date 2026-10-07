@@ -284,7 +284,17 @@ function ParticipanteCard({ miembro: m, puedeGestionar, puedeSalir, onEliminar, 
           {iniciales(m.nombre_completo)}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-bold text-gray-900 truncate leading-tight">{m.nombre_completo}</p>
+          <p className="text-[13px] font-bold text-gray-900 truncate leading-tight flex items-center gap-1.5">
+            {m.nombre_completo}
+            {/* No se quita a nadie que ya tenga acceso solo por
+                desactivarse después — se marca, y quien administra el
+                equipo decide si lo retira. */}
+            {m.usuario_activo === false && (
+              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-500 flex-shrink-0">
+                Inactivo
+              </span>
+            )}
+          </p>
           {puedeCambiarRol ? (
             <select
               value={m.rol}

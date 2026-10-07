@@ -15,6 +15,12 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import client from '../../api/client';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
+import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
+
+const FORM_VACIO = {
+  titulo: '', descripcion: '', causa: '', impacto: '', nivel: 'Medio', tipo: 'Riesgo',
+  estado: 'Abierto', medida_mitigacion: '', fecha_limite_resolucion: '', id_responsable: '',
+};
 
 const TIPOS = ['Riesgo', 'Problema'];
 const NIVELES = ['Bajo', 'Medio', 'Alto', 'Critico'];
@@ -37,39 +43,41 @@ const NIVEL_COLORES = {
 export default function ModalRiesgo({ riesgo, entidadTipo, entidadId, onGuardar, onCerrar }) {
   const editando = !!riesgo;
 
-  const [form, setForm] = useState({
-    titulo: '',
-    descripcion: '',
-    causa: '',
-    impacto: '',
-    nivel: 'Medio',
-    tipo: 'Riesgo',
-    estado: 'Abierto',
-    medida_mitigacion: '',
-    fecha_limite_resolucion: '',
-    id_responsable: '',
-  });
+  // formInicial: snapshot contra el que se mide "¿hay algo sin guardar?"
+  // (ver useCierreConDatosSinGuardar más abajo) — vacío al crear, o el
+  // riesgo ya existente al editar, para no marcar como "cambio" lo que
+  // ya traía de antes.
+  function formDesdeRiesgo(r) {
+    if (!r) return FORM_VACIO;
+    return {
+      titulo: r.titulo || '',
+      descripcion: r.descripcion || '',
+      causa: r.causa || '',
+      impacto: r.impacto || '',
+      nivel: r.nivel || 'Medio',
+      tipo: r.tipo || 'Riesgo',
+      estado: r.estado || 'Abierto',
+      medida_mitigacion: r.medida_mitigacion || '',
+      fecha_limite_resolucion: r.fecha_limite_resolucion ? r.fecha_limite_resolucion.substring(0, 10) : '',
+      id_responsable: r.id_responsable || '',
+    };
+  }
+
+  const [form, setForm] = useState(() => formDesdeRiesgo(riesgo));
+  const [formInicial, setFormInicial] = useState(() => formDesdeRiesgo(riesgo));
   const [errores, setErrores] = useState({});
   const [usuarios, setUsuarios] = useState([]);
 
   useEffect(() => {
     if (riesgo) {
-      setForm({
-        titulo: riesgo.titulo || '',
-        descripcion: riesgo.descripcion || '',
-        causa: riesgo.causa || '',
-        impacto: riesgo.impacto || '',
-        nivel: riesgo.nivel || 'Medio',
-        tipo: riesgo.tipo || 'Riesgo',
-        estado: riesgo.estado || 'Abierto',
-        medida_mitigacion: riesgo.medida_mitigacion || '',
-        fecha_limite_resolucion: riesgo.fecha_limite_resolucion
-          ? riesgo.fecha_limite_resolucion.substring(0, 10)
-          : '',
-        id_responsable: riesgo.id_responsable || '',
-      });
+      const f = formDesdeRiesgo(riesgo);
+      setForm(f);
+      setFormInicial(f);
     }
   }, [riesgo]);
+
+  const hayCambiosSinGuardar = Object.keys(form).some(k => form[k] !== formInicial[k]);
+  const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(hayCambiosSinGuardar, onCerrar);
 
   // Catálogo de usuarios para el selector de responsable — mismo endpoint
   // que ya usa PropiedadesElemento para etapas/acciones.
@@ -128,14 +136,14 @@ export default function ModalRiesgo({ riesgo, entidadTipo, entidadId, onGuardar,
   // panel en vez de cubrir toda la pantalla (mismo bug ya resuelto en
   // ModalRegistrarAvance.jsx).
   return createPortal((
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40" onClick={cerrarPorFondo}>
+      <div className="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h3 className="text-lg font-semibold text-gray-900">
             {editando ? 'Editar riesgo' : 'Nuevo riesgo'}
           </h3>
-          <button onClick={onCerrar} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+          <button onClick={cerrarConConfirmacion} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600">
             <X size={18} />
           </button>
         </div>
@@ -311,7 +319,7 @@ export default function ModalRiesgo({ riesgo, entidadTipo, entidadId, onGuardar,
 
         {/* Footer */}
         <div className="flex gap-3 justify-end px-5 py-4 border-t border-gray-100">
-          <button type="button" onClick={onCerrar}
+          <button type="button" onClick={cerrarConConfirmacion}
             className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
             Cancelar
           </button>

@@ -25,6 +25,7 @@ import * as catalogosApi from '../../api/catalogos';
 import * as tareasApi from '../../api/tareas';
 import * as actividadApi from '../../api/actividad';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
+import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
 import CatalogSelector from '../common/CatalogSelector';
 import TerritorioSelector from '../nodos/TerritorioSelector';
 import FilaDocumentoPendiente from '../nodos/FilaDocumentoPendiente';
@@ -126,15 +127,20 @@ export default function ModalNuevaTarea({ accionId, onCreado, onCreadoParcial, o
 
   const puedeGuardar = enviando || !datos.nombre.trim() || documentos.some(d => d.modo === 'liga' && !d.url.trim());
 
+  // Mismo criterio que ModalNuevaAccion: un nombre capturado o un
+  // documento ya agregado es lo que dolería perder con un clic fuera.
+  const hayCambiosSinGuardar = !!datos.nombre.trim() || documentos.length > 0;
+  const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(hayCambiosSinGuardar, onCerrar);
+
   // createPortal a document.body — mismo motivo que ModalNuevaAccion: el
   // panel derecho vive dentro de un rail con translate-x, que vuelve fixed
   // relativo a él en vez de a la pantalla completa sin esto.
   return createPortal((
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={cerrarPorFondo}>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">Nueva tarea</h2>
-          <button onClick={onCerrar} className="p-1 rounded hover:bg-gray-100">
+          <button onClick={cerrarConConfirmacion} className="p-1 rounded hover:bg-gray-100">
             <X size={18} className="text-gray-400" />
           </button>
         </div>
@@ -222,7 +228,7 @@ export default function ModalNuevaTarea({ accionId, onCreado, onCreadoParcial, o
           {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded p-2 leading-snug">{error}</p>}
 
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={onCerrar} className="btn-secondary">Cancelar</button>
+            <button type="button" onClick={cerrarConConfirmacion} className="btn-secondary">Cancelar</button>
             <button type="button" disabled={puedeGuardar} onClick={() => guardar(true)} className="btn-secondary flex items-center gap-1.5">
               {enviando && <Loader2 size={14} className="animate-spin" />}
               Guardar y agregar otra
