@@ -14,6 +14,7 @@ async function listarMiembros(tipo, idNodo, db) {
       u.id        AS id_usuario,
       u.nombre_completo,
       u.correo,
+      u.activo    AS usuario_activo,
       dg.siglas   AS dg_siglas,
       src.rol,
       src.es_responsable_principal,

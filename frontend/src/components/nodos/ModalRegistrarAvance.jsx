@@ -24,7 +24,7 @@
  */
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Loader2, ChevronDown, ChevronRight, Lock, CheckCircle2, Plus } from 'lucide-react';
+import { X, Loader2, Lock, CheckCircle2, Plus } from 'lucide-react';
 import * as etapasApi from '../../api/etapas';
 import * as accionesApi from '../../api/acciones';
 import * as tareasApi from '../../api/tareas';
@@ -106,7 +106,6 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
   // Detalle — pre-marca la casilla al abrir en vez de dejar al usuario
   // repetir el mismo clic que ya dio para llegar aquí.
   const [concluir, setConcluir] = useState(estadoActual === 'Completada' || completarAlAbrir);
-  const [detalleAbierto, setDetalleAbierto] = useState(false);
   const [detalle, setDetalle] = useState('');
   // Cada evidencia: { id, modo: 'archivo'|'liga', archivo, url, categoria, notas }.
   // Un archivo elegido con el picker en modo múltiple, o una liga agregada a
@@ -310,27 +309,20 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
             )}
           </div>
 
-          {/* Detalle (opcional, colapsado) */}
+          {/* Detalle — visible de entrada, no detrás de un "Agregar
+              detalle": es donde se explica qué pasó, lo más valioso del
+              registro, así que no tiene sentido esconderlo. */}
           <div>
-            {!detalleAbierto ? (
-              <button onClick={() => setDetalleAbierto(true)} className="flex items-center gap-1 text-xs font-medium text-guinda-700 hover:text-guinda-800">
-                <ChevronRight size={13} /> Agregar detalle
-              </button>
-            ) : (
-              <>
-                <button onClick={() => setDetalleAbierto(false)} className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-700 mb-1">
-                  <ChevronDown size={13} /> Detalle <span className="text-gray-400 font-normal">(opcional)</span>
-                </button>
-                <textarea
-                  value={detalle}
-                  onChange={e => setDetalle(e.target.value)}
-                  rows={3}
-                  autoFocus
-                  placeholder="Cuenta con más contexto qué pasó..."
-                  className="input-base text-sm w-full resize-none"
-                />
-              </>
-            )}
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Detalle <span className="text-gray-400 font-normal">(opcional)</span>
+            </label>
+            <textarea
+              value={detalle}
+              onChange={e => setDetalle(e.target.value)}
+              rows={3}
+              placeholder="Cuenta con más contexto qué pasó..."
+              className="input-base text-sm w-full resize-none"
+            />
           </div>
 
           {/* Adjuntar documento (opcional) — una o varias, cada una con su

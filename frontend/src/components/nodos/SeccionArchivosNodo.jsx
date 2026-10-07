@@ -9,6 +9,14 @@
  *            (ver FilaDocumentoPendiente, compartido entre los dos).
  *            Extraído de la antigua pestaña "Archivos" de Seguimiento
  *            (EtapasAvancesMD.jsx) para reutilizarse dentro de NodoCard.
+ *
+ * capturaPrimero: cuando este panel vive dentro del modal dedicado
+ * "Adjuntar documento" (Detalle, Fase 3 del rediseño), el formulario de
+ * alta (Archivo/Liga) va primero y el listado de ya-adjuntos después —
+ * un modal que se llama "Adjuntar documento" debe abrir directo en
+ * captura, no en un listado vacío. Dentro de NodoCard (donde esta
+ * sección es un panel de "Documentos" que también sirve para hojear lo
+ * ya subido) el orden de siempre se queda igual — default `false`.
  */
 import { useState } from 'react';
 import { FileText, Link2, Plus, Upload, Trash2, AlertTriangle, Loader2, ChevronRight } from 'lucide-react';
@@ -23,7 +31,7 @@ import { useUI } from '../../context/UIContext';
 let contadorPendiente = 0;
 const idPendiente = () => `p${++contadorPendiente}`;
 
-export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, permisos: permisosProyecto }) {
+export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, permisos: permisosProyecto, capturaPrimero = false }) {
   const { mostrarToast } = useUI();
   const permisos = permisosDeNodo(permisosProyecto, tipo, id);
   // Una tarea no tiene tabla de evidencias propia (nunca la tuvo) — sus
@@ -196,8 +204,8 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
   }
 
   // ─── Lista de evidencias + alta de una o varias ───
-  return (
-    <div className="p-3">
+  const listaEvidencias = (
+    <>
       {evidencias.length > 0 && (
         <div className="space-y-0.5 mb-3">
           {evidencias.map(ev => {
@@ -234,54 +242,78 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
           })}
         </div>
       )}
-      {evidencias.length === 0 && pendientes.length === 0 && (
+      {/* En capturaPrimero el formulario de alta ya es lo primero que se
+          ve — un "sin documentos" aparte sería redundante, así que ese
+          aviso queda solo para el panel de hojear dentro de NodoCard. */}
+      {!capturaPrimero && evidencias.length === 0 && pendientes.length === 0 && (
         <p className="text-xs text-gray-400 text-center py-4 italic">Sin documentos adjuntos</p>
       )}
+    </>
+  );
 
-      {!permisos?.esSoloLectura && (
+  const formularioAlta = !permisos?.esSoloLectura && (
+    <div className={capturaPrimero ? 'mb-3' : undefined}>
+      {pendientes.length > 0 && (
+        <div className="space-y-1.5 mb-2">
+          {pendientes.map(p => (
+            <FilaDocumentoPendiente
+              key={p.id}
+              item={p}
+              onCambiar={(campo, valor) => actualizarPendiente(p.id, campo, valor)}
+              onQuitar={() => quitarPendiente(p.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {pendientes.some(p => p.modo === 'liga') && (
+        <div className="flex items-start gap-1.5 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mb-2">
+          <AlertTriangle size={12} className="text-amber-500 flex-shrink-0 mt-0.5" />
+          <p className="text-[10px] text-amber-700 leading-relaxed">
+            Asegúrese de que el enlace sea <strong>público</strong> o accesible para cualquiera que tenga el link, para que otros usuarios del sistema puedan abrirlo.
+          </p>
+        </div>
+      )}
+
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+          <Plus size={13} /> Archivo
+          <input type="file" multiple className="hidden" onChange={e => { agregarArchivos(e.target.files); e.target.value = ''; }} />
+        </label>
+        <button onClick={agregarLiga}
+          className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
+          <Plus size={13} /> Liga
+        </button>
+        {pendientes.length > 0 && (
+          <button
+            onClick={guardarPendientes}
+            disabled={!puedeGuardar}
+            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-[#7B1C3E] text-white text-xs rounded-lg hover:bg-[#5a1430] disabled:opacity-50 transition-colors"
+          >
+            {guardando && <Loader2 size={12} className="animate-spin" />}
+            Guardar{pendientes.length > 1 ? ` (${pendientes.length})` : ''}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="p-3">
+      {capturaPrimero ? (
         <>
-          {pendientes.length > 0 && (
-            <div className="space-y-1.5 mb-2">
-              {pendientes.map(p => (
-                <FilaDocumentoPendiente
-                  key={p.id}
-                  item={p}
-                  onCambiar={(campo, valor) => actualizarPendiente(p.id, campo, valor)}
-                  onQuitar={() => quitarPendiente(p.id)}
-                />
-              ))}
+          {formularioAlta}
+          {(evidencias.length > 0 || pendientes.length > 0) && evidencias.length > 0 && (
+            <div className="border-t border-gray-100 pt-3 mt-1">
+              <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Ya adjuntos</p>
+              {listaEvidencias}
             </div>
           )}
-
-          {pendientes.some(p => p.modo === 'liga') && (
-            <div className="flex items-start gap-1.5 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mb-2">
-              <AlertTriangle size={12} className="text-amber-500 flex-shrink-0 mt-0.5" />
-              <p className="text-[10px] text-amber-700 leading-relaxed">
-                Asegúrese de que el enlace sea <strong>público</strong> o accesible para cualquiera que tenga el link, para que otros usuarios del sistema puedan abrirlo.
-              </p>
-            </div>
-          )}
-
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
-              <Plus size={13} /> Archivo
-              <input type="file" multiple className="hidden" onChange={e => { agregarArchivos(e.target.files); e.target.value = ''; }} />
-            </label>
-            <button onClick={agregarLiga}
-              className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
-              <Plus size={13} /> Liga
-            </button>
-            {pendientes.length > 0 && (
-              <button
-                onClick={guardarPendientes}
-                disabled={!puedeGuardar}
-                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-[#7B1C3E] text-white text-xs rounded-lg hover:bg-[#5a1430] disabled:opacity-50 transition-colors"
-              >
-                {guardando && <Loader2 size={12} className="animate-spin" />}
-                Guardar{pendientes.length > 1 ? ` (${pendientes.length})` : ''}
-              </button>
-            )}
-          </div>
+        </>
+      ) : (
+        <>
+          {listaEvidencias}
+          {formularioAlta}
         </>
       )}
     </div>

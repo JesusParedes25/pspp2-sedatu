@@ -40,6 +40,7 @@ import * as evidenciasApi from '../../api/evidencias';
 import { useAuth } from '../../context/AuthContext';
 import { useUI } from '../../context/UIContext';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
+import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
 import CatalogSelector from '../common/CatalogSelector';
 import TerritorioSelector from '../nodos/TerritorioSelector';
 import FilaDocumentoPendiente from '../nodos/FilaDocumentoPendiente';
@@ -372,6 +373,13 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCrea
 
   const puedeGuardar = enviando || !datos.nombre.trim() || documentos.some(d => d.modo === 'liga' && !d.url.trim());
 
+  // "Hay algo que perder" — mismo criterio simple que ModalRegistrarAvance:
+  // un nombre capturado o un documento ya agregado es lo que de verdad
+  // dolería perder con un clic fuera sin querer; las fechas/responsable
+  // precargados por defecto no cuentan (el usuario no los eligió).
+  const hayCambiosSinGuardar = !!datos.nombre.trim() || documentos.length > 0;
+  const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(hayCambiosSinGuardar, onCerrar);
+
   // createPortal a document.body: este modal se abre desde el panel
   // derecho (NodoCard), que en Detalle/Diagrama vive dentro de un rail
   // posicionado con translate-x — eso lo vuelve el "containing block" de
@@ -379,14 +387,14 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCrea
   // encajonado dentro de ese panel angosto en vez de cubrir toda la
   // pantalla (mismo problema ya resuelto así en ModalRegistrarAvance).
   return createPortal((
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={cerrarPorFondo}>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">
             {etapaId ? 'Nueva acción en etapa' : 'Nueva acción directa'}
           </h2>
-          <button onClick={onCerrar} className="p-1 rounded hover:bg-gray-100">
+          <button onClick={cerrarConConfirmacion} className="p-1 rounded hover:bg-gray-100">
             <X size={18} className="text-gray-400" />
           </button>
         </div>
@@ -550,7 +558,7 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCrea
 
           {/* Botones */}
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={onCerrar} className="btn-secondary">Cancelar</button>
+            <button type="button" onClick={cerrarConConfirmacion} className="btn-secondary">Cancelar</button>
             <button type="button" disabled={puedeGuardar} onClick={() => guardar(true)} className="btn-secondary flex items-center gap-1.5">
               {enviando && <Loader2 size={14} className="animate-spin" />}
               Guardar y agregar otra
