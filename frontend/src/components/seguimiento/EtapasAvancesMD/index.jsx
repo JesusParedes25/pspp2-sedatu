@@ -1,21 +1,34 @@
 /**
  * ARCHIVO: index.jsx
- * PROPÓSITO: Vista maestro-detalle "Detalle" (antes "Etapas y avances") —
- *            árbol izquierdo + panel de detalle a la derecha. Orquesta la
- *            carga del árbol, filtros, selección de nodo y sincronía con
- *            la URL (?nodo=<id>). El resto de las piezas viven en archivos
- *            separados en esta misma carpeta.
+ * PROPÓSITO: Vista maestro-detalle "Detalle" — árbol izquierdo (navegación
+ *            pura, institucional) + panel derecho con la ficha completa
+ *            del nodo seleccionado. Orquesta la carga del árbol, filtros,
+ *            selección de nodo y sincronía con la URL (?foco=&nodo=). El
+ *            resto de las piezas viven en archivos separados en esta
+ *            misma carpeta.
+ *
+ * Fase 1 del rediseño de Detalle (de 3 columnas a 2): antes existían dos
+ * conceptos separados, "foco" (la rama que mostraba la columna central) y
+ * "selección" (el elemento cuya ficha mostraba el rail derecho, que podía
+ * ser un descendiente del foco sin cambiarlo) — el mismo nodo se describía
+ * dos veces en pantalla (nombre, ruta y avance duplicados), que es la
+ * causa real de que la vista se sintiera abrumadora. Con la columna
+ * central retirada (su lista de hijos no ofrecía nada que el árbol no
+ * tuviera ya — ver commit de esta fase) no hace falta la distinción: un
+ * clic en el árbol o en la ruta clicable de la ficha selecciona un único
+ * nodo, que es a la vez lo que se ve a la izquierda resaltado y lo que se
+ * ve a la derecha completo.
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Loader2, X, SlidersHorizontal, CheckCircle2, Filter, Layers } from 'lucide-react';
+import { Loader2, X, SlidersHorizontal, CheckCircle2, Filter, Layers, Search, ChevronsDown, ChevronsUp } from 'lucide-react';
 import * as etapasApi from '../../../api/etapas';
 import * as miembrosApi from '../../../api/miembros';
 import { useUI } from '../../../context/UIContext';
 import { useAuth } from '../../../context/AuthContext';
 import { usePanelWidth } from '../../../hooks/usePanelWidth';
 import { NIVELES } from '../../../config/niveles';
-import { COLORES_SEMAFORO } from '../../common/SemaforoDot';
+import { COLORES_SEMAFORO, LEYENDA_SEMAFORO } from '../../common/SemaforoDot';
 import ResizeHandle from '../../common/ResizeHandle';
 import NodoArbol from './NodoArbol';
 import PanelDetalle from './PanelDetalle';
@@ -25,10 +38,10 @@ import { ESTADOS, filtrarArbol, buscarNodoEnArbol, encontrarPath, recorrerArbol 
 export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSeleccionada, onStatsChange }) {
   const { mostrarToast } = useUI();
   const { usuario } = useAuth();
-  // Ancho del árbol izquierdo, redimensionable — solo aplica aquí (el árbol
-  // no existe en Diagrama, así que no hay nada que homologar con él).
+  // Ancho del árbol izquierdo, redimensionable — el árbol no existe en
+  // Diagrama, así que no hay nada que homologar con él (key propia).
   const [anchoArbol, ajustarAnchoArbol] = usePanelWidth(
-    `pspp_ancho_arbol_${usuario?.id || 'anon'}`, { default: 320, min: 220, max: 480 }
+    `pspp_ancho_arbol_${usuario?.id || 'anon'}`, { default: 360, min: 260, max: 520 }
   );
   const [searchParams, setSearchParams] = useSearchParams();
   const [arbol, setArbol] = useState([]);
@@ -38,25 +51,20 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
   // estar etiquetada nodo por nodo en ningún `nodo_miembros` — ver el
   // filtro de usuario más abajo.
   const [miembrosProyecto, setMiembrosProyecto] = useState([]);
-  // "foco": la rama que muestra el centro (encabezado + lista) — cambia
-  // solo desde el árbol izquierdo o el lineage del propio encabezado.
-  // "seleccionId": el elemento cuya ficha muestra el panel derecho y cuya
-  // Actividad muestra el feed del centro — cambia también al hacer clic en
-  // un hijo dentro de la lista del centro, SIN mover el foco. Arrancan
-  // iguales; se separan cuando el usuario navega dentro de la rama
-  // enfocada sin cambiar de rama.
-  const [foco, setFoco] = useState(null); // {tipo, id, data}
-  const [seleccionId, setSeleccionId] = useState(null);
-  const [expandidos, setExpandidos] = useState(new Set()); // árbol izquierdo
-  const [expandidosCentro, setExpandidosCentro] = useState(new Set()); // lista central
+  // Único concepto de selección (antes "foco" + "selección" separados —
+  // ver nota de cabecera). {tipo, id, data}.
+  const [seleccion, setSeleccion] = useState(null);
+  const [expandidos, setExpandidos] = useState(new Set());
 
-  const seleccion = useMemo(() => {
-    if (!seleccionId) return foco;
-    return buscarNodoEnArbol(arbol, seleccionId) || foco;
-  }, [arbol, seleccionId, foco]);
-
-  // Panel del árbol (hamburger en pantallas < lg)
+  // Panel del árbol (hamburger en pantallas < lg, 1024px — el umbral
+  // exacto que pidió el encargo para colapsar a un botón "Estructura")
   const [treePanelAbierto, setTreePanelAbierto] = useState(false);
+
+  // Buscador del árbol — filtra por nombre, mismo criterio simple que el
+  // resto de la app (incluye texto, sin acentos exactos). Los ancestros
+  // de cualquier coincidencia se conservan (para no perder el contexto
+  // de dónde vive) y se auto-expanden.
+  const [busquedaArbol, setBusquedaArbol] = useState('');
 
   // Filtros del árbol
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
@@ -81,30 +89,29 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
   }, []);
 
   // Atajo "Registrar avance" de la Portada (?avance=1): si ya hay un nodo
-  // enfocado (deep-link futuro con ?nodo=), abre el modal de avance
-  // directo para él. Si no hay ninguno, el panel derecho muestra abajo un
+  // seleccionado (deep-link con ?nodo=), abre el modal de avance directo
+  // para él. Si no hay ninguno, el panel derecho muestra abajo un
   // selector explícito en vez del mensaje genérico "Selecciona un
   // elemento" — ver mostrarBuscadorAvance.
   const avanceSolicitado = searchParams.get('avance') === '1';
   const [abrirAvanceParaId, setAbrirAvanceParaId] = useState(null);
   useEffect(() => {
-    if (avanceSolicitado && foco && abrirAvanceParaId !== foco.id) {
-      setAbrirAvanceParaId(foco.id);
+    if (avanceSolicitado && seleccion && abrirAvanceParaId !== seleccion.id) {
+      setAbrirAvanceParaId(seleccion.id);
       setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete('avance'); return p; }, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [avanceSolicitado, foco]);
+  }, [avanceSolicitado, seleccion]);
 
   function elegirNodoParaAvance(tipo, id, data) {
-    seleccionarDesdeArbol(tipo, id, data);
+    irANodo(tipo, id, data);
     setAbrirAvanceParaId(id);
     setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete('avance'); return p; }, { replace: true });
   }
 
   // Resultados del buscador "¿A qué elemento quieres registrarle avance?"
   // (solo se usa cuando se llega con ?avance=1 y todavía no hay nada
-  // enfocado) — búsqueda plana por nombre en todo el árbol, mismo criterio
-  // simple que ya usa el buscador de proyectos del Header.
+  // seleccionado) — búsqueda plana por nombre en todo el árbol.
   const [busquedaAvance, setBusquedaAvance] = useState('');
   const resultadosBusquedaAvance = useMemo(() => {
     const q = busquedaAvance.trim().toLowerCase();
@@ -148,11 +155,7 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
   // Personas para el selector desplegable de "Usuario/Nombre": responsable
   // principal o colaborador de CUALQUIER nodo del árbol, más quien
   // participa a nivel de todo el proyecto (proyecto_usuarios) aunque no
-  // tenga ninguna etiqueta puntual en `nodo_miembros`. Antes era un input
-  // de texto libre que solo comparaba contra `responsable_nombre` (y, por
-  // error, también contra el nombre del propio nodo) — un colaborador (no
-  // responsable principal) de cualquier nivel nunca coincidía, sin
-  // importar qué se escribiera.
+  // tenga ninguna etiqueta puntual en `nodo_miembros`.
   const personasEnArbol = useMemo(() => {
     const mapa = new Map();
     recorrerArbol(arbol, n => {
@@ -166,15 +169,21 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
   }, [arbol, miembrosProyecto]);
 
   // Árbol filtrado (client-side: estado, usuario, DG de responsable y riesgo).
-  // Si la persona elegida participa a nivel de TODO el proyecto, filtrar
-  // por ella no debe restringir nada — se trata como "sin filtro de
-  // usuario" y se dejan actuar solo los demás filtros activos.
   const usuarioEsDeTodoElProyecto = !!filtroUsuario && idsMiembrosProyecto.has(String(filtroUsuario));
   const usuarioParaFiltrar = usuarioEsDeTodoElProyecto ? '' : filtroUsuario;
   const arbolFiltrado = useMemo(() => {
     if (!filtroEstado && !usuarioParaFiltrar && !filtroDG && !filtroRiesgo && !filtroVencido) return arbol;
     return filtrarArbol(arbol, filtroEstado, usuarioParaFiltrar, filtroDG, filtroRiesgo, filtroVencido);
   }, [arbol, filtroEstado, usuarioParaFiltrar, filtroDG, filtroRiesgo, filtroVencido]);
+
+  // Buscador por nombre — se aplica DESPUÉS de los filtros de arriba
+  // (busca dentro de lo ya filtrado), conservando la cadena de ancestros
+  // de cualquier coincidencia para no perder el contexto de dónde vive.
+  const arbolVisible = useMemo(() => {
+    const q = busquedaArbol.trim().toLowerCase();
+    if (!q) return arbolFiltrado;
+    return filtrarPorTexto(arbolFiltrado, q);
+  }, [arbolFiltrado, busquedaArbol]);
 
   // Cargar árbol (dgSeleccionada = filtro de DG propietaria del proyecto, server-side)
   const cargarArbol = useCallback(async (silencioso = false) => {
@@ -203,14 +212,14 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
     return () => { vivo = false; };
   }, [proyectoId]);
 
-  // Auto-expandir todo cuando hay filtros activos
+  // Auto-expandir todo cuando hay filtros o búsqueda activos
   useEffect(() => {
-    if (filtroEstado || filtroUsuario || filtroDG || filtroRiesgo || filtroVencido) {
+    if (filtroEstado || filtroUsuario || filtroDG || filtroRiesgo || filtroVencido || busquedaArbol.trim()) {
       const ids = new Set();
-      recorrerArbol(arbolFiltrado, n => ids.add(n.id));
+      recorrerArbol(arbolVisible, n => ids.add(n.id));
       setExpandidos(ids);
     }
-  }, [filtroEstado, filtroUsuario, filtroDG, filtroRiesgo, filtroVencido, arbolFiltrado]);
+  }, [filtroEstado, filtroUsuario, filtroDG, filtroRiesgo, filtroVencido, busquedaArbol, arbolVisible]);
 
   function limpiarFiltros() {
     setFiltroDG('');
@@ -220,38 +229,29 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
     setFiltroVencido(false);
   }
 
-  // Sincronizar foco/selección con la URL (?foco=&nodo=) — tanto en la
-  // carga inicial como en cualquier deep-link posterior mientras este
-  // componente sigue montado (Seguimiento/Panorama/Resumen conviven en el
-  // mismo DetalleProyecto con CSS `hidden`, no con montaje condicional —
-  // ver DetalleProyecto.jsx — así que EtapasAvancesMD nunca se desmonta al
-  // cambiar de pestaña). Antes esto solo corría "la primera vez que el
-  // árbol carga" (guardado con `if (foco) return`) — un clic en un riesgo
-  // desde Panorama SÍ actualizaba la URL, pero como `foco` ya tenía algo
-  // de la carga inicial, el efecto nunca volvía a correr y el panel se
-  // quedaba mostrando el nodo de antes, no el del riesgo. Comparar contra
-  // lo que YA está reflejado (en vez de "ya corrió alguna vez") deja
-  // resincronizar en cada deep-link nuevo sin generar un loop con
-  // irAFoco/seleccionarEnCentro, que escriben la URL DESPUÉS de haber
-  // actualizado este mismo estado (por eso, cuando ellos disparan el
-  // cambio, la comparación de abajo ya coincide y el efecto no repite).
+  function expandirTodo() {
+    const ids = new Set();
+    recorrerArbol(arbolVisible, n => ids.add(n.id));
+    setExpandidos(ids);
+  }
+  function colapsarTodo() { setExpandidos(new Set()); }
+
+  // Sincronizar selección con la URL (?foco=&nodo=, con ?foco= como
+  // alias legacy de ?nodo= — ver DetalleProyectoLayout.jsx, que traduce
+  // el formato viejo ?tab=&nodo=&riesgo=&foco= preservando ambos) — tanto
+  // en la carga inicial como en cualquier deep-link posterior mientras
+  // este componente sigue montado (Seguimiento/Panorama/Resumen conviven
+  // en el mismo DetalleProyecto con CSS `hidden`, no con montaje
+  // condicional, así que esto nunca se desmonta al cambiar de pestaña).
   useEffect(() => {
     if (arbol.length === 0) return;
-    const focoId = searchParams.get('foco') || searchParams.get('nodo');
-    const nodoId = searchParams.get('nodo') || searchParams.get('foco');
-    if (!focoId) return;
-    if (foco?.id === focoId && seleccionId === nodoId) return;
-    const encontradoFoco = buscarNodoEnArbol(arbol, focoId);
-    if (!encontradoFoco) return;
-    setFoco(encontradoFoco);
-    expandirHasta(encontradoFoco, arbol);
-    setSeleccionId(nodoId);
-    // Si la selección va más profundo que el foco (deep-link directo a un
-    // nieto), expande también esa ruta dentro de la lista central.
-    if (nodoId && nodoId !== focoId) {
-      const pathSeleccion = encontrarPath(arbol, nodoId);
-      if (pathSeleccion) setExpandidosCentro(new Set(pathSeleccion));
-    }
+    const id = searchParams.get('nodo') || searchParams.get('foco');
+    if (!id) return;
+    if (seleccion?.id === id) return;
+    const encontrado = buscarNodoEnArbol(arbol, id);
+    if (!encontrado) return;
+    setSeleccion(encontrado);
+    expandirHasta(encontrado, arbol);
   }, [arbol, searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function expandirHasta(nodo, arbolData) {
@@ -265,40 +265,22 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
     }
   }
 
-  // Cambia de RAMA: árbol izquierdo o lineage del encabezado central. Mueve
-  // foco Y selección juntos, y resetea qué está expandido en el centro —
-  // es una renavegación completa, no un drill-down dentro de lo mismo.
-  function irAFoco(tipo, id, data) {
-    const nodo = { tipo, id, data };
-    setFoco(nodo);
-    setSeleccionId(id);
-    setExpandidosCentro(new Set());
+  // Único punto de entrada para seleccionar un nodo — desde el árbol (ya
+  // trae tipo+id+data), o desde la ruta clicable de la ficha (solo id,
+  // hay que resolver los datos en el árbol). Reemplaza lo que antes eran
+  // 4 funciones separadas (irAFoco/seleccionarDesdeArbol/navegarFocoPorId/
+  // seleccionarEnCentro) — con un solo concepto de selección ya no hace
+  // falta distinguir "cambiar de rama" de "navegar dentro de la rama".
+  function irANodo(tipo, id, data) {
+    const nodo = data ? { tipo, id, data } : buscarNodoEnArbol(arbol, id);
+    if (!nodo) return;
+    setSeleccion(nodo);
     expandirHasta(nodo, arbol);
     setTreePanelAbierto(false);
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
-      next.set('foco', id);
-      next.set('nodo', id);
-      return next;
-    }, { replace: true });
-  }
-
-  // Ancla del árbol izquierdo: siempre conocemos tipo+data ahí mismo.
-  function seleccionarDesdeArbol(tipo, id, data) { irAFoco(tipo, id, data); }
-
-  // Ancla del lineage (solo trae id) — busca los datos en el árbol.
-  function navegarFocoPorId(_tipo, id) {
-    const encontrado = buscarNodoEnArbol(arbol, id);
-    if (encontrado) irAFoco(encontrado.tipo, encontrado.id, encontrado.data);
-  }
-
-  // Drill-down DENTRO de la rama enfocada: clic en una fila de la lista
-  // central. Mueve solo la selección — el centro no se reconstruye.
-  function seleccionarEnCentro(tipo, id) {
-    setSeleccionId(id);
-    setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      next.set('nodo', id);
+      next.set('foco', nodo.id);
+      next.set('nodo', nodo.id);
       return next;
     }, { replace: true });
   }
@@ -311,38 +293,25 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
     });
   }
 
-  function toggleCentroExpandir(id) {
-    setExpandidosCentro(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
-
   async function recargar() {
     await cargarArbol(true);
     onStatsChange?.();
   }
 
-  // Después de cargar el árbol, refrescar el foco con datos frescos (la
-  // selección se re-deriva sola vía el useMemo de arriba).
-  //
-  // Si el nodo enfocado ya NO está en el árbol es que se eliminó (desde el
-  // botón de la ficha, desde el Diagrama, o por otro usuario): hay que
-  // soltarlo, porque `foco` guarda una copia de sus datos y el `seleccion`
-  // de arriba cae de vuelta en él cuando no encuentra el id — sin esto el
-  // centro y el rail se quedaban mostrando un elemento ya borrado. Se cae a
-  // la primera etapa que quede, o a nada si el proyecto se quedó vacío.
+  // Después de cargar el árbol, refrescar la selección con datos frescos.
+  // Si el nodo seleccionado ya NO está en el árbol es que se eliminó: hay
+  // que soltarlo (si no, `seleccion` se queda con una copia de datos ya
+  // borrados) — se cae a la primera etapa que quede, o a nada si el
+  // proyecto se quedó vacío.
   useEffect(() => {
-    if (!foco || arbol.length === 0) return;
-    const found = buscarNodoEnArbol(arbol, foco.id);
+    if (!seleccion || arbol.length === 0) return;
+    const found = buscarNodoEnArbol(arbol, seleccion.id);
     if (found) {
-      setFoco(found);
+      setSeleccion(found);
       return;
     }
     const primera = arbol[0];
-    setFoco(primera ? { tipo: 'etapa', id: primera.id, data: primera } : null);
-    setSeleccionId(null);
+    setSeleccion(primera ? { tipo: 'etapa', id: primera.id, data: primera } : null);
   }, [arbol]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (cargando) {
@@ -354,10 +323,8 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
     );
   }
 
-  // Sin alto forzado (ni fijo ni medido con JS): igual que Vista lista y
-  // Cronograma, el alto lo determina el contenido — nada de "llenar el
-  // viewport", que es justo lo que hacía sentir esto como una caja aparte
-  // en vez de una sección más de la página que scrollea junto con todo.
+  // Sin alto forzado (ni fijo ni medido con JS): el alto lo determina el
+  // contenido, igual que Vista lista y Cronograma.
   return (
     <div className="flex gap-0 border border-gray-200 rounded-xl overflow-hidden bg-white">
       {/* Overlay para árbol en móvil */}
@@ -369,27 +336,32 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
       <div
         style={{ '--ancho-arbol': `${anchoArbol}px` }}
         className={[
-          'flex-shrink-0 border-r border-gray-200 flex flex-col bg-gray-50/50',
-          /* Desktop: siempre visible como columna inline, ancho ajustable
-             por el usuario (arrastrando el ResizeHandle de abajo) */
+          'flex-shrink-0 border-r border-gray-200 flex flex-col bg-white',
           'lg:w-[var(--ancho-arbol)] lg:relative lg:translate-x-0',
-          /* Móvil: slide-over controlado por estado */
           treePanelAbierto
             ? 'fixed left-0 top-0 bottom-0 w-80 z-30 shadow-2xl translate-x-0'
             : 'fixed left-0 top-0 bottom-0 w-80 z-30 -translate-x-full lg:translate-x-0',
           'transition-transform duration-200',
         ].join(' ')}>
         {/* Cabecera */}
-        <div className="px-3 py-2.5 border-b border-gray-200 flex items-center justify-between">
-          <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Estructura del proyecto</h3>
-          <div className="flex items-center gap-1">
-            {/* Cerrar slide-over en móvil */}
+        <div className="px-3 py-2.5 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+          <div className="min-w-0">
+            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Estructura del proyecto</h3>
+            <p className="text-[10px] text-gray-400">{arbol.length} etapa{arbol.length === 1 ? '' : 's'}</p>
+          </div>
+          <div className="flex items-center gap-0.5 flex-shrink-0">
             <button
               onClick={() => setTreePanelAbierto(false)}
-              className="lg:hidden p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-200"
+              className="lg:hidden p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-100"
               title="Cerrar"
             >
               <X size={13} />
+            </button>
+            <button onClick={expandirTodo} title="Expandir todo" className="p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-100">
+              <ChevronsDown size={13} />
+            </button>
+            <button onClick={colapsarTodo} title="Colapsar todo" className="p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-100">
+              <ChevronsUp size={13} />
             </button>
             <button
               onClick={() => setMostrarFiltros(v => !v)}
@@ -413,18 +385,23 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
           </div>
         </div>
 
-        {/* Leyenda de colores — siempre visible, sin depender de hover */}
-        <div className="flex items-center flex-wrap gap-x-2.5 gap-y-1 px-3 py-1.5 border-b border-gray-200 bg-white text-[9px] text-gray-500">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO.verde }} />En proceso, sin riesgo</span>
-          <span className="flex items-center gap-1"><CheckCircle2 size={9} className="text-emerald-600 flex-shrink-0" />Completada</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO.ambar }} />Por vencer</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO.rojo }} />Vencida</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0 border border-gray-300" style={{ backgroundColor: COLORES_SEMAFORO.gris }} />Sin iniciar / cancelada</span>
+        {/* Buscador — filtra por nombre, conserva ancestros de cada coincidencia */}
+        <div className="px-3 py-2 border-b border-gray-200 flex-shrink-0">
+          <div className="relative">
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" />
+            <input
+              type="text"
+              value={busquedaArbol}
+              onChange={e => setBusquedaArbol(e.target.value)}
+              placeholder="Buscar en la estructura…"
+              className="w-full text-xs border border-gray-200 rounded-md pl-7 pr-2 py-1.5 bg-white focus:outline-none focus:border-guinda-300"
+            />
+          </div>
         </div>
 
         {/* Panel de filtros */}
         {mostrarFiltros && (
-          <div className="px-2.5 py-2 border-b border-gray-200 bg-white space-y-1.5">
+          <div className="px-2.5 py-2 border-b border-gray-200 bg-gray-50/60 space-y-1.5 flex-shrink-0">
             <div className="flex items-center justify-between mb-1">
               <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Filtros</span>
               {filtrosActivos > 0 && (
@@ -432,7 +409,6 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
               )}
             </div>
 
-            {/* DG */}
             {dgsEnArbol.length > 0 && (
               <div>
                 <label className="text-[10px] text-gray-400 font-medium uppercase tracking-wide block mb-0.5">DG (responsable)</label>
@@ -449,7 +425,6 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
               </div>
             )}
 
-            {/* Estatus */}
             <div>
               <label className="text-[10px] text-gray-400 font-medium uppercase tracking-wide block mb-0.5">Estatus</label>
               <select
@@ -464,8 +439,6 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
               </select>
             </div>
 
-            {/* Usuario — responsable o colaborador de cualquier nodo, lista
-                desplegable en vez de texto libre (ver personasEnArbol). */}
             {personasEnArbol.length > 0 && (
               <div>
                 <label className="text-[10px] text-gray-400 font-medium uppercase tracking-wide block mb-0.5">Usuario / Nombre</label>
@@ -482,7 +455,6 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
               </div>
             )}
 
-            {/* Riesgos */}
             <div>
               <label className="text-[10px] text-gray-400 font-medium uppercase tracking-wide block mb-0.5">Riesgos</label>
               <select
@@ -496,8 +468,6 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
               </select>
             </div>
 
-            {/* Vencidas — mismo criterio que el punto rojo del árbol
-                (semaforo_efectivo), no un campo nuevo que calcular aquí. */}
             <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
               <input
                 type="checkbox"
@@ -510,45 +480,51 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
           </div>
         )}
 
-        {/* Árbol */}
-        <div className="flex-1 overflow-y-auto py-1">
-          {arbolFiltrado.length === 0 ? (
-            filtrosActivos > 0 ? (
+        {/* Árbol — listado institucional, filas de ancho completo */}
+        <div className="flex-1 overflow-y-auto" role="tree" aria-label="Estructura del proyecto">
+          {arbolVisible.length === 0 ? (
+            (filtrosActivos > 0 || busquedaArbol.trim()) ? (
               <div className="text-center py-8 px-3">
                 <Filter size={20} className="mx-auto mb-2 text-gray-300" />
-                <p className="text-xs text-gray-400">Sin resultados con los filtros aplicados.</p>
-                <button onClick={limpiarFiltros} className="mt-2 text-xs text-guinda-500 hover:text-guinda-700 font-medium">Limpiar filtros</button>
+                <p className="text-xs text-gray-400">Sin resultados.</p>
+                <button onClick={() => { limpiarFiltros(); setBusquedaArbol(''); }} className="mt-2 text-xs text-guinda-500 hover:text-guinda-700 font-medium">Limpiar búsqueda y filtros</button>
               </div>
             ) : (
               <p className="text-xs text-gray-400 text-center py-8">Sin etapas. Crea la primera.</p>
             )
           ) : (
-            arbolFiltrado.map(etapa => (
+            arbolVisible.map(etapa => (
               <NodoArbol
                 key={etapa.id}
                 nodo={etapa}
                 tipo="etapa"
-                nivel={0}
                 expandidos={expandidos}
-                seleccionadoId={foco?.id}
+                seleccionadoId={seleccion?.id}
                 onToggle={toggleExpandir}
-                onSelect={seleccionarDesdeArbol}
-                permisos={permisos}
-                proyectoId={proyectoId}
-                onCreado={recargar}
-                mostrarToast={mostrarToast}
+                onSelect={irANodo}
               />
             ))
           )}
+        </div>
+
+        {/* Pie: leyenda del semáforo — texto importado de la misma fuente
+            que usa el cálculo real (SemaforoDot/LEYENDA_SEMAFORO), no
+            redactado aparte, para que nunca pueda desincronizarse de la
+            regla real. */}
+        <div className="flex items-center flex-wrap gap-x-2.5 gap-y-1 px-3 py-1.5 border-t border-gray-200 bg-gray-50/60 text-[9px] text-gray-500 flex-shrink-0">
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO.verde }} />{LEYENDA_SEMAFORO.verde}</span>
+          <span className="flex items-center gap-1"><CheckCircle2 size={9} className="text-emerald-600 flex-shrink-0" />Completada</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO.ambar }} />{LEYENDA_SEMAFORO.ambar}</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO.rojo }} />{LEYENDA_SEMAFORO.rojo}</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0 border border-gray-300" style={{ backgroundColor: COLORES_SEMAFORO.gris }} />{LEYENDA_SEMAFORO.gris}</span>
         </div>
       </div>
 
       <ResizeHandle lado="derecho" label="Redimensionar árbol" onResize={ajustarAnchoArbol} />
 
-      {/* ─── Panel derecho: Detalle ─── */}
+      {/* ─── Panel derecho: ficha completa del nodo seleccionado ─── */}
       <div className="flex-1 min-w-0 flex flex-col">
-        {/* Barra de hamburger visible solo en móvil */}
-        {!foco && (
+        {!seleccion && (
           <button
             onClick={() => setTreePanelAbierto(v => !v)}
             className="lg:hidden flex items-center gap-2 px-4 py-2 text-xs text-gray-500 border-b border-gray-100 hover:bg-gray-50"
@@ -557,7 +533,7 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
             <span>Ver estructura</span>
           </button>
         )}
-        {!foco ? (
+        {!seleccion ? (
           avanceSolicitado ? (
             <div className="flex-1 flex items-center justify-center text-gray-500 px-6">
               <div className="w-full max-w-sm text-center">
@@ -602,18 +578,14 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
           )
         ) : (
           <PanelDetalle
-            key={foco.id}
-            foco={foco}
+            key={seleccion.id}
             seleccion={seleccion}
             proyectoId={proyectoId}
             permisos={permisos}
             onActualizado={recargar}
             mostrarToast={mostrarToast}
             arbol={arbol}
-            expandidosCentro={expandidosCentro}
-            onToggleCentro={toggleCentroExpandir}
-            onSeleccionarEnCentro={seleccionarEnCentro}
-            onNavegarFoco={navegarFocoPorId}
+            onNavegarNodo={irANodo}
             onAbrirArbol={() => setTreePanelAbierto(true)}
             riesgoAAbrir={searchParams.get('riesgo')}
             onRiesgoConsumido={() => setSearchParams(prev => {
@@ -621,10 +593,36 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
               next.delete('riesgo');
               return next;
             }, { replace: true })}
-            avanceAAbrir={abrirAvanceParaId === foco.id}
+            avanceAAbrir={abrirAvanceParaId === seleccion.id}
           />
         )}
       </div>
     </div>
   );
+}
+
+// Filtra el árbol por texto de búsqueda, conservando la cadena de
+// ancestros de cualquier coincidencia (un hijo que coincide mantiene a
+// su padre visible, aunque el nombre del padre no coincida) — construye
+// un árbol nuevo con los arreglos de hijos ya filtrados en cada nivel,
+// no solo decide si mostrar la rama completa o no (eso dejaría pasar
+// hermanos sin relación con la búsqueda).
+function filtrarPorTexto(etapas, q) {
+  // Si el propio nodo coincide, se conserva ENTERO tal cual (todos sus
+  // descendientes, sin seguir filtrando hacia abajo) — buscar "Etapa 1" y
+  // perder la mitad de sus acciones porque sus nombres no contienen el
+  // texto sería un resultado incorrecto, no uno más preciso.
+  function filtrarAccion(acc) {
+    if (acc.nombre?.toLowerCase().includes(q)) return acc;
+    const subacciones = (acc.subacciones || []).map(filtrarAccion).filter(Boolean);
+    const tareas = (acc.tareas || []).filter(t => t.nombre?.toLowerCase().includes(q));
+    if (subacciones.length === 0 && tareas.length === 0) return null;
+    return { ...acc, subacciones, tareas };
+  }
+  return etapas.reduce((lista, etapa) => {
+    if (etapa.nombre?.toLowerCase().includes(q)) { lista.push(etapa); return lista; }
+    const acciones = (etapa.acciones || []).map(filtrarAccion).filter(Boolean);
+    if (acciones.length > 0) lista.push({ ...etapa, acciones });
+    return lista;
+  }, []);
 }
