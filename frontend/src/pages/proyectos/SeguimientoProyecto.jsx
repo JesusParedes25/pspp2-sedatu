@@ -10,7 +10,7 @@
  */
 import { useState, useEffect, Suspense, lazy } from 'react';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
-import { FileSpreadsheet, Table2, MapPin, GitBranch, BarChart3, Settings, Loader2 } from 'lucide-react';
+import { Table2, MapPin, GitBranch, BarChart3, Settings, Loader2 } from 'lucide-react';
 import EtapasAvancesMD from '../../components/seguimiento/EtapasAvancesMD';
 const VistaDiagrama = lazy(() => import('../../components/seguimiento/VistaDiagrama'));
 import VistaLista from '../../components/seguimiento/VistaLista';
@@ -18,9 +18,7 @@ import MapaProyecto from '../../components/seguimiento/MapaProyecto';
 import GanttCronograma from '../../components/seguimiento/GanttCronograma';
 import ModalNuevaEtapa from '../../components/seguimiento/ModalNuevaEtapa';
 import ImportarWizard from '../../components/importar/ImportarWizard';
-import PanelLotesImportacion from '../../components/importar/PanelLotesImportacion';
-import BotonExportar from '../../components/proyectos/BotonExportar';
-import GenerarReporteBtn from '../../components/reportes/GenerarReporteBtn';
+import MenuDatosReportes from '../../components/seguimiento/MenuDatosReportes';
 import { useUI } from '../../context/UIContext';
 import * as etapasApi from '../../api/etapas';
 
@@ -70,34 +68,39 @@ export default function SeguimientoProyecto() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 flex-wrap">
+        {/* Control segmentado de vista — cada botón recorta su propio texto
+            (min-w-0 + truncate) en vez de desbordarse sobre lo que sigue:
+            así es como "Cronograma" terminaba tapado por "Importar" entre
+            1019px y 1300px — el texto se salía de su botón sin que el
+            flexbox lo contara como más ancho. */}
         <div className="flex gap-1 bg-gray-100 rounded-lg p-1 flex-1 min-w-0">
           {SUBSECCIONES.map(sub => (
             <button
               key={sub.id}
               onClick={() => setSubseccionActiva(sub.id)}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-md transition-all flex-1 justify-center ${
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-md transition-all flex-1 min-w-0 justify-center ${
                 subseccionActiva === sub.id
                   ? 'bg-white text-guinda-600 shadow-sm'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              <sub.icono size={14} />
-              <span className="hidden sm:inline">{sub.etiqueta}</span>
+              <sub.icono size={14} className="flex-shrink-0" />
+              <span className="hidden sm:inline truncate">{sub.etiqueta}</span>
             </button>
           ))}
         </div>
+        {/* Un solo menú agrupa lo que antes eran 4 botones sueltos
+            (Importar, Importaciones recientes, Exportar, Reporte PDF) —
+            ver MenuDatosReportes.jsx. Le deja al control segmentado todo
+            el ancho que necesita en vez de competir con él por espacio. */}
         {subseccionActiva === 'etapas' && (
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button onClick={() => setModalCSV(true)}
-              className="btn-secondary text-sm flex items-center gap-1.5">
-              <FileSpreadsheet size={14} /> Importar
-            </button>
-            <PanelLotesImportacion
+          <div className="flex items-center flex-shrink-0">
+            <MenuDatosReportes
               proyectoId={id}
-              onDeshecho={() => { recargarEtapasSilencioso(); recargarProyectoSilencioso(); incrementarStats(); }}
+              proyecto={proyecto}
+              onAbrirImportar={() => setModalCSV(true)}
+              onLoteDeshecho={() => { recargarEtapasSilencioso(); recargarProyectoSilencioso(); incrementarStats(); }}
             />
-            <BotonExportar proyectoId={id} />
-            <GenerarReporteBtn proyectoId={id} proyecto={proyecto} />
           </div>
         )}
       </div>
