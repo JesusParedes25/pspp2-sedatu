@@ -61,7 +61,7 @@ function Iniciales({ nombre, className = '' }) {
   );
 }
 
-export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto, nombreNodo }) {
+export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto, nombreNodo, onContador }) {
   const [miembros, setMiembros] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [mostrarPicker, setMostrarPicker] = useState(false);
@@ -81,7 +81,8 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto
     try {
       const data = await listarMiembrosNodo(tipo, idNodo);
       setMiembros(data || []);
-    } catch { setMiembros([]); }
+      onContador?.((data || []).length);
+    } catch { setMiembros([]); onContador?.(0); }
     finally { setCargando(false); }
   }
 
@@ -139,7 +140,11 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto
   async function quitar(idUsuario) {
     try {
       await eliminarMiembroNodo(tipo, idNodo, idUsuario);
-      setMiembros(prev => prev.filter(m => m.id_usuario !== idUsuario));
+      setMiembros(prev => {
+        const siguiente = prev.filter(m => m.id_usuario !== idUsuario);
+        onContador?.(siguiente.length);
+        return siguiente;
+      });
     } catch (err) {
       console.error('Error al quitar miembro:', err);
     }

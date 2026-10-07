@@ -174,6 +174,14 @@ router.get('/subacciones/:id/evidencias', evidenciasController.listarPorSubaccio
 router.post('/subacciones/:id/evidencias', exigirEdicionNodo('accion'), upload.single('archivo'), corregirCodificacionArchivo, evidenciasController.subirParaSubaccion);
 router.get('/proyectos/:id/evidencias', evidenciasController.listarPorProyecto);
 
+// Documentos agregados (pestaña "Documentos" de Detalle, Fase 4) — incluye
+// los del nodo y, por omisión, los de sus descendientes (?incluirHijos=false
+// para solo el propio). Distinto de los endpoints exactos de arriba, que
+// alimentan el modal "Adjuntar documento" (solo lo propio del nodo).
+router.get('/etapas/:id/documentos', evidenciasController.obtenerDocumentosAgregados);
+router.get('/acciones/:id/documentos', evidenciasController.obtenerDocumentosAgregados);
+router.get('/tareas/:id/documentos', evidenciasController.obtenerDocumentosAgregados);
+
 // Riesgos de un proyecto, etapa, acción, subacción y tarea
 router.get('/proyectos/:id/riesgos', riesgosController.listarPorProyecto);
 router.get('/etapas/:id/riesgos', riesgosController.listarPorEtapa);

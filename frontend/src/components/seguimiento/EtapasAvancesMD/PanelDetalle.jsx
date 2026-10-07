@@ -2,7 +2,9 @@
  * ARCHIVO: PanelDetalle.jsx
  * PROPÓSITO: Panel derecho de Detalle — ficha completa del nodo
  *            seleccionado: encabezado propio (Fase 2), tira de datos
- *            (Fase 2), fila de acciones (Fase 3) y Actividad al fondo.
+ *            (Fase 2), fila de acciones (Fase 3) y subpestañas al fondo
+ *            (Fase 4: Actividad/Documentos/Indicadores/Territorio/
+ *            Riesgos/Equipo y permisos, ver PestanasDetalle.jsx).
  *
  * Fase 2 del rediseño: el encabezado y la tira de datos son componentes
  * NUEVOS, propios de Detalle (EncabezadoDetalle.jsx, TiraDatos.jsx,
@@ -11,19 +13,21 @@
  *
  * Fase 3 del rediseño: la fila de acciones deja de ser NodoCard completa
  * (agrupado) y pasa a FilaAcciones.jsx, un componente NUEVO propio de
- * Detalle con el layout que pide el punto 4.2 del rediseño (primaria +
- * secundaria + menú "Más acciones", todo abre modal) — sigue sin tocarse
- * NodoCard.jsx; FilaAcciones reusa los mismos modales/formularios
- * compartidos (ModalRiesgo, ModalDuplicarNodo, ModalNuevaAccion/Tarea,
- * SeccionArchivosNodo, TabIndicadores, TerritorioSelector,
- * SeccionMiembrosNodo) sin duplicar su lógica interna. ModalRegistrarAvance
- * se levanta aquí (antes vivía dentro de NodoCard) porque dos disparadores
+ * Detalle (primaria + secundaria + menú "Más acciones" reducido a Editar
+ * ficha/Duplicar/Eliminar desde la Fase 4 — las demás acciones ya tienen
+ * su propia subpestaña) — sigue sin tocarse NodoCard.jsx.
+ *
+ * Fase 4 del rediseño: el stream de Actividad que vivía siempre visible
+ * al fondo pasa a ser una pestaña más (PestanasDetalle.jsx), junto con
+ * las tablas nuevas de Documentos/Indicadores/Riesgos (con agregación de
+ * descendientes) y Territorio/Equipo y permisos. ModalRegistrarAvance se
+ * levanta aquí (antes vivía dentro de NodoCard) porque dos disparadores
  * distintos lo abren: el botón "Registrar avance" de FilaAcciones y el
  * atajo "Marcar como completada" del encabezado — un solo modal montado
  * una vez, no dos copias con estado separado.
  */
 import { useState } from 'react';
-import ActividadStream from '../../nodos/ActividadStream';
+import PestanasDetalle from './PestanasDetalle';
 import ModalRegistrarAvance from '../../nodos/ModalRegistrarAvance';
 import FilaAcciones from './FilaAcciones';
 import EncabezadoDetalle from './EncabezadoDetalle';
@@ -110,13 +114,18 @@ export default function PanelDetalle({
           }}
         />
 
-        <ActividadStream
+        <PestanasDetalle
           tipo={tipo}
           id={id}
-          soloLectura={permisos.esSoloLectura}
+          nodo={data}
+          proyectoId={proyectoId}
+          permisos={permisos}
+          permisosProyecto={permisosProyecto}
           onCambiado={onActualizado}
-          riesgoIdInicial={riesgoAAbrir}
+          mostrarToast={mostrarToast}
+          riesgoAAbrir={riesgoAAbrir}
           onRiesgoConsumido={onRiesgoConsumido}
+          onNavegarNodo={onNavegarNodo}
         />
       </div>
 

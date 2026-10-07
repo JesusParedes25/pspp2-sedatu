@@ -3,6 +3,7 @@
  * PROPÓSITO: Consultas SQL para aportaciones de nodos a indicadores.
  */
 const pool = require('../pool');
+const { idsNodoYDescendientes } = require('../../utils/descendientes-nodo');
 
 // Trae también de qué proyecto es cada nodo: una aportación puede venir
 // de un proyecto distinto al dueño del indicador (el módulo permite
@@ -40,17 +41,43 @@ async function listarPorIndicador(indicadorId) {
   return res.rows;
 }
 
-async function listarPorNodo(tipo, nodoId) {
-  const col = tipo === 'etapa' ? 'id_etapa' : tipo === 'tarea' ? 'id_tarea' : 'id_accion';
+// incluirHijos=false (default, comportamiento histórico): solo las
+// aportaciones del nodo exacto — usado por TabIndicadores (modal "Vincular
+// indicador") donde la pregunta es "a qué aporta ESTE nodo", no su subárbol.
+// incluirHijos=true: agrega también las de sus descendientes, con "origen"
+// (de qué nodo viene cada una) — pestaña "Indicadores" de Detalle (Fase 4).
+async function listarPorNodo(tipo, nodoId, incluirHijos = false) {
+  const { etapaIds, accionIds, tareaIds } = await idsNodoYDescendientes(tipo, nodoId, incluirHijos);
+
+  const condiciones = [];
+  const params = [];
+  let idx = 1;
+  if (etapaIds.length) { condiciones.push(`ia.id_etapa = ANY($${idx++})`); params.push(etapaIds); }
+  if (accionIds.length) { condiciones.push(`ia.id_accion = ANY($${idx++})`); params.push(accionIds); }
+  if (tareaIds.length) { condiciones.push(`ia.id_tarea = ANY($${idx++})`); params.push(tareaIds); }
+  if (!condiciones.length) return [];
+
   const res = await pool.query(`
     SELECT ia.*, i.nombre AS indicador_nombre, i.unidad, i.unidad_personalizada, i.etiqueta_unidad, i.tipo AS indicador_tipo,
-      i.composicion, ic.nombre AS categoria_nombre
+      i.composicion, ic.nombre AS categoria_nombre,
+      CASE WHEN ia.id_etapa IS NOT NULL THEN 'etapa' WHEN ia.id_tarea IS NOT NULL THEN 'tarea' ELSE 'accion' END AS origen_tipo,
+      COALESCE(ia.id_etapa, ia.id_accion, ia.id_tarea) AS origen_id,
+      COALESCE(e.nombre, a.nombre, t.nombre) AS origen_nombre
     FROM indicador_aportaciones ia
     JOIN indicadores i ON i.id = ia.id_indicador
     LEFT JOIN indicador_categorias ic ON ic.id = ia.id_categoria
-    WHERE ia.${col} = $1 AND i.activo = true
+    LEFT JOIN etapas e ON e.id = ia.id_etapa
+    LEFT JOIN acciones a ON a.id = ia.id_accion
+    LEFT JOIN tareas t ON t.id = ia.id_tarea
+    WHERE (${condiciones.join(' OR ')}) AND i.activo = true
     ORDER BY i.nombre
-  `, [nodoId]);
+  `, params);
+
+  for (const row of res.rows) {
+    row.origen = (row.origen_tipo === tipo && row.origen_id === nodoId)
+      ? null
+      : { tipo: row.origen_tipo, id: row.origen_id, nombre: row.origen_nombre };
+  }
 
   // Un chip editable de categoría necesita la lista completa de
   // categorías del indicador (no solo la elegida) — batch-load igual

@@ -1,16 +1,15 @@
 /**
  * ARCHIVO: ModalAccionNodo.jsx
  * PROPÓSITO: Cascarón de modal genérico (encabezado + X + cuerpo con
- *            scroll) para las acciones de "Más acciones" que no tienen
- *            su propio modal dedicado — Adjuntar documento, Vincular
- *            indicador, Vincular territorio, Invitar participante. Envuelve
- *            los componentes ya existentes (SeccionArchivosNodo,
- *            TabIndicadores, TerritorioSelector, SeccionMiembrosNodo) tal
- *            cual, sin tocar su lógica — antes vivían como un panel
- *            inline dentro de NodoCard; aquí se presentan en un modal,
- *            como pide el punto 4.2 del rediseño de Detalle ("cada
- *            acción abre un modal, nunca un panel de solo lectura que se
- *            queda a medias en la página").
+ *            scroll) para las acciones de alta de las subpestañas de
+ *            Detalle (Fase 4) — "Adjuntar documento" y "Vincular
+ *            indicador"/"Vincular territorio" (PestanaDocumentos.jsx/
+ *            PestanaIndicadores.jsx/PestanaTerritorio.jsx). Envuelve los
+ *            componentes ya existentes (SeccionArchivosNodo,
+ *            TabIndicadores, TerritorioSelector) tal cual, sin tocar su
+ *            lógica — como pide el punto 4.2 del rediseño de Detalle
+ *            ("cada acción abre un modal, nunca un panel de solo lectura
+ *            que se queda a medias en la página").
  *
  * Cierra con clic fuera (ya lo tenía) y con Escape — sin guardia de
  * "datos sin guardar": lo que vive adentro (SeccionArchivosNodo,

@@ -17,8 +17,8 @@ export async function obtenerRiesgosProyecto(proyectoId) {
   return data;
 }
 
-export async function obtenerRiesgosEtapa(etapaId) {
-  const { data } = await client.get(`/etapas/${etapaId}/riesgos`);
+export async function obtenerRiesgosEtapa(etapaId, incluirHijos = true) {
+  const { data } = await client.get(`/etapas/${etapaId}/riesgos`, { params: { incluirHijos } });
   return data;
 }
 
@@ -37,8 +37,8 @@ export async function actualizarRiesgo(id, datos) {
   return data;
 }
 
-export async function obtenerRiesgosAccion(accionId) {
-  const { data } = await client.get(`/acciones/${accionId}/riesgos`);
+export async function obtenerRiesgosAccion(accionId, incluirHijos = true) {
+  const { data } = await client.get(`/acciones/${accionId}/riesgos`, { params: { incluirHijos } });
   return data;
 }
 

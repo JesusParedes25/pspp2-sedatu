@@ -99,6 +99,14 @@ export async function subirEvidenciaSubaccion(subaccionId, archivo, metadatos = 
   return data;
 }
 
+// Pestaña "Documentos" de Detalle (Fase 4) — agrega documentos del nodo y,
+// por omisión, de sus descendientes. tipo: 'etapa'|'accion'|'tarea'.
+export async function obtenerDocumentosAgregados(tipo, nodoId, incluirHijos = true) {
+  const ruta = tipo === 'etapa' ? 'etapas' : tipo === 'tarea' ? 'tareas' : 'acciones';
+  const { data } = await client.get(`/${ruta}/${nodoId}/documentos`, { params: { incluirHijos } });
+  return data;
+}
+
 export function obtenerUrlDescarga(evidenciaId) {
   const baseURL = client.defaults.baseURL;
   const token = localStorage.getItem('pspp_token');

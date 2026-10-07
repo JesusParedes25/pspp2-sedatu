@@ -1,11 +1,13 @@
 /**
  * ARCHIVO: ActividadStream.jsx
  * PROPÓSITO: "Evolución en el tiempo" de un nodo Y TODOS sus descendientes
- *            — mini-gráfica de avance a través del tiempo (con los mismos
- *            registros de avance que ya se guardan, sin datos nuevos) y,
- *            debajo, la línea de tiempo unificada: avances registrados,
- *            riesgos, comentarios y archivos, más recientes primero, con
- *            chips de filtro (Todo/Avance/Riesgos/Archivos).
+ *            — gráfico de línea del tiempo (GraficaTiempo.jsx, Fase 5 del
+ *            rediseño de Detalle: avance + documentos/riesgos/comentarios
+ *            en un carril aparte, con interacción bidireccional hacia la
+ *            bitácora) y, debajo, la línea de tiempo unificada: avances
+ *            registrados, riesgos, comentarios y archivos, más recientes
+ *            primero, con chips de filtro (Todo/Avance/Documentos/
+ *            Riesgos/Comentarios).
  *
  * MINI-CLASE: por qué se agrupan varias filas en una sola tarjeta
  * ─────────────────────────────────────────────────────────────────
@@ -20,14 +22,14 @@
  * su propia fila.
  * ─────────────────────────────────────────────────────────────────
  */
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { MessageSquare, Paperclip, AlertTriangle, ArrowRightCircle, Send, Loader2, ExternalLink, X, FileText, Upload, Link2, Sparkles, TrendingUp } from 'lucide-react';
 import * as actividadApi from '../../api/actividad';
 import * as evidenciasApi from '../../api/evidencias';
 import * as riesgosApi from '../../api/riesgos';
 import FilePreviewModal from '../evidencias/FilePreviewModal';
 import ModalRiesgo from '../riesgos/ModalRiesgo';
+import GraficaTiempo from './GraficaTiempo';
 import { useCandado } from '../../hooks/useEnvioUnico';
 import { useUI } from '../../context/UIContext';
 
@@ -44,19 +46,29 @@ function urlArchivo(item) {
 const FILTROS = [
   { id: 'todo', label: 'Todo' },
   { id: 'avance', label: 'Avance' },
+  { id: 'documento', label: 'Documentos' },
   { id: 'riesgo', label: 'Riesgos' },
-  { id: 'archivo', label: 'Archivos' },
+  { id: 'comentario', label: 'Comentarios' },
 ];
 
-// Qué chip corresponde a cada tipo_evento crudo — 'avance' agrupa todo lo
-// que puede venir de "Registrar avance" (incluido el comentario de Detalle).
+// Qué chip corresponde a cada tipo_evento crudo. 'comentario' tiene su
+// propio chip (Fase 5) — antes vivía agrupado bajo 'avance' porque el
+// Detalle de "Registrar avance" también se guarda como tipo_evento
+// 'comentario'; separarlo significa que filtrar a "solo Avance" ya no
+// trae el texto de Detalle de cada reporte (se sigue viendo con el
+// filtro "Todo", que es el que usa casi todo el mundo).
 const CHIP_DE_TIPO = {
-  cambio_avance: 'avance', cambio_estatus: 'avance', estatus_cualitativo: 'avance', comentario: 'avance',
-  riesgo: 'riesgo', archivo: 'archivo',
+  cambio_avance: 'avance', cambio_estatus: 'avance', estatus_cualitativo: 'avance',
+  comentario: 'comentario', riesgo: 'riesgo', archivo: 'documento',
 };
 
 const TIPOS_AGRUPABLES = new Set(['cambio_avance', 'cambio_estatus', 'estatus_cualitativo', 'comentario']);
 const VENTANA_AGRUPACION_MS = 15000;
+
+// Mismo criterio que GraficaTiempo.jsx para decidir si hay algo que
+// graficar — un nodo cuya única actividad es `estatus_cualitativo` (sin
+// avance numérico ni eventos de carril) no tiene nada que trazar.
+const TIPOS_GRAFICABLES = new Set(['cambio_avance', 'cambio_estatus', 'archivo', 'riesgo', 'comentario']);
 
 // Junta filas del mismo autor, de tipos agrupables, separadas por menos de
 // VENTANA_AGRUPACION_MS, en una sola tarjeta — ver mini-clase arriba.
@@ -78,22 +90,6 @@ export function agruparParaLinea(items) {
     }
   }
   return grupos;
-}
-
-// Serie para la mini-gráfica: un punto por cada cambio de avance real
-// (cambio_avance, o cambio_estatus a Completada/Pendiente, que fijan 100/0).
-// Ninguno de los dos requiere un dato nuevo — ya se guardan hoy.
-function serieAvance(items) {
-  const puntos = [];
-  for (const item of [...items].reverse()) { // ascendente en el tiempo
-    if (item.tipo_evento === 'cambio_avance' && item.metadata?.avance_actual != null) {
-      puntos.push({ fecha: item.created_at, avance: Math.round(parseFloat(item.metadata.avance_actual)) });
-    } else if (item.tipo_evento === 'cambio_estatus') {
-      if (item.metadata?.estado === 'Completada') puntos.push({ fecha: item.created_at, avance: 100 });
-      else if (item.metadata?.estado === 'Pendiente') puntos.push({ fecha: item.created_at, avance: 0 });
-    }
-  }
-  return puntos.map(p => ({ ...p, fechaLabel: new Date(p.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) }));
 }
 
 function iconoEvento(tipo) {
@@ -142,6 +138,16 @@ export default function ActividadStream({ tipo, id, titulo, soloLectura = false,
   // feed (aquí solo viaja nivel/estado/riesgo_id, no el resto del formulario).
   const [riesgoAbierto, setRiesgoAbierto] = useState(null);
   const [cargandoRiesgo, setCargandoRiesgo] = useState(false);
+  // Id del evento crudo resaltado — fijado al pasar el cursor sobre una
+  // fila de la bitácora O sobre un marcador del gráfico, el otro lado se
+  // resalta solo (interacción bidireccional, lo que más le interesaba al
+  // usuario de esta fase). Las filas de la bitácora chequean si CUALQUIERA
+  // de sus eventos agrupados coincide (grupo.eventos.some(...)), porque la
+  // agrupación de la bitácora (por autor+15s) no es la misma que la del
+  // gráfico (por día calendario) — un id puede vivir en ambos agrupamientos
+  // sin ser el mismo "principal".
+  const [hoveredId, setHoveredId] = useState(null);
+  const filasRef = useRef({});
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -166,10 +172,26 @@ export default function ActividadStream({ tipo, id, titulo, soloLectura = false,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [riesgoIdInicial]);
 
-  const puntosAvance = useMemo(() => serieAvance(items), [items]);
+  const hayAlgoGraficable = items.some(i => TIPOS_GRAFICABLES.has(i.tipo_evento));
 
   const filtrados = filtro === 'todo' ? items : items.filter(i => CHIP_DE_TIPO[i.tipo_evento] === filtro);
   const grupos = useMemo(() => agruparParaLinea(filtrados), [filtrados]);
+
+  // Clic en un marcador del gráfico: abre el detalle del evento cuando
+  // existe uno (archivo → su modal de detalle; riesgo con fila propia →
+  // ModalRiesgo); para avance/comentario/riesgo-sin-fila (no hay modal
+  // dedicado), resalta y desplaza hasta su fila en la bitácora.
+  function alHacerClicEnMarcador(item) {
+    if (item.tipo_evento === 'archivo') { setDetalleItem(item); return; }
+    if (item.tipo_evento === 'riesgo' && item.metadata?.riesgo_id && !soloLectura) {
+      abrirRiesgo(item.metadata.riesgo_id);
+      return;
+    }
+    const grupo = grupos.find(g => g.eventos.some(e => e.id === item.id));
+    const idPrincipal = grupo ? grupo.eventos[0].id : item.id;
+    setHoveredId(item.id);
+    filasRef.current[idPrincipal]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 
   function enviar() {
     if (!texto.trim()) return;
@@ -217,35 +239,19 @@ export default function ActividadStream({ tipo, id, titulo, soloLectura = false,
         Evolución en el tiempo{titulo && <span className="font-normal normal-case text-gray-400"> · {titulo}</span>}
       </h3>
 
-      {/* Mini-gráfica de avance — solo si hay al menos 2 puntos; un nodo
-          contenedor (avance calculado, no capturado) no tiene sus propios
-          registros y no debería mostrar una gráfica vacía o engañosa. */}
-      {puntosAvance.length >= 2 && (
-        <div className="h-24 mb-3 -ml-2">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={puntosAvance} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-              <defs>
-                <linearGradient id="avanceGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#7B1C3E" stopOpacity={0.25} />
-                  <stop offset="100%" stopColor="#7B1C3E" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="fechaLabel" tick={{ fontSize: 9, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: '#9ca3af' }} axisLine={false} tickLine={false} width={26} />
-              <Tooltip
-                formatter={v => [`${v}%`, 'Avance']}
-                labelFormatter={l => l}
-                contentStyle={{ fontSize: 11, borderRadius: 6, border: '1px solid #e5e7eb' }}
-              />
-              <Area type="monotone" dataKey="avance" stroke="#7B1C3E" strokeWidth={1.5} fill="url(#avanceGradient)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-      {/* Con 0 o 1 registro de avance no hay línea que trazar — antes se
-          omitía el gráfico sin más, dejando el título y los filtros
-          flotando sobre nada, como si la sección estuviera rota. */}
-      {puntosAvance.length < 2 && items.length > 0 && (
+      {/* Gráfico de línea del tiempo (Fase 5) — se grafica lo mismo que
+          queda tras el filtro de abajo, para que gráfico y bitácora
+          siempre muestren el mismo subconjunto. Solo si hay algo que
+          trazar; un nodo contenedor sin registros propios (ni de sus
+          descendientes) no debería mostrar un lienzo vacío. */}
+      {hayAlgoGraficable ? (
+        <GraficaTiempo
+          items={filtrados}
+          hoveredId={hoveredId}
+          onHoverMarker={setHoveredId}
+          onClickMarker={alHacerClicEnMarcador}
+        />
+      ) : items.length > 0 && (
         <p className="text-[11px] text-gray-400 italic mb-3 -mt-1">
           Aún no hay suficientes registros para mostrar la evolución.
         </p>
@@ -277,9 +283,16 @@ export default function ActividadStream({ tipo, id, titulo, soloLectura = false,
             const detalle = grupo.eventos.find(e => e.tipo_evento === 'comentario');
             const archivos = grupo.eventos.filter(e => e.tipo_evento === 'archivo');
             const soloUnEvento = grupo.eventos.length === 1;
+            const resaltado = grupo.eventos.some(e => e.id === hoveredId);
 
             return (
-              <div key={principal.id} className="flex items-start gap-2.5">
+              <div
+                key={principal.id}
+                ref={el => { if (el) filasRef.current[principal.id] = el; }}
+                onMouseEnter={() => setHoveredId(principal.id)}
+                onMouseLeave={() => setHoveredId(null)}
+                className={`flex items-start gap-2.5 rounded-lg -mx-1.5 px-1.5 py-0.5 transition-colors ${resaltado ? 'bg-guinda-50' : ''}`}
+              >
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${cls}`}><I size={12} /></div>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs text-gray-800">

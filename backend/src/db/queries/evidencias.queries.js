@@ -13,6 +13,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const pool = require('../pool');
+const { idsNodoYDescendientes } = require('../../utils/descendientes-nodo');
 
 // Obtiene evidencias de una acción
 async function obtenerEvidenciasPorAccion(accionId) {
@@ -27,6 +28,95 @@ async function obtenerEvidenciasPorAccion(accionId) {
   `, [accionId]);
 
   return resultado.rows;
+}
+
+// Documentos de la pestaña "Documentos" de Detalle (Fase 4) — a diferencia
+// de obtenerEvidenciasPor{Etapa,Accion} (exacto, usado por el modal
+// "Adjuntar documento" para mostrar solo lo propio del nodo), esta agrega
+// también los documentos de los descendientes, con "origen" (de qué nodo
+// viene cada uno) para que la tabla pueda mostrar de dónde salió un
+// registro que no es del nodo seleccionado. Una tarea no tiene fila propia
+// en `evidencias` (sus adjuntos viven en `actividad`, tipo_evento='archivo')
+// — se incluyen aquí también para que la agregación de una etapa/acción no
+// se salte los documentos de sus tareas descendientes.
+async function obtenerDocumentosAgregados(tipoNodo, idNodo, incluirHijos = true) {
+  const { etapaIds, accionIds, tareaIds } = await idsNodoYDescendientes(tipoNodo, idNodo, incluirHijos);
+
+  const condiciones = [];
+  const params = [];
+  let idx = 1;
+  if (etapaIds.length) { condiciones.push(`ev.id_etapa = ANY($${idx++})`); params.push(etapaIds); }
+  if (accionIds.length) { condiciones.push(`(ev.id_accion = ANY($${idx++}) OR ev.id_subaccion = ANY($${idx++}))`); params.push(accionIds, accionIds); }
+
+  const promesaEvidencias = condiciones.length
+    ? pool.query(`
+        SELECT
+          ev.id, ev.nombre_archivo, ev.nombre_original, ev.tipo_archivo, ev.categoria,
+          ev.tamano_bytes, ev.notas, ev.url, ev.tipo_medio, ev.titulo, ev.created_at,
+          u.nombre_completo AS autor_nombre,
+          CASE WHEN ev.id_etapa IS NOT NULL THEN 'etapa' ELSE 'accion' END AS origen_tipo,
+          COALESCE(ev.id_etapa, ev.id_accion, ev.id_subaccion) AS origen_id,
+          COALESCE(et.nombre, ac.nombre) AS origen_nombre
+        FROM evidencias ev
+        LEFT JOIN usuarios u ON u.id = ev.id_autor
+        LEFT JOIN etapas et ON et.id = ev.id_etapa
+        LEFT JOIN acciones ac ON ac.id = COALESCE(ev.id_accion, ev.id_subaccion)
+        WHERE ${condiciones.join(' OR ')}
+      `, params).then(r => r.rows)
+    : Promise.resolve([]);
+
+  const promesaArchivosTarea = tareaIds.length
+    ? pool.query(`
+        SELECT
+          act.id, act.metadata, act.archivo_url, act.archivo_nombre, act.created_at,
+          u.nombre_completo AS autor_nombre,
+          'tarea' AS origen_tipo, act.id_tarea AS origen_id, t.nombre AS origen_nombre
+        FROM actividad act
+        LEFT JOIN usuarios u ON u.id = act.id_usuario
+        LEFT JOIN tareas t ON t.id = act.id_tarea
+        WHERE act.tipo_evento = 'archivo' AND act.id_tarea = ANY($1)
+      `, [tareaIds]).then(r => r.rows)
+    : Promise.resolve([]);
+
+  const [evidencias, archivosTarea] = await Promise.all([promesaEvidencias, promesaArchivosTarea]);
+
+  const propios = evidencias.map(ev => ({
+    id: ev.id,
+    titulo: ev.titulo,
+    nombre_original: ev.nombre_original,
+    nombre_archivo: ev.nombre_archivo,
+    categoria: ev.categoria,
+    tipo_archivo: ev.tipo_archivo,
+    tamano_bytes: ev.tamano_bytes,
+    notas: ev.notas,
+    url: ev.url,
+    tipo_medio: ev.tipo_medio,
+    autor_nombre: ev.autor_nombre,
+    created_at: ev.created_at,
+    origen: (ev.origen_tipo === tipoNodo && ev.origen_id === idNodo)
+      ? null
+      : { tipo: ev.origen_tipo, id: ev.origen_id, nombre: ev.origen_nombre },
+  }));
+
+  const deTareas = archivosTarea.map(a => ({
+    id: a.id,
+    titulo: a.metadata?.titulo || null,
+    nombre_original: a.archivo_nombre,
+    nombre_archivo: null,
+    categoria: a.metadata?.categoria || 'Otro',
+    tipo_archivo: null,
+    tamano_bytes: null,
+    notas: a.metadata?.notas || null,
+    url: a.metadata?.tipo_medio === 'link' ? a.archivo_url : undefined,
+    tipo_medio: a.metadata?.tipo_medio || 'archivo',
+    autor_nombre: a.autor_nombre,
+    created_at: a.created_at,
+    origen: (tipoNodo === 'tarea' && a.origen_id === idNodo)
+      ? null
+      : { tipo: 'tarea', id: a.origen_id, nombre: a.origen_nombre },
+  }));
+
+  return [...propios, ...deTareas].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 }
 
 // Obtiene evidencias de un riesgo
@@ -248,5 +338,6 @@ module.exports = {
   obtenerEvidenciaPorId,
   crearEvidencia,
   eliminarEvidencia,
-  obtenerTodasEvidencias
+  obtenerTodasEvidencias,
+  obtenerDocumentosAgregados,
 };
