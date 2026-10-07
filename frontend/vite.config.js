@@ -57,5 +57,11 @@ export default defineConfig({
     // queda sin detectar cambios y Vite sirve una versión cacheada del
     // módulo. Con polling forzamos a que revise el contenido en disco.
     watch: { usePolling: true, interval: 300 }
-  }
+  },
+  // `e2e/*.spec.js` son specs de Playwright (test:e2e), no de Vitest — sin
+  // excluirlos, `npm test` intenta cargarlos y truena contra `test.describe`
+  // de Playwright (API distinta a la de Vitest).
+  test: {
+    exclude: ['e2e/**', 'node_modules/**'],
+  },
 })
