@@ -450,12 +450,18 @@ export default function NodoCard({
               className="w-full flex items-center justify-center gap-1.5 text-[12px] font-semibold px-3 py-2.5 rounded-lg disabled:opacity-40 transition-colors bg-guinda-600 text-white hover:bg-guinda-700">
               <TrendingUp size={14} /> Registrar avance
             </button>
-            {!esContenedor && (
-              <button disabled={soloLectura} onClick={abrirReportarRiesgo}
-                className={`w-full flex items-center justify-center gap-1.5 text-[11px] font-medium px-2.5 py-2 rounded-lg border disabled:opacity-40 transition-colors ${mostrarModalRiesgo ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                <AlertTriangle size={13} /> Reportar riesgo
-              </button>
-            )}
+            {/* Un riesgo puede reportarse en cualquier nivel, incluido un
+                contenedor (Etapa, o Acción con tareas) — a diferencia de
+                "Registrar avance" (sí bloqueado arriba: en un contenedor
+                el avance se calcula de sus partes, no se captura), aquí
+                no hay nada que calcular: antes este botón se escondía en
+                Etapa y en Acción-contenedor con el mismo candado de
+                esContenedor, dejando "reportar un riesgo en esta etapa"
+                sin forma de hacerse desde la tarjeta. */}
+            <button disabled={soloLectura} onClick={abrirReportarRiesgo}
+              className={`w-full flex items-center justify-center gap-1.5 text-[11px] font-medium px-2.5 py-2 rounded-lg border disabled:opacity-40 transition-colors ${mostrarModalRiesgo ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+              <AlertTriangle size={13} /> Reportar riesgo
+            </button>
             {/* Agregar hijo — mismo peso visual que "Registrar avance"/
                 "Reportar riesgo" de arriba. Antes creaba con el input de
                 solo-nombre (CrearInline); aquí abre el modal completo

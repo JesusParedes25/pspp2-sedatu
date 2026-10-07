@@ -89,7 +89,7 @@ async function adjuntarEvidencia(tipo, id, { archivo, url, categoria, notas, tit
 let contadorEvidencia = 0;
 const idEvidencia = () => `ev${++contadorEvidencia}`;
 
-export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false, onGuardado, onCerrar }) {
+export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false, completarAlAbrir = false, onGuardado, onCerrar }) {
   const { mostrarToast } = useUI();
   const nivel = NIVELES[tipo];
   const avanceActual = Math.round(nodo.avance_actual ?? nodo.avance_efectivo ?? 0);
@@ -102,7 +102,10 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
   // el historial tenue, en vez de colarse en el campo activo.
   const [estatus, setEstatus] = useState('');
   const [avance, setAvance] = useState(Math.min(avanceActual, 99));
-  const [concluir, setConcluir] = useState(estadoActual === 'Completada');
+  // completarAlAbrir: atajo "Marcar como completada" del encabezado de
+  // Detalle — pre-marca la casilla al abrir en vez de dejar al usuario
+  // repetir el mismo clic que ya dio para llegar aquí.
+  const [concluir, setConcluir] = useState(estadoActual === 'Completada' || completarAlAbrir);
   const [detalleAbierto, setDetalleAbierto] = useState(false);
   const [detalle, setDetalle] = useState('');
   // Cada evidencia: { id, modo: 'archivo'|'liga', archivo, url, categoria, notas }.
