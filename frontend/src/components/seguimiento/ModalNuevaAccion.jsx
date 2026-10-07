@@ -38,6 +38,7 @@ import * as indicadoresApi from '../../api/indicadores';
 import * as accionesApi from '../../api/acciones';
 import * as evidenciasApi from '../../api/evidencias';
 import { useAuth } from '../../context/AuthContext';
+import { useUI } from '../../context/UIContext';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 import CatalogSelector from '../common/CatalogSelector';
 import TerritorioSelector from '../nodos/TerritorioSelector';
@@ -152,8 +153,9 @@ const idDocumento = () => `doc${++contadorDocumento}`;
 // acción" del panel derecho). Si viene null, se crea directo en el
 // proyecto — para eso hace falta proyectoId, usado también para traer los
 // indicadores de nivel proyecto (regla de cascada, ver arriba).
-export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCerrar }) {
+export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCreadoParcial, onCerrar }) {
   const { usuario } = useAuth();
+  const { mostrarToast } = useUI();
   const [dgs, setDgs] = useState([]);
   const [direccionesArea, setDireccionesArea] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
@@ -162,27 +164,35 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCerr
   const hoy = new Date().toISOString().split('T')[0];
   const enUnMes = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
 
-  const [datos, setDatos] = useState({
-    nombre: '',
-    descripcion: '',
-    tipo: 'Accion_programada',
-    fecha_inicio: hoy,
-    fecha_fin: enUnMes,
-    id_dg: usuario?.id_dg || '',
-    id_direccion_area: usuario?.id_direccion_area || '',
-    id_responsable: usuario?.id || '',
-    indicadores_asociados: [],
-    prioridad: '',
-    fecha_limite: '',
-    instancia_responsable: '',
-    enlace_responsable: '',
-    observaciones: '',
-    // Territorio — mismos campos que TerritorioSelector edita en un nodo
-    // ya existente, aquí solo viven en el estado local hasta el submit.
-    cve_ent: null,
-    municipios: [],
-    id_zm: null,
-  });
+  // Extraído a función (no solo el valor inicial de useState) para poder
+  // reconstruirlo tal cual al usar "Guardar y agregar otra" — mismos
+  // defaults (fechas, responsable propio) que al abrir el modal por
+  // primera vez, no un formulario vacío a secas.
+  function datosIniciales() {
+    return {
+      nombre: '',
+      descripcion: '',
+      tipo: 'Accion_programada',
+      fecha_inicio: hoy,
+      fecha_fin: enUnMes,
+      id_dg: usuario?.id_dg || '',
+      id_direccion_area: usuario?.id_direccion_area || '',
+      id_responsable: usuario?.id || '',
+      indicadores_asociados: [],
+      prioridad: '',
+      fecha_limite: '',
+      instancia_responsable: '',
+      enlace_responsable: '',
+      observaciones: '',
+      // Territorio — mismos campos que TerritorioSelector edita en un nodo
+      // ya existente, aquí solo viven en el estado local hasta el submit.
+      cve_ent: null,
+      municipios: [],
+      id_zm: null,
+    };
+  }
+
+  const [datos, setDatos] = useState(datosIniciales);
 
   // Documentos elegidos pero todavía sin subir — se guardan justo después
   // de crear la acción (necesitan su id). Mismo patrón que
@@ -295,7 +305,13 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCerr
 
   // e.preventDefault() vive en manejarSubmit, FUERA del candado — ver
   // useEnvioUnico.js.
-  const [guardar, enviando] = useEnvioUnico(async () => {
+  // `continuar`: "Guardar y agregar otra" — en vez de cerrar, el modal se
+  // reinicia a sus valores de siempre (datosIniciales) listo para la
+  // siguiente, útil al dar de alta varias acciones seguidas de la misma
+  // etapa. El toast lo muestra este mismo modal (a diferencia del cierre
+  // normal, donde el toast es responsabilidad de quien lo abrió vía
+  // onCreado) porque aquí no hay nadie más viendo el resultado todavía.
+  const [guardar, enviando] = useEnvioUnico(async (continuar = false) => {
     if (!datos.nombre.trim() || !datos.fecha_inicio || !datos.fecha_fin) return;
     setError('');
     try {
@@ -320,8 +336,19 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCerr
         else if (doc.url.trim()) await evidenciasApi.registrarLinkAccion(accion.id, doc.url.trim(), metadatos);
       }
 
-      onCreado?.(accion);
-      onCerrar?.();
+      if (continuar) {
+        // onCreadoParcial (no onCreado): el modal sigue abierto y ya
+        // muestra su propio toast — si se llamara onCreado aquí, un
+        // caller que ya toastea en su propio onCreado (ej. NodoCard)
+        // duplicaría el aviso en cada "Guardar y agregar otra".
+        onCreadoParcial?.(accion);
+        mostrarToast('Acción creada — agrega la siguiente', 'exito');
+        setDatos(datosIniciales());
+        setDocumentos([]);
+      } else {
+        onCreado?.(accion);
+        onCerrar?.();
+      }
     } catch (err) {
       setError(err.response?.data?.mensaje || 'No se pudo crear la acción');
     }
@@ -329,7 +356,7 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCerr
 
   function manejarSubmit(e) {
     e.preventDefault();
-    guardar();
+    guardar(false);
   }
 
   const dasFiltradas = direccionesArea.filter(da => {
@@ -524,6 +551,10 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCerr
           {/* Botones */}
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onCerrar} className="btn-secondary">Cancelar</button>
+            <button type="button" disabled={puedeGuardar} onClick={() => guardar(true)} className="btn-secondary flex items-center gap-1.5">
+              {enviando && <Loader2 size={14} className="animate-spin" />}
+              Guardar y agregar otra
+            </button>
             <button type="submit" disabled={puedeGuardar} className="btn-primary flex items-center gap-1.5">
               {enviando && <Loader2 size={14} className="animate-spin" />}
               {enviando ? 'Creando...' : 'Crear acción'}

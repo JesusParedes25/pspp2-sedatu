@@ -18,6 +18,7 @@
  * valor y otro control distinto para cambiarlo.
  */
 import { useState } from 'react';
+import { CheckCircle2 } from 'lucide-react';
 import { hijosDe } from './utils';
 import { NIVELES } from '../../../config/niveles';
 import { COLORES_SEMAFORO } from '../../common/SemaforoDot';
@@ -37,7 +38,7 @@ function leyendaAvance(tipo, esContenedor) {
   return 'Calculado desde sus tareas.';
 }
 
-export default function EncabezadoDetalle({ nodo, ruta, permisos, onNavegarLineage, onActualizado, mostrarToast, onGuardarCampo }) {
+export default function EncabezadoDetalle({ nodo, ruta, permisos, onNavegarLineage, onActualizado, mostrarToast, onGuardarCampo, onMarcarCompletada }) {
   const { tipo, id, data } = nodo;
   const [descExpandida, setDescExpandida] = useState(false);
   const nivel = NIVELES[tipo];
@@ -99,7 +100,21 @@ export default function EncabezadoDetalle({ nodo, ruta, permisos, onNavegarLinea
           {Math.round(avance)}%
         </span>
       </div>
-      <p className="text-[11px] text-gray-400 mt-1">{leyendaAvance(tipo, esContenedor)}</p>
+      <div className="flex items-center justify-between gap-2 mt-1">
+        <p className="text-[11px] text-gray-400">{leyendaAvance(tipo, esContenedor)}</p>
+        {/* Atajo directo para el caso más común al cerrar un pendiente —
+            sin esto, marcar como completada exige abrir "Registrar
+            avance" y tocar la casilla ahí. Solo en hojas (el avance de un
+            contenedor no se captura) y solo si falta por completar. */}
+        {onMarcarCompletada && !permisos.esSoloLectura && data.estado !== 'Completada' && (
+          <button
+            onClick={onMarcarCompletada}
+            className="flex-shrink-0 flex items-center gap-1 text-[11px] font-medium text-green-700 hover:text-green-800"
+          >
+            <CheckCircle2 size={12} /> Marcar como completada
+          </button>
+        )}
+      </div>
 
       <div className="mt-3">
         {permisos.esSoloLectura ? (

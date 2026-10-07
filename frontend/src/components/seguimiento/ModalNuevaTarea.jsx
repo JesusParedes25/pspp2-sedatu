@@ -29,25 +29,33 @@ import CatalogSelector from '../common/CatalogSelector';
 import TerritorioSelector from '../nodos/TerritorioSelector';
 import FilaDocumentoPendiente from '../nodos/FilaDocumentoPendiente';
 import { useAuth } from '../../context/AuthContext';
+import { useUI } from '../../context/UIContext';
 
 let contadorDocumento = 0;
 const idDocumento = () => `doc${++contadorDocumento}`;
 
-export default function ModalNuevaTarea({ accionId, onCreado, onCerrar }) {
+export default function ModalNuevaTarea({ accionId, onCreado, onCreadoParcial, onCerrar }) {
   const { usuario } = useAuth();
+  const { mostrarToast } = useUI();
   const [usuarios, setUsuarios] = useState([]);
   const [error, setError] = useState('');
 
-  const [datos, setDatos] = useState({
-    nombre: '',
-    prioridad: 'Media',
-    fecha_inicio: '',
-    fecha_limite: '',
-    id_responsable: usuario?.id || '',
-    observaciones: '',
-    cve_ent: null,
-    municipios: [],
-  });
+  // Extraído a función — ver mismo criterio en ModalNuevaAccion.jsx: se
+  // reusa tal cual al reiniciar el formulario con "Guardar y agregar otra".
+  function datosIniciales() {
+    return {
+      nombre: '',
+      prioridad: 'Media',
+      fecha_inicio: '',
+      fecha_limite: '',
+      id_responsable: usuario?.id || '',
+      observaciones: '',
+      cve_ent: null,
+      municipios: [],
+    };
+  }
+
+  const [datos, setDatos] = useState(datosIniciales);
 
   const [documentos, setDocumentos] = useState([]);
 
@@ -75,7 +83,7 @@ export default function ModalNuevaTarea({ accionId, onCreado, onCerrar }) {
     setDocumentos(prev => prev.filter(d => d.id !== id));
   }
 
-  const [guardar, enviando] = useEnvioUnico(async () => {
+  const [guardar, enviando] = useEnvioUnico(async (continuar = false) => {
     if (!datos.nombre.trim()) return;
     setError('');
     try {
@@ -95,8 +103,17 @@ export default function ModalNuevaTarea({ accionId, onCreado, onCerrar }) {
         else if (doc.url.trim()) await actividadApi.registrarLinkActividad('tarea', tarea.id, doc.url.trim(), metadatos);
       }
 
-      onCreado?.(tarea);
-      onCerrar?.();
+      if (continuar) {
+        // onCreadoParcial (no onCreado) — ver mismo criterio en
+        // ModalNuevaAccion.jsx: evita un doble toast con el del caller.
+        onCreadoParcial?.(tarea);
+        mostrarToast('Tarea creada — agrega la siguiente', 'exito');
+        setDatos(datosIniciales());
+        setDocumentos([]);
+      } else {
+        onCreado?.(tarea);
+        onCerrar?.();
+      }
     } catch (err) {
       setError(err.response?.data?.mensaje || 'No se pudo crear la tarea');
     }
@@ -104,7 +121,7 @@ export default function ModalNuevaTarea({ accionId, onCreado, onCerrar }) {
 
   function manejarSubmit(e) {
     e.preventDefault();
-    guardar();
+    guardar(false);
   }
 
   const puedeGuardar = enviando || !datos.nombre.trim() || documentos.some(d => d.modo === 'liga' && !d.url.trim());
@@ -206,6 +223,10 @@ export default function ModalNuevaTarea({ accionId, onCreado, onCerrar }) {
 
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onCerrar} className="btn-secondary">Cancelar</button>
+            <button type="button" disabled={puedeGuardar} onClick={() => guardar(true)} className="btn-secondary flex items-center gap-1.5">
+              {enviando && <Loader2 size={14} className="animate-spin" />}
+              Guardar y agregar otra
+            </button>
             <button type="submit" disabled={puedeGuardar} className="btn-primary flex items-center gap-1.5">
               {enviando && <Loader2 size={14} className="animate-spin" />}
               {enviando ? 'Creando...' : 'Crear tarea'}

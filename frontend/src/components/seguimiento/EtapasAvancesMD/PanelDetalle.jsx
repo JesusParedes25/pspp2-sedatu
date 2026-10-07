@@ -2,27 +2,30 @@
  * ARCHIVO: PanelDetalle.jsx
  * PROPÓSITO: Panel derecho de Detalle — ficha completa del nodo
  *            seleccionado: encabezado propio (Fase 2), tira de datos
- *            (Fase 2), fila de acciones (NodoCard, agrupado) y Actividad
- *            al fondo.
+ *            (Fase 2), fila de acciones (Fase 3) y Actividad al fondo.
  *
  * Fase 2 del rediseño: el encabezado y la tira de datos son componentes
  * NUEVOS, propios de Detalle (EncabezadoDetalle.jsx, TiraDatos.jsx,
  * ModalEditarFicha.jsx) — no se toca FichaNodo.jsx (compartido con el
- * drawer de Diagrama). Como el encabezado nuevo ya muestra la ruta, el
- * título, los chips y el avance, y la tira nueva ya muestra fechas/
- * responsable/instrumento/escala, montar FichaNodo aquí habría
- * duplicado exactamente esa información una segunda vez (el mismo
- * problema que motivó este rediseño, solo que ahora entre el encabezado
- * nuevo y el viejo). Por eso este panel monta NodoCard directamente
- * (agrupado, sin su propia cabecera ni el pie de metadata que ya cubre
- * la tira) — es el MISMO componente compartido, sin modificarlo, solo
- * compuesto distinto: lo que se duplica entre Detalle y Diagrama es el
- * layout que lo rodea, nunca la captura ni la validación que vive
- * dentro de NodoCard/ModalRegistrarAvance/ModalRiesgo/etc.
+ * drawer de Diagrama).
+ *
+ * Fase 3 del rediseño: la fila de acciones deja de ser NodoCard completa
+ * (agrupado) y pasa a FilaAcciones.jsx, un componente NUEVO propio de
+ * Detalle con el layout que pide el punto 4.2 del rediseño (primaria +
+ * secundaria + menú "Más acciones", todo abre modal) — sigue sin tocarse
+ * NodoCard.jsx; FilaAcciones reusa los mismos modales/formularios
+ * compartidos (ModalRiesgo, ModalDuplicarNodo, ModalNuevaAccion/Tarea,
+ * SeccionArchivosNodo, TabIndicadores, TerritorioSelector,
+ * SeccionMiembrosNodo) sin duplicar su lógica interna. ModalRegistrarAvance
+ * se levanta aquí (antes vivía dentro de NodoCard) porque dos disparadores
+ * distintos lo abren: el botón "Registrar avance" de FilaAcciones y el
+ * atajo "Marcar como completada" del encabezado — un solo modal montado
+ * una vez, no dos copias con estado separado.
  */
 import { useState } from 'react';
 import ActividadStream from '../../nodos/ActividadStream';
-import NodoCard from '../../nodos/NodoCard';
+import ModalRegistrarAvance from '../../nodos/ModalRegistrarAvance';
+import FilaAcciones from './FilaAcciones';
 import EncabezadoDetalle from './EncabezadoDetalle';
 import TiraDatos from './TiraDatos';
 import ModalEditarFicha from './ModalEditarFicha';
@@ -41,6 +44,18 @@ export default function PanelDetalle({
   const ruta = resolverRutaConIds(arbol, id) || [{ tipo, id, nombre: data.nombre }];
   const { actualizar } = useJerarquiaProyecto(proyectoId);
   const [editandoFicha, setEditandoFicha] = useState(false);
+  // avanceAAbrir llega desde fuera (atajo "Registrar avance" de la
+  // Portada, con un nodo recién elegido) — PanelDetalle remonta por
+  // `key={seleccion.id}` en index.jsx cada vez que cambia la selección,
+  // así que evaluarlo solo al montar (igual que antes hacía NodoCard con
+  // abrirAvanceAlMontar) ya cubre un nodo nuevo sin necesitar un efecto.
+  const [mostrarModalAvance, setMostrarModalAvance] = useState(() => !!avanceAAbrir);
+  const [completarAlAbrir, setCompletarAlAbrir] = useState(false);
+
+  function abrirAvance({ completar = false } = {}) {
+    setCompletarAlAbrir(completar);
+    setMostrarModalAvance(true);
+  }
 
   async function guardarCampo(campo, valor) {
     try {
@@ -71,27 +86,28 @@ export default function PanelDetalle({
           onActualizado={onActualizado}
           mostrarToast={mostrarToast}
           onGuardarCampo={guardarCampo}
+          onMarcarCompletada={!esContenedor ? () => abrirAvance({ completar: true }) : undefined}
         />
 
         <TiraDatos nodo={seleccion} permisos={permisos} onEditar={() => setEditandoFicha(true)} />
 
-        <NodoCard
+        <FilaAcciones
           tipo={tipo}
           nodo={data}
-          esContenedor={esContenedor}
+          id={id}
           proyectoId={proyectoId}
           permisos={permisos}
+          permisosProyecto={permisosProyecto}
+          esContenedor={esContenedor}
           onCambiado={onActualizado}
+          mostrarToast={mostrarToast}
+          onEditarFicha={() => setEditandoFicha(true)}
+          onAbrirAvance={() => abrirAvance()}
           onEliminado={() => {
             const padre = ruta[ruta.length - 2];
             if (padre) onNavegarNodo(padre.tipo, padre.id);
             onActualizado?.();
           }}
-          ocultarMetadataFooter
-          ocultarCabecera
-          defaultAbierto
-          agrupado
-          abrirAvanceAlMontar={avanceAAbrir}
         />
 
         <ActividadStream
@@ -103,6 +119,17 @@ export default function PanelDetalle({
           onRiesgoConsumido={onRiesgoConsumido}
         />
       </div>
+
+      {mostrarModalAvance && (
+        <ModalRegistrarAvance
+          tipo={tipo}
+          nodo={data}
+          esContenedor={esContenedor}
+          completarAlAbrir={completarAlAbrir}
+          onGuardado={async () => { onActualizado?.(); }}
+          onCerrar={() => { setMostrarModalAvance(false); setCompletarAlAbrir(false); }}
+        />
+      )}
 
       {editandoFicha && (
         <ModalEditarFicha
