@@ -12,6 +12,10 @@ import { Link2, Paperclip, X } from 'lucide-react';
 import CATEGORIAS_EVIDENCIA from '../seguimiento/categoriasEvidencia';
 
 // item: { id, modo: 'archivo'|'liga', archivo, url, categoria, notas, titulo }
+// archivo puede llegar null en modo 'archivo' — caso del borrador que
+// SeccionArchivosNodo crea de entrada en capturaPrimero, antes de que la
+// persona elija el archivo real: se muestra el selector nativo ahí
+// mismo en vez de asumir que ya existe un File para leer su .name.
 export default function FilaDocumentoPendiente({ item, onCambiar, onQuitar }) {
   return (
     <div className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-2 py-1.5">
@@ -23,7 +27,20 @@ export default function FilaDocumentoPendiente({ item, onCambiar, onQuitar }) {
           className="text-xs font-medium text-gray-700 w-full border-0 p-0 outline-none focus:ring-0 bg-transparent"
         />
         {item.modo === 'archivo' ? (
-          <p className="text-[10px] text-gray-400 truncate" title={item.archivo.name}>{item.archivo.name}</p>
+          item.archivo ? (
+            <p className="text-[10px] text-gray-400 truncate" title={item.archivo.name}>{item.archivo.name}</p>
+          ) : (
+            <input
+              type="file" autoFocus
+              onChange={e => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                onCambiar('archivo', f);
+                if (!item.titulo) onCambiar('titulo', f.name);
+              }}
+              className="text-[11px] text-gray-500 w-full file:mr-2 file:text-[11px] file:font-medium file:text-guinda-700 file:bg-transparent file:border-0 file:p-0"
+            />
+          )
         ) : (
           <input
             type="url" value={item.url} onChange={e => onCambiar('url', e.target.value)}

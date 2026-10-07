@@ -18,8 +18,8 @@
  * sección es un panel de "Documentos" que también sirve para hojear lo
  * ya subido) el orden de siempre se queda igual — default `false`.
  */
-import { useState } from 'react';
-import { FileText, Link2, Plus, Upload, Trash2, AlertTriangle, Loader2, ChevronRight } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { FileText, Link2, Plus, Upload, Trash2, AlertTriangle, Loader2, ChevronRight, Paperclip } from 'lucide-react';
 import * as evidenciasApi from '../../api/evidencias';
 import * as actividadApi from '../../api/actividad';
 import FilePreviewModal from '../evidencias/FilePreviewModal';
@@ -49,6 +49,17 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
   const [detalleEv, setDetalleEv] = useState(null);
   const [previewEv, setPreviewEv] = useState(null);
 
+  // capturaPrimero: nace con un borrador ya puesto (modo 'archivo', sin
+  // archivo todavía) para que abrir el modal alcance para empezar a
+  // escribir — sin este borrador, la persona tenía que darle clic a
+  // "+ Archivo" o "+ Liga" antes de que apareciera cualquier campo.
+  useEffect(() => {
+    if (capturaPrimero && pendientes.length === 0 && !permisos?.esSoloLectura) {
+      setPendientes([{ id: idPendiente(), modo: 'archivo', archivo: null, url: '', categoria: 'Otro', notas: '', titulo: '' }]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function agregarArchivos(fileList) {
     const nuevos = Array.from(fileList).map(archivo => ({
       id: idPendiente(), modo: 'archivo', archivo, url: '', categoria: 'Otro', notas: '', titulo: archivo.name,
@@ -58,8 +69,19 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
   function agregarLiga() {
     setPendientes(prev => [...prev, { id: idPendiente(), modo: 'liga', archivo: null, url: '', categoria: 'Otro', notas: '', titulo: '' }]);
   }
+  // "+ Agregar otro documento" de capturaPrimero: mismo borrador en blanco
+  // que el inicial, no el flujo de elegir-archivo-primero de agregarArchivos.
+  function agregarBorrador() {
+    setPendientes(prev => [...prev, { id: idPendiente(), modo: 'archivo', archivo: null, url: '', categoria: 'Otro', notas: '', titulo: '' }]);
+  }
   function actualizarPendiente(pid, campo, valor) {
     setPendientes(prev => prev.map(p => (p.id === pid ? { ...p, [campo]: valor } : p)));
+  }
+  // Cambiar el modo (Archivo/Liga) del borrador limpia lo que no aplica
+  // del modo anterior — mezclar un archivo elegido con una url a medio
+  // escribir no tiene sentido una vez que se cambia de opción.
+  function cambiarModoPendiente(pid, modo) {
+    setPendientes(prev => prev.map(p => (p.id === pid ? { ...p, modo, archivo: null, url: '' } : p)));
   }
   function quitarPendiente(pid) {
     setPendientes(prev => prev.filter(p => p.id !== pid));
@@ -94,7 +116,7 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
   });
 
   const puedeGuardar = pendientes.length > 0 && !guardando
-    && pendientes.every(p => p.modo === 'archivo' || p.url.trim().length > 0);
+    && pendientes.every(p => (p.modo === 'archivo' ? !!p.archivo : p.url.trim().length > 0));
 
   function iconoParaTipo(ev) {
     if (ev.tipo_medio === 'link') return <Link2 size={13} className="text-blue-500 flex-shrink-0" />;
@@ -251,8 +273,31 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
     </>
   );
 
+  const primerPendiente = pendientes[0];
+
   const formularioAlta = !permisos?.esSoloLectura && (
     <div className={capturaPrimero ? 'mb-3' : undefined}>
+      {/* capturaPrimero: selector Archivo/Liga arriba del formulario — no
+          dos botones que agregan una fila al presionarlos. El borrador ya
+          existe desde que se monta el componente (ver useEffect), así que
+          cambiar aquí solo decide qué campo de captura mostrar. */}
+      {capturaPrimero && primerPendiente && (
+        <div className="inline-flex rounded-lg border border-gray-200 p-0.5 mb-2 bg-gray-50">
+          {[{ v: 'archivo', label: 'Archivo', icono: Paperclip }, { v: 'liga', label: 'Liga', icono: Link2 }].map(({ v, label, icono: Icono }) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => cambiarModoPendiente(primerPendiente.id, v)}
+              className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md transition-colors ${
+                primerPendiente.modo === v ? 'bg-white text-guinda-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Icono size={13} /> {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {pendientes.length > 0 && (
         <div className="space-y-1.5 mb-2">
           {pendientes.map(p => (
@@ -276,14 +321,26 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
       )}
 
       <div className="flex items-center gap-1.5 flex-wrap">
-        <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
-          <Plus size={13} /> Archivo
-          <input type="file" multiple className="hidden" onChange={e => { agregarArchivos(e.target.files); e.target.value = ''; }} />
-        </label>
-        <button onClick={agregarLiga}
-          className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
-          <Plus size={13} /> Liga
-        </button>
+        {capturaPrimero ? (
+          // Poder adjuntar varios de una vez se conserva, pero como
+          // acción secundaria — el formulario de arriba ya basta para el
+          // caso normal de un solo documento.
+          <button type="button" onClick={agregarBorrador}
+            className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-guinda-700">
+            <Plus size={12} /> Agregar otro documento
+          </button>
+        ) : (
+          <>
+            <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+              <Plus size={13} /> Archivo
+              <input type="file" multiple className="hidden" onChange={e => { agregarArchivos(e.target.files); e.target.value = ''; }} />
+            </label>
+            <button onClick={agregarLiga}
+              className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
+              <Plus size={13} /> Liga
+            </button>
+          </>
+        )}
         {pendientes.length > 0 && (
           <button
             onClick={guardarPendientes}
