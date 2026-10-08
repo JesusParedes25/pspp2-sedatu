@@ -1,12 +1,14 @@
 /**
  * ARCHIVO: ActividadStream.jsx
  * PROPÓSITO: "Evolución en el tiempo" de un nodo Y TODOS sus descendientes
- *            — gráfico de línea del tiempo (LineaTiempoEventos.jsx,
- *            compartido con el módulo Bitácora del proyecto), la franja de
- *            resumen por mes (ResumenMensual.jsx) y la lista cronológica
- *            (BitacoraCronologica.jsx), seguidos del cuadro para comentar o
- *            adjuntar. Alcance: avance + documentos + riesgos + comentarios
- *            + equipo (5 carriles) — sin indicadores, que solo tienen
+ *            — solo la lista cronológica (BitacoraCronologica.jsx,
+ *            compartida con el módulo Bitácora del proyecto), sin el
+ *            gráfico: aquí se lee como una línea del tiempo de toda la
+ *            vida, el gráfico por mes/trimestre queda exclusivo de
+ *            Bitácora (decisión explícita — ver PR de seguimiento al
+ *            rediseño de la línea del tiempo). Seguida del cuadro para
+ *            comentar o adjuntar. Alcance: avance + documentos + riesgos
+ *            + comentarios + equipo — sin indicadores, que solo tienen
  *            sentido agregados a nivel proyecto, en Bitácora.
  *
  * MINI-CLASE: por qué se agrupan varias filas en una sola entrada de
@@ -30,8 +32,6 @@ import * as evidenciasApi from '../../api/evidencias';
 import * as riesgosApi from '../../api/riesgos';
 import FilePreviewModal from '../evidencias/FilePreviewModal';
 import ModalRiesgo from '../riesgos/ModalRiesgo';
-import LineaTiempoEventos from '../common/LineaTiempoEventos';
-import ResumenMensual from '../common/ResumenMensual';
 import BitacoraCronologica from '../common/BitacoraCronologica';
 import { normalizarEventoNodo } from '../../utils/eventosLineaTiempo';
 import { useCandado } from '../../hooks/useEnvioUnico';
@@ -46,8 +46,6 @@ function urlArchivo(item) {
   if (item.metadata?.evidencia_id) return evidenciasApi.obtenerUrlDescarga(item.metadata.evidencia_id);
   return actividadApi.obtenerUrlDescargaActividad(item.id);
 }
-
-const CARRILES_DETALLE = ['documento', 'riesgo', 'comentario', 'equipo'];
 
 const TIPOS_AGRUPABLES = new Set(['cambio_avance', 'cambio_estatus', 'estatus_cualitativo', 'comentario']);
 const VENTANA_AGRUPACION_MS = 15000;
@@ -101,9 +99,9 @@ export default function ActividadStream({ tipo, id, titulo, soloLectura = false,
   // feed (aquí solo viaja nivel/estado/riesgo_id, no el resto del formulario).
   const [riesgoAbierto, setRiesgoAbierto] = useState(null);
   const [cargandoRiesgo, setCargandoRiesgo] = useState(false);
-  // Id del evento normalizado resaltado — fijado al pasar el cursor sobre
-  // un marcador del gráfico O sobre una fila de la lista, el otro lado se
-  // resalta solo (interacción bidireccional pedida en el rediseño).
+  // Id del evento normalizado resaltado al pasar el cursor por una fila
+  // de la lista — sin gráfico en esta pantalla, solo sirve para el
+  // highlight visual de esa misma fila.
   const [hoveredId, setHoveredId] = useState(null);
 
   const cargar = useCallback(async () => {
@@ -129,30 +127,15 @@ export default function ActividadStream({ tipo, id, titulo, soloLectura = false,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [riesgoIdInicial]);
 
+  // `normalizarEventoNodo` solo produce carriles de Detalle (nunca
+  // 'indicador', exclusivo de Bitácora) — sin filtro adicional, más
+  // reciente primero tal cual llega `items` del backend.
   const eventos = useMemo(() => items.map(normalizarEventoNodo), [items]);
-  const serieAvance = useMemo(() => eventos.filter(e => e.carril === 'avance'), [eventos]);
-  const eventosCarriles = useMemo(() => eventos.filter(e => CARRILES_DETALLE.includes(e.carril)), [eventos]);
-  const todosLosEventos = useMemo(() => [...eventosCarriles, ...serieAvance], [eventosCarriles, serieAvance]);
 
-  const rango = useMemo(() => {
-    if (todosLosEventos.length === 0) return null;
-    const tiempos = todosLosEventos.map(e => new Date(e.createdAt).getTime());
-    return { desde: Math.min(...tiempos), hasta: Math.max(...tiempos) };
-  }, [todosLosEventos]);
-
-  // Para la lista, más reciente primero (como ya llega `items` del backend)
-  // pero solo con los eventos de los carriles de Detalle + avance, misma
-  // base que el gráfico.
-  const eventosLista = useMemo(
-    () => eventos.filter(e => e.carril === 'avance' || CARRILES_DETALLE.includes(e.carril)),
-    [eventos]
-  );
-
-  // Clic en un marcador del gráfico o en una fila de la lista: abre el
-  // detalle del evento cuando existe uno (archivo → su modal de detalle;
-  // riesgo con fila propia → ModalRiesgo); para avance/comentario/equipo/
-  // riesgo-sin-fila (no hay modal dedicado), solo resalta y desplaza hasta
-  // su fila en la lista.
+  // Clic en una fila de la lista: abre el detalle del evento cuando existe
+  // uno (archivo → su modal de detalle; riesgo con fila propia →
+  // ModalRiesgo); para avance/comentario/equipo/riesgo-sin-fila (no hay
+  // modal dedicado), solo resalta la fila.
   function alHacerClicEnEvento(evento) {
     const raw = evento.raw;
     if (raw.tipo_evento === 'archivo') { setDetalleItem(raw); return; }
@@ -213,38 +196,12 @@ export default function ActividadStream({ tipo, id, titulo, soloLectura = false,
       {cargando ? (
         <div className="flex items-center gap-2 text-xs text-gray-400 py-4"><Loader2 size={13} className="animate-spin" /> Cargando actividad…</div>
       ) : (
-        <>
-          {/* Gráfico + resumen por mes — solo con suficientes registros
-              para que valga la pena trazar algo; un nodo contenedor sin
-              actividad propia (ni de sus descendientes) no debería
-              mostrar un lienzo casi vacío. */}
-          {rango && todosLosEventos.length >= 3 ? (
-            <>
-              <LineaTiempoEventos
-                eventos={eventosCarriles}
-                carriles={CARRILES_DETALLE}
-                serieAvance={serieAvance}
-                rango={rango}
-                hoveredId={hoveredId}
-                onHoverMarker={setHoveredId}
-                onClickMarker={alHacerClicEnEvento}
-                nombreAlcance={titulo}
-              />
-              <ResumenMensual eventos={eventosCarriles} serieAvance={serieAvance} rango={rango} />
-            </>
-          ) : items.length > 0 && (
-            <p className="text-[11px] text-gray-400 italic mb-3 -mt-1">
-              Aún no hay suficientes registros para mostrar la evolución.
-            </p>
-          )}
-
-          <BitacoraCronologica
-            eventos={eventosLista}
-            hoveredId={hoveredId}
-            onHoverEvento={setHoveredId}
-            onClickEvento={alHacerClicEnEvento}
-          />
-        </>
+        <BitacoraCronologica
+          eventos={eventos}
+          hoveredId={hoveredId}
+          onHoverEvento={setHoveredId}
+          onClickEvento={alHacerClicEnEvento}
+        />
       )}
 
       {/* Composer */}
