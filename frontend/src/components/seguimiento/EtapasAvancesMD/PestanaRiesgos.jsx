@@ -30,6 +30,7 @@ export default function PestanaRiesgos({ tipo, id, permisos, onCambiado, mostrar
   const [riesgos, setRiesgos] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [mostrarAlta, setMostrarAlta] = useState(false);
+  const [riesgoEditando, setRiesgoEditando] = useState(null);
 
   // Atajo "Reportar riesgo" de "Más acciones" (FilaAcciones.jsx vía
   // PestanasDetalle.jsx) — mismo modal que el botón "+ Reportar riesgo"
@@ -59,6 +60,26 @@ export default function PestanaRiesgos({ tipo, id, permisos, onCambiado, mostrar
     await riesgosApi.crearRiesgo(datosForm);
     setMostrarAlta(false);
     mostrarToast?.('Riesgo reportado', 'exito');
+    await cargar();
+    onCambiado?.();
+  }
+
+  // Clic en una fila — la tabla solo trae lo necesario para listar (título,
+  // nivel, estado...), así que hace falta traer el riesgo completo (causa,
+  // impacto, medida de mitigación, responsable...) antes de poder editarlo.
+  async function abrirRiesgo(riesgoId) {
+    try {
+      const { datos } = await riesgosApi.obtenerRiesgo(riesgoId);
+      setRiesgoEditando(datos);
+    } catch (err) {
+      mostrarToast?.(err.response?.data?.mensaje || 'No se pudo abrir el riesgo', 'error');
+    }
+  }
+
+  async function guardarRiesgoEditado(datosForm) {
+    await riesgosApi.actualizarRiesgo(riesgoEditando.id, datosForm);
+    setRiesgoEditando(null);
+    mostrarToast?.('Riesgo actualizado', 'exito');
     await cargar();
     onCambiado?.();
   }
@@ -113,7 +134,7 @@ export default function PestanaRiesgos({ tipo, id, permisos, onCambiado, mostrar
             </thead>
             <tbody className="divide-y divide-gray-100">
               {riesgos.map(r => (
-                <tr key={r.id} className="hover:bg-gray-50">
+                <tr key={r.id} onClick={() => abrirRiesgo(r.id)} className="hover:bg-gray-50 cursor-pointer">
                   <td className="px-3 py-2">
                     <span className="flex items-center gap-1.5 text-gray-700 font-medium">
                       <AlertTriangle size={12} className="text-amber-500 flex-shrink-0" />
@@ -131,7 +152,7 @@ export default function PestanaRiesgos({ tipo, id, permisos, onCambiado, mostrar
                   <td className="px-3 py-2">
                     {r.origen ? (
                       <button
-                        onClick={() => onNavegarNodo?.(r.origen.tipo === 'Subaccion' ? 'accion' : (r.origen.tipo || '').toLowerCase(), r.origen.id)}
+                        onClick={e => { e.stopPropagation(); onNavegarNodo?.(r.origen.tipo === 'Subaccion' ? 'accion' : (r.origen.tipo || '').toLowerCase(), r.origen.id); }}
                         className="text-[11px] text-gray-500 hover:text-guinda-700 hover:underline"
                       >
                         {NIVEL_LABEL[(r.origen.tipo || '').toLowerCase()] || r.origen.tipo} · {r.origen.nombre || 'Sin nombre'}
@@ -151,6 +172,20 @@ export default function PestanaRiesgos({ tipo, id, permisos, onCambiado, mostrar
           entidadId={id}
           onGuardar={crear}
           onCerrar={() => setMostrarAlta(false)}
+        />
+      )}
+
+      {/* entidadTipo/entidadId del riesgo mismo (no del nodo que se está
+          viendo aquí): con "Incluir elementos hijos" la tabla agrega
+          riesgos de descendientes — usar tipo/id del nodo actual los
+          habría reasignado en silencio al guardar. */}
+      {riesgoEditando && (
+        <ModalRiesgo
+          riesgo={riesgoEditando}
+          entidadTipo={riesgoEditando.entidad_tipo}
+          entidadId={riesgoEditando.entidad_id}
+          onGuardar={guardarRiesgoEditado}
+          onCerrar={() => setRiesgoEditando(null)}
         />
       )}
     </div>

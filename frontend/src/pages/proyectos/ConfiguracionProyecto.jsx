@@ -67,7 +67,7 @@ function CampoDato({ etiqueta, valor }) {
 }
 
 export default function ConfiguracionProyecto() {
-  const { proyecto, proyectoId, permisos, recargarProyecto, incrementarStats, etapas } = useOutletContext();
+  const { proyecto, proyectoId, permisos, recargarProyecto, incrementarStats } = useOutletContext();
   const { mostrarToast } = useUI();
   const { puedeCrearProyecto } = usePermisosGlobales();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -113,7 +113,7 @@ export default function ConfiguracionProyecto() {
 
       <div className="flex-1 min-w-0 space-y-4">
         {apartado === 'equipo' && (
-          <GestorUsuariosProyecto proyecto={proyecto} proyectoId={proyectoId} etapas={etapas} abrirInvitarAlMontar={abrirInvitar} />
+          <GestorUsuariosProyecto proyecto={proyecto} proyectoId={proyectoId} abrirInvitarAlMontar={abrirInvitar} />
         )}
 
         {apartado === 'datos' && (
