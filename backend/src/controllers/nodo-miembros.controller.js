@@ -146,7 +146,11 @@ async function invitadoSoloParaExternos(idUsuario, rol) {
 async function listar(req, res, next) {
   try {
     const { tipo, idNodo } = parseTipoId(req);
-    const miembros = await nodoMiembrosQueries.listarMiembros(tipo, idNodo);
+    // Se incluyen también los responsables/colaboradores de TODO el
+    // proyecto (ver el comentario de cabecera de listarMiembros) —
+    // requiere resolver a qué proyecto pertenece este nodo.
+    const idProyecto = await obtenerProyectoIdDeNodo(tipo, idNodo);
+    const miembros = await nodoMiembrosQueries.listarMiembros(tipo, idNodo, idProyecto);
     res.json({ datos: miembros, mensaje: 'Miembros obtenidos' });
   } catch (err) {
     next(err);

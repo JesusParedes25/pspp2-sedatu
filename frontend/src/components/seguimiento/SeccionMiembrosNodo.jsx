@@ -12,10 +12,19 @@
  * Agregar a alguien ya no lo mete de golpe: le llega una invitación que
  * puede aceptar o rechazar, y hasta entonces no tiene permisos. Por eso
  * cada miembro muestra el estado de su invitación.
+ *
+ * ALCANCE: la lista mezcla a quien se agregó puntualmente a ESTE nodo
+ * (`m.alcance === 'nodo'`, lo de siempre) con quien ya es responsable o
+ * colaborador de TODO el proyecto (`m.alcance === 'proyecto'`, lo trae
+ * el backend — ver nodo-miembros.queries.js::listarMiembros). A estos
+ * últimos no se les puede cambiar de función ni quitar desde aquí (su
+ * acceso no vive en este nodo, vive en el proyecto) — se muestran de
+ * solo lectura, con una etiqueta "Todo el proyecto" para no confundirlos
+ * con alguien asignado específicamente a esta etapa/acción/tarea.
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useMemo } from 'react';
-import { UserPlus, X, Search, Lock } from 'lucide-react';
+import { UserPlus, X, Search, Lock, Building2 } from 'lucide-react';
 import { obtenerUsuarios } from '../../api/catalogos';
 import {
   listarMiembrosNodo,
@@ -175,10 +184,12 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto
           {miembros.map(m => {
             const rc = rolConfig(m.rol);
             const esPrincipal = m.es_responsable_principal;
+            const esProyecto = m.alcance === 'proyecto';
+            const soloLecturaAqui = esPrincipal || esProyecto;
             return (
               <div key={m.id_usuario}
                 className={`flex items-center gap-2 group rounded-lg px-1.5 py-0.5 ${
-                  esPrincipal ? 'bg-guinda-50 border border-guinda-100' : ''
+                  esPrincipal ? 'bg-guinda-50 border border-guinda-100' : esProyecto ? 'bg-sky-50 border border-sky-100' : ''
                 }`}
               >
                 <Iniciales nombre={m.nombre_completo} />
@@ -194,7 +205,14 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto
                       </span>
                     )}
                   </p>
-                  {m.dg_siglas && <p className="text-[10px] text-gray-400">{m.dg_siglas}</p>}
+                  {(m.dg_siglas || esProyecto) && (
+                    <p className="text-[10px] text-gray-400">
+                      {m.dg_siglas}
+                      {esProyecto && (
+                        <span className="text-sky-600">{m.dg_siglas ? ' · ' : ''}Todo el proyecto</span>
+                      )}
+                    </p>
+                  )}
                   {ESTADO_INVITACION[m.estado] && (
                     <p className={`text-[10px] ${ESTADO_INVITACION[m.estado].clase}`}>
                       {ESTADO_INVITACION[m.estado].texto}
@@ -202,9 +220,12 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto
                     </p>
                   )}
                 </div>
-                {esPrincipal ? (
-                  <span className={`flex items-center gap-0.5 text-[10px] font-medium px-2 py-0.5 rounded-full ${rc.color}`}>
-                    <Lock size={9} />{rc.label}
+                {soloLecturaAqui ? (
+                  <span
+                    className={`flex items-center gap-0.5 text-[10px] font-medium px-2 py-0.5 rounded-full ${rc.color}`}
+                    title={esProyecto ? 'Ya tiene acceso a todo el proyecto — se gestiona desde ahí, no desde este nodo' : undefined}
+                  >
+                    {esPrincipal ? <Lock size={9} /> : <Building2 size={9} />}{rc.label}
                   </span>
                 ) : permisos.puedeInvitar ? (
                   <select
@@ -217,7 +238,7 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto
                 ) : (
                   <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${rc.color}`}>{rc.label}</span>
                 )}
-                {!esPrincipal && permisos.puedeInvitar && (
+                {!soloLecturaAqui && permisos.puedeInvitar && (
                   <button
                     onClick={() => quitar(m.id_usuario)}
                     className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-400 hover:text-red-500 transition-all"

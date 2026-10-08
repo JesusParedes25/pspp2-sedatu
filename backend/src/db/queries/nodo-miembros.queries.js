@@ -4,7 +4,7 @@
  */
 const pool = require('../pool');
 
-async function listarMiembros(tipo, idNodo, db) {
+async function listarMiembros(tipo, idNodo, idProyecto, db) {
   if (!['etapa', 'accion', 'tarea'].includes(tipo)) throw new Error(`Tipo de nodo inválido: ${tipo}`);
   const conn = db || pool;
   const tabla = tipo === 'etapa' ? 'etapas' : tipo === 'tarea' ? 'tareas' : 'acciones';
@@ -20,7 +20,8 @@ async function listarMiembros(tipo, idNodo, db) {
       src.es_responsable_principal,
       src.id_invitado_por,
       inv.nombre_completo AS invitado_por_nombre,
-      src.created_at
+      src.created_at,
+      'nodo'      AS alcance
     FROM (
       -- Responsable principal (columna id_responsable en la tabla padre)
       SELECT
@@ -61,7 +62,52 @@ async function listarMiembros(tipo, idNodo, db) {
       CASE src.rol WHEN 'responsable' THEN 1 WHEN 'colaborador' THEN 2 ELSE 3 END,
       u.nombre_completo
   `, [tipo, idNodo]);
-  return rows;
+
+  if (!idProyecto) return rows;
+
+  // Responsables/colaboradores de TODO el proyecto — ya tienen acceso a
+  // este nodo sin necesitar una invitación puntual aquí (ver el 409
+  // YA_PARTICIPA_EN_PROYECTO en nodo-miembros.controller.js::agregar, que
+  // impide crear a propósito una fila redundante en nodo_miembros para
+  // alguien que ya participa en el proyecto completo). Antes de esto, el
+  // panel de Equipo de un nodo sin asignaciones propias se veía vacío
+  // aunque el proyecto ya tuviera responsable/colaboradores — se agregan
+  // aquí, marcados con `alcance: 'proyecto'` para diferenciarlos de
+  // quienes se agregaron puntualmente a ESTE nodo (`alcance: 'nodo'`).
+  const { rows: filasProyecto } = await conn.query(`
+    SELECT
+      u.id        AS id_usuario,
+      u.nombre_completo,
+      u.correo,
+      u.activo    AS usuario_activo,
+      dg.siglas   AS dg_siglas,
+      pu.rol,
+      false       AS es_responsable_principal,
+      NULL::uuid  AS id_invitado_por,
+      NULL::text  AS invitado_por_nombre,
+      pu.aceptado_en AS created_at,
+      'proyecto'  AS alcance
+    FROM proyecto_usuarios pu
+    JOIN usuarios u ON u.id = pu.id_usuario
+    LEFT JOIN direcciones_generales dg ON dg.id = u.id_dg
+    WHERE pu.id_proyecto = $1 AND pu.estado = 'aceptada'
+  `, [idProyecto]);
+
+  // Quien ya participa en todo el proyecto manda sobre cualquier fila
+  // suya a nivel de nodo (no debería coexistir, por el 409 de arriba,
+  // pero el id_responsable directo del nodo sí puede coincidir con
+  // alguien que además es responsable/colaborador de todo el proyecto)
+  // — se muestra una sola vez, con su alcance de proyecto.
+  const idsProyecto = new Set(filasProyecto.map(r => r.id_usuario));
+  const filasNodo = rows.filter(r => !idsProyecto.has(r.id_usuario));
+  const peso = r => (r.rol === 'responsable' ? 1 : r.rol === 'colaborador' ? 2 : 3);
+
+  return [...filasProyecto, ...filasNodo].sort((a, b) => {
+    if (a.alcance !== b.alcance) return a.alcance === 'proyecto' ? -1 : 1;
+    if (a.es_responsable_principal !== b.es_responsable_principal) return a.es_responsable_principal ? -1 : 1;
+    if (peso(a) !== peso(b)) return peso(a) - peso(b);
+    return (a.nombre_completo || '').localeCompare(b.nombre_completo || '');
+  });
 }
 
 // Fila cruda de nodo_miembros (rol incluido) — se usa para resolver el rol
