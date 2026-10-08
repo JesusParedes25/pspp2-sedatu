@@ -13,8 +13,26 @@
  * desmontadas) para que el número en la pestaña esté listo sin tener que
  * visitarla primero — cada una reporta su conteo hacia arriba apenas
  * termina de cargar.
+ *
+ * `onContador` de cada pestaña DEBE ser una referencia estable (useCallback,
+ * no un arrow inline en el render). Documentos/Indicadores/Riesgos traen
+ * `onContador` en las dependencias de su propio `cargar` (useCallback) —
+ * con un arrow nuevo en cada render de este componente, cada actualización
+ * de `contadores` (una por pestaña, la primera vez que reporta su conteo
+ * real) volvía a disparar el fetch de las CUATRO pestañas con contador a
+ * la vez, en cascada, cada una recolapsando su contenido a "Cargando…" y
+ * restaurándolo. Con el árbol de la izquierda colapsado (columna corta)
+ * y la pestaña Indicadores activa con varias filas, esa cascada de 3-4
+ * ciclos — invisible en local por la latencia casi nula, pero perceptible
+ * en producción — bastaba para que la altura total de la página cruzara
+ * el alto del viewport varias veces seguidas, haciendo que el navegador
+ * reubicara el scroll (a veces hasta arriba del todo) en cada ciclo: el
+ * "vibrar" reportado en producción. Con el árbol expandido la columna
+ * izquierda ya es más alta que el viewport por sí sola, así que la misma
+ * cascada no cambia la altura total y no se nota — coincide exactamente
+ * con la condición de reproducción reportada.
  */
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import ActividadStream from '../../nodos/ActividadStream';
 import PestanaDocumentos from './PestanaDocumentos';
 import PestanaIndicadores from './PestanaIndicadores';
@@ -38,9 +56,16 @@ export default function PestanasDetalle({
   const [activa, setActiva] = useState(riesgoAAbrir ? 'riesgos' : 'actividad');
   const [contadores, setContadores] = useState({});
 
-  function reportarContador(clave, n) {
+  const reportarContador = useCallback((clave, n) => {
     setContadores(prev => (prev[clave] === n ? prev : { ...prev, [clave]: n }));
-  }
+  }, []);
+
+  // Una referencia estable por pestaña (no un arrow inline en el render) —
+  // ver el comentario de cabecera.
+  const onContadorDocumentos = useCallback(n => reportarContador('documentos', n), [reportarContador]);
+  const onContadorIndicadores = useCallback(n => reportarContador('indicadores', n), [reportarContador]);
+  const onContadorRiesgos = useCallback(n => reportarContador('riesgos', n), [reportarContador]);
+  const onContadorEquipo = useCallback(n => reportarContador('equipo', n), [reportarContador]);
 
   return (
     <div className="mt-3">
@@ -74,7 +99,7 @@ export default function PestanasDetalle({
           <PestanaDocumentos
             tipo={tipo} id={id} permisos={permisos} permisosProyecto={permisosProyecto}
             onCambiado={onCambiado} mostrarToast={mostrarToast} onNavegarNodo={onNavegarNodo}
-            onContador={n => reportarContador('documentos', n)}
+            onContador={onContadorDocumentos}
           />
         </div>
 
@@ -82,7 +107,7 @@ export default function PestanasDetalle({
           <PestanaIndicadores
             tipo={tipo} id={id} nodo={nodo} proyectoId={proyectoId} permisos={permisos}
             onCambiado={onCambiado} mostrarToast={mostrarToast} onNavegarNodo={onNavegarNodo}
-            onContador={n => reportarContador('indicadores', n)}
+            onContador={onContadorIndicadores}
           />
         </div>
 
@@ -93,14 +118,14 @@ export default function PestanasDetalle({
         <div className={activa === 'riesgos' ? '' : 'hidden'}>
           <PestanaRiesgos
             tipo={tipo} id={id} permisos={permisos} onCambiado={onCambiado} mostrarToast={mostrarToast} onNavegarNodo={onNavegarNodo}
-            onContador={n => reportarContador('riesgos', n)}
+            onContador={onContadorRiesgos}
           />
         </div>
 
         <div className={activa === 'equipo' ? '' : 'hidden'}>
           <SeccionMiembrosNodo
             tipo={tipo} idNodo={id} permisos={permisos} idProyecto={proyectoId} nombreNodo={nodo?.nombre}
-            onContador={n => reportarContador('equipo', n)}
+            onContador={onContadorEquipo}
           />
         </div>
       </div>
