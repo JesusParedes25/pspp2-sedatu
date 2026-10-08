@@ -8,11 +8,12 @@
  *            elementos hijos".
  */
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Link2, Paperclip, Loader2 } from 'lucide-react';
+import { Plus, Link2, Paperclip, Loader2, Eye } from 'lucide-react';
 import * as evidenciasApi from '../../../api/evidencias';
 import * as actividadApi from '../../../api/actividad';
 import ModalAccionNodo from './ModalAccionNodo';
 import SeccionArchivosNodo from '../../nodos/SeccionArchivosNodo';
+import FilePreviewModal from '../../evidencias/FilePreviewModal';
 import CATEGORIAS_EVIDENCIA from '../categoriasEvidencia';
 import { formatFecha } from '../../../utils/fecha';
 
@@ -22,12 +23,24 @@ function iconoCategoria(categoria) {
   return CATEGORIAS_EVIDENCIA.find(c => c.value === categoria)?.icon || '📎';
 }
 
+// `doc.fuente` distingue de qué tabla viene la fila (ver evidencias.queries.js
+// ::obtenerDocumentosAgregados) — un documento adjuntado desde una Tarea vive
+// en `actividad`, no en `evidencias`, y usa un endpoint de descarga distinto.
+// Sin esto, el link/vista previa de un documento agregado desde una tarea
+// apuntaba al endpoint equivocado (mismo `id`, tabla distinta).
+function urlDoc(doc) {
+  if (doc.tipo_medio === 'link') return doc.url;
+  if (doc.fuente === 'tarea') return actividadApi.obtenerUrlDescargaActividad(doc.id);
+  return evidenciasApi.obtenerUrlDescarga(doc.id);
+}
+
 export default function PestanaDocumentos({ tipo, id, permisos, permisosProyecto, onCambiado, mostrarToast, onContador, onNavegarNodo }) {
   const [incluirHijos, setIncluirHijos] = useState(true);
   const [documentos, setDocumentos] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [mostrarAlta, setMostrarAlta] = useState(false);
   const [evidenciasPropias, setEvidenciasPropias] = useState(null);
+  const [previewItem, setPreviewItem] = useState(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -130,14 +143,23 @@ export default function PestanaDocumentos({ tipo, id, permisos, permisosProyecto
               {documentos.map(doc => (
                 <tr key={doc.id} className="hover:bg-gray-50">
                   <td className="px-3 py-2">
-                    <a
-                      href={doc.tipo_medio === 'link' ? doc.url : evidenciasApi.obtenerUrlDescarga(doc.id)}
-                      target="_blank" rel="noreferrer"
-                      className="flex items-center gap-1.5 text-gray-700 hover:text-guinda-700 font-medium"
-                    >
-                      {doc.tipo_medio === 'link' ? <Link2 size={12} className="text-blue-500 flex-shrink-0" /> : <Paperclip size={12} className="text-gray-400 flex-shrink-0" />}
-                      <span className="truncate max-w-[220px]">{doc.titulo || doc.nombre_original || 'Sin título'}</span>
-                    </a>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={urlDoc(doc)}
+                        target="_blank" rel="noreferrer"
+                        className="flex items-center gap-1.5 text-gray-700 hover:text-guinda-700 font-medium min-w-0"
+                      >
+                        {doc.tipo_medio === 'link' ? <Link2 size={12} className="text-blue-500 flex-shrink-0" /> : <Paperclip size={12} className="text-gray-400 flex-shrink-0" />}
+                        <span className="truncate max-w-[220px]">{doc.titulo || doc.nombre_original || 'Sin título'}</span>
+                      </a>
+                      <button
+                        onClick={() => setPreviewItem(doc)}
+                        title="Vista previa"
+                        className="p-0.5 text-gray-400 hover:text-guinda-700 flex-shrink-0"
+                      >
+                        <Eye size={13} />
+                      </button>
+                    </div>
                   </td>
                   <td className="px-3 py-2 text-gray-500">{iconoCategoria(doc.categoria)} {doc.categoria}</td>
                   <td className="px-3 py-2">
@@ -170,6 +192,14 @@ export default function PestanaDocumentos({ tipo, id, permisos, permisosProyecto
             capturaPrimero
           />
         </ModalAccionNodo>
+      )}
+
+      {previewItem && (
+        <FilePreviewModal
+          evidencia={previewItem}
+          urlOverride={previewItem.tipo_medio === 'link' ? undefined : urlDoc(previewItem)}
+          onClose={() => setPreviewItem(null)}
+        />
       )}
     </div>
   );
