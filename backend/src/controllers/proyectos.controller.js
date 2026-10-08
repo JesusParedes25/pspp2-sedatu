@@ -514,7 +514,12 @@ async function bitacora(req, res, next) {
       accionId: accionId || undefined,
       tareaId: tareaId || undefined,
       pagina: parseInt(pagina) || 1,
-      limite: Math.min(parseInt(limite) || 30, 100),
+      // Tope de 1000, mismo criterio que obtenerActividadNodo (Detalle): la
+      // línea de tiempo nueva necesita el historial filtrado completo para
+      // trazar el gráfico/resumen mensual, no solo la página de 25 que ve
+      // la lista — el frontend pide esto con limite=1000 y pagina() propia
+      // y pagina la lista del lado del cliente sobre ese mismo arreglo.
+      limite: Math.min(parseInt(limite) || 30, 1000),
     });
     res.json({ datos: resultado.datos, total: resultado.total });
   } catch (err) {

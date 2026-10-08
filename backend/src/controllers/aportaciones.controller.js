@@ -16,6 +16,18 @@ async function proyectoDelIndicador(idIndicador) {
   return ind || null;
 }
 
+const NIVEL_LABEL = { etapa: 'la etapa', accion: 'la acción', tarea: 'la tarea' };
+
+// "la etapa «X»", a partir de las columnas id_etapa/id_accion/id_tarea de
+// una fila de indicador_aportaciones (siempre exactamente una no-nula) —
+// para que los 3 eventos de bitácora de este archivo digan de qué nodo se
+// trata, no solo el nombre del indicador.
+function describirNodoAportacion(fila) {
+  const tipo = fila.id_etapa ? 'etapa' : fila.id_tarea ? 'tarea' : fila.id_accion ? 'accion' : null;
+  if (!tipo) return null;
+  return `${NIVEL_LABEL[tipo]} "${fila.nodo_nombre || 'sin nombre'}"`;
+}
+
 // GET /indicadores/:id/aportaciones
 async function listar(req, res, next) {
   try {
@@ -72,11 +84,14 @@ async function crear(req, res, next) {
 
     const ind = await proyectoDelIndicador(aportacion.id_indicador);
     if (ind) {
+      const conNodo = await aportacionesQueries.obtenerConNodo(aportacion.id);
+      const nodo = conNodo && describirNodoAportacion(conNodo);
       await registrarActividad({
         id_proyecto: ind.id_proyecto,
         id_usuario: req.usuario?.id || null,
         tipo: 'indicador',
         titulo: `Nodo vinculado a "${ind.nombre}"`,
+        descripcion: nodo ? `Se vinculó ${nodo} a este indicador.` : null,
         entidad_tipo: 'Indicador',
         entidad_id: aportacion.id_indicador,
       });
@@ -109,11 +124,14 @@ async function actualizar(req, res, next) {
 
     const ind = await proyectoDelIndicador(aportacion.id_indicador);
     if (ind) {
+      const conNodo = await aportacionesQueries.obtenerConNodo(aportacion.id);
+      const nodo = conNodo && describirNodoAportacion(conNodo);
       await registrarActividad({
         id_proyecto: ind.id_proyecto,
         id_usuario: req.usuario?.id || null,
         tipo: 'indicador',
         titulo: `Aportación editada en "${ind.nombre}"`,
+        descripcion: nodo ? `Se editó la aportación de ${nodo} a este indicador.` : null,
         entidad_tipo: 'Indicador',
         entidad_id: aportacion.id_indicador,
       });
@@ -126,19 +144,28 @@ async function actualizar(req, res, next) {
 // DELETE /aportaciones/:id
 async function eliminar(req, res, next) {
   try {
+    // Se resuelve de qué nodo era la aportación (y se prepara el texto del
+    // evento) ANTES de borrar la fila — una vez borrada no queda ningún
+    // rastro de id_etapa/id_accion/id_tarea, y así nacía el defecto que ya
+    // dejó varias entradas sin nodo en la bitácora de producción.
+    const antes = await aportacionesQueries.obtenerConNodo(req.params.id);
+    if (!antes) return res.status(404).json({ error: true, mensaje: 'Aportación no encontrada' });
+    const nodo = describirNodoAportacion(antes);
+    const ind = await proyectoDelIndicador(antes.id_indicador);
+
     const resultado = await aportacionesQueries.eliminar(req.params.id);
     if (!resultado) return res.status(404).json({ error: true, mensaje: 'Aportación no encontrada' });
-    await aportacionesQueries.recalcularUnIndicador(resultado.id_indicador);
+    await aportacionesQueries.recalcularUnIndicador(antes.id_indicador);
 
-    const ind = await proyectoDelIndicador(resultado.id_indicador);
     if (ind) {
       await registrarActividad({
         id_proyecto: ind.id_proyecto,
         id_usuario: req.usuario?.id || null,
         tipo: 'indicador',
         titulo: `Nodo desvinculado de "${ind.nombre}"`,
+        descripcion: nodo ? `${nodo.charAt(0).toUpperCase()}${nodo.slice(1)} dejó de aportar a este indicador.` : null,
         entidad_tipo: 'Indicador',
-        entidad_id: resultado.id_indicador,
+        entidad_id: antes.id_indicador,
       });
     }
 
