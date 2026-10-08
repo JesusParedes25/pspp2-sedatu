@@ -80,8 +80,14 @@ async function obtenerDocumentosAgregados(tipoNodo, idNodo, incluirHijos = true)
 
   const [evidencias, archivosTarea] = await Promise.all([promesaEvidencias, promesaArchivosTarea]);
 
+  // `fuente` distingue de qué tabla viene cada fila — necesario porque
+  // `id` por sí solo es ambiguo entre las dos (un id de `evidencias` y uno
+  // de `actividad` pueden coincidir): el frontend lo usa para resolver la
+  // URL de descarga/vista previa correcta por fila
+  // (evidenciasApi.obtenerUrlDescarga vs. actividadApi.obtenerUrlDescargaActividad).
   const propios = evidencias.map(ev => ({
     id: ev.id,
+    fuente: 'evidencia',
     titulo: ev.titulo,
     nombre_original: ev.nombre_original,
     nombre_archivo: ev.nombre_archivo,
@@ -100,6 +106,7 @@ async function obtenerDocumentosAgregados(tipoNodo, idNodo, incluirHijos = true)
 
   const deTareas = archivosTarea.map(a => ({
     id: a.id,
+    fuente: 'tarea',
     titulo: a.metadata?.titulo || null,
     nombre_original: a.archivo_nombre,
     nombre_archivo: null,
