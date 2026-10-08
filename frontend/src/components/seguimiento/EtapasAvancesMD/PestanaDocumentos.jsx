@@ -34,7 +34,7 @@ function urlDoc(doc) {
   return evidenciasApi.obtenerUrlDescarga(doc.id);
 }
 
-export default function PestanaDocumentos({ tipo, id, permisos, permisosProyecto, onCambiado, mostrarToast, onContador, onNavegarNodo }) {
+export default function PestanaDocumentos({ tipo, id, permisos, permisosProyecto, onCambiado, mostrarToast, onContador, onNavegarNodo, altaSolicitada, onAltaConsumida }) {
   const [incluirHijos, setIncluirHijos] = useState(true);
   const [documentos, setDocumentos] = useState(null);
   const [cargando, setCargando] = useState(true);
@@ -95,6 +95,16 @@ export default function PestanaDocumentos({ tipo, id, permisos, permisosProyecto
     setMostrarAlta(true);
     if (evidenciasPropias === null) cargarPropias();
   }
+
+  // Atajo "Adjuntar documento" de "Más acciones" (FilaAcciones.jsx vía
+  // PestanasDetalle.jsx) — mismo modal que el botón "+ Adjuntar documento"
+  // de aquí abajo, solo que disparado desde fuera de esta pestaña.
+  useEffect(() => {
+    if (altaSolicitada) { abrirAlta(); onAltaConsumida?.(); }
+    // abrirAlta se omite a propósito: no es estable entre renders, y solo
+    // altaSolicitada/onAltaConsumida (sí estables) deben disparar esto.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [altaSolicitada, onAltaConsumida]);
 
   return (
     <div>

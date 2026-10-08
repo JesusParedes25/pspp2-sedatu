@@ -26,7 +26,7 @@
  * atajo "Marcar como completada" del encabezado — un solo modal montado
  * una vez, no dos copias con estado separado.
  */
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import PestanasDetalle from './PestanasDetalle';
 import ModalRegistrarAvance from '../../nodos/ModalRegistrarAvance';
 import FilaAcciones from './FilaAcciones';
@@ -48,6 +48,21 @@ export default function PanelDetalle({
   const ruta = resolverRutaConIds(arbol, id) || [{ tipo, id, nombre: data.nombre }];
   const { actualizar } = useJerarquiaProyecto(proyectoId);
   const [editandoFicha, setEditandoFicha] = useState(false);
+  // Atajos de "Más acciones" (Adjuntar documento/Vincular indicador/
+  // Vincular territorio/Reportar riesgo/Invitar participante) — viven de
+  // nuevo en el menú (a pedido del usuario, además de sus propias
+  // subpestañas, no en su lugar) pero el modal de cada una sigue siendo
+  // el mismo que ya abre su subpestaña: FilaAcciones solo pide la alta
+  // por clave ('documentos'|'indicadores'|'territorio'|'riesgos'|
+  // 'equipo'), PestanasDetalle cambia a esa pestaña y le pasa el pedido
+  // a la pestaña correspondiente, que lo consume abriendo su propio
+  // modal — una sola implementación del modal, dos puntos de entrada.
+  const [accionRapida, setAccionRapida] = useState(null);
+  // Referencia estable — las pestañas la traen en las dependencias de su
+  // propio efecto de "consumir el pedido"; una función inline nueva en
+  // cada render volvería a dispararlo. Mismo motivo exacto que ya costó
+  // la vibración de scroll que se arregló en PestanasDetalle.jsx.
+  const consumirAccionRapida = useCallback(() => setAccionRapida(null), []);
   // avanceAAbrir llega desde fuera (atajo "Registrar avance" de la
   // Portada, con un nodo recién elegido) — PanelDetalle remonta por
   // `key={seleccion.id}` en index.jsx cada vez que cambia la selección,
@@ -107,6 +122,7 @@ export default function PanelDetalle({
           mostrarToast={mostrarToast}
           onEditarFicha={() => setEditandoFicha(true)}
           onAbrirAvance={() => abrirAvance()}
+          onAccionRapida={setAccionRapida}
           onEliminado={() => {
             const padre = ruta[ruta.length - 2];
             if (padre) onNavegarNodo(padre.tipo, padre.id);
@@ -126,6 +142,8 @@ export default function PanelDetalle({
           riesgoAAbrir={riesgoAAbrir}
           onRiesgoConsumido={onRiesgoConsumido}
           onNavegarNodo={onNavegarNodo}
+          accionRapida={accionRapida}
+          onAccionRapidaConsumida={consumirAccionRapida}
         />
       </div>
 

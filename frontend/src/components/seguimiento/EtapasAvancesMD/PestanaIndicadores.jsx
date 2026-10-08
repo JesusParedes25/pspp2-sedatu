@@ -22,11 +22,18 @@ function etiquetaUnidad(ap) {
   return ap.unidad_personalizada || ap.unidad || '';
 }
 
-export default function PestanaIndicadores({ tipo, id, nodo, proyectoId, permisos, onCambiado, mostrarToast, onContador, onNavegarNodo }) {
+export default function PestanaIndicadores({ tipo, id, nodo, proyectoId, permisos, onCambiado, mostrarToast, onContador, onNavegarNodo, altaSolicitada, onAltaConsumida }) {
   const [incluirHijos, setIncluirHijos] = useState(true);
   const [aportaciones, setAportaciones] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [mostrarAlta, setMostrarAlta] = useState(false);
+
+  // Atajo "Vincular indicador" de "Más acciones" (FilaAcciones.jsx vía
+  // PestanasDetalle.jsx) — mismo modal que el botón "+ Vincular indicador"
+  // de aquí abajo, solo que disparado desde fuera de esta pestaña.
+  useEffect(() => {
+    if (altaSolicitada) { setMostrarAlta(true); onAltaConsumida?.(); }
+  }, [altaSolicitada, onAltaConsumida]);
 
   const cargar = useCallback(async () => {
     setCargando(true);

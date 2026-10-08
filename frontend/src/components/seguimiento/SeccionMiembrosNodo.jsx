@@ -61,7 +61,7 @@ function Iniciales({ nombre, className = '' }) {
   );
 }
 
-export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto, nombreNodo, onContador }) {
+export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto, nombreNodo, onContador, altaSolicitada, onAltaConsumida }) {
   const [miembros, setMiembros] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [mostrarPicker, setMostrarPicker] = useState(false);
@@ -75,6 +75,19 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto
   useEffect(() => {
     cargar();
   }, [tipo, idNodo]);
+
+  // Atajo "Invitar participante" de "Más acciones" (FilaAcciones.jsx vía
+  // PestanasDetalle.jsx) — mismo selector que el botón "+ Agregar
+  // miembro" de aquí abajo, solo que disparado desde fuera de esta
+  // pestaña. La pestaña Equipo no tiene tabla portal (a diferencia de
+  // Documentos/Indicadores/Territorio/Riesgos): el picker vive en el
+  // flujo normal del documento, así que sin cambiar también `activa` en
+  // PestanasDetalle.jsx (ya lo hace) quedaría abierto dentro de un
+  // contenedor oculto.
+  useEffect(() => {
+    if (altaSolicitada) { abrirPicker(); onAltaConsumida?.(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [altaSolicitada, onAltaConsumida]);
 
   async function cargar() {
     setCargando(true);
