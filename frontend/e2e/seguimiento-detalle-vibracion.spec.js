@@ -186,14 +186,30 @@ test.describe('Detalle de Seguimiento — sin tormenta de refetch al abrir una p
     await seleccionarNodo(page, 1);
     await muestreo;
 
-    // ≤2 (altura estable, más a lo sumo una transición), no exactamente
-    // 1 — ver nota de cabecera sobre StrictMode. Sin el fix esto veía 3+
-    // valores distintos (la cascada vuelve a colapsar/restaurar el
-    // contenido varias rondas seguidas).
+    // ≤3 (estable, más a lo sumo un par de pasos de asentamiento), no
+    // exactamente 1 — ver nota de cabecera sobre StrictMode. Con más
+    // pestañas ahora escuchando `altaSolicitada` (atajos de "Más
+    // acciones"), el asentamiento post-StrictMode a veces cae en 2 pasos
+    // monótonos (ej. 972→994→1040) y a veces en 1 (972→1040) según en
+    // qué instante exacto caiga cada muestreo de 30ms. Sin el fix esto
+    // mostraba muchos más valores, alternando hacia arriba y abajo
+    // repetidamente durante toda la ventana de observación.
     const alturasUnicas = new Set(alturas);
     expect(
       alturasUnicas.size,
       `la altura del documento no debe oscilar en varias rondas al cambiar de nodo (valores vistos: ${[...alturasUnicas].join(', ')})`
-    ).toBeLessThanOrEqual(2);
+    ).toBeLessThanOrEqual(3);
+
+    // Chequeo más directo y robusto que el conteo de arriba: la "cola"
+    // del muestreo (mucho después de cualquier asentamiento legítimo de
+    // StrictMode) debe ser un único valor constante. Esto es lo que de
+    // verdad distingue "se asienta rápido y para" (válido) de "sigue
+    // oscilando durante toda la ventana" (el bug) — y no depende de
+    // cuántos pasos de asentamiento sean legítimos en el futuro.
+    const cola = alturas.slice(-20);
+    expect(
+      new Set(cola).size,
+      `la altura debe quedar perfectamente estable al final de la ventana de observación (cola vista: ${[...new Set(cola)].join(', ')})`
+    ).toBe(1);
   });
 });

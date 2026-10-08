@@ -7,7 +7,7 @@
  *            territorio" que abre el selector completo en modal. Sin
  *            tabla ni contador de pestaña.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Pencil, MapPin } from 'lucide-react';
 import ModalAccionNodo from './ModalAccionNodo';
 import TerritorioSelector from '../../nodos/TerritorioSelector';
@@ -19,10 +19,16 @@ function tieneTerritorio(nodo) {
   return !!nodo?.cve_ent || (nodo?.municipios || []).length > 0 || !!nodo?.id_zm;
 }
 
-export default function PestanaTerritorio({ tipo, id, nodo, permisos, onCambiado, mostrarToast }) {
+export default function PestanaTerritorio({ tipo, id, nodo, permisos, onCambiado, mostrarToast, altaSolicitada, onAltaConsumida }) {
   const [editando, setEditando] = useState(false);
   const soloLectura = permisos?.esSoloLectura ?? true;
   const asignado = tieneTerritorio(nodo);
+
+  // Atajo "Vincular territorio" de "Más acciones" (FilaAcciones.jsx vía
+  // PestanasDetalle.jsx) — mismo modal que el botón de aquí abajo.
+  useEffect(() => {
+    if (altaSolicitada) { setEditando(true); onAltaConsumida?.(); }
+  }, [altaSolicitada, onAltaConsumida]);
 
   async function guardar(campo, valor) {
     if (tipo === 'etapa') await etapasApi.patchEtapa(id, { [campo]: valor });

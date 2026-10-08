@@ -25,11 +25,18 @@ async function obtenerPorTipo(tipo, id, incluirHijos) {
   return riesgosApi.obtenerRiesgosAccion(id, incluirHijos);
 }
 
-export default function PestanaRiesgos({ tipo, id, permisos, onCambiado, mostrarToast, onContador, onNavegarNodo }) {
+export default function PestanaRiesgos({ tipo, id, permisos, onCambiado, mostrarToast, onContador, onNavegarNodo, altaSolicitada, onAltaConsumida }) {
   const [incluirHijos, setIncluirHijos] = useState(true);
   const [riesgos, setRiesgos] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [mostrarAlta, setMostrarAlta] = useState(false);
+
+  // Atajo "Reportar riesgo" de "Más acciones" (FilaAcciones.jsx vía
+  // PestanasDetalle.jsx) — mismo modal que el botón "+ Reportar riesgo"
+  // de aquí abajo, solo que disparado desde fuera de esta pestaña.
+  useEffect(() => {
+    if (altaSolicitada) { setMostrarAlta(true); onAltaConsumida?.(); }
+  }, [altaSolicitada, onAltaConsumida]);
 
   const cargar = useCallback(async () => {
     setCargando(true);

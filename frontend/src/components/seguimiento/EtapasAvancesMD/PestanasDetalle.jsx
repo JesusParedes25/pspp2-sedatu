@@ -4,10 +4,10 @@
  *            de la ficha del elemento — Actividad · Documentos(n) ·
  *            Indicadores(n) · Territorio · Riesgos(n) · Equipo y permisos(n).
  *            Documentos/Indicadores/Riesgos son tablas de consulta con su
- *            propio botón de alta (ya no botones sueltos en "Más
- *            acciones" — ver FilaAcciones.jsx); Territorio es un valor
- *            único con botón "Editar territorio"; Equipo y permisos reusa
- *            SeccionMiembrosNodo tal cual.
+ *            propio botón de alta; Territorio es un valor único con botón
+ *            "Editar territorio"; Equipo y permisos reusa SeccionMiembrosNodo
+ *            tal cual. Esas mismas altas también son accesibles desde "Más
+ *            acciones" (FilaAcciones.jsx) — ver `accionRapida` más abajo.
  *
  * Todas las pestañas con contador se montan siempre (ocultas con CSS, no
  * desmontadas) para que el número en la pestaña esté listo sin tener que
@@ -31,8 +31,18 @@
  * izquierda ya es más alta que el viewport por sí sola, así que la misma
  * cascada no cambia la altura total y no se nota — coincide exactamente
  * con la condición de reproducción reportada.
+ *
+ * `accionRapida`/`onAccionRapidaConsumida`: atajos de "Más acciones"
+ * (FilaAcciones.jsx) — piden abrir la alta de una pestaña sin que el
+ * usuario tenga que entrar a ella primero. Al recibir una clave
+ * ('documentos'|'indicadores'|'territorio'|'riesgos'|'equipo') este
+ * componente cambia `activa` a esa pestaña y le pasa `altaSolicitada` a
+ * la pestaña correspondiente, que abre su propio modal (ya existente) y
+ * llama a `onAltaConsumida` (= `onAccionRapidaConsumida`) para limpiar
+ * el pedido — sin esto, `accionRapida` se quedaría "pegado" y reabriría
+ * el modal cada vez que este componente se vuelva a renderizar.
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import ActividadStream from '../../nodos/ActividadStream';
 import PestanaDocumentos from './PestanaDocumentos';
 import PestanaIndicadores from './PestanaIndicadores';
@@ -52,9 +62,14 @@ const TABS = [
 export default function PestanasDetalle({
   tipo, id, nodo, proyectoId, permisos, permisosProyecto, onCambiado, mostrarToast,
   riesgoAAbrir, onRiesgoConsumido, onNavegarNodo,
+  accionRapida, onAccionRapidaConsumida,
 }) {
   const [activa, setActiva] = useState(riesgoAAbrir ? 'riesgos' : 'actividad');
   const [contadores, setContadores] = useState({});
+
+  useEffect(() => {
+    if (accionRapida) setActiva(accionRapida);
+  }, [accionRapida]);
 
   const reportarContador = useCallback((clave, n) => {
     setContadores(prev => (prev[clave] === n ? prev : { ...prev, [clave]: n }));
@@ -100,6 +115,8 @@ export default function PestanasDetalle({
             tipo={tipo} id={id} permisos={permisos} permisosProyecto={permisosProyecto}
             onCambiado={onCambiado} mostrarToast={mostrarToast} onNavegarNodo={onNavegarNodo}
             onContador={onContadorDocumentos}
+            altaSolicitada={accionRapida === 'documentos'}
+            onAltaConsumida={onAccionRapidaConsumida}
           />
         </div>
 
@@ -108,17 +125,25 @@ export default function PestanasDetalle({
             tipo={tipo} id={id} nodo={nodo} proyectoId={proyectoId} permisos={permisos}
             onCambiado={onCambiado} mostrarToast={mostrarToast} onNavegarNodo={onNavegarNodo}
             onContador={onContadorIndicadores}
+            altaSolicitada={accionRapida === 'indicadores'}
+            onAltaConsumida={onAccionRapidaConsumida}
           />
         </div>
 
         <div className={activa === 'territorio' ? '' : 'hidden'}>
-          <PestanaTerritorio tipo={tipo} id={id} nodo={nodo} permisos={permisos} onCambiado={onCambiado} mostrarToast={mostrarToast} />
+          <PestanaTerritorio
+            tipo={tipo} id={id} nodo={nodo} permisos={permisos} onCambiado={onCambiado} mostrarToast={mostrarToast}
+            altaSolicitada={accionRapida === 'territorio'}
+            onAltaConsumida={onAccionRapidaConsumida}
+          />
         </div>
 
         <div className={activa === 'riesgos' ? '' : 'hidden'}>
           <PestanaRiesgos
             tipo={tipo} id={id} permisos={permisos} onCambiado={onCambiado} mostrarToast={mostrarToast} onNavegarNodo={onNavegarNodo}
             onContador={onContadorRiesgos}
+            altaSolicitada={accionRapida === 'riesgos'}
+            onAltaConsumida={onAccionRapidaConsumida}
           />
         </div>
 
@@ -126,6 +151,8 @@ export default function PestanasDetalle({
           <SeccionMiembrosNodo
             tipo={tipo} idNodo={id} permisos={permisos} idProyecto={proyectoId} nombreNodo={nodo?.nombre}
             onContador={onContadorEquipo}
+            altaSolicitada={accionRapida === 'equipo'}
+            onAltaConsumida={onAccionRapidaConsumida}
           />
         </div>
       </div>

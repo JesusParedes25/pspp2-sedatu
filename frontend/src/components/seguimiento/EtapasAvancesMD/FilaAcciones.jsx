@@ -3,23 +3,30 @@
  * PROPÓSITO: Fila de acciones del panel derecho de Detalle (Fase 3 del
  *            rediseño) — "Registrar avance" (primaria), "Agregar acción/
  *            tarea" (secundaria, ausente en Tarea) y un menú "Más
- *            acciones" (Editar ficha/Duplicar/Eliminar). Toda acción abre
- *            un modal — nunca un panel de solo lectura que se queda a
- *            medias en la página — y sin permiso queda deshabilitada con
- *            tooltip, no oculta.
+ *            acciones". Toda acción abre un modal — nunca un panel de
+ *            solo lectura que se queda a medias en la página — y sin
+ *            permiso queda deshabilitada con tooltip, no oculta.
  *
  * Fase 4 del rediseño: Adjuntar documento/Vincular indicador/Vincular
  * territorio/Reportar riesgo/Invitar participante salieron de este menú
- * — cada uno ahora es el botón de alta de su propia subpestaña
+ * y pasaron a ser el botón de alta de su propia subpestaña
  * (PestanasDetalle.jsx, debajo de la ficha), con una tabla de consulta en
- * vez de un modal sin rastro después de cerrarlo. Mismo criterio que ya
- * se aplicó: una sola entrada por acción, no dos caminos al mismo modal.
+ * vez de un modal sin rastro después de cerrarlo.
+ *
+ * A pedido del usuario (tras el rediseño) volvieron también a "Más
+ * acciones", como atajo adicional — las subpestañas se quedan igual, no
+ * se duplica el modal de cada una: este menú solo pide la alta por
+ * clave (`onAccionRapida`) y PanelDetalle.jsx la reenvía a
+ * PestanasDetalle, que cambia a la subpestaña correspondiente y le pasa
+ * el pedido a esa pestaña, que abre su propio modal (ya existente) y
+ * avisa que lo consumió. Una sola implementación de cada modal, dos
+ * puntos de entrada.
  *
  * Componente NUEVO, propio de Detalle — no se toca NodoCard.jsx (ver
  * comentario de cabecera de PanelDetalle.jsx).
  */
 import { useState } from 'react';
-import { TrendingUp, Plus, MoreHorizontal, Pencil, Copy, Trash2, ChevronDown } from 'lucide-react';
+import { TrendingUp, Plus, MoreHorizontal, Pencil, Copy, Trash2, ChevronDown, Paperclip, BarChart3, MapPin, AlertTriangle, UserPlus } from 'lucide-react';
 import MenuDesplegable from '../../common/MenuDesplegable';
 import ConfirmDialog from '../../common/ConfirmDialog';
 import ModalDuplicarNodo from '../../nodos/ModalDuplicarNodo';
@@ -59,7 +66,7 @@ function ItemMenu({ icono: Icono, label, onClick, disabled, title, destructivo }
 
 export default function FilaAcciones({
   tipo, nodo, id, proyectoId, permisos, permisosProyecto, esContenedor,
-  onCambiado, mostrarToast, onEditarFicha, onEliminado, onAbrirAvance,
+  onCambiado, mostrarToast, onEditarFicha, onEliminado, onAbrirAvance, onAccionRapida,
 }) {
   const soloLectura = permisos?.esSoloLectura ?? true;
   const puedeDuplicar = tipo === 'etapa' ? !!permisos?.puedeCrearEtapa : !!permisos?.puedeCrearAccion;
@@ -141,6 +148,22 @@ export default function FilaAcciones({
       >
         {({ cerrar }) => (
           <div className="py-1">
+            <ItemMenu icono={Paperclip} label="Adjuntar documento"
+              disabled={soloLectura} title="Sin permiso para adjuntar documentos en este elemento"
+              onClick={() => { onAccionRapida?.('documentos'); cerrar(); }} />
+            <ItemMenu icono={BarChart3} label="Vincular indicador"
+              disabled={soloLectura} title="Sin permiso para vincular indicadores en este elemento"
+              onClick={() => { onAccionRapida?.('indicadores'); cerrar(); }} />
+            <ItemMenu icono={MapPin} label="Vincular territorio"
+              disabled={soloLectura} title="Sin permiso para vincular territorio en este elemento"
+              onClick={() => { onAccionRapida?.('territorio'); cerrar(); }} />
+            <ItemMenu icono={AlertTriangle} label="Reportar riesgo"
+              disabled={soloLectura} title="Sin permiso para reportar riesgos en este elemento"
+              onClick={() => { onAccionRapida?.('riesgos'); cerrar(); }} />
+            <ItemMenu icono={UserPlus} label="Invitar participante"
+              disabled={!permisos?.puedeInvitar} title="Sin permiso para invitar participantes en este elemento"
+              onClick={() => { onAccionRapida?.('equipo'); cerrar(); }} />
+            <div className="my-1 border-t border-gray-100" />
             <ItemMenu icono={Pencil} label="Editar ficha"
               disabled={soloLectura} title="Sin permiso para editar este elemento"
               onClick={() => { onEditarFicha?.(); cerrar(); }} />
