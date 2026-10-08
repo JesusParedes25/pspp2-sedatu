@@ -115,6 +115,23 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
     })();
   }, [])
 
+  // Nombres de usuarios activos para el selector de "Enlace responsable" —
+  // más el valor ya guardado, si no está entre ellos (ver comentario del
+  // campo más abajo). `enlace_responsable` es texto libre sin FK a
+  // usuarios (migración 021) — dos personas activas distintas pueden
+  // compartir el mismo nombre_completo (pasa en datos reales, no solo en
+  // la siembra de prueba), así que se dedupe por nombre: el <select>
+  // sigue siendo ambiguo entre esas dos personas exactamente igual que ya
+  // lo era el campo de texto libre que reemplaza, pero sin repetir la
+  // misma opción dos veces.
+  const opcionesEnlaceResponsable = (() => {
+    const nombres = [...new Set(catalogs.usuarios.map(u => u.nombre_completo))];
+    if (valores.enlace_responsable && !nombres.includes(valores.enlace_responsable)) {
+      return [valores.enlace_responsable, ...nombres];
+    }
+    return nombres;
+  })();
+
   const sem = data.semaforo_efectivo || 'gris';
   const avance = data.avance_efectivo ?? (tipo === 'etapa' ? parseFloat(data.porcentaje_calculado || 0) : parseFloat(data.porcentaje_avance || 0));
   const esContenedor = tipo === 'etapa' || (data.es_hoja === false);
@@ -222,7 +239,15 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
       )}
 
       {/* Instancia/enlace responsable — capturados al crear (ModalNuevaAccion),
-          no aplican a tarea (misma lógica que Instrumento/Escala). */}
+          no aplican a tarea (misma lógica que Instrumento/Escala). "Enlace
+          responsable" guarda el NOMBRE en texto plano (columna TEXT, sin
+          FK a usuarios — igual que Instancia responsable con su catálogo
+          de valores) pero se elige de la lista de usuarios activos de la
+          PSPP, como en el resto de la app, en vez de tecleo libre. Si el
+          valor ya guardado no coincide con ningún usuario activo actual
+          (capturado antes de que esa persona se diera de baja, o importado
+          de Excel con un nombre que no está en PSPP), se agrega como
+          opción aparte para no perderlo de vista ni borrarlo en silencio. */}
       {tipo !== 'tarea' && (
         <div className="grid grid-cols-2 gap-2.5 mb-3">
           <CampoSelect
@@ -231,20 +256,12 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
             onChange={v => set('instancia_responsable', v || null)}
             soloLectura={permisos.esSoloLectura}
           />
-          <div>
-            <span className="text-[10px] text-gray-400 block mb-0.5">Enlace responsable</span>
-            {permisos.esSoloLectura ? (
-              <p className="text-xs text-gray-700">{valores.enlace_responsable || '—'}</p>
-            ) : (
-              <input
-                type="text"
-                value={valores.enlace_responsable || ''}
-                onChange={e => set('enlace_responsable', e.target.value || null)}
-                placeholder="Nombre del enlace"
-                className="input-base text-xs"
-              />
-            )}
-          </div>
+          <CampoSelect
+            label="Enlace responsable" valor={valores.enlace_responsable || ''}
+            opciones={opcionesEnlaceResponsable}
+            onChange={v => set('enlace_responsable', v || null)}
+            soloLectura={permisos.esSoloLectura}
+          />
         </div>
       )}
 

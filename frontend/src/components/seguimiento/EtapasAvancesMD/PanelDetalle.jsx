@@ -96,7 +96,12 @@ export default function PanelDetalle({
         Ver estructura del proyecto
       </button>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4 max-w-2xl">
+      {/* max-w-5xl (no max-w-2xl, que dejaba un espacio en blanco visible
+          en pantallas anchas): las tablas de Documentos/Indicadores/
+          Riesgos ya son `w-full` y se benefician directo del ancho extra;
+          sigue acotado (no 100%) para no estirar de más el texto de la
+          ficha/descripción en pantallas muy anchas. */}
+      <div className="flex-1 overflow-y-auto px-5 py-4 max-w-5xl">
         <EncabezadoDetalle
           nodo={seleccion}
           ruta={ruta}
@@ -107,8 +112,6 @@ export default function PanelDetalle({
           onGuardarCampo={guardarCampo}
           onMarcarCompletada={!esContenedor ? () => abrirAvance({ completar: true }) : undefined}
         />
-
-        <TiraDatos nodo={seleccion} permisos={permisos} onEditar={() => setEditandoFicha(true)} />
 
         <FilaAcciones
           tipo={tipo}
@@ -129,6 +132,8 @@ export default function PanelDetalle({
             onActualizado?.();
           }}
         />
+
+        <TiraDatos nodo={seleccion} permisos={permisos} onEditar={() => setEditandoFicha(true)} />
 
         <PestanasDetalle
           tipo={tipo}
