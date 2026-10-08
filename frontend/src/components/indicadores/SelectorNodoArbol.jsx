@@ -15,6 +15,7 @@
  */
 import { useState, useMemo, useEffect } from 'react';
 import { ChevronRight, ChevronDown, Search } from 'lucide-react';
+import { ramasDeEtapas } from '../../utils/arbolSeleccionable';
 
 function normalizar(txt) {
   return (txt || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -83,22 +84,6 @@ function Fila({ nodo, tipo, nivel, seleccionado, expandidos, onToggle, onSelecci
   );
 }
 
-// Arma, para una etapa, la lista de hijos con su tipo y sus propios
-// hijos — acciones de primer nivel (sin id_accion_padre), y de cada
-// una sus subacciones + tareas (mismo criterio que ya usaba el modal
-// con los 3 selects, sin profundizar más allá de ese nivel).
-function hijosDeEtapa(etapa) {
-  const acciones = (etapa.acciones || []).filter(a => !a.id_accion_padre);
-  return acciones.map(accion => ({
-    nodo: accion,
-    tipo: 'accion',
-    hijos: [
-      ...(accion.subacciones || []).map(s => ({ nodo: s, tipo: 'accion', hijos: [] })),
-      ...(accion.tareas || []).map(t => ({ nodo: t, tipo: 'tarea', hijos: [] })),
-    ],
-  }));
-}
-
 // Filtra en cada nivel, no solo decide si mostrar la raíz — antes
 // `coincideArbol` solo respondía sí/no para la etapa completa, así que
 // una vez que una etapa "pasaba" (porque algún descendiente coincidía)
@@ -127,11 +112,7 @@ export default function SelectorNodoArbol({ etapas, valor, onSeleccionar, puedeE
     });
   }
 
-  const ramas = useMemo(() => etapas.map(etapa => ({
-    nodo: etapa,
-    tipo: 'etapa',
-    hijos: hijosDeEtapa(etapa),
-  })).map(r => filtrarRama(r, q)).filter(Boolean), [etapas, q]);
+  const ramas = useMemo(() => ramasDeEtapas(etapas).map(r => filtrarRama(r, q)).filter(Boolean), [etapas, q]);
 
   // Con texto de búsqueda, expandir automáticamente el camino hasta
   // cada coincidencia — si no, el usuario tendría que adivinar dónde

@@ -14,21 +14,23 @@
  * necesita) en vez de depender de un padre que también cargue
  * indicadores/riesgos/cobertura que aquí no hacen falta.
  */
-import { useState, useEffect, useCallback } from 'react';
-import { Users, UserPlus, Layers, Trash2, Search, Loader2, X } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Users, UserPlus, Layers, Trash2, Search, Loader2, X, ChevronRight, ChevronDown } from 'lucide-react';
 import { NIVELES } from '../../config/niveles';
 import { useAuth } from '../../context/AuthContext';
 import { useUI } from '../../context/UIContext';
 import { usePermisosProyecto } from '../../hooks/usePermisos';
 import { obtenerPanorama, crearInvitacion, agregarMiembro, eliminarMiembro } from '../../api/miembros';
 import { agregarMiembroNodo, actualizarRolNodo, eliminarMiembroNodo } from '../../api/nodo-miembros';
+import * as etapasApi from '../../api/etapas';
+import { ramasDeEtapas } from '../../utils/arbolSeleccionable';
 import client from '../../api/client';
 import BotonSolicitarParticipar from './BotonSolicitarParticipar';
 
 const GUINDA = '#7B1C3E';
 const ETIQUETA_ALCANCE = { etapa: 'etapa', accion: 'acción', tarea: 'tarea' };
 
-export default function GestorUsuariosProyecto({ proyecto, proyectoId, etapas, abrirInvitarAlMontar = false }) {
+export default function GestorUsuariosProyecto({ proyecto, proyectoId, abrirInvitarAlMontar = false }) {
   const { usuario } = useAuth();
   const { mostrarToast } = useUI();
   const permisos = usePermisosProyecto(proyecto);
@@ -137,21 +139,12 @@ export default function GestorUsuariosProyecto({ proyecto, proyectoId, etapas, a
         <div className="flex items-center gap-2">
           <BotonSolicitarParticipar proyecto={proyecto} permisos={permisos} />
           {permisos.puedeInvitar && (
-            <>
-              <button
-                onClick={() => setModalInvitar('nodos')}
-                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition"
-                title="Asignar a una etapa, acción o tarea específica"
-              >
-                <Layers size={14} /> Asignar a una parte
-              </button>
-              <button
-                onClick={() => setModalInvitar('proyecto')}
-                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-guinda-200 text-guinda-700 hover:bg-guinda-50 transition"
-              >
-                <UserPlus size={14} /> Invitar a todo el proyecto
-              </button>
-            </>
+            <button
+              onClick={() => setModalInvitar(true)}
+              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-guinda-200 text-guinda-700 hover:bg-guinda-50 transition"
+            >
+              <UserPlus size={14} /> Agregar participante
+            </button>
           )}
         </div>
       </div>
@@ -229,8 +222,6 @@ export default function GestorUsuariosProyecto({ proyecto, proyectoId, etapas, a
       {modalInvitar && (
         <ModalInvitar
           proyectoId={proyectoId}
-          etapas={etapas}
-          alcanceInicial={modalInvitar === 'nodos' ? 'nodos' : 'proyecto'}
           onClose={() => setModalInvitar(false)}
           onInvitado={() => { setModalInvitar(false); cargar(); }}
         />
@@ -363,7 +354,7 @@ function ParticipanteCard({ miembro: m, puedeGestionar, puedeSalir, onEliminar, 
 }
 
 // ─── Modal Invitar ────────────────────────────────────────────
-function ModalInvitar({ proyectoId, etapas, alcanceInicial = 'proyecto', onClose, onInvitado }) {
+function ModalInvitar({ proyectoId, onClose, onInvitado }) {
   const [dgs, setDgs] = useState([]);
   const [das, setDas] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
@@ -373,8 +364,25 @@ function ModalInvitar({ proyectoId, etapas, alcanceInicial = 'proyecto', onClose
   const [rol, setRol] = useState('colaborador');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
-  const [alcance, setAlcance] = useState(alcanceInicial);
+  const [alcance, setAlcance] = useState('proyecto');
   const [nodosSeleccionados, setNodosSeleccionados] = useState(new Set());
+  const [arbol, setArbol] = useState(null);
+  const [cargandoArbol, setCargandoArbol] = useState(false);
+
+  // Árbol completo (etapa→acción→subacción/tarea) solo hace falta si se
+  // elige "Etapas/acciones específicas" — se carga perezoso, la primera
+  // vez que el usuario cambia el alcance, para no pedirlo de más cuando
+  // el caso común (invitar a todo el proyecto) ni lo necesita.
+  useEffect(() => {
+    if (alcance !== 'nodos' || arbol !== null) return;
+    setCargandoArbol(true);
+    etapasApi.obtenerArbol(proyectoId)
+      .then(r => setArbol(r.datos || r || []))
+      .catch(() => setArbol([]))
+      .finally(() => setCargandoArbol(false));
+  }, [alcance, arbol, proyectoId]);
+
+  const ramas = useMemo(() => ramasDeEtapas(arbol || []), [arbol]);
 
   useEffect(() => {
     client.get('/catalogos/dgs').then(r => setDgs(r.data.datos || [])).catch(() => {});
@@ -417,7 +425,7 @@ function ModalInvitar({ proyectoId, etapas, alcanceInicial = 'proyecto', onClose
     e.preventDefault();
     if (!seleccionado) return;
     if (alcance === 'nodos' && nodosSeleccionados.size === 0) {
-      setError('Selecciona al menos una etapa o acción');
+      setError('Selecciona al menos un elemento del árbol');
       return;
     }
     setEnviando(true); setError('');
@@ -532,30 +540,25 @@ function ModalInvitar({ proyectoId, etapas, alcanceInicial = 'proyecto', onClose
                   <label className="flex items-center gap-1.5 text-xs cursor-pointer">
                     <input type="radio" name="alcance" value="nodos" checked={alcance === 'nodos'}
                       onChange={() => setAlcance('nodos')} />
-                    <span>Etapas / acciones específicas</span>
+                    <span>Una parte específica (etapa, acción o tarea)</span>
                   </label>
                 </div>
               </div>
 
               {alcance === 'nodos' && (
-                <div className="border border-gray-200 rounded-lg max-h-40 overflow-y-auto p-2 space-y-0.5 bg-gray-50">
-                  {(etapas || []).length === 0 ? (
+                <div className="border border-gray-200 rounded-lg max-h-56 overflow-y-auto p-2 space-y-0.5 bg-gray-50">
+                  {cargandoArbol ? (
+                    <div className="flex justify-center py-4"><Loader2 size={16} className="animate-spin text-guinda-600" /></div>
+                  ) : ramas.length === 0 ? (
                     <p className="text-xs text-gray-400 text-center py-2">Sin etapas disponibles</p>
-                  ) : (etapas || []).map(etapa => (
-                    <div key={etapa.id}>
-                      <label className="flex items-center gap-1.5 text-xs cursor-pointer font-medium py-0.5 hover:bg-white rounded px-1">
-                        <input type="checkbox" checked={nodosSeleccionados.has(`etapa-${etapa.id}`)}
-                          onChange={() => toggleNodo('etapa', etapa.id)} />
-                        <span className="text-gray-700 truncate">{etapa.nombre}</span>
-                      </label>
-                      {(etapa.acciones || []).map(accion => (
-                        <label key={accion.id} className="flex items-center gap-1.5 text-xs cursor-pointer ml-4 py-0.5 hover:bg-white rounded px-1">
-                          <input type="checkbox" checked={nodosSeleccionados.has(`accion-${accion.id}`)}
-                            onChange={() => toggleNodo('accion', accion.id)} />
-                          <span className="text-gray-600 truncate">{accion.nombre}</span>
-                        </label>
-                      ))}
-                    </div>
+                  ) : ramas.map(rama => (
+                    <FilaNodoCheckbox
+                      key={rama.nodo.id}
+                      rama={rama}
+                      nivel={0}
+                      seleccionados={nodosSeleccionados}
+                      onToggle={toggleNodo}
+                    />
                   ))}
                 </div>
               )}
@@ -575,6 +578,47 @@ function ModalInvitar({ proyectoId, etapas, alcanceInicial = 'proyecto', onClose
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Fila recursiva del árbol de "Etapas/acciones específicas" — a
+// diferencia de SelectorNodoArbol.jsx (elige UN nodo para un indicador),
+// aquí cada nivel tiene su propio checkbox independiente: se puede
+// marcar una etapa completa y además/en vez una tarea suelta de otra
+// rama, igual que ya permitía la lista plana que esto reemplaza (solo
+// que ahora llega hasta subacción/tarea, no se queda en acción).
+function FilaNodoCheckbox({ rama, nivel, seleccionados, onToggle }) {
+  const [abierto, setAbierto] = useState(false);
+  const tieneHijos = rama.hijos.length > 0;
+  const marcado = seleccionados.has(`${rama.tipo}-${rama.nodo.id}`);
+
+  return (
+    <div>
+      <div className="flex items-center gap-1 rounded hover:bg-white" style={{ paddingLeft: `${nivel * 16}px` }}>
+        <button
+          type="button"
+          onClick={() => tieneHijos && setAbierto(a => !a)}
+          className="w-4 h-4 flex items-center justify-center flex-shrink-0"
+        >
+          {tieneHijos ? (
+            abierto ? <ChevronDown size={11} className="text-gray-400" /> : <ChevronRight size={11} className="text-gray-400" />
+          ) : <span className="w-3" />}
+        </button>
+        <label className="flex items-center gap-1.5 text-xs cursor-pointer py-0.5 px-1 flex-1 min-w-0 rounded">
+          <input type="checkbox" checked={marcado} onChange={() => onToggle(rama.tipo, rama.nodo.id)} />
+          <span className={`truncate ${nivel === 0 ? 'font-medium text-gray-700' : 'text-gray-600'}`}>{rama.nodo.nombre}</span>
+        </label>
+      </div>
+      {abierto && rama.hijos.map(hijo => (
+        <FilaNodoCheckbox
+          key={`${hijo.tipo}-${hijo.nodo.id}`}
+          rama={hijo}
+          nivel={nivel + 1}
+          seleccionados={seleccionados}
+          onToggle={onToggle}
+        />
+      ))}
     </div>
   );
 }
