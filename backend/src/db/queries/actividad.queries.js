@@ -35,7 +35,7 @@ async function resolverContextoNodo(tipoNodo, idNodo, client = pool) {
 // cambio_estatus/cambio_avance, y comentario/archivo/riesgo para tareas,
 // que nunca tuvieron soporte en el modelo viejo). Sin este merge, el stream
 // nuevo se veía "vacío" aunque el nodo ya tuviera historial real.
-async function obtenerActividadNodo(tipoNodo, idNodo, limite = 50) {
+async function obtenerActividadNodo(tipoNodo, idNodo, limite = 1000) {
   const { etapaIds, accionIds, tareaIds } = await idsDescendientes(tipoNodo, idNodo);
 
   const condicionesAct = [];
@@ -125,8 +125,33 @@ async function obtenerActividadNodo(tipoNodo, idNodo, limite = 50) {
       : Promise.resolve([])
   );
 
-  const [nuevos, comentarios, evidencias, riesgos] = await Promise.all(promesas);
-  return [...nuevos, ...comentarios, ...evidencias, ...riesgos]
+  // 5. Equipo por nodo (actividad_log, tipo='miembro') — dar/quitar acceso
+  // o cambiar función en una etapa/acción/tarea específica, instrumentado
+  // para que quede auditado (antes no dejaba ningún rastro en ningún
+  // lado). entidad_tipo usa 'Etapa'/'Accion'/'Tarea' (ver
+  // nodo-miembros.controller.js), igual que riesgos — 'Accion' ya cubre
+  // subacciones porque accionIds también las incluye.
+  const entidadesMiembro = [];
+  const paramsMi = [];
+  if (etapaIds.length) { paramsMi.push(etapaIds); entidadesMiembro.push(`(entidad_tipo = 'Etapa' AND entidad_id = ANY($${paramsMi.length}))`); }
+  if (accionIds.length) { paramsMi.push(accionIds); entidadesMiembro.push(`(entidad_tipo = 'Accion' AND entidad_id = ANY($${paramsMi.length}))`); }
+  if (tareaIds.length) { paramsMi.push(tareaIds); entidadesMiembro.push(`(entidad_tipo = 'Tarea' AND entidad_id = ANY($${paramsMi.length}))`); }
+  promesas.push(
+    entidadesMiembro.length
+      ? pool.query(`
+          SELECT al.id, 'miembro'::text AS tipo_evento,
+                 COALESCE(al.descripcion, al.titulo) AS contenido,
+                 NULL::text AS archivo_url, NULL::text AS archivo_nombre,
+                 '{}'::jsonb AS metadata, al.created_at, u.nombre_completo AS autor_nombre
+          FROM actividad_log al
+          LEFT JOIN usuarios u ON u.id = al.id_usuario
+          WHERE al.tipo = 'miembro' AND (${entidadesMiembro.join(' OR ')})
+        `, paramsMi).then(r => r.rows)
+      : Promise.resolve([])
+  );
+
+  const [nuevos, comentarios, evidencias, riesgos, miembros] = await Promise.all(promesas);
+  return [...nuevos, ...comentarios, ...evidencias, ...riesgos, ...miembros]
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     .slice(0, limite);
 }

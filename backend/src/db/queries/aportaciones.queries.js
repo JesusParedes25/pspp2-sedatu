@@ -202,6 +202,23 @@ async function obtenerIndicadorDeAportacion(id) {
   return row?.id_indicador || null;
 }
 
+// Resuelve tipo/id/nombre del nodo que aporta, para la bitácora — hay que
+// llamarla ANTES de eliminar() en el flujo de "desvincular", porque una vez
+// borrada la fila ya no hay forma de saber de qué nodo venía (esa era la
+// causa de las entradas de bitácora sin nodo que ya existen en producción).
+async function obtenerConNodo(id) {
+  const { rows: [row] } = await pool.query(`
+    SELECT ia.id, ia.id_indicador, ia.id_etapa, ia.id_accion, ia.id_tarea,
+      COALESCE(e.nombre, a.nombre, t.nombre) AS nodo_nombre
+    FROM indicador_aportaciones ia
+    LEFT JOIN etapas e ON e.id = ia.id_etapa
+    LEFT JOIN acciones a ON a.id = ia.id_accion
+    LEFT JOIN tareas t ON t.id = ia.id_tarea
+    WHERE ia.id = $1
+  `, [id]);
+  return row || null;
+}
+
 async function eliminar(id) {
   const res = await pool.query('DELETE FROM indicador_aportaciones WHERE id = $1 RETURNING id, id_indicador', [id]);
   return res.rows[0];
@@ -419,6 +436,7 @@ module.exports = {
   crear,
   actualizar,
   eliminar,
+  obtenerConNodo,
   eliminarPorNodo,
   calcularValorRealizado,
   detectarDobleConteo,

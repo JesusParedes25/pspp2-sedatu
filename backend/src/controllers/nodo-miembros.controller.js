@@ -6,6 +6,7 @@ const nodoMiembrosQueries = require('../db/queries/nodo-miembros.queries');
 const { puedeGestionarParticipantesNodo, obtenerProyectoIdDeNodo } = require('../utils/autorizacion');
 const miembrosQueries = require('../db/queries/miembros.queries');
 const { crearNotificacion } = require('../utils/notificaciones');
+const { registrarActividad } = require('../utils/actividad-log');
 const pool = require('../db/pool');
 
 // Extrae tipo ('etapa' | 'accion') del path y el id del nodo
@@ -19,14 +20,46 @@ function parseTipoId(req) {
 const TABLA_POR_TIPO = { etapa: 'etapas', accion: 'acciones', tarea: 'tareas' };
 const ENTIDAD_TIPO_POR_TIPO = { etapa: 'Etapa', accion: 'Accion', tarea: 'Tarea' };
 const ETIQUETA_POR_TIPO = { etapa: 'la etapa', accion: 'la acción', tarea: 'la tarea' };
+const ETIQUETA_ROL = { responsable: 'responsable', colaborador: 'colaborador', invitado: 'invitado' };
+
+// Nombre del nodo (etapa/acción/tarea) por id — compartido entre las
+// notificaciones y los eventos de bitácora de este archivo, para no
+// repetir la misma consulta con 3 redacciones distintas.
+async function nombreDeNodo(tipo, idNodo) {
+  const tabla = TABLA_POR_TIPO[tipo];
+  const { rows } = await pool.query(`SELECT nombre FROM ${tabla} WHERE id = $1`, [idNodo]);
+  return rows[0]?.nombre || 'un elemento del proyecto';
+}
+
+async function nombreDeUsuario(idUsuario) {
+  const { rows } = await pool.query('SELECT nombre_completo FROM usuarios WHERE id = $1', [idUsuario]);
+  return rows[0]?.nombre_completo || 'un usuario';
+}
+
+// Registra en actividad_log (bitácora) un cambio de equipo a nivel de
+// nodo — hoy el único rastro de "quién le dio/quitó acceso a quién, en
+// qué etapa/acción/tarea y cuándo". Antes de esto, quitar o agregar a
+// alguien en un nodo específico no dejaba ningún registro: si en tres
+// meses alguien reclamaba que le quitaron el acceso, no había forma de
+// saber quién fue ni cuándo.
+async function registrarActividadEquipoNodo({ tipo, idNodo, idProyecto, actor, titulo, descripcion }) {
+  if (!idProyecto) return;
+  await registrarActividad({
+    id_proyecto: idProyecto,
+    id_usuario: actor?.id || null,
+    tipo: 'miembro',
+    titulo,
+    descripcion,
+    entidad_tipo: ENTIDAD_TIPO_POR_TIPO[tipo],
+    entidad_id: idNodo,
+  });
+}
 
 // Notifica al usuario agregado a un nodo puntual (no lanza error: la
 // membresía ya quedó creada, que es lo importante).
 async function notificarNuevoMiembroNodo(tipo, idNodo, idUsuarioNuevo, rol, quienInvita) {
   try {
-    const tabla = TABLA_POR_TIPO[tipo];
-    const { rows } = await pool.query(`SELECT nombre FROM ${tabla} WHERE id = $1`, [idNodo]);
-    const nombreNodo = rows[0]?.nombre || 'un elemento del proyecto';
+    const nombreNodo = await nombreDeNodo(tipo, idNodo);
     await crearNotificacion({
       tipo: 'Invitacion',
       mensaje: `${quienInvita || 'Alguien'} te invitó a ${ETIQUETA_POR_TIPO[tipo]} "${nombreNodo}" como ${rol || 'colaborador'}. Puedes aceptar o rechazar la invitación.`,
@@ -162,6 +195,15 @@ async function agregar(req, res, next) {
 
     const miembro = await nodoMiembrosQueries.agregarMiembro(tipo, idNodo, id_usuario, rol, req.usuario?.id);
     await notificarNuevoMiembroNodo(tipo, idNodo, id_usuario, rol, req.usuario?.nombre_completo);
+
+    const [nombreNodo, nombreObjetivo] = await Promise.all([nombreDeNodo(tipo, idNodo), nombreDeUsuario(id_usuario)]);
+    const etiquetaRol = ETIQUETA_ROL[rol] || rol || 'colaborador';
+    await registrarActividadEquipoNodo({
+      tipo, idNodo, idProyecto, actor: req.usuario,
+      titulo: `${nombreObjetivo} agregado a ${ETIQUETA_POR_TIPO[tipo]} "${nombreNodo}"`,
+      descripcion: `${req.usuario?.nombre_completo || 'Alguien'} agregó a ${nombreObjetivo} como ${etiquetaRol} en ${ETIQUETA_POR_TIPO[tipo]} "${nombreNodo}".`,
+    });
+
     res.status(201).json({ datos: miembro, mensaje: 'Miembro agregado' });
   } catch (err) {
     next(err);
@@ -188,8 +230,21 @@ async function actualizar(req, res, next) {
     if (rechazoInvitado) {
       return res.status(400).json({ error: true, mensaje: rechazoInvitado, codigo: 'FUNCION_NO_APLICABLE' });
     }
+    const previo = await nodoMiembrosQueries.obtenerMiembro(tipo, idNodo, userId);
     const miembro = await nodoMiembrosQueries.actualizarRol(tipo, idNodo, userId, rol);
     if (!miembro) return res.status(404).json({ error: true, mensaje: 'Miembro no encontrado' });
+
+    const idProyecto = await obtenerProyectoIdDeNodo(tipo, idNodo);
+    const [nombreNodo, nombreObjetivo] = await Promise.all([nombreDeNodo(tipo, idNodo), nombreDeUsuario(userId)]);
+    const etiquetaNueva = ETIQUETA_ROL[rol] || rol;
+    const etiquetaPrevia = previo ? (ETIQUETA_ROL[previo.rol] || previo.rol) : null;
+    await registrarActividadEquipoNodo({
+      tipo, idNodo, idProyecto, actor: req.usuario,
+      titulo: `Función de ${nombreObjetivo} cambiada a ${etiquetaNueva} en ${ETIQUETA_POR_TIPO[tipo]} "${nombreNodo}"`,
+      descripcion: `${req.usuario?.nombre_completo || 'Alguien'} cambió la función de ${nombreObjetivo} en ${ETIQUETA_POR_TIPO[tipo]} "${nombreNodo}"`
+        + (etiquetaPrevia && etiquetaPrevia !== etiquetaNueva ? ` de ${etiquetaPrevia} a ${etiquetaNueva}.` : ` a ${etiquetaNueva}.`),
+    });
+
     res.json({ datos: miembro, mensaje: 'Rol actualizado' });
   } catch (err) {
     next(err);
@@ -230,6 +285,25 @@ async function eliminar(req, res, next) {
         return res.status(403).json({ error: true, mensaje: 'No tienes permisos para quitar miembros de este nodo', codigo: 'FORBIDDEN' });
       }
     }
+    // Se resuelve quién era (rol) y se registra en la bitácora ANTES de
+    // borrar la fila — igual que se corrigió para indicador_aportaciones:
+    // una vez borrada, no queda ningún rastro de qué función tenía ni de
+    // que el acceso haya existido. Si la fila no existe, el 404 sale aquí,
+    // sin tocar actividad_log por algo que no pasó.
+    const previo = await nodoMiembrosQueries.obtenerMiembro(tipo, idNodo, userId);
+    if (!previo) return res.status(404).json({ error: true, mensaje: 'Miembro no encontrado' });
+
+    const idProyecto = await obtenerProyectoIdDeNodo(tipo, idNodo);
+    const [nombreNodo, nombreObjetivo] = await Promise.all([nombreDeNodo(tipo, idNodo), nombreDeUsuario(userId)]);
+    const etiquetaRol = ETIQUETA_ROL[previo.rol] || previo.rol;
+    await registrarActividadEquipoNodo({
+      tipo, idNodo, idProyecto, actor: req.usuario,
+      titulo: `${nombreObjetivo} quitado de ${ETIQUETA_POR_TIPO[tipo]} "${nombreNodo}"`,
+      descripcion: esAutoeliminacion
+        ? `${nombreObjetivo} se quitó a sí mismo (${etiquetaRol}) de ${ETIQUETA_POR_TIPO[tipo]} "${nombreNodo}".`
+        : `${req.usuario?.nombre_completo || 'Alguien'} quitó a ${nombreObjetivo} (${etiquetaRol}) de ${ETIQUETA_POR_TIPO[tipo]} "${nombreNodo}".`,
+    });
+
     const resultado = await nodoMiembrosQueries.eliminarMiembro(tipo, idNodo, userId);
     if (!resultado) return res.status(404).json({ error: true, mensaje: 'Miembro no encontrado' });
     if (!esAutoeliminacion) {

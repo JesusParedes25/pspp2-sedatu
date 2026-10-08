@@ -64,6 +64,19 @@ async function listarMiembros(tipo, idNodo, db) {
   return rows;
 }
 
+// Fila cruda de nodo_miembros (rol incluido) — se usa para resolver el rol
+// de alguien ANTES de quitarlo, así el evento de bitácora de "quitar
+// acceso" puede decir qué función tenía sin depender del RETURNING del
+// propio DELETE.
+async function obtenerMiembro(tipo, idNodo, idUsuario, db) {
+  const conn = db || pool;
+  const { rows } = await conn.query(
+    'SELECT * FROM nodo_miembros WHERE tipo_nodo = $1 AND id_nodo = $2 AND id_usuario = $3',
+    [tipo, idNodo, idUsuario]
+  );
+  return rows[0] || null;
+}
+
 async function agregarMiembro(tipo, idNodo, idUsuario, rol, idInvitadoPor, db) {
   if (!['etapa', 'accion', 'tarea'].includes(tipo)) throw new Error(`Tipo de nodo inválido: ${tipo}`);
   const conn = db || pool;
@@ -112,4 +125,4 @@ async function responderInvitacion(tipo, idNodo, idUsuario, aceptar, motivo, db)
   return rows[0] || null;
 }
 
-module.exports = { listarMiembros, agregarMiembro, actualizarRol, eliminarMiembro, responderInvitacion };
+module.exports = { listarMiembros, obtenerMiembro, agregarMiembro, actualizarRol, eliminarMiembro, responderInvitacion };

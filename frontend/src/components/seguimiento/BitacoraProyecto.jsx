@@ -1,22 +1,37 @@
 /**
  * ARCHIVO: BitacoraProyecto.jsx
- * PROPÓSITO: Pestaña "Bitácora" del proyecto — registro completo,
- *            paginado y filtrable de TODO lo que hacen los usuarios ahí
- *            (comentarios, archivos, riesgos, avance/estatus, miembros,
- *            indicadores). A diferencia de ActividadReciente.jsx (un
- *            widget chico de 50 filas en Panorama), esta es la vista
- *            completa: filtros por tipo/usuario/fecha/texto y
- *            navegación al nodo exacto de cada evento.
+ * PROPÓSITO: Pestaña "Bitácora" del proyecto — registro completo del
+ *            proyecto entero (comentarios, archivos, riesgos, avance,
+ *            miembros, indicadores): gráfico de línea del tiempo +
+ *            resumen por mes + lista cronológica, los mismos tres
+ *            componentes compartidos que usa la pestaña Actividad de
+ *            Detalle (LineaTiempoEventos/ResumenMensual/BitacoraCronologica),
+ *            debajo de los filtros que ya existían (Tipo/Usuario/Etapa/
+ *            Acción/Tarea/Desde/Hasta/Buscar). A diferencia de Detalle
+ *            (alcance: un nodo y sus descendientes, 5 carriles sin
+ *            indicador), aquí el alcance es el proyecto completo y se
+ *            agrega el carril Indicadores (6 carriles) — un indicador no
+ *            tiene un nodo dueño único, así que solo tiene sentido
+ *            agregado a este nivel, no repetido en cada pestaña de nodo.
+ *
+ * Por qué una sola llamada (limite alto) en vez de pedir cada página al
+ * servidor: el gráfico/resumen necesitan el historial FILTRADO completo
+ * para trazar columnas de mes, no solo los 25 registros de la página
+ * visible — así que se pide una vez (tope 1000, mismo criterio que
+ * obtenerActividadNodo en Detalle) y la lista de abajo pagina ese mismo
+ * arreglo del lado del cliente, en vez de hacer una segunda llamada al
+ * servidor por cada página.
  */
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  TrendingUp, FileText, AlertTriangle, MessageSquare, Shield, BarChart3,
-  Search, X, Loader2, BookText, ExternalLink, Filter,
-} from 'lucide-react';
+import { Search, X, Loader2, BookText, Filter } from 'lucide-react';
 import * as proyectosApi from '../../api/proyectos';
 import * as miembrosApi from '../../api/miembros';
 import * as etapasApi from '../../api/etapas';
+import LineaTiempoEventos from '../common/LineaTiempoEventos';
+import ResumenMensual from '../common/ResumenMensual';
+import BitacoraCronologica from '../common/BitacoraCronologica';
+import { normalizarEventoBitacora } from '../../utils/eventosLineaTiempo';
 
 const CATEGORIAS = [
   { id: '', label: 'Todos los tipos' },
@@ -28,27 +43,18 @@ const CATEGORIAS = [
   { id: 'indicador', label: 'Indicadores' },
 ];
 
-const ICONO_POR_CATEGORIA = {
-  comentario: { Icono: MessageSquare, cls: 'bg-purple-100 text-purple-500' },
-  archivo: { Icono: FileText, cls: 'bg-green-100 text-green-500' },
-  riesgo: { Icono: AlertTriangle, cls: 'bg-orange-100 text-orange-500' },
-  avance: { Icono: TrendingUp, cls: 'bg-blue-100 text-blue-500' },
-  miembro: { Icono: Shield, cls: 'bg-teal-100 text-teal-600' },
-  indicador: { Icono: BarChart3, cls: 'bg-indigo-100 text-indigo-500' },
-};
+const CARRILES_BITACORA = ['documento', 'indicador', 'riesgo', 'comentario', 'equipo'];
 
-const ETIQUETA_NODO = { etapa: 'Componente', accion: 'Acción', tarea: 'Tarea', proyecto: 'Proyecto', indicador: 'Indicador' };
-
-function formatoFecha(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
-
-const LIMITE = 25;
+const LIMITE_PAGINA = 25;
+// Tope del historial que se pide al servidor para alimentar el gráfico —
+// ver nota de archivo arriba. Si un proyecto llegara a superar esto en
+// eventos filtrados, la lista/gráfico se quedan con los 1000 más
+// recientes (mismo recorte ya aceptado en Detalle).
+const LIMITE_TOTAL = 1000;
 
 export default function BitacoraProyecto({ proyectoId }) {
   const navigate = useNavigate();
-  const [entradas, setEntradas] = useState([]);
+  const [entradasRaw, setEntradasRaw] = useState([]);
   const [total, setTotal] = useState(0);
   const [cargando, setCargando] = useState(true);
   const [pagina, setPagina] = useState(1);
@@ -69,6 +75,16 @@ export default function BitacoraProyecto({ proyectoId }) {
   const [busquedaInput, setBusquedaInput] = useState('');
   const [busqueda, setBusqueda] = useState('');
   const debounceRef = useRef(null);
+
+  // Id de evento resaltado, compartido entre el gráfico y la lista
+  // (interacción bidireccional: pasar el cursor sobre un marcador resalta
+  // su fila y viceversa).
+  const [hoveredId, setHoveredId] = useState(null);
+  // Cuando un clic (en el gráfico o en la lista) apunta a un evento que
+  // vive en otra página de la lista, se cambia de página y se deja aquí
+  // su id para hacer scroll hacia él en cuanto esa página termine de
+  // renderizarse (ver useEffect de más abajo).
+  const [pendienteScroll, setPendienteScroll] = useState(null);
 
   const filtrosActivos = [categoria, usuarioId, etapaId, accionId, tareaId, desde, hasta, busqueda].filter(Boolean).length;
 
@@ -124,20 +140,68 @@ export default function BitacoraProyecto({ proyectoId }) {
         desde: desde || undefined,
         hasta: hasta || undefined,
         busqueda: busqueda || undefined,
-        pagina,
-        limite: LIMITE,
+        pagina: 1,
+        limite: LIMITE_TOTAL,
       });
-      setEntradas(res.datos || []);
+      setEntradasRaw(res.datos || []);
       setTotal(res.total || 0);
     } catch {
-      setEntradas([]);
+      setEntradasRaw([]);
       setTotal(0);
     } finally {
       setCargando(false);
     }
-  }, [proyectoId, categoria, usuarioId, etapaId, accionId, tareaId, desde, hasta, busqueda, pagina]);
+  }, [proyectoId, categoria, usuarioId, etapaId, accionId, tareaId, desde, hasta, busqueda]);
 
   useEffect(() => { cargar(); }, [cargar]);
+
+  const eventos = useMemo(() => entradasRaw.map(normalizarEventoBitacora), [entradasRaw]);
+  const serieAvance = useMemo(() => eventos.filter(e => e.carril === 'avance'), [eventos]);
+  const eventosCarriles = useMemo(() => eventos.filter(e => e.carril !== 'avance'), [eventos]);
+
+  // Rango del gráfico: si Desde/Hasta ya acotan, se usa exactamente eso
+  // (igual que pide la sección 6.2 — el gráfico obedece el filtro de
+  // fecha activo); si no, el rango real del historial cargado.
+  const rango = useMemo(() => {
+    if (desde && hasta) {
+      return { desde: new Date(desde).getTime(), hasta: new Date(hasta).getTime() + 24 * 60 * 60 * 1000 - 1 };
+    }
+    if (eventos.length === 0) return null;
+    const tiempos = eventos.map(e => new Date(e.createdAt).getTime());
+    return { desde: Math.min(...tiempos), hasta: Math.max(...tiempos) };
+  }, [desde, hasta, eventos]);
+
+  const totalPaginasLista = Math.max(1, Math.ceil(eventos.length / LIMITE_PAGINA));
+  const eventosPagina = useMemo(
+    () => eventos.slice((pagina - 1) * LIMITE_PAGINA, pagina * LIMITE_PAGINA),
+    [eventos, pagina]
+  );
+
+  useEffect(() => {
+    if (!pendienteScroll) return;
+    const el = document.getElementById(`evento-fila-${pendienteScroll}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setPendienteScroll(null);
+    }
+  }, [pendienteScroll, eventosPagina]);
+
+  // Clic en un marcador del gráfico o en una fila de la lista: resalta y
+  // desplaza hasta esa fila — si vive en otra página de la lista, cambia
+  // de página primero (el useEffect de arriba termina el scroll una vez
+  // que esa página ya se renderizó).
+  function alHacerClicEnEvento(evento) {
+    setHoveredId(evento.id);
+    const indice = eventos.findIndex(e => e.id === evento.id);
+    if (indice === -1) return;
+    const paginaDestino = Math.floor(indice / LIMITE_PAGINA) + 1;
+    if (paginaDestino !== pagina) {
+      setPagina(paginaDestino);
+      setPendienteScroll(evento.id);
+    } else {
+      document.getElementById(`evento-fila-${evento.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
 
   // Búsqueda con debounce — el resto de los filtros (selects, fechas) ya
   // disparan de inmediato al cambiar, sin necesitarlo.
@@ -147,9 +211,14 @@ export default function BitacoraProyecto({ proyectoId }) {
     debounceRef.current = setTimeout(() => { setPagina(1); setBusqueda(valor); }, 400);
   }
 
-  function irANodo(entrada) {
-    if (!entrada.nodo_id || entrada.nodo_tipo === 'indicador') return;
-    navigate(`/proyectos/${proyectoId}?tab=seguimiento&nodo=${entrada.nodo_id}`);
+  // Un indicador no vive en el árbol de Seguimiento (no es un nodo que
+  // navegar ahí) — tiene su propia pantalla de detalle en el módulo de
+  // Indicadores, así que un evento de categoría Indicador navega hacia
+  // allá en vez de a Seguimiento.
+  function irANodo(nodo) {
+    if (!nodo?.id) return;
+    if (nodo.tipo === 'indicador') { navigate(`/indicadores/${nodo.id}`); return; }
+    navigate(`/proyectos/${proyectoId}?tab=seguimiento&nodo=${nodo.id}`);
   }
 
   function limpiarFiltros() {
@@ -165,14 +234,12 @@ export default function BitacoraProyecto({ proyectoId }) {
     setPagina(1);
   }
 
-  const totalPaginas = Math.max(1, Math.ceil(total / LIMITE));
-
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <BookText size={18} className="text-guinda-600" />
         <h2 className="text-base font-semibold text-gray-800">Bitácora del proyecto</h2>
-        <span className="text-xs text-gray-400">— todo lo que ha pasado aquí, en un solo lugar</span>
+        <span className="text-xs text-gray-400">Todo lo que ha pasado aquí, en un solo lugar.</span>
       </div>
 
       {/* Filtros */}
@@ -297,90 +364,80 @@ export default function BitacoraProyecto({ proyectoId }) {
         </div>
       </div>
 
-      {/* Lista */}
-      <div className="bg-white border border-gray-200 rounded-xl">
-        {cargando ? (
-          <div className="flex items-center justify-center gap-2 py-12 text-sm text-gray-400">
-            <Loader2 size={16} className="animate-spin" /> Cargando bitácora…
-          </div>
-        ) : entradas.length === 0 ? (
-          <div className="text-center py-12 px-4">
-            <Filter size={24} className="mx-auto mb-2 text-gray-300" />
-            <p className="text-sm text-gray-400">
-              {filtrosActivos > 0 ? 'Sin resultados con los filtros aplicados.' : 'Sin actividad registrada todavía.'}
-            </p>
-            {filtrosActivos > 0 && (
-              <button onClick={limpiarFiltros} className="mt-2 text-xs text-guinda-500 hover:text-guinda-700 font-medium">Limpiar filtros</button>
-            )}
-          </div>
-        ) : (
-          <div className="divide-y divide-gray-100">
-            {entradas.map(entrada => {
-              const { Icono, cls } = ICONO_POR_CATEGORIA[entrada.categoria] || { Icono: MessageSquare, cls: 'bg-gray-100 text-gray-500' };
-              const esClicable = !!entrada.nodo_id && entrada.nodo_tipo !== 'indicador';
-              return (
-                <div key={entrada.id} className="flex items-start gap-3 px-4 py-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${cls}`}>
-                    <Icono size={14} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-gray-800">{entrada.titulo}</p>
-                    {entrada.contenido && (
-                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{entrada.contenido}</p>
-                    )}
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
-                      {entrada.nodo_nombre && (
-                        esClicable ? (
-                          <button
-                            onClick={() => irANodo(entrada)}
-                            className="flex items-center gap-1 text-xs text-guinda-600 hover:underline font-medium"
-                          >
-                            {ETIQUETA_NODO[entrada.nodo_tipo] || entrada.nodo_tipo} · {entrada.nodo_nombre}
-                            <ExternalLink size={10} />
-                          </button>
-                        ) : (
-                          <span className="text-xs text-gray-400">
-                            {ETIQUETA_NODO[entrada.nodo_tipo] || entrada.nodo_tipo} · {entrada.nodo_nombre}
-                          </span>
-                        )
-                      )}
-                      {entrada.autor_nombre && (
-                        <span className="text-xs text-gray-400">· {entrada.autor_nombre}</span>
-                      )}
-                      <span className="text-xs text-gray-300">· {formatoFecha(entrada.created_at)}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Paginación */}
-      {total > 0 && (
-        <div className="flex items-center justify-between text-xs text-gray-500">
-          <span>{total} evento{total !== 1 ? 's' : ''} en total</span>
-          {totalPaginas > 1 && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setPagina(p => Math.max(1, p - 1))}
-                disabled={pagina <= 1}
-                className="px-3 py-1.5 border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Anterior
-              </button>
-              <span>Página {pagina} de {totalPaginas}</span>
-              <button
-                onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
-                disabled={pagina >= totalPaginas}
-                className="px-3 py-1.5 border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Siguiente
-              </button>
-            </div>
+      {cargando ? (
+        <div className="flex items-center justify-center gap-2 py-12 text-sm text-gray-400">
+          <Loader2 size={16} className="animate-spin" /> Cargando bitácora…
+        </div>
+      ) : eventos.length === 0 ? (
+        <div className="bg-white border border-gray-200 rounded-xl text-center py-12 px-4">
+          <Filter size={24} className="mx-auto mb-2 text-gray-300" />
+          <p className="text-sm text-gray-400">
+            {filtrosActivos > 0 ? 'Sin resultados con los filtros aplicados.' : 'Sin actividad registrada todavía.'}
+          </p>
+          {filtrosActivos > 0 && (
+            <button onClick={limpiarFiltros} className="mt-2 text-xs text-guinda-500 hover:text-guinda-700 font-medium">Limpiar filtros</button>
           )}
         </div>
+      ) : (
+        <>
+          {/* Gráfico + resumen por mes — solo con suficientes registros
+              para que valga la pena trazar algo. */}
+          {rango && eventos.length >= 3 ? (
+            <>
+              <LineaTiempoEventos
+                eventos={eventosCarriles}
+                carriles={CARRILES_BITACORA}
+                serieAvance={serieAvance}
+                rango={rango}
+                hoveredId={hoveredId}
+                onHoverMarker={setHoveredId}
+                onClickMarker={alHacerClicEnEvento}
+                nombreAlcance="el proyecto"
+              />
+              <ResumenMensual eventos={eventosCarriles} serieAvance={serieAvance} rango={rango} />
+            </>
+          ) : (
+            <p className="text-[11px] text-gray-400 italic -mt-1">
+              Aún no hay suficientes registros para mostrar la evolución.
+            </p>
+          )}
+
+          <div className="bg-white border border-gray-200 rounded-xl p-3.5">
+            <BitacoraCronologica
+              eventos={eventosPagina}
+              hoveredId={hoveredId}
+              onHoverEvento={setHoveredId}
+              onClickEvento={alHacerClicEnEvento}
+              onNavegarNodo={irANodo}
+              mostrarNodoOrigen
+            />
+          </div>
+
+          {/* Paginación — sobre el mismo arreglo ya cargado (ver nota de
+              archivo arriba), no una llamada nueva al servidor. */}
+          <div className="flex items-center justify-between text-xs text-gray-500">
+            <span>{total} evento{total !== 1 ? 's' : ''} en total</span>
+            {totalPaginasLista > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPagina(p => Math.max(1, p - 1))}
+                  disabled={pagina <= 1}
+                  className="px-3 py-1.5 border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Anterior
+                </button>
+                <span>Página {pagina} de {totalPaginasLista}</span>
+                <button
+                  onClick={() => setPagina(p => Math.min(totalPaginasLista, p + 1))}
+                  disabled={pagina >= totalPaginasLista}
+                  className="px-3 py-1.5 border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Siguiente
+                </button>
+              </div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

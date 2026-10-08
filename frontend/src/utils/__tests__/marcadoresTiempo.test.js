@@ -1,50 +1,30 @@
 /**
  * ARCHIVO: marcadoresTiempo.test.js
- * PROPÓSITO: Verifica el cálculo de coordenadas del gráfico de línea del
- *            tiempo (Fase 5 del rediseño de Detalle) — escalas X/Y,
- *            geometría de los 4 marcadores con área visual equivalente, y
- *            que las coordenadas numéricas nunca se concatenen como
- *            strings (la razón original del requisito de esta prueba).
+ * PROPÓSITO: Verifica el cálculo de coordenadas de LineaTiempoEventos.jsx
+ *            (gráfico de línea del tiempo compartido Detalle/Bitácora) —
+ *            columnas de mes/trimestre, escala de avance, geometría de
+ *            los 5 marcadores con área visual equivalente, y que las
+ *            coordenadas numéricas nunca se concatenen como strings (la
+ *            razón original del requisito de esta prueba).
  *
  * Ejecutar: npm test
  */
 import { describe, test, expect } from 'vitest';
 import {
-  RADIO_AVANCE,
+  RADIO_BASE,
   geometriaCirculo,
   geometriaCuadrado,
+  geometriaRombo,
   geometriaTriangulo,
-  escalaX,
   escalaY,
   construirPathLinea,
-  generarMarcasFecha,
+  generarColumnas,
+  escalaXColumnas,
+  formatoFechaLarga,
   claveDia,
+  claveMes,
+  diasEntre,
 } from '../marcadoresTiempo';
-
-describe('escalaX', () => {
-  test('ubica el punto medio del rango de fechas en el punto medio de x', () => {
-    const x = escalaX('2026-01-15', '2026-01-01', '2026-01-31', 0, 300);
-    expect(x).toBeCloseTo(140, 1); // 14 días de 30 transcurridos ≈ 46.7% del rango
-  });
-
-  test('fecha mínima cae exactamente en x0, fecha máxima en x1', () => {
-    expect(escalaX('2026-01-01', '2026-01-01', '2026-01-31', 10, 310)).toBe(10);
-    expect(escalaX('2026-01-31', '2026-01-01', '2026-01-31', 10, 310)).toBe(310);
-  });
-
-  test('rango de un solo instante centra en vez de dividir entre 0', () => {
-    expect(escalaX('2026-01-01', '2026-01-01', '2026-01-01', 0, 300)).toBe(150);
-  });
-
-  test('CRÍTICO: coordenadas que llegan como string no se concatenan — se calculan como número', () => {
-    // Si escalaX usara `x0 + frac * (x1 - x0)` sin Number(...), pasar
-    // x0/x1 como texto (como podría llegar desde props/atributos DOM)
-    // produciría algo como "0" + 150 = "0150" en vez de 150.
-    const x = escalaX('2026-01-16', '2026-01-01', '2026-01-31', '0', '300');
-    expect(typeof x).toBe('number');
-    expect(x).toBeCloseTo(150, 0);
-  });
-});
 
 describe('escalaY', () => {
   test('100% de avance cae en yParaCien, 0% cae en yParaCero', () => {
@@ -57,8 +37,8 @@ describe('escalaY', () => {
   });
 
   test('topa valores fuera de rango a [0,100]', () => {
-    expect(escalaY(142, 10, 120)).toBe(10); // como si fuera 100
-    expect(escalaY(-5, 10, 120)).toBe(120); // como si fuera 0
+    expect(escalaY(142, 10, 120)).toBe(10);
+    expect(escalaY(-5, 10, 120)).toBe(120);
   });
 
   test('CRÍTICO: avance como string se calcula numéricamente, no se concatena', () => {
@@ -71,16 +51,16 @@ describe('escalaY', () => {
 describe('geometriaCirculo', () => {
   test('usa el radio base por omisión y conserva el centro', () => {
     const g = geometriaCirculo(100, 50);
-    expect(g).toEqual({ cx: 100, cy: 50, r: RADIO_AVANCE });
+    expect(g).toEqual({ cx: 100, cy: 50, r: RADIO_BASE });
   });
 
   test('normaliza cx/cy/r a número aunque lleguen como string', () => {
-    const g = geometriaCirculo('100', '50', '6');
-    expect(g).toEqual({ cx: 100, cy: 50, r: 6 });
+    const g = geometriaCirculo('100', '50', '8');
+    expect(g).toEqual({ cx: 100, cy: 50, r: 8 });
   });
 });
 
-const areaCirculo = Math.PI * RADIO_AVANCE * RADIO_AVANCE;
+const areaCirculo = Math.PI * RADIO_BASE * RADIO_BASE;
 
 describe('geometriaCuadrado', () => {
   test('el área del cuadrado iguala la del círculo de referencia', () => {
@@ -95,19 +75,44 @@ describe('geometriaCuadrado', () => {
   });
 });
 
-describe('geometriaTriangulo', () => {
-  test('el área del triángulo equilátero iguala la del círculo de referencia', () => {
-    const { top, left, right } = geometriaTriangulo(0, 0);
-    // Área por la fórmula del determinante (shoelace), a partir de los 3
-    // vértices ya calculados — verificación independiente de la fórmula
-    // usada dentro de geometriaTriangulo, no una tautología.
-    const area = Math.abs(
-      (top.x * (left.y - right.y) + left.x * (right.y - top.y) + right.x * (top.y - left.y)) / 2
-    );
+function areaPorShoelace(puntos) {
+  let suma = 0;
+  for (let i = 0; i < puntos.length; i++) {
+    const a = puntos[i];
+    const b = puntos[(i + 1) % puntos.length];
+    suma += a.x * b.y - b.x * a.y;
+  }
+  return Math.abs(suma) / 2;
+}
+
+describe('geometriaRombo', () => {
+  test('el área del rombo iguala la del círculo de referencia (verificado por shoelace, no por la fórmula interna)', () => {
+    const { top, right, bottom, left } = geometriaRombo(0, 0);
+    const area = areaPorShoelace([top, right, bottom, left]);
     expect(area).toBeCloseTo(areaCirculo, 4);
   });
 
-  test('el centroide (promedio de los 3 vértices) coincide con (cx,cy)', () => {
+  test('el centroide (promedio de los 4 vértices) coincide con (cx,cy)', () => {
+    const { top, right, bottom, left } = geometriaRombo(120, 80);
+    expect((top.x + right.x + bottom.x + left.x) / 4).toBeCloseTo(120, 5);
+    expect((top.y + right.y + bottom.y + left.y) / 4).toBeCloseTo(80, 5);
+  });
+
+  test('el path SVG trae solo números, nunca "NaN"', () => {
+    const { path } = geometriaRombo('50', '50');
+    expect(path).toMatch(/^M [\d.-]+ [\d.-]+ L [\d.-]+ [\d.-]+ L [\d.-]+ [\d.-]+ L [\d.-]+ [\d.-]+ Z$/);
+    expect(path).not.toMatch(/NaN/);
+  });
+});
+
+describe('geometriaTriangulo', () => {
+  test('el área del triángulo equilátero iguala la del círculo de referencia', () => {
+    const { top, left, right } = geometriaTriangulo(0, 0);
+    const area = areaPorShoelace([top, right, left]);
+    expect(area).toBeCloseTo(areaCirculo, 4);
+  });
+
+  test('el centroide coincide con (cx,cy)', () => {
     const { top, left, right } = geometriaTriangulo(120, 80);
     expect((top.x + left.x + right.x) / 3).toBeCloseTo(120, 5);
     expect((top.y + left.y + right.y) / 3).toBeCloseTo(80, 5);
@@ -137,21 +142,74 @@ describe('construirPathLinea', () => {
   });
 });
 
-describe('generarMarcasFecha', () => {
-  test('genera la cantidad pedida de marcas, incluyendo los extremos', () => {
-    const marcas = generarMarcasFecha('2026-01-01', '2026-01-31', 4);
-    expect(marcas).toHaveLength(4);
-    expect(marcas[0].toISOString().slice(0, 10)).toBe('2026-01-01');
-    expect(marcas[3].toISOString().slice(0, 10)).toBe('2026-01-31');
+describe('generarColumnas (modo mes)', () => {
+  test('una columna por mes calendario entre fechaMin y fechaMax, anchos iguales', () => {
+    const cols = generarColumnas('2026-07-15', '2026-09-03', 0, 300, 'mes');
+    expect(cols.map(c => c.label)).toEqual(['JUL', 'AGO', 'SEP']);
+    expect(cols[0].x1 - cols[0].x0).toBeCloseTo(100, 5);
+    expect(cols[1].x1 - cols[1].x0).toBeCloseTo(100, 5);
+    expect(cols[0].x0).toBe(0);
+    expect(cols[2].x1).toBe(300);
   });
 
-  test('rango de un solo instante devuelve una sola marca', () => {
-    const marcas = generarMarcasFecha('2026-01-01', '2026-01-01', 8);
-    expect(marcas).toHaveLength(1);
+  test('un solo mes produce una sola columna que ocupa todo el ancho', () => {
+    const cols = generarColumnas('2026-08-01', '2026-08-20', 0, 200, 'mes');
+    expect(cols).toHaveLength(1);
+    expect(cols[0].x0).toBe(0);
+    expect(cols[0].x1).toBe(200);
+  });
+
+  test('rango que cruza de diciembre a enero avanza de año', () => {
+    const cols = generarColumnas('2025-12-10', '2026-01-05', 0, 200, 'mes');
+    expect(cols.map(c => c.key)).toEqual(['2025-11', '2026-0']);
   });
 
   test('fechas inválidas devuelven arreglo vacío en vez de reventar', () => {
-    expect(generarMarcasFecha('no-es-fecha', '2026-01-01', 8)).toEqual([]);
+    expect(generarColumnas('no-es-fecha', '2026-01-01', 0, 100)).toEqual([]);
+  });
+});
+
+describe('generarColumnas (modo trimestre)', () => {
+  test('agrupa de 3 en 3 meses', () => {
+    const cols = generarColumnas('2026-01-10', '2026-08-20', 0, 300, 'trimestre');
+    expect(cols.map(c => c.label)).toEqual(['T1 2026', 'T2 2026', 'T3 2026']);
+  });
+});
+
+describe('escalaXColumnas', () => {
+  test('ubica una fecha a medio camino de su columna de mes', () => {
+    const cols = generarColumnas('2026-08-01', '2026-08-31', 0, 100, 'mes');
+    // 16 de agosto: día 16 de 31 transcurridos -> ~48%
+    const x = escalaXColumnas('2026-08-16', cols);
+    expect(x).toBeGreaterThan(40);
+    expect(x).toBeLessThan(60);
+  });
+
+  test('el primer día del mes cae en el borde izquierdo de su columna', () => {
+    const cols = generarColumnas('2026-08-01', '2026-09-30', 0, 200, 'mes');
+    const x = escalaXColumnas('2026-08-01', cols);
+    expect(x).toBeCloseTo(0, 5); // columna de agosto: x0=0
+  });
+
+  test('una fecha fuera del rango de columnas se topa a la columna más cercana, no se sale del lienzo', () => {
+    const cols = generarColumnas('2026-06-01', '2026-06-30', 0, 100, 'mes');
+    const x = escalaXColumnas('2026-12-25', cols);
+    expect(x).toBeGreaterThanOrEqual(0);
+    expect(x).toBeLessThanOrEqual(100);
+  });
+
+  test('CRÍTICO: columnas con x0/x1 en string no rompen el cálculo ni concatenan', () => {
+    const cols = [{ inicio: new Date(2026, 7, 1), fin: new Date(2026, 8, 1), x0: '0', x1: '100' }];
+    const x = escalaXColumnas('2026-08-16', cols);
+    expect(typeof x).toBe('number');
+    expect(x).toBeGreaterThan(0);
+    expect(x).toBeLessThan(100);
+  });
+});
+
+describe('formatoFechaLarga', () => {
+  test('arma la fecha completa en español', () => {
+    expect(formatoFechaLarga('2026-08-12T10:00:00')).toBe('12 de agosto de 2026');
   });
 });
 
@@ -164,5 +222,24 @@ describe('claveDia', () => {
 
   test('fechas de días distintos tienen claves distintas', () => {
     expect(claveDia('2026-03-12T23:59:00')).not.toBe(claveDia('2026-03-13T00:01:00'));
+  });
+});
+
+describe('claveMes', () => {
+  test('dos fechas del mismo mes comparten clave', () => {
+    expect(claveMes('2026-08-01')).toBe(claveMes('2026-08-28'));
+  });
+  test('meses distintos tienen claves distintas', () => {
+    expect(claveMes('2026-08-28')).not.toBe(claveMes('2026-09-01'));
+  });
+});
+
+describe('diasEntre', () => {
+  test('cuenta días completos entre dos fechas, sin importar el orden', () => {
+    expect(diasEntre('2026-08-01', '2026-08-19')).toBe(18);
+    expect(diasEntre('2026-08-19', '2026-08-01')).toBe(18);
+  });
+  test('mismo día da 0', () => {
+    expect(diasEntre('2026-08-01T08:00:00', '2026-08-01T20:00:00')).toBe(0);
   });
 });
