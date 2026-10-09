@@ -109,14 +109,17 @@ async function contarNoLeidasParaCampanita(usuarioId) {
   return parseInt(resultado.rows[0].total);
 }
 
-// Marca una notificación como leída
-async function marcarLeida(notificacionId) {
+// Marca una notificación como leída. Exige id_usuario además del id: sin
+// esto, cualquier usuario autenticado podía marcar (y de paso leer el
+// contenido devuelto en la respuesta) la notificación de otra persona con
+// solo adivinar o probar ids consecutivos.
+async function marcarLeida(notificacionId, usuarioId) {
   const resultado = await pool.query(`
     UPDATE notificaciones
     SET leida = true, fecha_lectura = NOW()
-    WHERE id = $1
+    WHERE id = $1 AND id_usuario = $2
     RETURNING *
-  `, [notificacionId]);
+  `, [notificacionId, usuarioId]);
 
   return resultado.rows[0] || null;
 }

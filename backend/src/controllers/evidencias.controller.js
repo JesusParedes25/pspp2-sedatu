@@ -14,21 +14,25 @@
  */
 const { v4: uuidv4 } = require('uuid');
 const evidenciasQueries = require('../db/queries/evidencias.queries');
-const miembrosQueries = require('../db/queries/miembros.queries');
 const { registrarActividad } = require('../utils/actividad-log');
+const { alcanceProyectosUsuarioONull } = require('../utils/alcanceProyectos');
 const pool = require('../db/pool');
 
 // Resuelve a qué proyectos tiene acceso el usuario para el módulo global de
-// evidencias: superadmin/ejecutivo ven todo; dirección ve los de su propia
-// Dirección General; el resto (enlace/externo) solo los proyectos donde
-// colabora o es responsable (proyecto_usuarios).
+// evidencias: superadmin/ejecutivo ven todo; el resto, solo los proyectos
+// donde colabora o es responsable (proyecto_usuarios).
+//
+// Punto de consolidación (Fase 1 del modelo de permisos,
+// docs/modelo-permisos.md sección 6.3): antes esta función tenía su propia
+// rama para 'direccion' (todos los proyectos de su DG líder, sin necesitar
+// ser miembro), distinta de lo que ya hacían Tablero/Inicio y Territorio
+// para el mismo rol — esa era justo la inconsistencia documentada, no una
+// regla a propósito. Ahora es un alias de utils/alcanceProyectos.js, igual
+// que los otros dos: 'direccion' pierde aquí el acceso automático a toda
+// su DG y queda igual que el resto (solo donde participa) hasta que la
+// Fase 2 decida las reglas finales de alcance por perfil.
 async function resolverProyectoIdsAcceso(usuario) {
-  if (usuario.rol === 'superadmin' || usuario.rol === 'ejecutivo') return null;
-  if (usuario.rol === 'direccion' && usuario.id_dg) {
-    const { rows } = await pool.query('SELECT id FROM proyectos WHERE id_dg_lider = $1 AND deleted_at IS NULL', [usuario.id_dg]);
-    return rows.map(r => r.id);
-  }
-  return miembrosQueries.obtenerProyectosUsuario(usuario.id);
+  return alcanceProyectosUsuarioONull(usuario);
 }
 
 // Helper: resolver id_proyecto desde entidad

@@ -77,7 +77,7 @@ async function listar(req, res, next) {
 // PUT /notificaciones/:id/leer — Marcar una notificación como leída
 async function marcarLeida(req, res, next) {
   try {
-    const notificacion = await notificacionesQueries.marcarLeida(req.params.id);
+    const notificacion = await notificacionesQueries.marcarLeida(req.params.id, req.usuario.id);
 
     if (!notificacion) {
       return res.status(404).json({
