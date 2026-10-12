@@ -20,7 +20,13 @@ function parseTipoId(req) {
 const TABLA_POR_TIPO = { etapa: 'etapas', accion: 'acciones', tarea: 'tareas' };
 const ENTIDAD_TIPO_POR_TIPO = { etapa: 'Etapa', accion: 'Accion', tarea: 'Tarea' };
 const ETIQUETA_POR_TIPO = { etapa: 'la etapa', accion: 'la acción', tarea: 'la tarea' };
-const ETIQUETA_ROL = { responsable: 'responsable', colaborador: 'colaborador', invitado: 'invitado' };
+// Peldaños válidos a nivel nodo desde la migración 079 (docs/modelo-permisos.md):
+// lectura/captura/responsable — 'colaborador'/'invitado' ya no existen como
+// valores de nodo_miembros.rol. Las etiquetas se quedan iguales a como se
+// veían antes ("Colaborador" para 'captura', "Invitado" para 'lectura') para
+// que la Fase 1 no cambie nada visible.
+const ROLES_VALIDOS_NODO = ['responsable', 'captura', 'lectura'];
+const ETIQUETA_ROL = { responsable: 'responsable', captura: 'colaborador', lectura: 'invitado' };
 
 // Nombre del nodo (etapa/acción/tarea) por id — compartido entre las
 // notificaciones y los eventos de bitácora de este archivo, para no
@@ -134,7 +140,7 @@ async function responder(req, res, next) {
 // tiene sentido: la visibilidad ya es total, así que "invitarlo sin poder
 // capturar" no le agrega nada.
 async function invitadoSoloParaExternos(idUsuario, rol) {
-  if (rol !== 'invitado') return null;
+  if (rol !== 'lectura') return null;
   const { rows } = await pool.query('SELECT rol FROM usuarios WHERE id = $1', [idUsuario]);
   if (rows[0]?.rol === 'externo') return null;
   return 'La función "invitado" es solo para usuarios externos a la Secretaría. '
@@ -165,9 +171,8 @@ async function agregar(req, res, next) {
     const { tipo, idNodo } = parseTipoId(req);
     const { id_usuario, rol } = req.body;
     if (!id_usuario) return res.status(400).json({ error: true, mensaje: 'Se requiere id_usuario' });
-    const roles = ['responsable', 'colaborador', 'invitado'];
-    if (rol && !roles.includes(rol)) {
-      return res.status(400).json({ error: true, mensaje: `rol debe ser uno de: ${roles.join(', ')}` });
+    if (rol && !ROLES_VALIDOS_NODO.includes(rol)) {
+      return res.status(400).json({ error: true, mensaje: `rol debe ser uno de: ${ROLES_VALIDOS_NODO.join(', ')}` });
     }
     const permitido = await puedeGestionarParticipantesNodo({ usuario: req.usuario, tipoNodo: tipo, idNodo });
     if (!permitido) {
@@ -222,9 +227,8 @@ async function actualizar(req, res, next) {
     const { tipo, idNodo } = parseTipoId(req);
     const { userId } = req.params;
     const { rol } = req.body;
-    const roles = ['responsable', 'colaborador', 'invitado'];
-    if (!rol || !roles.includes(rol)) {
-      return res.status(400).json({ error: true, mensaje: `rol debe ser uno de: ${roles.join(', ')}` });
+    if (!rol || !ROLES_VALIDOS_NODO.includes(rol)) {
+      return res.status(400).json({ error: true, mensaje: `rol debe ser uno de: ${ROLES_VALIDOS_NODO.join(', ')}` });
     }
     const permitido = await puedeGestionarParticipantesNodo({ usuario: req.usuario, tipoNodo: tipo, idNodo });
     if (!permitido) {

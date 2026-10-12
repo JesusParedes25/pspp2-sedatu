@@ -22,10 +22,12 @@ const { puedeGestionarParticipantes, obtenerProyectoIdDeNodo } = require('../uti
 const { crearNotificacion } = require('../utils/notificaciones');
 const pool = require('../db/pool');
 
-const FUNCIONES = ['responsable', 'colaborador'];
-// 'invitado' —ver sin capturar— solo tiene sentido en un nodo y para gente
+// Peldaños válidos desde la migración 079 (docs/modelo-permisos.md):
+// 'captura' reemplaza a 'colaborador', 'lectura' reemplaza a 'invitado'.
+const FUNCIONES = ['responsable', 'captura'];
+// 'lectura' —ver sin capturar— solo tiene sentido en un nodo y para gente
 // ajena a la Secretaría; a nivel proyecto no existe.
-const FUNCIONES_NODO = ['responsable', 'colaborador', 'invitado'];
+const FUNCIONES_NODO = ['responsable', 'captura', 'lectura'];
 
 const ETIQUETA_NODO = { etapa: 'la etapa', accion: 'la acción', tarea: 'la tarea' };
 

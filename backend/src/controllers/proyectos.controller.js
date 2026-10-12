@@ -17,6 +17,7 @@ const { duplicarProyecto } = require('../db/queries/duplicar.queries');
 const {
   puedeEditarProyecto, puedeGestionarProyecto,
   puedeEditarContenidoProyecto, puedeGestionarParticipantes,
+  tienePeldanoProyecto,
 } = require('../utils/autorizacion');
 const permisosQueries = require('../db/queries/permisos.queries');
 const indicadoresQueries = require('../db/queries/indicadores.queries');
@@ -345,39 +346,20 @@ async function obtenerDGs(req, res, next) {
   }
 }
 
-// POST /proyectos/:id/dgs — Agregar DG colaboradora
-async function agregarDG(req, res, next) {
-  try {
-    const resultado = await proyectosQueries.agregarDGProyecto(req.params.id, req.body);
-
-    if (!resultado) {
-      return res.status(409).json({
-        error: true,
-        mensaje: 'La DG ya participa en este proyecto',
-        codigo: 'DG_YA_EXISTE'
-      });
-    }
-
-    res.status(201).json({ datos: resultado, mensaje: 'DG agregada al proyecto' });
-  } catch (err) {
-    next(err);
-  }
-}
-
 // POST /proyectos/:id/imagen — Subir imagen de encabezado a MinIO
 //
 // No tenía ningún chequeo: cualquier usuario autenticado podía reemplazar
-// la portada de cualquier proyecto llamando al endpoint directo. Exige la
-// misma facultad que editar la ficha del proyecto (puedeEditarProyecto:
-// creador, responsable, superadmin, o direccion/ejecutivo de la DG que
-// lidera el proyecto) — la portada es parte de esa ficha.
+// la portada de cualquier proyecto llamando al endpoint directo. Exige al
+// menos 'responsable' a nivel proyecto — no administracion_proyecto
+// completa: subir una foto de portada no es lo mismo que editar la ficha
+// del proyecto o eliminarlo, ver docs/modelo-permisos.md.
 async function subirImagen(req, res, next) {
   try {
-    const autorizado = await puedeEditarProyecto({ usuario: req.usuario, idProyecto: req.params.id });
+    const autorizado = await tienePeldanoProyecto(req.usuario, req.params.id, 'responsable');
     if (!autorizado) {
       return res.status(403).json({
         error: true,
-        mensaje: 'No puedes cambiar la imagen de este proyecto. Solo su creador, su responsable o la Dirección General que lo lidera pueden hacerlo.',
+        mensaje: 'No tienes permisos para cambiar la imagen de este proyecto.',
         codigo: 'NO_AUTORIZADO'
       });
     }
@@ -401,25 +383,6 @@ async function subirImagen(req, res, next) {
     // Devolver URL proxy del backend
     const imagenUrl = `/api/v1/proyectos/${req.params.id}/imagen`;
     res.json({ datos: { imagen_url: imagenUrl }, mensaje: 'Imagen subida exitosamente' });
-  } catch (err) {
-    next(err);
-  }
-}
-
-// DELETE /proyectos/:id/dgs/:dg_id — Eliminar DG colaboradora
-async function eliminarDG(req, res, next) {
-  try {
-    const resultado = await proyectosQueries.eliminarDGProyecto(req.params.id, req.params.dg_id);
-
-    if (!resultado) {
-      return res.status(404).json({
-        error: true,
-        mensaje: 'DG no encontrada en el proyecto o es la DG líder',
-        codigo: 'NO_ENCONTRADO'
-      });
-    }
-
-    res.json({ datos: resultado, mensaje: 'DG eliminada del proyecto' });
   } catch (err) {
     next(err);
   }
@@ -616,4 +579,4 @@ async function portadaResumen(req, res, next) {
   }
 }
 
-module.exports = { listar, obtenerPorId, crear, duplicar, actualizar, eliminar, listarEliminados, restaurar, eliminarDefinitivamente, obtenerDGs, agregarDG, eliminarDG, obtenerEtiquetas, subirImagen, servirImagen, misPermisos, actividadReciente, bitacora, portadaResumen };
+module.exports = { listar, obtenerPorId, crear, duplicar, actualizar, eliminar, listarEliminados, restaurar, eliminarDefinitivamente, obtenerDGs, obtenerEtiquetas, subirImagen, servirImagen, misPermisos, actividadReciente, bitacora, portadaResumen };

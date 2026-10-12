@@ -1,9 +1,8 @@
 /**
  * ARCHIVO: miembros.queries.js
- * PROPÓSITO: Queries para proyecto_usuarios y proyecto_invitaciones.
+ * PROPÓSITO: Queries para proyecto_usuarios.
  */
 const pool = require('../pool');
-const crypto = require('crypto');
 
 // ─── Miembros ─────────────────────────────────────────────────
 
@@ -101,13 +100,20 @@ async function invitacionesPendientes(usuarioId) {
 // Se puede llegar ahí por tres caminos —quitarlo, que se quite él mismo,
 // o degradarlo a colaborador— y ninguno estaba cerrado. Esta consulta es
 // el freno común a los tres.
-async function esUnicoResponsable(proyectoId, usuarioId, db) {
+// Antes del modelo de permisos nuevo (docs/modelo-permisos.md), el
+// administrador del proyecto SÍ era quien tenía rol='responsable' en
+// proyecto_usuarios. Desde la migración 079, ese peldaño se llama
+// 'administracion_proyecto' — 'responsable' ya es un peldaño distinto,
+// uno abajo, que NO administra el proyecto completo. Comparar contra
+// 'responsable' aquí dejaría de detectar al verdadero único
+// administrador de prácticamente cualquier proyecto.
+async function esUnicoAdministrador(proyectoId, usuarioId, db) {
   const conn = db || pool;
   const { rows } = await conn.query(`
     SELECT count(*)::int AS total,
            count(*) FILTER (WHERE id_usuario = $2)::int AS incluye_a_esta
     FROM proyecto_usuarios
-    WHERE id_proyecto = $1 AND rol = 'responsable' AND estado = 'aceptada'
+    WHERE id_proyecto = $1 AND rol = 'administracion_proyecto' AND estado = 'aceptada'
   `, [proyectoId, usuarioId]);
   return rows[0].total === 1 && rows[0].incluye_a_esta === 1;
 }
@@ -130,103 +136,6 @@ async function obtenerRolUsuario(proyectoId, usuarioId) {
     [proyectoId, usuarioId]
   );
   return rows[0]?.rol || null;
-}
-
-/**
- * Verifica si un usuario tiene acceso a un proyecto.
- * Acceso: es miembro del proyecto, es creador, o es superadmin/Ejecutivo.
- */
-async function tieneAcceso(proyectoId, usuario) {
-  if (!usuario) return false;
-  if (usuario.rol === 'superadmin' || usuario.rol === 'ejecutivo') return true;
-
-  const { rows } = await pool.query(`
-    SELECT 1 FROM proyecto_usuarios WHERE id_proyecto = $1 AND id_usuario = $2 AND estado = 'aceptada'
-    UNION
-    SELECT 1 FROM proyectos WHERE id = $1 AND id_creador = $2
-  `, [proyectoId, usuario.id]);
-  return rows.length > 0;
-}
-
-// ─── Invitaciones ─────────────────────────────────────────────
-
-async function crearInvitacion(proyectoId, correo, rol, invitadoPor) {
-  const token = crypto.randomBytes(32).toString('hex');
-
-  // Check if user with this email exists
-  const { rows: usuarios } = await pool.query(
-    'SELECT id FROM usuarios WHERE correo = $1 AND activo = true', [correo]
-  );
-  const idUsuario = usuarios[0]?.id || null;
-
-  // Check if already invited (pending)
-  const { rows: existentes } = await pool.query(
-    `SELECT id FROM proyecto_invitaciones 
-     WHERE id_proyecto = $1 AND correo = $2 AND estado = 'pendiente'`,
-    [proyectoId, correo]
-  );
-  if (existentes.length > 0) {
-    return { duplicada: true };
-  }
-
-  // Check if already a member
-  if (idUsuario) {
-    const { rows: miembro } = await pool.query(
-      'SELECT 1 FROM proyecto_usuarios WHERE id_proyecto = $1 AND id_usuario = $2',
-      [proyectoId, idUsuario]
-    );
-    if (miembro.length > 0) {
-      return { yaMiembro: true };
-    }
-  }
-
-  const { rows } = await pool.query(`
-    INSERT INTO proyecto_invitaciones (id_proyecto, correo, rol, id_usuario, invitado_por, token)
-    VALUES ($1, $2, $3, $4, $5, $6)
-    RETURNING *
-  `, [proyectoId, correo, rol, idUsuario, invitadoPor, token]);
-  return rows[0];
-}
-
-async function listarInvitaciones(proyectoId) {
-  const { rows } = await pool.query(`
-    SELECT pi.*, u.nombre_completo AS invitador_nombre
-    FROM proyecto_invitaciones pi
-    LEFT JOIN usuarios u ON u.id = pi.invitado_por
-    WHERE pi.id_proyecto = $1
-    ORDER BY pi.created_at DESC
-  `, [proyectoId]);
-  return rows;
-}
-
-async function aceptarInvitacion(token, usuarioId) {
-  const { rows } = await pool.query(`
-    UPDATE proyecto_invitaciones
-    SET estado = 'aceptada', id_usuario = $2, accepted_at = NOW()
-    WHERE token = $1 AND estado = 'pendiente'
-    RETURNING *
-  `, [token, usuarioId]);
-
-  if (!rows[0]) return null;
-
-  const inv = rows[0];
-  // Add user to project
-  await pool.query(`
-    INSERT INTO proyecto_usuarios (id_proyecto, id_usuario, rol, invitado_por, estado, aceptado_en)
-    VALUES ($1, $2, $3, $4, 'aceptada', NOW())
-    ON CONFLICT (id_proyecto, id_usuario) DO NOTHING
-  `, [inv.id_proyecto, usuarioId, inv.rol, inv.invitado_por]);
-
-  return inv;
-}
-
-async function cancelarInvitacion(invitacionId) {
-  const { rows } = await pool.query(`
-    UPDATE proyecto_invitaciones SET estado = 'cancelada'
-    WHERE id = $1 AND estado = 'pendiente'
-    RETURNING *
-  `, [invitacionId]);
-  return rows[0];
 }
 
 /**
@@ -292,13 +201,8 @@ module.exports = {
   agregarMiembro,
   eliminarMiembro,
   obtenerRolUsuario,
-  esUnicoResponsable,
+  esUnicoAdministrador,
   responderInvitacion,
   invitacionesPendientes,
-  tieneAcceso,
-  crearInvitacion,
-  listarInvitaciones,
-  aceptarInvitacion,
-  cancelarInvitacion,
   obtenerProyectosUsuario
 };

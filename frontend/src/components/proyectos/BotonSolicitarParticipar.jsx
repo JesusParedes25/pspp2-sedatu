@@ -35,7 +35,7 @@ const ETIQUETA_NODO = { etapa: 'esta etapa', accion: 'esta acción', tarea: 'est
 export default function BotonSolicitarParticipar({ proyecto, permisos, nodo = null, className = '' }) {
   const [pendiente, setPendiente] = useState(null);
   const [abierto, setAbierto] = useState(false);
-  const [funcion, setFuncion] = useState('colaborador');
+  const [funcion, setFuncion] = useState('captura');
   const [motivo, setMotivo] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
@@ -160,7 +160,7 @@ function ModalSolicitar({ queSePide, esDeNodo, nodo, nombreProyecto, funcion, se
                   onChange={e => setFuncion(e.target.value)}
                   className="input-base text-sm w-full"
                 >
-                  <option value="colaborador">Colaborador — capturar avances y evidencias</option>
+                  <option value="captura">Colaborador — capturar avances y evidencias</option>
                   <option value="responsable">
                     {esDeNodo
                       ? 'Responsable — además, coordinar esta parte'

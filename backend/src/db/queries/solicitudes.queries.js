@@ -71,7 +71,7 @@ async function crear({ idProyecto, idUsuario, funcion, motivo, tipoNodo, idNodo 
     VALUES ($1, $2, $3, $4, $5, $6)
     RETURNING *
   `, [
-    idProyecto, idUsuario, funcion || 'colaborador', (motivo || '').trim() || null,
+    idProyecto, idUsuario, funcion || 'captura', (motivo || '').trim() || null,
     esDeNodo ? tipoNodo : null, esDeNodo ? idNodo : null,
   ]);
   return { solicitud: rows[0] };

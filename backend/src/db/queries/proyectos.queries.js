@@ -75,7 +75,11 @@ async function listarProyectos({ estado, tipo, idDg, busqueda, etiquetas, carter
   // director de la DG) no cuenta como participación.
   if (usuarioId && (participacion === 'participo' || participacion === 'responsable')) {
     const soloResponsable = participacion === 'responsable';
-    const rolProyecto = soloResponsable ? `AND pu_f.rol = 'responsable'` : '';
+    // A nivel proyecto, "responsable" también debe incluir
+    // administracion_proyecto (el peldaño que desde la migración 079 usa
+    // el administrador real del proyecto — ver docs/modelo-permisos.md).
+    // A nivel nodo 'responsable' sigue significando lo mismo que antes.
+    const rolProyecto = soloResponsable ? `AND pu_f.rol IN ('responsable', 'administracion_proyecto')` : '';
     const rolNodo = soloResponsable ? `AND nm_f.rol = 'responsable'` : '';
     condiciones.push(`(
       p.id_creador = $${indice}
@@ -494,29 +498,6 @@ async function obtenerDGsProyecto(proyectoId) {
   return resultado.rows;
 }
 
-// Agrega una DG colaboradora a un proyecto
-async function agregarDGProyecto(proyectoId, datos) {
-  const resultado = await pool.query(`
-    INSERT INTO proyecto_dgs (id_proyecto, id_dg, id_direccion_area, rol_en_proyecto, id_responsable)
-    VALUES ($1, $2, $3, $4, $5)
-    ON CONFLICT (id_proyecto, id_dg) DO NOTHING
-    RETURNING *
-  `, [proyectoId, datos.id_dg, datos.id_direccion_area, datos.rol_en_proyecto || 'Colaboradora', datos.id_responsable]);
-
-  return resultado.rows[0] || null;
-}
-
-// Elimina una DG colaboradora de un proyecto
-async function eliminarDGProyecto(proyectoId, dgId) {
-  const resultado = await pool.query(`
-    DELETE FROM proyecto_dgs
-    WHERE id_proyecto = $1 AND id_dg = $2 AND rol_en_proyecto = 'Colaboradora'
-    RETURNING id
-  `, [proyectoId, dgId]);
-
-  return resultado.rows[0] || null;
-}
-
 // Actualiza solo la imagen_url de un proyecto
 async function actualizarImagenProyecto(proyectoId, imagenUrl) {
   const resultado = await pool.query(`
@@ -546,8 +527,6 @@ module.exports = {
   restaurarProyecto,
   purgarProyecto,
   obtenerDGsProyecto,
-  agregarDGProyecto,
-  eliminarDGProyecto,
   obtenerEtiquetas,
   actualizarImagenProyecto,
 };

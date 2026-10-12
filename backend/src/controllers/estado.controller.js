@@ -23,10 +23,38 @@ const { recalcularIndicadoresProyecto } = require('../db/queries/indicadores.que
 const { recalcularAportacionesProyecto } = require('../db/queries/aportaciones.queries');
 const { registrarActividad } = require('../utils/actividad-log');
 const { obtenerProyectoId, recalcularPadres } = require('../utils/avance-semaforo');
+const { tienePeldanoProyecto, tienePeldanoNodo } = require('../utils/autorizacion');
 
 // Tabla real por tipo de entidad — Subaccion es una fila más de `acciones`
 // (mismo modelo, distinta profundidad), Tarea vive en su propia tabla.
 const TABLA_POR_TIPO = { Proyecto: 'proyectos', Etapa: 'etapas', Accion: 'acciones', Subaccion: 'acciones', Tarea: 'tareas' };
+const TIPO_NODO_POR_TIPO = { Etapa: 'etapa', Accion: 'accion', Subaccion: 'accion', Tarea: 'tarea' };
+
+// Este endpoint identifica su objetivo con entidad_tipo+entidad_id en el
+// cuerpo en vez de en la ruta, así que no pasaba por ningún middleware de
+// rutas y no tenía NINGÚN chequeo — cualquier usuario autenticado podía
+// cambiar el estado de cualquier proyecto/etapa/acción/tarea saltándose
+// por completo los candados de las rutas dedicadas (exigirEdicionNodo,
+// puedeEditarProyecto). Exige exactamente el mismo peldaño que exigiría
+// la ruta dedicada de esa entidad: administracion_proyecto para Proyecto
+// (mismo criterio que PUT /proyectos/:id), captura para el resto (mismo
+// criterio que PUT/PATCH de etapas/acciones/tareas).
+async function tienePermisoCambiarEstado(usuario, entidadTipo, entidadId) {
+  if (entidadTipo === 'Proyecto') {
+    return tienePeldanoProyecto(usuario, entidadId, 'administracion_proyecto');
+  }
+  const tipoNodo = TIPO_NODO_POR_TIPO[entidadTipo];
+  if (!tipoNodo) return false;
+  return tienePeldanoNodo(usuario, tipoNodo, entidadId, 'captura');
+}
+
+function rechazarCambioEstado(res) {
+  return res.status(403).json({
+    error: true,
+    codigo: 'NO_AUTORIZADO',
+    mensaje: 'No tienes permisos para cambiar el estado de este elemento.',
+  });
+}
 
 // Resuelve el id_proyecto de cualquier tipo de entidad. Reemplaza tres
 // bloques if/else casi idénticos que existían antes en este archivo (uno
@@ -60,6 +88,10 @@ async function cambiarEstado(req, res) {
     return res.status(400).json({
       mensaje: 'Campos requeridos: entidad_tipo, entidad_id, estado'
     });
+  }
+
+  if (!(await tienePermisoCambiarEstado(req.usuario, entidad_tipo, entidad_id))) {
+    return rechazarCambioEstado(res);
   }
 
   const client = await pool.connect();
@@ -128,6 +160,10 @@ async function restaurarEstadoAutomatico(req, res) {
     return res.status(400).json({
       mensaje: 'Campos requeridos: entidad_tipo, entidad_id'
     });
+  }
+
+  if (!(await tienePermisoCambiarEstado(req.usuario, entidad_tipo, entidad_id))) {
+    return rechazarCambioEstado(res);
   }
 
   const client = await pool.connect();

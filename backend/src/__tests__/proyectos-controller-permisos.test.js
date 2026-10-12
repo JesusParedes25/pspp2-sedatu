@@ -30,6 +30,7 @@ jest.mock('../utils/autorizacion', () => ({
   puedeGestionarProyecto: jest.fn(),
   puedeEditarContenidoProyecto: jest.fn(),
   puedeGestionarParticipantes: jest.fn(),
+  tienePeldanoProyecto: jest.fn(),
 }));
 jest.mock('../db/queries/permisos.queries', () => ({}));
 jest.mock('../db/queries/indicadores.queries', () => ({}));
@@ -46,7 +47,7 @@ jest.mock('minio', () => ({
   Client: jest.fn().mockImplementation(() => ({ putObject: (...a) => mockPutObject(...a) })),
 }));
 
-const { puedeEditarProyecto } = require('../utils/autorizacion');
+const { tienePeldanoProyecto } = require('../utils/autorizacion');
 const proyectosQueries = require('../db/queries/proyectos.queries');
 const proyectosController = require('../controllers/proyectos.controller');
 
@@ -84,7 +85,7 @@ describe('proyectos.controller.js::crear', () => {
 
 describe('proyectos.controller.js::subirImagen', () => {
   test('sin permiso de editar el proyecto: 403, nunca sube a MinIO', async () => {
-    puedeEditarProyecto.mockResolvedValueOnce(false);
+    tienePeldanoProyecto.mockResolvedValueOnce(false);
     const req = {
       usuario: { id: UUID_1, rol: 'enlace' },
       params: { id: UUID_2 },
@@ -99,10 +100,13 @@ describe('proyectos.controller.js::subirImagen', () => {
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ codigo: 'NO_AUTORIZADO' }));
     expect(mockPutObject).not.toHaveBeenCalled();
     expect(proyectosQueries.actualizarImagenProyecto).not.toHaveBeenCalled();
+    // Exige 'responsable', no administracion_proyecto completa (subir una
+    // foto de portada no es lo mismo que editar la ficha del proyecto).
+    expect(tienePeldanoProyecto).toHaveBeenCalledWith(req.usuario, UUID_2, 'responsable');
   });
 
   test('con permiso de editar el proyecto: sube la imagen normalmente', async () => {
-    puedeEditarProyecto.mockResolvedValueOnce(true);
+    tienePeldanoProyecto.mockResolvedValueOnce(true);
     proyectosQueries.actualizarImagenProyecto.mockResolvedValueOnce({ id: UUID_2, imagen_url: 'x' });
     const req = {
       usuario: { id: UUID_1, rol: 'enlace' },
