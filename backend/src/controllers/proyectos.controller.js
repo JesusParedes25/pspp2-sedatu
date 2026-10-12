@@ -116,8 +116,22 @@ async function obtenerPorId(req, res, next) {
 }
 
 // POST /proyectos — Crear un nuevo proyecto
+//
+// 'externo' (personal de otra institución) nunca crea proyectos, solo
+// participa en lo que se le asigna — mismo bloqueo que ya tenía su
+// endpoint hermano `duplicar`. Faltaba aquí: antes de este chequeo,
+// cualquier usuario autenticado podía crear un proyecto llamando a la
+// API directo, aunque la interfaz le escondiera el botón.
 async function crear(req, res, next) {
   try {
+    if (req.usuario?.rol === 'externo') {
+      return res.status(403).json({
+        error: true,
+        mensaje: 'No tienes permisos para crear proyectos',
+        codigo: 'FORBIDDEN'
+      });
+    }
+
     const nombre = (req.body?.nombre || '').trim();
     if (!nombre) {
       return res.status(400).json({
@@ -351,8 +365,22 @@ async function agregarDG(req, res, next) {
 }
 
 // POST /proyectos/:id/imagen — Subir imagen de encabezado a MinIO
+//
+// No tenía ningún chequeo: cualquier usuario autenticado podía reemplazar
+// la portada de cualquier proyecto llamando al endpoint directo. Exige la
+// misma facultad que editar la ficha del proyecto (puedeEditarProyecto:
+// creador, responsable, superadmin, o direccion/ejecutivo de la DG que
+// lidera el proyecto) — la portada es parte de esa ficha.
 async function subirImagen(req, res, next) {
   try {
+    const autorizado = await puedeEditarProyecto({ usuario: req.usuario, idProyecto: req.params.id });
+    if (!autorizado) {
+      return res.status(403).json({
+        error: true,
+        mensaje: 'No puedes cambiar la imagen de este proyecto. Solo su creador, su responsable o la Dirección General que lo lidera pueden hacerlo.',
+        codigo: 'NO_AUTORIZADO'
+      });
+    }
     if (!req.file) {
       return res.status(400).json({ error: true, mensaje: 'No se proporcionó imagen', codigo: 'ARCHIVO_REQUERIDO' });
     }

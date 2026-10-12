@@ -33,6 +33,30 @@ async function alcanceProyectosUsuario(usuario) {
   return miembrosQueries.obtenerProyectosUsuario(usuario.id);
 }
 
+// Misma regla que alcanceProyectosUsuario, pero devolviendo null (en vez
+// de la lista concreta de proyectos no cancelados) para superadmin/
+// ejecutivo — para los consumidores cuya SQL ya distingue "sin filtro en
+// absoluto" de "una lista de ids" (ver obtenerDetalleEstado y similares
+// en geografia.queries.js, que con null se saltan la condición
+// `AND p.id = ANY($n)` por completo en vez de recibir una lista enorme).
+//
+// Punto de consolidación (Fase 1 del modelo de permisos, docs/modelo-permisos.md
+// sección 6.3): antes existían TRES implementaciones independientes de
+// "a qué proyectos tiene acceso este usuario", que no coincidían para
+// 'direccion' — geo.controller.js::resolverProyectoIds y
+// evidencias.controller.js::resolverProyectoIdsAcceso ahora son ambos un
+// alias de esta única función. El comportamiento que se conserva es el de
+// resolverProyectoIds (el que ya coincidía con alcanceProyectosUsuario):
+// 'direccion' ve solo los proyectos donde participa, SIN el bono de ver
+// también todos los de su DG que sí daba evidencias.controller.js antes
+// de esta consolidación — ese bono era la inconsistencia documentada, no
+// una regla a preservar. La Fase 2 decide las reglas finales de alcance
+// por perfil; aquí solo queda un único lugar donde cambiarlas.
+async function alcanceProyectosUsuarioONull(usuario) {
+  if (usuario.rol === 'superadmin' || usuario.rol === 'ejecutivo') return null;
+  return miembrosQueries.obtenerProyectosUsuario(usuario.id);
+}
+
 // Intersecta el alcance real del usuario con el filtro de
 // proyecto(s)/cartera que venga en la query string — nunca lo amplía,
 // ni siquiera para ejecutivo (para quien la intersección es un no-op,
@@ -53,4 +77,4 @@ async function resolverProyectoIdsFiltro(usuario, query) {
   return proyectoIds;
 }
 
-module.exports = { alcanceProyectosUsuario, resolverProyectoIdsFiltro };
+module.exports = { alcanceProyectosUsuario, alcanceProyectosUsuarioONull, resolverProyectoIdsFiltro };
