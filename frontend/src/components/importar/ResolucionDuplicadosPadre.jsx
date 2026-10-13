@@ -56,7 +56,7 @@ export default function ResolucionDuplicadosPadre({ grupos, resoluciones, onCamb
             </p>
             <p className="text-xs text-amber-700 mb-2">
               Estos nombres aparecen en tu archivo y no calzan con ningún {etiqueta.toLowerCase()} ya
-              existente en el proyecto. Se parecen entre sí — ¿son el mismo escrito distinto, o son
+              existente en el proyecto. Se parecen entre sí: ¿son el mismo escrito distinto, o son
               dos {etiqueta.toLowerCase()}s diferentes?
             </p>
 

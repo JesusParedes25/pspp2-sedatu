@@ -302,7 +302,7 @@ function TarjetaIndicadorGrupo({ grupo, variante = 'normal', permitirEditarValor
 
       {esPorcentaje ? (
         <p className={`${compacto ? 'mt-1.5' : 'mt-2'} text-[11px] text-gray-500`}>
-          Es un porcentaje — se mide por proyecto, no se combina en un solo dato.
+          Es un porcentaje: se mide por proyecto, no se combina en un solo dato.
         </p>
       ) : (
         <>

@@ -228,8 +228,8 @@ function SeccionDefinicion({ indicador, aportaciones, onGuardado, mostrarToast }
         titulo="Categoría con nodos vinculados"
         mensaje={categoriasABorrar ? (
           categoriasABorrar.length === 1
-            ? `La categoría "${categoriasABorrar[0].cat.nombre}" tiene ${categoriasABorrar[0].nAportaciones} nodo(s) vinculado(s). Al eliminarla, esos nodos quedarán como "Sin categoría asignada" — el total del indicador no cambia.`
-            : `Las categorías ${categoriasABorrar.map(x => `"${x.cat.nombre}"`).join(', ')} tienen nodos vinculados. Al eliminarlas, esos nodos quedarán como "Sin categoría asignada" — el total del indicador no cambia.`
+            ? `La categoría "${categoriasABorrar[0].cat.nombre}" tiene ${categoriasABorrar[0].nAportaciones} nodo(s) vinculado(s). Al eliminarla, esos nodos quedarán como "Sin categoría asignada". El total del indicador no cambia.`
+            : `Las categorías ${categoriasABorrar.map(x => `"${x.cat.nombre}"`).join(', ')} tienen nodos vinculados. Al eliminarlas, esos nodos quedarán como "Sin categoría asignada". El total del indicador no cambia.`
         ) : ''}
         textoConfirmar="Eliminar de todos modos"
         textoCancelar="Cancelar"
@@ -265,7 +265,7 @@ function SeccionValor({ indicador, onGuardado, mostrarToast, tieneAportaciones }
       <h2 className="text-sm font-semibold text-gray-900 mb-2">Valor actual</h2>
       {!esManual ? (
         <p className="text-xs text-gray-500">
-          Este indicador se calcula automáticamente desde el avance de los nodos vinculados — no se edita a mano. Ver "Nodos que aportan" más abajo.
+          Este indicador se calcula automáticamente desde el avance de los nodos vinculados, no se edita a mano. Ver "Nodos que aportan" más abajo.
         </p>
       ) : sinPeriodos ? (
         <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
@@ -279,7 +279,7 @@ function SeccionValor({ indicador, onGuardado, mostrarToast, tieneAportaciones }
               <select value={idPeriodo || ''} onChange={e => cambiarPeriodo(e.target.value)} className="input-base text-sm">
                 {periodos.map(p => (
                   <option key={p.id} value={p.id}>
-                    {p.etiqueta || p.anio}{p.valor_actual != null ? ` — ya capturado: ${esMoneda ? formatearMoneda(p.valor_actual) : p.valor_actual}` : ''}
+                    {p.etiqueta || p.anio}{p.valor_actual != null ? ` (ya capturado: ${esMoneda ? formatearMoneda(p.valor_actual) : p.valor_actual})` : ''}
                   </option>
                 ))}
               </select>

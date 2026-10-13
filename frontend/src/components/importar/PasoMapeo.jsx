@@ -301,7 +301,7 @@ export default function PasoMapeo({ headers, superHeaders, sampleRows, config, t
               {totalDataRows > 0 && (
                 <p className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-200">
                   Se crearán <strong>{totalDataRows} {etiquetaNivel}(s)</strong>
-                  <span className="text-gray-400"> (filas en blanco ya descontadas — se confirma en Vista previa)</span>
+                  <span className="text-gray-400"> (filas en blanco ya descontadas, se confirma en Vista previa)</span>
                 </p>
               )}
             </>

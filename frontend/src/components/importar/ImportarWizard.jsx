@@ -281,7 +281,7 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
         {multiHoja && (
           <div className="px-6 py-2 border-b bg-green-50 flex items-center justify-between">
             <p className="text-xs text-green-700 font-medium">
-              📊 Formato multi-hoja detectado — Importación rápida
+              📊 Formato multi-hoja detectado: importación rápida
             </p>
             <button
               onClick={async () => {

@@ -354,7 +354,7 @@ export default function ModalVincularIndicador({
               ) : proyecto && !cargandoProyecto && (
                 <div>
                   <label className="block text-[11px] text-gray-500 mb-1">
-                    Etapa, acción o tarea <span className="text-gray-400">(opcional — deja "a nivel de todo el proyecto" si no aplica a un nodo específico)</span>
+                    Etapa, acción o tarea <span className="text-gray-400">(opcional, deja "a nivel de todo el proyecto" si no aplica a un nodo específico)</span>
                   </label>
                   <SelectorNodoArbol
                     etapas={etapas}
@@ -396,7 +396,7 @@ export default function ModalVincularIndicador({
               )}
               {catalogoElegido && indicadorExistente && (
                 <p className="text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                  Este proyecto ya tiene un indicador para "{catalogoElegido.nombre}" — se usará ese, no se crea uno nuevo.
+                  Este proyecto ya tiene un indicador para "{catalogoElegido.nombre}": se usará ese, no se crea uno nuevo.
                 </p>
               )}
             </div>
@@ -467,7 +467,7 @@ export default function ModalVincularIndicador({
                         onClick={() => setPermitirCero(true)}
                         className="text-[11px] text-guinda-600 hover:underline mt-1"
                       >
-                        Vincular con 0 por ahora — lo capturo después
+                        Vincular con 0 por ahora, lo capturo después
                       </button>
                     )}
                   </div>
@@ -492,7 +492,7 @@ export default function ModalVincularIndicador({
                 </>
               ) : (
                 <p className="text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                  No elegiste una etapa/acción/tarea específica, así que el indicador queda a nivel del proyecto — su valor se captura después, directamente.
+                  No elegiste una etapa/acción/tarea específica, así que el indicador queda a nivel del proyecto. Su valor se captura después, directamente.
                 </p>
               )}
             </div>
