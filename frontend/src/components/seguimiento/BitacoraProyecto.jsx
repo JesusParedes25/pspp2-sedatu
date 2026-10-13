@@ -2,25 +2,35 @@
  * ARCHIVO: BitacoraProyecto.jsx
  * PROPÓSITO: Pestaña "Bitácora" del proyecto — registro completo del
  *            proyecto entero (comentarios, archivos, riesgos, avance,
- *            miembros, indicadores): gráfico de línea del tiempo +
- *            resumen por mes + lista cronológica, los mismos tres
- *            componentes compartidos que usa la pestaña Actividad de
- *            Detalle (LineaTiempoEventos/ResumenMensual/BitacoraCronologica),
- *            debajo de los filtros que ya existían (Tipo/Usuario/Etapa/
- *            Acción/Tarea/Desde/Hasta/Buscar). A diferencia de Detalle
- *            (alcance: un nodo y sus descendientes, 5 carriles sin
- *            indicador), aquí el alcance es el proyecto completo y se
- *            agrega el carril Indicadores (6 carriles) — un indicador no
- *            tiene un nodo dueño único, así que solo tiene sentido
- *            agregado a este nivel, no repetido en cada pestaña de nodo.
+ *            miembros, indicadores): resumen por mes + lista cronológica
+ *            (ResumenMensual/BitacoraCronologica, compartidos con la
+ *            pestaña Actividad de Detalle), debajo de los filtros que ya
+ *            existían (Tipo/Usuario/Etapa/Acción/Tarea/Desde/Hasta/
+ *            Buscar). A diferencia de Detalle (alcance: un nodo y sus
+ *            descendientes, 5 carriles sin indicador), aquí el alcance es
+ *            el proyecto completo y se agrega el carril Indicadores (6
+ *            carriles) — un indicador no tiene un nodo dueño único, así
+ *            que solo tiene sentido agregado a este nivel, no repetido en
+ *            cada pestaña de nodo.
+ *
+ *            El gráfico de línea del tiempo (LineaTiempoEventos) que vivía
+ *            aquí se retiró por completo (decisión de producto, no un
+ *            bug): obligaba a pasar el cursor por cada marcador para
+ *            entender qué pasó. El resumen por mes y la lista ya cubren lo
+ *            mismo sin ese costo, y ambos se muestran siempre que haya al
+ *            menos 1 evento (antes el resumen compartía la compuerta
+ *            eventos.length >= 3 del gráfico, sin razón propia una vez que
+ *            el gráfico se fue). Para recuperar el gráfico si algún día se
+ *            decide revivirlo, el código vive en el historial de git justo
+ *            antes de su retiro.
  *
  * Por qué una sola llamada (limite alto) en vez de pedir cada página al
- * servidor: el gráfico/resumen necesitan el historial FILTRADO completo
- * para trazar columnas de mes, no solo los 25 registros de la página
- * visible — así que se pide una vez (tope 1000, mismo criterio que
- * obtenerActividadNodo en Detalle) y la lista de abajo pagina ese mismo
- * arreglo del lado del cliente, en vez de hacer una segunda llamada al
- * servidor por cada página.
+ * servidor: el resumen necesita el historial FILTRADO completo para armar
+ * columnas de mes, no solo los 25 registros de la página visible, así
+ * que se pide una vez (tope 1000, mismo criterio que obtenerActividadNodo
+ * en Detalle) y la lista de abajo pagina ese mismo arreglo del lado del
+ * cliente, en vez de hacer una segunda llamada al servidor por cada
+ * página.
  */
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -28,7 +38,6 @@ import { Search, X, Loader2, BookText, Filter } from 'lucide-react';
 import * as proyectosApi from '../../api/proyectos';
 import * as miembrosApi from '../../api/miembros';
 import * as etapasApi from '../../api/etapas';
-import LineaTiempoEventos from '../common/LineaTiempoEventos';
 import ResumenMensual from '../common/ResumenMensual';
 import BitacoraCronologica from '../common/BitacoraCronologica';
 import { normalizarEventoBitacora } from '../../utils/eventosLineaTiempo';
@@ -42,8 +51,6 @@ const CATEGORIAS = [
   { id: 'miembro', label: 'Miembros' },
   { id: 'indicador', label: 'Indicadores' },
 ];
-
-const CARRILES_BITACORA = ['documento', 'indicador', 'riesgo', 'comentario', 'equipo'];
 
 const LIMITE_PAGINA = 25;
 // Tope del historial que se pide al servidor para alimentar el gráfico —
@@ -380,27 +387,7 @@ export default function BitacoraProyecto({ proyectoId }) {
         </div>
       ) : (
         <>
-          {/* Gráfico + resumen por mes — solo con suficientes registros
-              para que valga la pena trazar algo. */}
-          {rango && eventos.length >= 3 ? (
-            <>
-              <LineaTiempoEventos
-                eventos={eventosCarriles}
-                carriles={CARRILES_BITACORA}
-                serieAvance={serieAvance}
-                rango={rango}
-                hoveredId={hoveredId}
-                onHoverMarker={setHoveredId}
-                onClickMarker={alHacerClicEnEvento}
-                nombreAlcance="el proyecto"
-              />
-              <ResumenMensual eventos={eventosCarriles} serieAvance={serieAvance} rango={rango} />
-            </>
-          ) : (
-            <p className="text-[11px] text-gray-400 italic -mt-1">
-              Aún no hay suficientes registros para mostrar la evolución.
-            </p>
-          )}
+          <ResumenMensual eventos={eventosCarriles} serieAvance={serieAvance} rango={rango} />
 
           <div className="bg-white border border-gray-200 rounded-xl p-3.5">
             <BitacoraCronologica

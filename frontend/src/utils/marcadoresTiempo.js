@@ -1,13 +1,20 @@
 /**
  * ARCHIVO: marcadoresTiempo.js
- * PROPÓSITO: Cálculo puro (sin React, sin DOM) para LineaTiempoEventos.jsx
- *            — el gráfico de línea del tiempo compartido entre la pestaña
- *            Actividad de Detalle y el módulo Bitácora. Cubre: columnas
- *            de mes/trimestre (el eje ya no es continuo), la escala de
- *            avance 0-100, y la geometría de los 6 tipos de marcador
- *            (círculo relleno = avance/comentario, cuadrado = documento,
+ * PROPÓSITO: Cálculo puro (sin React, sin DOM) compartido por
+ *            MarcadorEvento.jsx (geometría de los 6 tipos de marcador:
+ *            círculo relleno = avance/comentario, cuadrado = documento,
  *            rombo = indicador, triángulo = riesgo, círculo hueco =
- *            equipo), todos con área visual equivalente.
+ *            equipo, todos con área visual equivalente), ResumenMensual.jsx
+ *            (columnas de mes/trimestre) y BitacoraCronologica.jsx
+ *            (claveMes/formatoFechaCorta) y eventosLineaTiempo.js
+ *            (claveDia/diasEntre, para huecos de inactividad).
+ *
+ *            Hasta el retiro del gráfico de línea del tiempo
+ *            (LineaTiempoEventos.jsx, ver historial de git), este archivo
+ *            también tenía la escala de avance 0-100 y la proyección X
+ *            sobre columnas (escalaY/construirPathLinea/escalaXColumnas/
+ *            formatoFechaLarga). Se quitaron junto con el gráfico al no
+ *            tener ya ningún otro consumidor.
  *
  * Todo con números explícitos (Number(...) en cada entrada): si una
  * coordenada llega como string desde quien llama, `x0 + frac * (x1 - x0)`
@@ -72,23 +79,6 @@ export function geometriaTriangulo(cx, cy) {
   };
 }
 
-// Posición vertical de un avance 0-100 dentro de [yParaCien, yParaCero].
-export function escalaY(avance, yParaCien, yParaCero) {
-  const v = Math.max(0, Math.min(100, Number(avance)));
-  const a = Number(yParaCien);
-  const b = Number(yParaCero);
-  return a + (1 - v / 100) * (b - a);
-}
-
-// Path SVG (atributo `d`) de la línea de avance, a partir de puntos ya
-// resueltos a números — construido con un template por punto (no con
-// `+=` acumulado) para que un valor no-numérico cause un `NaN` visible
-// en el path en vez de una concatenación silenciosa.
-export function construirPathLinea(puntos) {
-  if (!puntos || puntos.length === 0) return '';
-  return puntos.map((p, i) => `${i === 0 ? 'M' : 'L'} ${Number(p.x)} ${Number(p.y)}`).join(' ');
-}
-
 const MESES_VERSALITAS = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
 const MESES_LARGOS = [
   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
@@ -150,29 +140,6 @@ export function generarColumnas(fechaMin, fechaMax, x0, x1, modo = 'mes') {
   return periodos.map((p, i) => ({ ...p, x0: a + i * ancho, x1: a + (i + 1) * ancho }));
 }
 
-// Posición X de una fecha dentro de sus columnas de mes/trimestre: ubica
-// la columna que la contiene y, dentro de ella, el punto proporcional al
-// tiempo transcurrido del periodo (día 1 cerca del borde izquierdo, el
-// último día cerca del derecho) — nunca fuera de los límites de su
-// columna. Si la fecha cae fuera del rango de columnas (borde), se topa
-// a la primera/última en vez de proyectar fuera del lienzo.
-export function escalaXColumnas(fecha, columnas) {
-  if (!columnas || columnas.length === 0) return 0;
-  const t = new Date(fecha).getTime();
-  const col = columnas.find(c => t >= c.inicio.getTime() && t < c.fin.getTime())
-    || (t < columnas[0].inicio.getTime() ? columnas[0] : columnas[columnas.length - 1]);
-  const duracion = col.fin.getTime() - col.inicio.getTime();
-  const frac = duracion > 0 ? (t - col.inicio.getTime()) / duracion : 0.5;
-  const x0 = Number(col.x0);
-  const x1 = Number(col.x1);
-  return x0 + Math.min(Math.max(frac, 0), 1) * (x1 - x0);
-}
-
-export function formatoFechaLarga(fecha) {
-  const d = new Date(fecha);
-  return `${d.getDate()} de ${MESES_LARGOS[d.getMonth()]} de ${d.getFullYear()}`;
-}
-
 export function formatoFechaCorta(fecha) {
   return new Date(fecha).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
 }
@@ -185,8 +152,8 @@ export function claveDia(fecha) {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
-// Clave de agrupación "mismo mes calendario" — para el resumen por mes y
-// para las columnas del gráfico.
+// Clave de agrupación "mismo mes calendario", para los encabezados de
+// mes de la bitácora cronológica.
 export function claveMes(fecha) {
   const d = new Date(fecha);
   return `${d.getFullYear()}-${d.getMonth()}`;
@@ -200,8 +167,8 @@ export function diasEntre(fechaA, fechaB) {
 }
 
 // Meses calendario de diferencia entre dos fechas — decide si
-// LineaTiempoEventos agrupa sus columnas por mes o por trimestre (más de
-// 6 meses de rango agrupa por trimestre, para que las columnas no se
+// ResumenMensual agrupa sus columnas por mes o por trimestre (más de 6
+// meses de rango agrupa por trimestre, para que las columnas no se
 // amontonen cuando la Bitácora filtra un rango largo).
 export function mesesEntre(fechaA, fechaB) {
   const a = new Date(fechaA);

@@ -1,12 +1,12 @@
 /**
  * ARCHIVO: MarcadorEvento.jsx
  * PROPÓSITO: Dibuja la forma de un marcador (círculo relleno, cuadrado,
- *            rombo, triángulo, círculo hueco) centrada en (cx,cy) — pieza
- *            compartida entre LineaTiempoEventos.jsx (marcadores del
- *            gráfico, tamaño normal) y BitacoraCronologica.jsx (puntos
- *            chicos del riel de la lista), para que la lista muestre
- *            literalmente la misma forma que el gráfico y no un ícono
- *            parecido hecho aparte.
+ *            rombo, triángulo, círculo hueco) centrada en (cx,cy), usada
+ *            por BitacoraCronologica.jsx para los puntos chicos del riel
+ *            de la lista. Hasta el retiro del gráfico de línea del tiempo
+ *            (LineaTiempoEventos.jsx, ver historial de git) también se
+ *            usaba ahí, a tamaño normal, para que la lista mostrara
+ *            literalmente la misma forma que el gráfico.
  *
  * Geometría de cada forma (radio/lado/área) en utils/marcadoresTiempo.js.
  */

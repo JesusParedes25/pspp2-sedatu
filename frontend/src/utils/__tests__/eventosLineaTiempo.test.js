@@ -1,15 +1,15 @@
 /**
  * ARCHIVO: eventosLineaTiempo.test.js
- * PROPÓSITO: Pruebas de la capa de datos compartida de LineaTiempoEventos
- *            (resumen por mes en texto, huecos de inactividad, avance al
- *            momento de cada evento) — la "red de seguridad" en texto no
- *            debe omitirse, así que su cálculo se prueba aparte.
+ * PROPÓSITO: Pruebas de la capa de datos compartida de ResumenMensual.jsx
+ *            y BitacoraCronologica.jsx (resumen por mes en texto, huecos
+ *            de inactividad, avance al momento de cada evento) — la "red
+ *            de seguridad" en texto no debe omitirse, así que su cálculo
+ *            se prueba aparte.
  */
 import { describe, test, expect } from 'vitest';
 import {
   normalizarEventoNodo, normalizarEventoBitacora,
   resumenPorColumna, detectarHuecos, conAvanceEnElMomento,
-  agruparPorDiaYCarril, eventosDelMismoDia,
 } from '../eventosLineaTiempo';
 import { generarColumnas } from '../marcadoresTiempo';
 
@@ -86,6 +86,39 @@ describe('resumenPorColumna', () => {
     const [resumen] = resumenPorColumna(eventos, columnas);
     expect(resumen.texto).toBe('2 documentos');
   });
+
+  // Antes del retiro del gráfico, ResumenMensual compartía compuerta
+  // (eventos.length >= 3) con LineaTiempoEventos: este camino con 1-2
+  // eventos nunca se había ejercitado con datos reales. Casos añadidos al
+  // quitar esa compuerta (ver BitacoraProyecto.jsx).
+  test('un solo evento genera una sola columna, sin dividir entre cero ni romper con un rango de un día', () => {
+    const t = new Date('2026-08-15T10:00:00').getTime();
+    const columnas = generarColumnas(t, t, 0, 1, 'mes');
+    expect(columnas).toHaveLength(1);
+    expect(columnas[0].label).toBe('AGO');
+    const resumen = resumenPorColumna([ev('a', 'comentario', '2026-08-15')], columnas);
+    expect(resumen).toHaveLength(1);
+    expect(resumen[0].total).toBe(1);
+    expect(resumen[0].texto).toBe('1 comentario');
+  });
+
+  test('dos eventos en meses distintos generan una columna por cada mes del rango, cada una con su propia etiqueta', () => {
+    const columnas = generarColumnas('2026-08-05', '2026-10-20', 0, 3, 'mes');
+    expect(columnas.map(c => c.label)).toEqual(['AGO', 'SEP', 'OCT']);
+    const eventos = [ev('a', 'documento', '2026-08-05'), ev('b', 'comentario', '2026-10-20')];
+    const resumen = resumenPorColumna(eventos, columnas);
+    expect(resumen[0].texto).toBe('1 documento');
+    expect(resumen[1].texto).toBe('sin movimiento');
+    expect(resumen[2].texto).toBe('1 comentario');
+  });
+
+  test('sin ningún evento de avance, omite la frase "de avance" en vez de imprimir un cero inventado', () => {
+    const columnas = generarColumnas('2026-08-01', '2026-08-31', 0, 1, 'mes');
+    const eventos = [ev('a', 'documento', '2026-08-05'), ev('b', 'comentario', '2026-08-10')];
+    const [resumen] = resumenPorColumna(eventos, columnas);
+    expect(resumen.texto).not.toMatch(/avance/);
+    expect(resumen.texto).toBe('1 documento · 1 comentario');
+  });
 });
 
 describe('detectarHuecos', () => {
@@ -115,32 +148,3 @@ describe('conAvanceEnElMomento', () => {
   });
 });
 
-describe('agruparPorDiaYCarril', () => {
-  test('agrupa dos documentos del mismo día en un solo grupo', () => {
-    const eventos = [ev('a', 'documento', '2026-08-10T08:00'), ev('b', 'documento', '2026-08-10T20:00')];
-    const grupos = agruparPorDiaYCarril(eventos);
-    expect(grupos).toHaveLength(1);
-    expect(grupos[0].eventos).toHaveLength(2);
-  });
-
-  test('no mezcla carriles distintos del mismo día', () => {
-    const eventos = [ev('a', 'documento', '2026-08-10'), ev('b', 'riesgo', '2026-08-10')];
-    expect(agruparPorDiaYCarril(eventos)).toHaveLength(2);
-  });
-
-  test('excluye eventos de avance (van en la banda, no en un carril)', () => {
-    const eventos = [ev('a', 'avance', '2026-08-10', 50)];
-    expect(agruparPorDiaYCarril(eventos)).toHaveLength(0);
-  });
-});
-
-describe('eventosDelMismoDia', () => {
-  test('trae todos los eventos del mismo día sin importar el carril', () => {
-    const eventos = [
-      ev('a', 'documento', '2026-08-10T08:00'),
-      ev('b', 'riesgo', '2026-08-10T20:00'),
-      ev('c', 'comentario', '2026-08-11T08:00'),
-    ];
-    expect(eventosDelMismoDia(eventos, '2026-08-10T12:00').map(e => e.id)).toEqual(['a', 'b']);
-  });
-});

@@ -1,11 +1,14 @@
 /**
  * ARCHIVO: ResumenMensual.jsx
  * PROPÓSITO: Franja de texto, una columna por mes/trimestre visible,
- *            justo debajo de LineaTiempoEventos — la "red de seguridad"
- *            del gráfico: aunque alguien no sepa leer un gráfico, aquí
- *            está la respuesta escrita en español ("2 de avance, cerró
- *            en 56% · 1 documento · 1 riesgo · 1 comentario"), o "sin
- *            movimiento" si el periodo no tuvo nada. No se omite nunca.
+ *            compartida entre la pestaña Actividad de Detalle y el
+ *            módulo Bitácora, con la respuesta escrita en español ("2 de
+ *            avance, cerró en 56% · 1 documento · 1 riesgo · 1
+ *            comentario"), o "sin movimiento" si el periodo no tuvo
+ *            nada. No se omite nunca, ni con 1-2 eventos (el gráfico de
+ *            línea del tiempo que acompañaba esto, LineaTiempoEventos,
+ *            se retiró por completo, ver historial de git, y con él la
+ *            compuerta de "mínimo 3 eventos" que antes compartían).
  */
 import { useMemo } from 'react';
 import { generarColumnas, mesesEntre } from '../../utils/marcadoresTiempo';

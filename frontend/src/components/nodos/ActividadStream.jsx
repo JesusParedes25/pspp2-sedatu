@@ -1,15 +1,15 @@
 /**
  * ARCHIVO: ActividadStream.jsx
- * PROPÓSITO: "Evolución en el tiempo" de un nodo Y TODOS sus descendientes
- *            — solo la lista cronológica (BitacoraCronologica.jsx,
- *            compartida con el módulo Bitácora del proyecto), sin el
- *            gráfico: aquí se lee como una línea del tiempo de toda la
- *            vida, el gráfico por mes/trimestre queda exclusivo de
- *            Bitácora (decisión explícita — ver PR de seguimiento al
- *            rediseño de la línea del tiempo). Seguida del cuadro para
- *            comentar o adjuntar. Alcance: avance + documentos + riesgos
- *            + comentarios + equipo — sin indicadores, que solo tienen
- *            sentido agregados a nivel proyecto, en Bitácora.
+ * PROPÓSITO: "Evolución en el tiempo" de un nodo Y TODOS sus descendientes,
+ *            con la lista cronológica (BitacoraCronologica.jsx, compartida
+ *            con el módulo Bitácora del proyecto): aquí se lee como una
+ *            línea del tiempo de toda la vida. El gráfico de línea del
+ *            tiempo (LineaTiempoEventos.jsx) que vivía en Bitácora ya no
+ *            existe en ningún lado, se retiró por completo, ver historial
+ *            de git. Seguida del cuadro para comentar o adjuntar. Alcance:
+ *            avance + documentos + riesgos + comentarios + equipo, sin
+ *            indicadores, que solo tienen sentido agregados a nivel
+ *            proyecto, en Bitácora.
  *
  * MINI-CLASE: por qué se agrupan varias filas en una sola entrada de
  * historial en otros lugares (ModalRegistrarAvance.jsx)

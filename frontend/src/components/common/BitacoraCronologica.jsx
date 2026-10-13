@@ -1,15 +1,18 @@
 /**
  * ARCHIVO: BitacoraCronologica.jsx
- * PROPÓSITO: Lista de eventos como continuación del gráfico
- *            LineaTiempoEventos.jsx — no una lista plana: encabezados de
- *            mes pegajosos, un riel vertical con un punto por evento (la
- *            MISMA forma/color que su marcador en el gráfico, vía
+ * PROPÓSITO: Lista de eventos, no una lista plana: encabezados de mes
+ *            pegajosos, un riel vertical con un punto por evento (vía
  *            MarcadorEvento compartido), avance al momento de cada
  *            evento, y renglones de "N días sin movimiento" entre huecos
  *            de inactividad. Compartida entre la pestaña Actividad de
- *            Detalle y el módulo Bitácora — recibe eventos ya
+ *            Detalle y el módulo Bitácora, recibe eventos ya
  *            normalizados (ver utils/eventosLineaTiempo.js) y no sabe de
  *            dónde vinieron.
+ *
+ *            Hasta el retiro del gráfico de línea del tiempo
+ *            (LineaTiempoEventos.jsx, ver historial de git), esta lista
+ *            era su continuación directa: el punto del riel usaba la
+ *            MISMA forma/color que el marcador del evento en el gráfico.
  */
 import { useMemo } from 'react';
 import { ExternalLink } from 'lucide-react';

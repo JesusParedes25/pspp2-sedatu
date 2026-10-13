@@ -1,13 +1,13 @@
 /**
  * ARCHIVO: carrilesEventos.js
- * PROPÓSITO: Nombre, forma y color de cada carril de evento — fuente
- *            ÚNICA para LineaTiempoEventos.jsx y BitacoraCronologica.jsx,
- *            así la lista pinta el mismo color/forma que su marcador en
- *            el gráfico sin que cada componente tenga su propia copia de
- *            la paleta (que divergiría tarde o temprano).
+ * PROPÓSITO: Nombre, forma y color de cada carril de evento. Fuente
+ *            ÚNICA usada por BitacoraCronologica.jsx (y, hasta su retiro,
+ *            también por LineaTiempoEventos.jsx, ver historial de git),
+ *            para que ningún componente tenga su propia copia de la
+ *            paleta (que divergiría tarde o temprano).
  *
- * Colores ya validados contra contraste y daltonismo en ambos temas —
- * se usan tal cual, sin ajustarlos a ojo.
+ * Colores ya validados contra contraste y daltonismo en ambos temas, se
+ * usan tal cual, sin ajustarlos a ojo.
  */
 export const NOMBRE_CARRIL = {
   documento: 'Documentos', indicador: 'Indicadores', riesgo: 'Riesgos',
