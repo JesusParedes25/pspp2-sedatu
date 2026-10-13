@@ -219,8 +219,8 @@ export default function PasoMultiHoja({ fileId, multiHoja, proyectoId, onImporta
           </p>
           <ul className="text-xs text-sky-700 space-y-1 list-disc list-inside">
             <li>Cada hoja hija debe traer una columna "ID Padre" que coincida EXACTO con el ID de su fila padre en la hoja anterior.</li>
-            <li>Más confiable para archivos grandes — no depende de cómo esté escrito el nombre.</li>
-            <li>Si un ID no coincide, esa fila se omite (no se crea, no se duplica) — revisa las advertencias "Referencia no encontrada" en la Vista previa antes de confirmar.</li>
+            <li>Más confiable para archivos grandes: no depende de cómo esté escrito el nombre.</li>
+            <li>Si un ID no coincide, esa fila se omite (no se crea, no se duplica). Revisa las advertencias "Referencia no encontrada" en la Vista previa antes de confirmar.</li>
           </ul>
         </div>
 
@@ -237,7 +237,7 @@ export default function PasoMultiHoja({ fileId, multiHoja, proyectoId, onImporta
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-gray-800">
-                    Hoja {hojaIdx + 1}: "{hoja.nombre}" — {hoja.nivel === 'etapa' ? 'Contenedor' : hoja.nivel === 'accion' ? 'Ítems' : 'Sub-ítems'}
+                    Hoja {hojaIdx + 1}: "{hoja.nombre}" ({hoja.nivel === 'etapa' ? 'Contenedor' : hoja.nivel === 'accion' ? 'Ítems' : 'Sub-ítems'})
                   </p>
                   <p className="text-[11px] text-gray-500">{hoja.totalFilas} filas · {hoja.headers.length} columnas</p>
                 </div>

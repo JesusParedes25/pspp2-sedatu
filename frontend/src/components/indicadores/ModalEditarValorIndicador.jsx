@@ -61,12 +61,12 @@ export default function ModalEditarValorIndicador({ indicador, onCerrar, onGuard
                   >
                     {periodos.map(p => (
                       <option key={p.id} value={p.id}>
-                        {p.etiqueta || p.anio}{p.valor_actual != null ? ` — ya capturado: ${esMoneda ? formatearMoneda(p.valor_actual) : p.valor_actual}` : ''}
+                        {p.etiqueta || p.anio}{p.valor_actual != null ? ` (ya capturado: ${esMoneda ? formatearMoneda(p.valor_actual) : p.valor_actual})` : ''}
                       </option>
                     ))}
                   </select>
                   <p className="text-[10px] text-gray-400 mt-1">
-                    Confirma el periodo antes de guardar — cada uno se captura por separado.
+                    Confirma el periodo antes de guardar: cada uno se captura por separado.
                   </p>
                 </div>
               )}

@@ -102,7 +102,7 @@ export default function PasoRelacion({ headers, sampleRows, config, proyectoId, 
           <li>
             Si escribes el nombre del padre con una variación (mayúsculas, acentos, un espacio de
             más, un typo), el sistema te lo va a marcar como "posible variante" antes de crear un
-            {' '}{etiquetaPadre.toLowerCase()} nuevo — nunca lo hará en silencio.
+            {' '}{etiquetaPadre.toLowerCase()} nuevo: nunca lo hará en silencio.
           </li>
         </ul>
       </div>
@@ -156,7 +156,7 @@ export default function PasoRelacion({ headers, sampleRows, config, proyectoId, 
             {conteoReal != null && (
               <p className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-200">
                 Se crearán aproximadamente <strong>{conteoReal} {etiquetaPadre === 'Componente' ? 'acción(es)' : 'tarea(s)'}</strong>
-                <span className="text-gray-400"> — se confirma en el paso de Vista previa.</span>
+                <span className="text-gray-400"> (se confirma en el paso de Vista previa)</span>
               </p>
             )}
             {cargandoPreview && <p className="text-xs text-gray-400 mt-2">Calculando…</p>}

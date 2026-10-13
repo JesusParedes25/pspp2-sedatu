@@ -1,14 +1,19 @@
 /**
  * ARCHIVO: eventosLineaTiempo.js
- * PROPÓSITO: Capa de datos compartida entre LineaTiempoEventos.jsx
- *            (gráfico), ResumenMensual.jsx (franja de texto por mes) y
- *            BitacoraCronologica.jsx (lista) — los tres componentes solo
- *            conocen el shape "evento" normalizado de aquí abajo, nunca
- *            las dos formas crudas distintas que trae cada pantalla
- *            (el feed por nodo de Detalle vs. la bitácora de proyecto).
- *            Esa normalización es la ÚNICA duplicación permitida entre
- *            las dos pantallas — todo lo demás (gráfico, resumen, lista)
- *            es un solo componente montado dos veces.
+ * PROPÓSITO: Capa de datos compartida entre ResumenMensual.jsx (franja de
+ *            texto por mes) y BitacoraCronologica.jsx (lista). Los dos
+ *            componentes solo conocen el shape "evento" normalizado de
+ *            aquí abajo, nunca las dos formas crudas distintas que trae
+ *            cada pantalla (el feed por nodo de Detalle vs. la bitácora
+ *            de proyecto). Esa normalización es la ÚNICA duplicación
+ *            permitida entre las dos pantallas: todo lo demás (resumen,
+ *            lista) es un solo componente montado dos veces.
+ *
+ *            Hasta el retiro del gráfico de línea del tiempo
+ *            (LineaTiempoEventos.jsx, ver historial de git), este archivo
+ *            también agrupaba eventos por día+carril para sus marcadores
+ *            (agruparPorDiaYCarril/eventosDelMismoDia). Se quitaron junto
+ *            con el gráfico al no tener ya ningún otro consumidor.
  *
  * Evento normalizado:
  *   { id, carril, avance, titulo, contenido, autorNombre, createdAt,
@@ -21,7 +26,7 @@
  *           (ModalRiesgo, detalle de archivo) sin que el componente
  *           compartido necesite saber nada de esos modales.
  */
-import { claveDia, diasEntre } from './marcadoresTiempo';
+import { diasEntre } from './marcadoresTiempo';
 
 // ─── Normalizadores (la única pieza que difiere entre pantallas) ───
 
@@ -97,29 +102,6 @@ export function normalizarEventoBitacora(item) {
 }
 
 // ─── Agrupación y resumen (compartidos de verdad) ───
-
-// Eventos no-avance agrupados por día calendario + carril, para el
-// gráfico: varios documentos/riesgos/comentarios/equipo del mismo día se
-// pintan como un solo marcador con contador.
-export function agruparPorDiaYCarril(eventos) {
-  const porClave = new Map();
-  for (const ev of eventos) {
-    if (ev.carril === 'avance') continue;
-    const dia = claveDia(ev.createdAt);
-    const clave = `${dia}|${ev.carril}`;
-    if (!porClave.has(clave)) porClave.set(clave, { carril: ev.carril, dia, eventos: [] });
-    porClave.get(clave).eventos.push(ev);
-  }
-  return [...porClave.values()];
-}
-
-// Todos los eventos (de cualquier carril) que caen en el mismo día que
-// `fechaReferencia` — para el recuadro de hover, que muestra TODO lo que
-// pasó ese día, no solo el marcador tocado.
-export function eventosDelMismoDia(eventos, fechaReferencia) {
-  const clave = claveDia(fechaReferencia);
-  return eventos.filter(ev => claveDia(ev.createdAt) === clave);
-}
 
 const ETIQUETA_CONTEO = {
   documento: n => `${n} documento${n === 1 ? '' : 's'}`,

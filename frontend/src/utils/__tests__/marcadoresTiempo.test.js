@@ -1,11 +1,14 @@
 /**
  * ARCHIVO: marcadoresTiempo.test.js
- * PROPÓSITO: Verifica el cálculo de coordenadas de LineaTiempoEventos.jsx
- *            (gráfico de línea del tiempo compartido Detalle/Bitácora) —
- *            columnas de mes/trimestre, escala de avance, geometría de
- *            los 5 marcadores con área visual equivalente, y que las
- *            coordenadas numéricas nunca se concatenen como strings (la
- *            razón original del requisito de esta prueba).
+ * PROPÓSITO: Verifica el cálculo puro compartido por MarcadorEvento.jsx
+ *            (geometría de los 5 marcadores con área visual equivalente),
+ *            ResumenMensual.jsx (columnas de mes/trimestre) y
+ *            BitacoraCronologica.jsx/eventosLineaTiempo.js (claveDia/
+ *            claveMes/diasEntre), y que las coordenadas numéricas nunca
+ *            se concatenen como strings (la razón original del requisito
+ *            de esta prueba, de cuando este módulo también alimentaba el
+ *            gráfico de línea del tiempo, ya retirado; ver historial de
+ *            git).
  *
  * Ejecutar: npm test
  */
@@ -16,37 +19,11 @@ import {
   geometriaCuadrado,
   geometriaRombo,
   geometriaTriangulo,
-  escalaY,
-  construirPathLinea,
   generarColumnas,
-  escalaXColumnas,
-  formatoFechaLarga,
   claveDia,
   claveMes,
   diasEntre,
 } from '../marcadoresTiempo';
-
-describe('escalaY', () => {
-  test('100% de avance cae en yParaCien, 0% cae en yParaCero', () => {
-    expect(escalaY(100, 10, 120)).toBe(10);
-    expect(escalaY(0, 10, 120)).toBe(120);
-  });
-
-  test('50% cae a medio camino', () => {
-    expect(escalaY(50, 10, 120)).toBeCloseTo(65, 5);
-  });
-
-  test('topa valores fuera de rango a [0,100]', () => {
-    expect(escalaY(142, 10, 120)).toBe(10);
-    expect(escalaY(-5, 10, 120)).toBe(120);
-  });
-
-  test('CRÍTICO: avance como string se calcula numéricamente, no se concatena', () => {
-    const y = escalaY('75', '10', '120');
-    expect(typeof y).toBe('number');
-    expect(y).toBeCloseTo(37.5, 5);
-  });
-});
 
 describe('geometriaCirculo', () => {
   test('usa el radio base por omisión y conserva el centro', () => {
@@ -125,23 +102,6 @@ describe('geometriaTriangulo', () => {
   });
 });
 
-describe('construirPathLinea', () => {
-  test('arma un path M/L válido a partir de puntos numéricos', () => {
-    const path = construirPathLinea([{ x: 0, y: 10 }, { x: 50, y: 20 }, { x: 100, y: 0 }]);
-    expect(path).toBe('M 0 10 L 50 20 L 100 0');
-  });
-
-  test('arreglo vacío produce string vacío, no un path roto', () => {
-    expect(construirPathLinea([])).toBe('');
-    expect(construirPathLinea(null)).toBe('');
-  });
-
-  test('normaliza puntos con coordenadas en string', () => {
-    const path = construirPathLinea([{ x: '0', y: '10' }, { x: '50', y: '20' }]);
-    expect(path).toBe('M 0 10 L 50 20');
-  });
-});
-
 describe('generarColumnas (modo mes)', () => {
   test('una columna por mes calendario entre fechaMin y fechaMax, anchos iguales', () => {
     const cols = generarColumnas('2026-07-15', '2026-09-03', 0, 300, 'mes');
@@ -173,43 +133,6 @@ describe('generarColumnas (modo trimestre)', () => {
   test('agrupa de 3 en 3 meses', () => {
     const cols = generarColumnas('2026-01-10', '2026-08-20', 0, 300, 'trimestre');
     expect(cols.map(c => c.label)).toEqual(['T1 2026', 'T2 2026', 'T3 2026']);
-  });
-});
-
-describe('escalaXColumnas', () => {
-  test('ubica una fecha a medio camino de su columna de mes', () => {
-    const cols = generarColumnas('2026-08-01', '2026-08-31', 0, 100, 'mes');
-    // 16 de agosto: día 16 de 31 transcurridos -> ~48%
-    const x = escalaXColumnas('2026-08-16', cols);
-    expect(x).toBeGreaterThan(40);
-    expect(x).toBeLessThan(60);
-  });
-
-  test('el primer día del mes cae en el borde izquierdo de su columna', () => {
-    const cols = generarColumnas('2026-08-01', '2026-09-30', 0, 200, 'mes');
-    const x = escalaXColumnas('2026-08-01', cols);
-    expect(x).toBeCloseTo(0, 5); // columna de agosto: x0=0
-  });
-
-  test('una fecha fuera del rango de columnas se topa a la columna más cercana, no se sale del lienzo', () => {
-    const cols = generarColumnas('2026-06-01', '2026-06-30', 0, 100, 'mes');
-    const x = escalaXColumnas('2026-12-25', cols);
-    expect(x).toBeGreaterThanOrEqual(0);
-    expect(x).toBeLessThanOrEqual(100);
-  });
-
-  test('CRÍTICO: columnas con x0/x1 en string no rompen el cálculo ni concatenan', () => {
-    const cols = [{ inicio: new Date(2026, 7, 1), fin: new Date(2026, 8, 1), x0: '0', x1: '100' }];
-    const x = escalaXColumnas('2026-08-16', cols);
-    expect(typeof x).toBe('number');
-    expect(x).toBeGreaterThan(0);
-    expect(x).toBeLessThan(100);
-  });
-});
-
-describe('formatoFechaLarga', () => {
-  test('arma la fecha completa en español', () => {
-    expect(formatoFechaLarga('2026-08-12T10:00:00')).toBe('12 de agosto de 2026');
   });
 });
 

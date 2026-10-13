@@ -102,7 +102,7 @@ export default function SelectorIndicadorCatalogo({ onElegir, onCerrar, yaUsados
       const data = err.response?.data;
       // Si ya existía, no se obliga a empezar de nuevo: se ofrece usarlo.
       if (data?.codigo === 'DUPLICADO' && data.existente) {
-        setError(`${data.mensaje} — búscalo en la lista para usarlo.`);
+        setError(`${data.mensaje}. Búscalo en la lista para usarlo.`);
         setModoAlta(false);
         setBusqueda(data.existente.nombre);
       } else {
@@ -206,7 +206,7 @@ export default function SelectorIndicadorCatalogo({ onElegir, onCerrar, yaUsados
               </div>
               {!busqueda && catalogo.length >= 50 && (
                 <p className="text-[11px] text-gray-400 text-center -mt-1">
-                  Mostrando los primeros 50 — escribe para buscar entre todos.
+                  Mostrando los primeros 50. Escribe para buscar entre todos.
                 </p>
               )}
 
@@ -215,7 +215,7 @@ export default function SelectorIndicadorCatalogo({ onElegir, onCerrar, yaUsados
                 onClick={() => { setModoAlta(true); setNuevo(n => ({ ...n, nombre: busqueda })); setError(null); }}
                 className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm text-guinda-600 border border-dashed border-guinda-200 rounded-lg hover:bg-guinda-50/50 transition-colors"
               >
-                <Plus size={14} /> No encuentro el que necesito — agregarlo
+                <Plus size={14} /> No encuentro el que necesito, agregarlo
               </button>
             </>
           ) : (
@@ -223,7 +223,7 @@ export default function SelectorIndicadorCatalogo({ onElegir, onCerrar, yaUsados
               {similares.length > 0 && (
                 <div className="border border-amber-200 bg-amber-50/60 rounded-lg p-2.5 space-y-1.5">
                   <p className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-800">
-                    <Sparkles size={12} /> Parecido a lo que buscas — ¿es este?
+                    <Sparkles size={12} /> Parecido a lo que buscas, ¿es este?
                   </p>
                   {similares.slice(0, 3).map(s => (
                     <button

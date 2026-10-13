@@ -232,7 +232,7 @@ export default function PasoPreview({ fileId, config, proyectoId, sheetIndex, on
         <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
           <div className="flex items-center gap-2 mb-1">
             <AlertCircle size={14} className="text-red-500" />
-            <span className="text-xs font-medium text-red-700">{errores.length} error(es) — no se puede importar</span>
+            <span className="text-xs font-medium text-red-700">{errores.length} error(es): no se puede importar</span>
           </div>
           <ul className="text-xs text-red-600 space-y-0.5">
             {errores.map((e, i) => (

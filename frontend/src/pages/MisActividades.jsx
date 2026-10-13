@@ -160,7 +160,7 @@ export default function MisActividades() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Mis actividades</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Tus etapas, acciones y tareas asignadas — y tu agenda.</p>
+        <p className="text-sm text-gray-500 mt-0.5">Tus etapas, acciones y tareas asignadas, y tu agenda.</p>
       </div>
 
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">

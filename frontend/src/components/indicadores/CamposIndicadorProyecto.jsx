@@ -176,7 +176,7 @@ export default function CamposIndicadorProyecto({ indicador, onCambio, mostrarDe
           edita el catálogo (solo superadmin). */}
       <div>
         <label className="block text-xs font-medium text-gray-600 mb-1">
-          Nombre del indicador {esDeCatalogo && <span className="font-normal text-gray-400">— del catálogo</span>}
+          Nombre del indicador {esDeCatalogo && <span className="font-normal text-gray-400">(del catálogo)</span>}
         </label>
         {esDeCatalogo ? (
           <p className="text-sm text-gray-800 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">{indicador.nombre}</p>
@@ -248,7 +248,7 @@ export default function CamposIndicadorProyecto({ indicador, onCambio, mostrarDe
         </div>
         {esPorcentaje && (
           <p className="text-[11px] text-gray-400 mt-1">
-            Un porcentaje no se puede componer de categorías — sumarlas no representa nada real.
+            Un porcentaje no se puede componer de categorías: sumarlas no representa nada real.
           </p>
         )}
       </div>

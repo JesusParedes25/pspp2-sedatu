@@ -50,7 +50,14 @@ function funcionesPara(usuario) {
   return ROLES.filter(r => !r.soloExternos || usuario?.rol === 'externo');
 }
 
+// administracion_proyecto no vive en ROLES: nunca es seleccionable desde
+// este desplegable (quien administra el proyecto siempre se muestra de
+// solo lectura aquí, ver soloLecturaAqui más abajo) — solo necesita su
+// propia etiqueta para no caer en el fallback de "Invitado".
+const ROL_ADMINISTRADOR = { value: 'administracion_proyecto', label: 'Administrador', color: 'bg-guinda-100 text-guinda-700' };
+
 function rolConfig(rol) {
+  if (rol === 'administracion_proyecto') return ROL_ADMINISTRADOR;
   return ROLES.find(r => r.value === rol) || ROLES[2];
 }
 

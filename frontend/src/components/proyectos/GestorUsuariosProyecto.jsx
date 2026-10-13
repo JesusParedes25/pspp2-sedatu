@@ -233,7 +233,7 @@ export default function GestorUsuariosProyecto({ proyecto, proyectoId, abrirInvi
 
 // ─── Participante Card ────────────────────────────────────────
 const ROL_CFG = {
-  administracion_proyecto: { label: 'Responsable', bg: '#7B1C3E',  badgeCls: 'bg-guinda-100 text-guinda-700 border-guinda-200' },
+  administracion_proyecto: { label: 'Administrador', bg: '#7B1C3E',  badgeCls: 'bg-guinda-100 text-guinda-700 border-guinda-200' },
   responsable: { label: 'Responsable', bg: '#7B1C3E',  badgeCls: 'bg-guinda-100 text-guinda-700 border-guinda-200' },
   captura:      { label: 'Colaborador', bg: '#1e40af',  badgeCls: 'bg-blue-100 text-blue-700 border-blue-200' },
   lectura:      { label: 'Invitado',    bg: '#6b7280',  badgeCls: 'bg-gray-100 text-gray-600 border-gray-200' },
@@ -255,7 +255,13 @@ function alcanceLabel(alcance, nodo_tipo, nodo_nombre) {
 function ParticipanteCard({ miembro: m, puedeGestionar, puedeSalir, onEliminar, onCambiarRol, onAmpliarATodoElProyecto, mostrarAlcance = true }) {
   const cfg = ROL_CFG[m.rol] || ROL_CFG.lectura;
   const scopeText = mostrarAlcance ? alcanceLabel(m.alcance, m.nodo_tipo, m.nodo_nombre) : null;
-  const puedeCambiarRol = puedeGestionar && m.rol !== 'lectura';
+  // El administrador del proyecto (administracion_proyecto) nunca se
+  // cambia desde este desplegable: es un campo de solo 2 opciones
+  // (Colaborador/Responsable) y si se incluyera aquí, un clic
+  // accidental lo degradaría sin darse cuenta. Reasignar quién
+  // administra el proyecto es un flujo aparte, con confirmación
+  // explícita (Fase 6) — aquí solo se muestra como etiqueta fija.
+  const puedeCambiarRol = puedeGestionar && m.rol !== 'lectura' && m.rol !== 'administracion_proyecto';
 
   return (
     <div className="relative group border border-gray-200 rounded-xl p-3 bg-white hover:shadow-sm transition-shadow flex flex-col gap-2">
