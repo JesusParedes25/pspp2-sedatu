@@ -11,23 +11,26 @@ const crypto = require('crypto');
 const parser = require('../services/importar.parser');
 const service = require('../services/importar.service');
 const matcher = require('../services/importar.matcher');
-const { puedeEditarContenidoProyecto } = require('../utils/autorizacion');
+const { tienePeldanoProyecto } = require('../utils/autorizacion');
 
-// Importar crea etapas, acciones y tareas dentro de un proyecto: es
-// capturar, y exige el mismo permiso que capturar a mano. El comentario
-// "Verificar permisos sobre el proyecto" ya estaba en el código, pero
-// debajo solo se comprobaba que el proyecto existiera — cualquier usuario
-// con sesión podía volcar una estructura completa en el proyecto de otra
-// área. El id del proyecto viaja en el cuerpo, no en la ruta, así que la
+// El id del proyecto viaja en el cuerpo, no en la ruta, así que la
 // verificación va aquí y no en el middleware de rutas.
+//
+// Exige 'responsable', no solo 'captura' (Fase 1 del modelo de permisos,
+// docs/modelo-permisos.md 3.2): importar puede crear cientos de nodos y
+// reescribir la estructura completa del proyecto — eso es "crear hijos",
+// no "registrar avance", y la tabla de peldaños pone crear/eliminar
+// hijos en 'responsable'. No existe ningún modo del importador que solo
+// actualice filas existentes sin crear nada (confirmado leyendo
+// importar.service.js: siempre inserta etapas/acciones/tareas nuevas).
 async function rechazarSiNoPuedeCapturar(req, res, proyectoId) {
-  const permitido = await puedeEditarContenidoProyecto({ usuario: req.usuario, idProyecto: proyectoId });
+  const permitido = await tienePeldanoProyecto(req.usuario, proyectoId, 'responsable');
   if (permitido) return false;
   res.status(403).json({
     error: true,
     codigo: 'NO_AUTORIZADO',
-    mensaje: 'No tienes permisos para importar en este proyecto. '
-      + 'Solicítalo a su responsable o a la Dirección General que lo lidera.',
+    mensaje: 'Importar una estructura completa requiere ser responsable de este proyecto, no solo poder capturar. '
+      + 'Solicítalo a quien lo administra.',
   });
   return true;
 }

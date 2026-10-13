@@ -4,9 +4,8 @@
  *            Sirve tanto selectores (JSON plano) como capas GeoJSON simplificadas.
  */
 const geoQueries = require('../db/queries/geografia.queries');
-const miembrosQueries = require('../db/queries/miembros.queries');
 const carterasQueries = require('../db/queries/carteras.queries');
-const { alcanceProyectosUsuario } = require('../utils/alcanceProyectos');
+const { alcanceProyectosUsuario, alcanceProyectosUsuarioONull } = require('../utils/alcanceProyectos');
 
 // Mismo filtro opcional que ya soporta GET /inicio (proyecto_ids= o
 // cartera_id=, mutuamente excluyentes) — "Incidencia territorial" es
@@ -103,10 +102,14 @@ async function obtenerMapaZmInicio(req, res, next) {
   } catch (err) { next(err); }
 }
 
-// Determina el filtro de acceso del usuario: null = ve todo (superadmin/ejecutivo)
+// Determina el filtro de acceso del usuario para el drill-down territorial:
+// null = ve todo (superadmin/ejecutivo). Punto de consolidación (Fase 1 del
+// modelo de permisos, docs/modelo-permisos.md sección 6.3): esta función ya
+// no tiene su propia lógica, es un alias de utils/alcanceProyectos.js —
+// mismo criterio que usan ahora Tablero/Inicio y Evidencias, para que exista
+// un solo lugar donde cambiar la regla de alcance (Fase 2).
 async function resolverProyectoIds(usuario) {
-  if (usuario.rol === 'superadmin' || usuario.rol === 'ejecutivo') return null;
-  return miembrosQueries.obtenerProyectosUsuario(usuario.id);
+  return alcanceProyectosUsuarioONull(usuario);
 }
 
 // Aplica el filtro opcional ?proyecto_id= sobre el conjunto de acceso del usuario

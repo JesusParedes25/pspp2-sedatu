@@ -29,6 +29,7 @@ const {
   exigirEdicionNodo, exigirEdicionProyecto, exigirEdicionDeEntidadEnCuerpo,
   exigirEdicionComentario, exigirEdicionRiesgo, exigirEdicionEvidencia,
   exigirEdicionIndicador, exigirEdicionAportacion, exigirEdicionAportacionNueva,
+  exigirResponsableNodo, exigirResponsableProyecto,
 } = require('../middleware/permisos.middleware');
 
 // Importar routers de cada recurso
@@ -115,19 +116,19 @@ router.use('/catalogo-indicadores', catalogoIndicadoresRoutes);
 router.get('/proyectos/:id/etapas', etapasController.listarPorProyecto);
 router.get('/proyectos/:id/arbol', etapasController.obtenerArbol);
 router.get('/proyectos/:id/exportar', exportarController.exportarProyecto);
-router.post('/proyectos/:id/etapas', exigirEdicionProyecto(), etapasController.crear);
+router.post('/proyectos/:id/etapas', exigirResponsableProyecto(), etapasController.crear);
 
 // Acciones de una etapa
 router.get('/etapas/:id/acciones', accionesController.listarPorEtapa);
-router.post('/etapas/:id/acciones', exigirEdicionNodo('etapa'), accionesController.crearEnEtapa);
+router.post('/etapas/:id/acciones', exigirResponsableNodo('etapa'), accionesController.crearEnEtapa);
 
 // Acciones directas del proyecto (sin etapa)
 router.get('/proyectos/:id/acciones', accionesController.listarDirectasProyecto);
-router.post('/proyectos/:id/acciones', exigirEdicionProyecto(), accionesController.crearEnProyecto);
+router.post('/proyectos/:id/acciones', exigirResponsableProyecto(), accionesController.crearEnProyecto);
 
 // Subacciones de una acción
 router.get('/acciones/:id/subacciones', accionesController.listarSubacciones);
-router.post('/acciones/:id/subacciones', exigirEdicionNodo('accion'), accionesController.crearSubaccion);
+router.post('/acciones/:id/subacciones', exigirResponsableNodo('accion'), accionesController.crearSubaccion);
 // toggle eliminado — usar PUT /acciones/:id con { estado } en body
 
 // Indicadores vinculados a una acción (lectura + edición)
@@ -161,7 +162,7 @@ router.post('/tareas/:tareaId/miembros-nodo/responder', nodoMiembrosController.r
 
 // Tareas de una acción
 router.get('/acciones/:id/tareas', tareasController.listar);
-router.post('/acciones/:id/tareas', exigirEdicionNodo('accion'), tareasController.crear);
+router.post('/acciones/:id/tareas', exigirResponsableNodo('accion'), tareasController.crear);
 
 // Evidencias de etapas, acciones, riesgos y subacciones
 router.get('/etapas/:id/evidencias', evidenciasController.listarPorEtapa);
@@ -283,10 +284,7 @@ router.delete('/tareas/:tareaId/miembros-nodo/:userId', nodoMiembrosController.e
 router.get('/proyectos/:id/miembros', miembrosController.listarMiembros);
 router.post('/proyectos/:id/miembros', miembrosController.agregarMiembro);
 router.delete('/proyectos/:id/miembros/:userId', miembrosController.eliminarMiembro);
-router.get('/proyectos/:id/invitaciones', miembrosController.listarInvitaciones);
 router.post('/proyectos/:id/invitaciones', miembrosController.crearInvitacion);
-router.post('/invitaciones/:token/aceptar', miembrosController.aceptarInvitacion);
-router.delete('/invitaciones/:id', miembrosController.cancelarInvitacion);
 
 // Carteras de proyectos
 router.get('/carteras', carterasController.listar);
@@ -294,6 +292,7 @@ router.post('/carteras', carterasController.crear);
 router.get('/carteras/:id', carterasController.obtener);
 router.put('/carteras/:id', carterasController.actualizar);
 router.delete('/carteras/:id', carterasController.eliminar);
+router.patch('/carteras/:id/administrador', carterasController.reasignarAdministrador);
 router.get('/carteras/:id/confirmar-eliminar', carterasController.confirmarEliminar);
 router.get('/carteras/:id/proyectos', carterasController.listarProyectos);
 router.get('/carteras/:id/resumen', carterasController.resumen);

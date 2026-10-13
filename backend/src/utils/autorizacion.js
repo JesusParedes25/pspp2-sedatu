@@ -4,24 +4,49 @@
  *            etapas/acciones, agregar/quitar miembros) sobre un proyecto
  *            o un nodo (etapa/acción/tarea) dentro de él.
  *
- * MINI-CLASE: Por qué centralizar esto
+ * MINI-CLASE: Fase 1 del modelo de permisos — una sola función resuelve,
+ * el resto solo compara
  * ─────────────────────────────────────────────────────────────────
- * Antes de este archivo, la regla "¿puede este usuario gestionar
- * este proyecto?" estaba duplicada en miembros.controller.js y
- * replicada (con matices) en usePermisos.js del frontend, mientras
- * que DELETE /etapas/:id, DELETE /acciones/:id y los endpoints de
- * miembros-nodo no la aplicaban en absoluto. Este módulo es la única
- * fuente de verdad en el backend, y distingue tres facultades que antes
- * se confundían en una sola:
- *   • gestionar   — eliminar el proyecto o sus nodos (lo irreversible)
- *   • editar      — modificar la información del proyecto
- *   • participantes — invitar, cambiar de papel o retirar a alguien
- * Cada una tiene su propio alcance por rol; la interfaz replica estas
- * mismas reglas en frontend/src/hooks/usePermisos.js.
+ * Hasta antes de esta reescritura, cada función de este archivo tenía su
+ * propia cadena de OR (superadmin / creador / ejecutivo-de-la-DG /
+ * responsable-de-proyecto...), cada una con matices ligeramente distintos
+ * — de ahí salían las inconsistencias documentadas en
+ * docs/modelo-permisos.md sección 6 (el rol 'invitado' que no restringía
+ * nada, el bono de DG que solo tenía un módulo, etc.).
+ *
+ * Ahora existe una sola fuente de la verdad, utils/funcion-efectiva.js,
+ * que resuelve "¿qué peldaño tiene este usuario sobre este elemento, y
+ * por qué vía?" (lectura / captura / responsable / administracion_proyecto).
+ * Cada función de ESTE archivo es, sin excepción, una comparación contra
+ * un peldaño mínimo — no queda ninguna cadena de OR suelta decidiendo
+ * permisos fuera de funcionEfectiva.
+ *
+ * Tabla de peldaños mínimos (aprobada, ver docs/modelo-permisos.md):
+ *   puedeEditarContenidoProyecto / puedeEditarNodo   -> captura
+ *   puedeGestionarParticipantes(Nodo)                -> responsable
+ *   puedeGestionarNodo (eliminar/crear hijo)          -> responsable, EN EL PADRE del nodo, no en el nodo mismo
+ *   puedeEditarProyecto / puedeGestionarProyecto      -> administracion_proyecto
+ *
+ * Cambios de comportamiento visibles respecto de antes (documentados con
+ * detalle en docs/modelo-permisos.md, sección "cómo era antes"):
+ *   - 'direccion' deja de tener CUALQUIER bono automático por pertenecer
+ *     a la DG que lidera un proyecto — solo alcanza según la función que
+ *     le dieron, igual que 'enlace'.
+ *   - 'ejecutivo' de la misma DG de un proyecto llega a 'responsable' en
+ *     todo el proyecto (antes llegaba a gestionarlo/eliminarlo), pero
+ *     NUNCA a administracion_proyecto: ya no puede editar la ficha del
+ *     proyecto ni eliminarlo por esta vía, y fuera de su propia DG deja
+ *     de poder gestionar participantes de cualquier proyecto sin estar
+ *     invitado (antes podía, sin condición de DG).
  * ─────────────────────────────────────────────────────────────────
  */
 const pool = require('../db/pool');
-const miembrosQueries = require('../db/queries/miembros.queries');
+const {
+  funcionEfectivaEnProyecto,
+  funcionEfectivaEnNodo,
+  resolverElementoPadre,
+  alcanza,
+} = require('./funcion-efectiva');
 
 // Resuelve el id_proyecto dueño de un nodo (etapa, acción/subacción o tarea)
 async function obtenerProyectoIdDeNodo(tipoNodo, idNodo, db) {
@@ -46,187 +71,139 @@ async function obtenerProyectoIdDeNodo(tipoNodo, idNodo, db) {
   return null;
 }
 
-// ¿Puede este usuario gestionar (eliminar, invitar) el proyecto dado?
-//
-// Gestionar es lo destructivo y lo de control. Aquí el 'ejecutivo' NO
-// tiene barra libre: manda en los proyectos de SU Dirección General, no
-// en los de otras áreas. Un subsecretario necesita ver toda la Secretaría
-// y dar seguimiento, no borrar el trabajo de una DG ajena.
-//
-// Ojo con el caso real: hay usuarios 'ejecutivo' SIN DG asignada. Por eso
-// la regla no es solo "misma DG" — se conservan siempre las vías de
-// creador y responsable, para que nadie pierda el control de lo suyo por
-// no tener una DG capturada.
-//
-// superadmin sigue sin límites: es quien administra la plataforma y tiene
-// la papelera de 30 días para revertir.
-async function puedeGestionarProyecto({ usuario, idProyecto }, db) {
+// ─── Primitivas genéricas sobre la escalera ───────────────────────
+// Devuelven {permitido, via} — "via" es lo que necesita la bitácora para
+// anotar cuándo una acción se hizo "por su perfil de ejecutivo de DGOTU"
+// en vez de por una invitación real (punto 4 de la Fase 1).
+async function resolverAccesoProyecto(usuario, idProyecto, minimo, db) {
+  const candidato = await funcionEfectivaEnProyecto(usuario, idProyecto, db);
+  return { permitido: alcanza(candidato, minimo), via: candidato?.via || null, peldano: candidato?.peldano || null };
+}
+
+async function resolverAccesoNodo(usuario, tipoNodo, idNodo, minimo, db) {
+  const candidato = await funcionEfectivaEnNodo(usuario, tipoNodo, idNodo, db);
+  return { permitido: alcanza(candidato, minimo), via: candidato?.via || null, peldano: candidato?.peldano || null };
+}
+
+// Para eliminar un nodo o crear un hijo en él: el peldaño se evalúa en el
+// PADRE conceptual (otro nodo, o el proyecto si es de primer nivel), no
+// en el nodo mismo.
+async function resolverAccesoPadreDeNodo(usuario, tipoNodo, idNodo, minimo, db) {
+  const padre = await resolverElementoPadre(tipoNodo, idNodo, db);
+  if (!padre) return { permitido: false, via: null, peldano: null };
+  if (padre.tipo === 'proyecto') return resolverAccesoProyecto(usuario, padre.id, minimo, db);
+  return resolverAccesoNodo(usuario, padre.tipo, padre.id, minimo, db);
+}
+
+async function tienePeldanoProyecto(usuario, idProyecto, minimo, db) {
   if (!usuario || !idProyecto) return false;
-  if (usuario.rol === 'superadmin') return true;
-
-  const conn = db || pool;
-  const { rows } = await conn.query(
-    'SELECT id_creador, id_dg_lider FROM proyectos WHERE id = $1', [idProyecto]
-  );
-  if (!rows[0]) return false;
-
-  if (rows[0].id_creador === usuario.id) return true;
-  if (usuario.rol === 'ejecutivo' && usuario.id_dg && rows[0].id_dg_lider === usuario.id_dg) return true;
-
-  const rolProyecto = await miembrosQueries.obtenerRolUsuario(idProyecto, usuario.id);
-  return rolProyecto === 'responsable';
+  return (await resolverAccesoProyecto(usuario, idProyecto, minimo, db)).permitido;
 }
 
-// ¿Puede este usuario EDITAR los datos del proyecto (nombre, fechas,
-// clasificación, indicadores)?
-//
-// La edición está acotada al ámbito de responsabilidad de cada quien:
-// quien puede gestionar el proyecto, y además un 'direccion' sobre los
-// proyectos liderados por SU Dirección General aunque no sea su creador
-// ni responsable — mandar sobre lo de su área es justamente su función.
-//
-// El 'ejecutivo' NO edita fuera de su Dirección General. Su función es de
-// seguimiento institucional: consulta toda la Secretaría y coordina a los
-// participantes de cualquier proyecto, pero la información sustantiva la
-// captura y corrige el área responsable. Su vía de edición es la misma
-// que la de un director: la de su propia DG, resuelta en
-// puedeGestionarProyecto.
-async function puedeEditarProyecto({ usuario, idProyecto }, db) {
-  if (!usuario || !idProyecto) return false;
-
-  if (await puedeGestionarProyecto({ usuario, idProyecto }, db)) return true;
-
-  if (usuario.rol === 'direccion' && usuario.id_dg) {
-    const conn = db || pool;
-    const { rows } = await conn.query(
-      'SELECT id_dg_lider FROM proyectos WHERE id = $1', [idProyecto]
-    );
-    return rows[0]?.id_dg_lider === usuario.id_dg;
-  }
-
-  return false;
-}
-
-// ¿Puede este usuario gestionar los PARTICIPANTES del proyecto (invitar,
-// cambiar el papel de alguien, retirarlo)?
-//
-// Es la única facultad que el 'ejecutivo' conserva sobre toda la
-// Secretaría. Coordinar quién atiende cada proyecto es propio del cargo y
-// no altera la información sustantiva: no borra trabajo ni reescribe
-// avances, solo determina a quién se le asigna. Por eso se separa tanto
-// de editar como de eliminar.
-//
-// Un 'direccion' gestiona participantes en los proyectos liderados por su
-// Dirección General, en congruencia con su facultad de edición.
-async function puedeGestionarParticipantes({ usuario, idProyecto }, db) {
-  if (!usuario || !idProyecto) return false;
-  if (usuario.rol === 'ejecutivo') return true;
-  return puedeEditarProyecto({ usuario, idProyecto }, db);
-}
-
-// ¿Puede este usuario CAPTURAR dentro del proyecto (crear etapas y
-// acciones, mover avances, editar campos de un nodo)?
-//
-// Dos vías, y solo dos:
-//
-//   • quien puede editar el proyecto — creador, responsable, superadmin,
-//     y los perfiles con mando de área (direccion / ejecutivo sobre su
-//     propia DG), resuelto en puedeEditarProyecto;
-//   • quien participa en el proyecto: estar en proyecto_usuarios, sea
-//     como responsable o como colaborador.
-//
-// Pertenecer a la Dirección General que lidera el proyecto NO alcanza por
-// sí solo. Antes sí: cualquier enlace o externo del área capturaba en
-// todos los proyectos de su DG sin aparecer en ninguno. Eso hacía
-// imposible responder "¿quién puede tocar esto?" —la respuesta era "todo
-// el área, aunque no se vea"— y dejaba la lista de participantes como
-// adorno. Ahora quien captura está escrito en el proyecto, con nombre y
-// función. Un director o un ejecutivo sí mandan sobre su DG sin estar
-// invitados, porque ese mando viene del cargo, no del área.
-async function puedeEditarContenidoProyecto({ usuario, idProyecto }, db) {
-  if (!usuario || !idProyecto) return false;
-  if (await puedeEditarProyecto({ usuario, idProyecto }, db)) return true;
-
-  const rolProyecto = await miembrosQueries.obtenerRolUsuario(idProyecto, usuario.id);
-  return !!rolProyecto;
-}
-
-const TABLA_NODO = { etapa: 'etapas', accion: 'acciones', tarea: 'tareas' };
-
-// ¿Está esta persona asignada a este nodo en particular? Hay dos formas
-// de estarlo y las dos cuentan: ser el responsable principal (columna
-// id_responsable de la propia etapa/acción/tarea) o estar en
-// nodo_miembros con la invitación ACEPTADA — una pendiente no da acceso.
-// Es la vía por la que alguien ajeno al proyecto edita lo que se le
-// encargó, por ejemplo desde "Mis actividades".
-async function esMiembroDelNodo({ usuario, tipoNodo, idNodo }, conn) {
-  const tabla = TABLA_NODO[tipoNodo];
-  if (!tabla) return false;
-  const { rows } = await conn.query(`
-    SELECT 1 FROM ${tabla} WHERE id = $1 AND id_responsable = $2
-    UNION ALL
-    SELECT 1 FROM nodo_miembros
-     WHERE id_nodo = $1 AND id_usuario = $2 AND tipo_nodo = $3 AND estado = 'aceptada'
-    LIMIT 1
-  `, [idNodo, usuario.id, tipoNodo]);
-  return rows.length > 0;
-}
-
-// La asignación se hereda hacia abajo: quien es responsable de una etapa
-// puede capturar en las acciones y tareas que cuelgan de ella.
-async function esMiembroDelNodoOAscendiente({ usuario, tipoNodo, idNodo }, conn) {
-  if (await esMiembroDelNodo({ usuario, tipoNodo, idNodo }, conn)) return true;
-
-  if (tipoNodo === 'tarea') {
-    const { rows } = await conn.query('SELECT id_accion FROM tareas WHERE id = $1', [idNodo]);
-    if (!rows[0]?.id_accion) return false;
-    return esMiembroDelNodoOAscendiente({ usuario, tipoNodo: 'accion', idNodo: rows[0].id_accion }, conn);
-  }
-
-  if (tipoNodo === 'accion') {
-    const { rows } = await conn.query('SELECT id_etapa, id_accion_padre FROM acciones WHERE id = $1', [idNodo]);
-    if (rows[0]?.id_accion_padre) {
-      return esMiembroDelNodoOAscendiente({ usuario, tipoNodo: 'accion', idNodo: rows[0].id_accion_padre }, conn);
-    }
-    if (rows[0]?.id_etapa) {
-      return esMiembroDelNodo({ usuario, tipoNodo: 'etapa', idNodo: rows[0].id_etapa }, conn);
-    }
-  }
-
-  return false;
-}
-
-// ¿Puede capturar sobre un nodo concreto? Vale con poder capturar en el
-// proyecto, o con estar asignado al nodo (o a uno de sus padres).
-async function puedeEditarNodo({ usuario, tipoNodo, idNodo }, db) {
+async function tienePeldanoNodo(usuario, tipoNodo, idNodo, minimo, db) {
   if (!usuario || !idNodo) return false;
-  const conn = db || pool;
-  const idProyecto = await obtenerProyectoIdDeNodo(tipoNodo, idNodo, conn);
-  if (!idProyecto) return false;
-  if (await puedeEditarContenidoProyecto({ usuario, idProyecto }, conn)) return true;
-  return esMiembroDelNodoOAscendiente({ usuario, tipoNodo, idNodo }, conn);
+  return (await resolverAccesoNodo(usuario, tipoNodo, idNodo, minimo, db)).permitido;
 }
 
-// ¿Puede este usuario ELIMINAR un nodo específico (etapa, acción, tarea)?
-// Resuelve el proyecto dueño del nodo y aplica la regla de gestión.
-async function puedeGestionarNodo({ usuario, tipoNodo, idNodo }, db) {
-  const idProyecto = await obtenerProyectoIdDeNodo(tipoNodo, idNodo, db);
-  if (!idProyecto) return false;
-  return puedeGestionarProyecto({ usuario, idProyecto }, db);
+// ─── ¿Puede CAPTURAR (registrar avance, reportar riesgo, adjuntar
+// documento, vincular indicador, ligar territorio, comentar)? ──────
+async function puedeEditarContenidoProyecto({ usuario, idProyecto }, db) {
+  return tienePeldanoProyecto(usuario, idProyecto, 'captura', db);
 }
 
-// ¿Puede gestionar los participantes asignados a un nodo específico?
-// Misma facultad que a nivel proyecto, resuelta desde el nodo.
+async function puedeEditarNodo({ usuario, tipoNodo, idNodo }, db) {
+  return tienePeldanoNodo(usuario, tipoNodo, idNodo, 'captura', db);
+}
+
+// ─── ¿Puede GESTIONAR PARTICIPANTES (invitar, cambiar función, retirar)? ──
+// Responsable sobre el elemento — a nivel proyecto, incluye a todo el
+// proyecto y sus descendientes; a nivel nodo, solo ese nodo y los suyos.
+async function puedeGestionarParticipantes({ usuario, idProyecto }, db) {
+  return tienePeldanoProyecto(usuario, idProyecto, 'responsable', db);
+}
+
 async function puedeGestionarParticipantesNodo({ usuario, tipoNodo, idNodo }, db) {
-  const idProyecto = await obtenerProyectoIdDeNodo(tipoNodo, idNodo, db);
-  if (!idProyecto) return false;
-  return puedeGestionarParticipantes({ usuario, idProyecto }, db);
+  return tienePeldanoNodo(usuario, tipoNodo, idNodo, 'responsable', db);
+}
+
+// ─── ¿Puede GESTIONAR (eliminar, crear/eliminar hijos) un NODO? ───
+// Regla aprobada (docs/modelo-permisos.md 3.3): responsable EN EL PADRE
+// del nodo, no en el nodo mismo — así alguien responsable de una etapa
+// puede eliminar sus acciones sin necesitar administrar el proyecto
+// completo.
+async function puedeGestionarNodo({ usuario, tipoNodo, idNodo }, db) {
+  if (!usuario || !idNodo) return false;
+  return (await resolverAccesoPadreDeNodo(usuario, tipoNodo, idNodo, 'responsable', db)).permitido;
+}
+
+// ─── ¿Puede EDITAR LA FICHA DEL PROYECTO o ELIMINARLO? ────────────
+// administracion_proyecto — el único peldaño que no existe a nivel nodo
+// y que un 'ejecutivo' nunca alcanza por la vía DG (tope explícito en
+// funcion-efectiva.js).
+async function puedeEditarProyecto({ usuario, idProyecto }, db) {
+  return tienePeldanoProyecto(usuario, idProyecto, 'administracion_proyecto', db);
+}
+
+async function puedeGestionarProyecto({ usuario, idProyecto }, db) {
+  return tienePeldanoProyecto(usuario, idProyecto, 'administracion_proyecto', db);
+}
+
+// ─── PATCH /etapas|acciones|tareas/:id — mínimo según los campos del
+// payload (punto 5 de la ronda de correcciones) ────────────────────
+// Este único endpoint mezcla dos acciones de naturaleza distinta:
+// "registrar avance" (avance_actual, estatus_cualitativo, y los cambios
+// de estado/territorio que viajan con la misma lógica de seguimiento)
+// y "editar la ficha" (nombre, fechas, prioridad, instrumento y demás
+// metadatos estructurales). Resuelto por los campos presentes en el
+// payload, sin partir el endpoint en dos: si viene AL MENOS un campo de
+// ficha, exige 'responsable'; si no viene ninguno, basta 'captura'
+// (cubre avance_actual/estatus_cualitativo solos, o junto con estado,
+// motivo_bloqueo/nota_resolucion, o los campos de territorio — todos
+// comparten el nivel de "dar seguimiento", no de "editar la ficha").
+const CAMPOS_FICHA_NODO = [
+  'nombre', 'descripcion', 'tipo', 'id_responsable',
+  'prioridad', 'fecha_inicio', 'fecha_limite',
+  'instrumento', 'escala_territorial',
+  'instancia_responsable', 'enlace_responsable',
+  'semaforo', 'observaciones',
+];
+
+function minimoParaPatchNodo(body) {
+  const traeCampoFicha = CAMPOS_FICHA_NODO.some(campo => body[campo] !== undefined);
+  return traeCampoFicha ? 'responsable' : 'captura';
+}
+
+// ─── ¿Puede VER el proyecto (aunque no lo edite)? ─────────────────
+// "Todos ven todos los proyectos, pero solo captura quien está escrito
+// en ellos" (ver BotonSolicitarParticipar.jsx): dentro de SEDATU la
+// visibilidad ya es total, sin importar el peldaño de la escalera —
+// 'lectura' como peldaño solo existe para dar visibilidad puntual a
+// alguien de fuera de la Secretaría. Por eso esto NO es un alias de
+// tienePeldanoProyecto(..., 'lectura'): un 'enlace' sin ninguna fila en
+// proyecto_usuarios/nodo_miembros igual puede VER cualquier proyecto
+// (solo no puede editarlo) — lo usa, por ejemplo, agregar un proyecto a
+// una cartera, que exige "al menos poder ver" el proyecto, no un
+// peldaño formal sobre él.
+async function puedeVerProyecto(usuario, idProyecto, db) {
+  if (!usuario || !idProyecto) return false;
+  if (usuario.rol !== 'externo') return true;
+  return tienePeldanoProyecto(usuario, idProyecto, 'lectura', db);
 }
 
 module.exports = {
   obtenerProyectoIdDeNodo,
+  // Primitivas genéricas (para quien necesite el peldaño/vía exactos,
+  // p.ej. para marcar la bitácora "por su perfil de ejecutivo de X").
+  resolverAccesoProyecto,
+  resolverAccesoNodo,
+  resolverAccesoPadreDeNodo,
+  tienePeldanoProyecto,
+  tienePeldanoNodo,
+  // Facultades con nombre, usadas por controllers y middleware.
   puedeGestionarProyecto,
   puedeEditarProyecto,
+  puedeVerProyecto,
+  minimoParaPatchNodo,
   puedeGestionarParticipantes,
   puedeEditarContenidoProyecto,
   puedeEditarNodo,

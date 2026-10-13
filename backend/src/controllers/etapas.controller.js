@@ -18,6 +18,7 @@ const pool = require('../db/pool');
 const { recalcularProyecto } = require('../utils/recalculos');
 const { cambiarEstado: cambiarEstadoUtil } = require('../utils/validaciones-estado');
 const avanceSemaforo = require('../utils/avance-semaforo');
+const { tienePeldanoNodo, minimoParaPatchNodo } = require('../utils/autorizacion');
 const { recalcularAportacionesProyecto } = require('../db/queries/aportaciones.queries');
 const municipiosNodoQueries = require('../db/queries/municipios-nodo.queries');
 const { sincronizarCobertura } = require('../db/queries/cobertura-sync.queries');
@@ -220,6 +221,10 @@ async function obtenerCamposExtraSchema(req, res, next) {
 }
 
 // PATCH /etapas/:id — Actualizar avance/semáforo/estatus/prioridad/fecha_limite
+//
+// Este endpoint mezcla "registrar avance" (captura) y "editar la ficha"
+// (responsable) bajo una sola ruta — el mínimo exigido depende de qué
+// campos trae el payload, no es fijo (ver minimoParaPatchNodo).
 async function patchAvanceSemaforo(req, res, next) {
   const etapaId = req.params.id;
   const { avance_actual, semaforo, estado, prioridad, fecha_limite, fecha_inicio,
@@ -227,6 +232,17 @@ async function patchAvanceSemaforo(req, res, next) {
           instancia_responsable, enlace_responsable,
           nombre, descripcion, observaciones, estatus_cualitativo, municipios,
           motivo_bloqueo, nota_resolucion } = req.body;
+
+  const minimo = minimoParaPatchNodo(req.body);
+  if (!(await tienePeldanoNodo(req.usuario, 'etapa', etapaId, minimo))) {
+    return res.status(403).json({
+      error: true,
+      mensaje: minimo === 'responsable'
+        ? 'Editar la ficha requiere ser responsable aquí, no solo poder capturar.'
+        : 'No tienes permisos para capturar en este proyecto.',
+      codigo: 'NO_AUTORIZADO',
+    });
+  }
 
   const client = await pool.connect();
   try {

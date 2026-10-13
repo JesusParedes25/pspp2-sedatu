@@ -40,10 +40,11 @@ router.post('/:id/duplicar', proyectosController.duplicar);
 // Imagen de encabezado
 router.post('/:id/imagen', upload.single('imagen'), proyectosController.subirImagen);
 
-// DGs participantes
+// DGs participantes (calculadas automáticamente desde quién participa,
+// ver proyectos.queries.js::obtenerDGsProyecto — no se curan a mano,
+// por eso aquí solo hay lectura. POST/DELETE existieron para la tabla
+// proyecto_dgs, que nunca tuvo UI y se retiró, ver docs/modelo-permisos.md).
 router.get('/:id/dgs', proyectosController.obtenerDGs);
-router.post('/:id/dgs', proyectosController.agregarDG);
-router.delete('/:id/dgs/:dg_id', proyectosController.eliminarDG);
 
 // Etiquetas del proyecto
 router.get('/:id/etiquetas', proyectosController.obtenerEtiquetas);

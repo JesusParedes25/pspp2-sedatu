@@ -88,16 +88,6 @@ export async function obtenerDGsProyecto(id) {
   return data;
 }
 
-export async function agregarDGProyecto(id, datos) {
-  const { data } = await client.post(`/proyectos/${id}/dgs`, datos);
-  return data;
-}
-
-export async function eliminarDGProyecto(proyectoId, dgId) {
-  const { data } = await client.delete(`/proyectos/${proyectoId}/dgs/${dgId}`);
-  return data;
-}
-
 export async function obtenerEtiquetasProyecto(id) {
   const { data } = await client.get(`/proyectos/${id}/etiquetas`);
   return data;

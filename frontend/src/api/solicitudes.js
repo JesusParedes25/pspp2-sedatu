@@ -7,7 +7,7 @@
 import client from './client';
 
 // Pedir participar en TODO el proyecto. El motivo es opcional.
-export async function solicitarParticipacion(proyectoId, { funcion = 'colaborador', motivo } = {}) {
+export async function solicitarParticipacion(proyectoId, { funcion = 'captura', motivo } = {}) {
   const { data } = await client.post(`/proyectos/${proyectoId}/solicitudes`, { funcion, motivo });
   return data.datos;
 }
@@ -17,7 +17,7 @@ export async function solicitarParticipacion(proyectoId, { funcion = 'colaborado
 // de más, y quien decide lo nota.
 const RUTA_NODO = { etapa: 'etapas', accion: 'acciones', tarea: 'tareas' };
 
-export async function solicitarParticipacionNodo(tipo, idNodo, { funcion = 'colaborador', motivo } = {}) {
+export async function solicitarParticipacionNodo(tipo, idNodo, { funcion = 'captura', motivo } = {}) {
   const ruta = RUTA_NODO[tipo];
   if (!ruta) throw new Error(`Tipo de nodo inválido: ${tipo}`);
   const { data } = await client.post(`/${ruta}/${idNodo}/solicitudes`, { funcion, motivo });

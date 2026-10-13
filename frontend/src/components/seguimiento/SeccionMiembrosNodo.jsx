@@ -2,12 +2,13 @@
  * ARCHIVO: SeccionMiembrosNodo.jsx
  * PROPÓSITO: Quién trabaja en esta etapa, acción o tarea, y con qué función.
  *
- * MINI-CLASE: función, estado de la invitación y la función "invitado"
+ * MINI-CLASE: función, estado de la invitación y la función "lectura"
  * ─────────────────────────────────────────────────────────────────
- * FUNCIÓN es lo que la persona hace aquí: responsable, colaborador o
- * —solo para gente ajena a la Secretaría— invitado, que ve sin capturar.
- * No confundir con el PERFIL (usuarios.rol), que es lo que la persona es
- * en SEDATU y no cambia de un proyecto a otro.
+ * FUNCIÓN es lo que la persona hace aquí: responsable, captura (rol en
+ * nodo_miembros, mostrado como "Colaborador") o —solo para gente ajena
+ * a la Secretaría— lectura (mostrado como "Invitado"), que ve sin
+ * capturar. No confundir con el PERFIL (usuarios.rol), que es lo que la
+ * persona es en SEDATU y no cambia de un proyecto a otro.
  *
  * Agregar a alguien ya no lo mete de golpe: le llega una invitación que
  * puede aceptar o rechazar, y hasta entonces no tiene permisos. Por eso
@@ -36,12 +37,12 @@ import BotonSolicitarParticipar from '../proyectos/BotonSolicitarParticipar';
 
 const ROLES = [
   { value: 'responsable', label: 'Responsable', color: 'bg-guinda-100 text-guinda-700' },
-  { value: 'colaborador', label: 'Colaborador', color: 'bg-blue-100 text-blue-700' },
+  { value: 'captura',     label: 'Colaborador', color: 'bg-blue-100 text-blue-700' },
   // Ver sin capturar. Solo tiene sentido para usuarios de otra dependencia:
   // dentro de SEDATU la visibilidad ya es total, así que "invitar sin poder
   // capturar" no le agregaría nada a nadie. El servidor aplica la misma
   // regla (400 FUNCION_NO_APLICABLE).
-  { value: 'invitado',    label: 'Invitado',    color: 'bg-gray-100 text-gray-600', soloExternos: true },
+  { value: 'lectura',     label: 'Invitado',    color: 'bg-gray-100 text-gray-600', soloExternos: true },
 ];
 
 // Funciones ofrecibles a esta persona en particular.
@@ -77,7 +78,7 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto
   const [todosUsuarios, setTodosUsuarios] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [seleccionado, setSeleccionado] = useState(null);
-  const [rolNuevo, setRolNuevo] = useState('colaborador');
+  const [rolNuevo, setRolNuevo] = useState('captura');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
 
@@ -112,7 +113,7 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto
     setMostrarPicker(true);
     setBusqueda('');
     setSeleccionado(null);
-    setRolNuevo('colaborador');
+    setRolNuevo('captura');
     setError('');
     if (todosUsuarios.length === 0) {
       try {

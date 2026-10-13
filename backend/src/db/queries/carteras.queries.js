@@ -80,24 +80,40 @@ async function obtenerCarteraPorId(id) {
     SELECT c.*,
       dg.siglas AS dg_lider_siglas, dg.nombre AS dg_lider_nombre,
       u.nombre_completo AS responsable_nombre,
-      cr.nombre_completo AS creador_nombre
+      cr.nombre_completo AS creador_nombre,
+      ad.nombre_completo AS administrador_nombre
     FROM carteras c
     LEFT JOIN direcciones_generales dg ON dg.id = c.id_dg_lider
     LEFT JOIN usuarios u ON u.id = c.id_responsable
     LEFT JOIN usuarios cr ON cr.id = c.id_creador
+    LEFT JOIN usuarios ad ON ad.id = c.id_administrador
     WHERE c.id = $1
   `, [id]);
   return rows[0] || null;
 }
 
+// id_administrador NUNCA se toma de `datos`: quien crea la cartera la
+// administra, sin excepción (migración 080) — transferirla es una
+// acción aparte (reasignarAdministrador), no un campo más del
+// formulario de alta.
 async function crearCartera(datos, creadorId) {
   const n = (v) => (v === '' || v === undefined) ? null : v;
   const { rows } = await pool.query(`
-    INSERT INTO carteras (nombre, descripcion, id_dg_lider, id_responsable, fecha_inicio, fecha_fin, id_creador)
-    VALUES ($1,$2,$3,$4,$5,$6,$7)
+    INSERT INTO carteras (nombre, descripcion, id_dg_lider, id_responsable, fecha_inicio, fecha_fin, id_creador, id_administrador)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$7)
     RETURNING *
   `, [datos.nombre, n(datos.descripcion), n(datos.id_dg_lider), n(datos.id_responsable), n(datos.fecha_inicio), n(datos.fecha_fin), creadorId]);
   return rows[0];
+}
+
+// Transferir la administración de la cartera a otro usuario — solo la
+// llama un superadmin (el controller ya lo exige antes de invocarla).
+async function reasignarAdministrador(carteraId, nuevoAdministradorId) {
+  const { rows } = await pool.query(
+    'UPDATE carteras SET id_administrador = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+    [nuevoAdministradorId, carteraId]
+  );
+  return rows[0] || null;
 }
 
 async function actualizarCartera(id, datos) {
@@ -478,6 +494,7 @@ module.exports = {
   crearCartera,
   actualizarCartera,
   eliminarCartera,
+  reasignarAdministrador,
   contarPrincipalesQueQuedanSinCartera,
   obtenerProyectoIdsDeCartera,
   listarProyectosDeCartera,

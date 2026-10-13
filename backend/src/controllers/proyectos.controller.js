@@ -17,6 +17,7 @@ const { duplicarProyecto } = require('../db/queries/duplicar.queries');
 const {
   puedeEditarProyecto, puedeGestionarProyecto,
   puedeEditarContenidoProyecto, puedeGestionarParticipantes,
+  tienePeldanoProyecto,
 } = require('../utils/autorizacion');
 const permisosQueries = require('../db/queries/permisos.queries');
 const indicadoresQueries = require('../db/queries/indicadores.queries');
@@ -116,8 +117,22 @@ async function obtenerPorId(req, res, next) {
 }
 
 // POST /proyectos — Crear un nuevo proyecto
+//
+// 'externo' (personal de otra institución) nunca crea proyectos, solo
+// participa en lo que se le asigna — mismo bloqueo que ya tenía su
+// endpoint hermano `duplicar`. Faltaba aquí: antes de este chequeo,
+// cualquier usuario autenticado podía crear un proyecto llamando a la
+// API directo, aunque la interfaz le escondiera el botón.
 async function crear(req, res, next) {
   try {
+    if (req.usuario?.rol === 'externo') {
+      return res.status(403).json({
+        error: true,
+        mensaje: 'No tienes permisos para crear proyectos',
+        codigo: 'FORBIDDEN'
+      });
+    }
+
     const nombre = (req.body?.nombre || '').trim();
     if (!nombre) {
       return res.status(400).json({
@@ -331,28 +346,23 @@ async function obtenerDGs(req, res, next) {
   }
 }
 
-// POST /proyectos/:id/dgs — Agregar DG colaboradora
-async function agregarDG(req, res, next) {
-  try {
-    const resultado = await proyectosQueries.agregarDGProyecto(req.params.id, req.body);
-
-    if (!resultado) {
-      return res.status(409).json({
-        error: true,
-        mensaje: 'La DG ya participa en este proyecto',
-        codigo: 'DG_YA_EXISTE'
-      });
-    }
-
-    res.status(201).json({ datos: resultado, mensaje: 'DG agregada al proyecto' });
-  } catch (err) {
-    next(err);
-  }
-}
-
 // POST /proyectos/:id/imagen — Subir imagen de encabezado a MinIO
+//
+// No tenía ningún chequeo: cualquier usuario autenticado podía reemplazar
+// la portada de cualquier proyecto llamando al endpoint directo. Exige al
+// menos 'responsable' a nivel proyecto — no administracion_proyecto
+// completa: subir una foto de portada no es lo mismo que editar la ficha
+// del proyecto o eliminarlo, ver docs/modelo-permisos.md.
 async function subirImagen(req, res, next) {
   try {
+    const autorizado = await tienePeldanoProyecto(req.usuario, req.params.id, 'responsable');
+    if (!autorizado) {
+      return res.status(403).json({
+        error: true,
+        mensaje: 'No tienes permisos para cambiar la imagen de este proyecto.',
+        codigo: 'NO_AUTORIZADO'
+      });
+    }
     if (!req.file) {
       return res.status(400).json({ error: true, mensaje: 'No se proporcionó imagen', codigo: 'ARCHIVO_REQUERIDO' });
     }
@@ -373,25 +383,6 @@ async function subirImagen(req, res, next) {
     // Devolver URL proxy del backend
     const imagenUrl = `/api/v1/proyectos/${req.params.id}/imagen`;
     res.json({ datos: { imagen_url: imagenUrl }, mensaje: 'Imagen subida exitosamente' });
-  } catch (err) {
-    next(err);
-  }
-}
-
-// DELETE /proyectos/:id/dgs/:dg_id — Eliminar DG colaboradora
-async function eliminarDG(req, res, next) {
-  try {
-    const resultado = await proyectosQueries.eliminarDGProyecto(req.params.id, req.params.dg_id);
-
-    if (!resultado) {
-      return res.status(404).json({
-        error: true,
-        mensaje: 'DG no encontrada en el proyecto o es la DG líder',
-        codigo: 'NO_ENCONTRADO'
-      });
-    }
-
-    res.json({ datos: resultado, mensaje: 'DG eliminada del proyecto' });
   } catch (err) {
     next(err);
   }
@@ -588,4 +579,4 @@ async function portadaResumen(req, res, next) {
   }
 }
 
-module.exports = { listar, obtenerPorId, crear, duplicar, actualizar, eliminar, listarEliminados, restaurar, eliminarDefinitivamente, obtenerDGs, agregarDG, eliminarDG, obtenerEtiquetas, subirImagen, servirImagen, misPermisos, actividadReciente, bitacora, portadaResumen };
+module.exports = { listar, obtenerPorId, crear, duplicar, actualizar, eliminar, listarEliminados, restaurar, eliminarDefinitivamente, obtenerDGs, obtenerEtiquetas, subirImagen, servirImagen, misPermisos, actividadReciente, bitacora, portadaResumen };

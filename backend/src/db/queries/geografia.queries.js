@@ -92,6 +92,17 @@ async function agregarCobertura(tipoEntidad, idEntidad, idEstado, idMunicipio) {
   return rows[0];
 }
 
+// A qué nodo/proyecto pertenece una fila de cobertura — la ruta DELETE
+// solo recibe el id de la fila, no el nodo, así que el controller
+// necesita esto para verificar permiso ANTES de borrar.
+async function obtenerCoberturaPorId(id) {
+  const { rows } = await pool.query(
+    'SELECT id, tipo_entidad, id_entidad FROM cobertura_geografica WHERE id = $1',
+    [id]
+  );
+  return rows[0] || null;
+}
+
 async function eliminarCobertura(id) {
   const { rowCount } = await pool.query(
     'DELETE FROM cobertura_geografica WHERE id = $1',
@@ -1043,6 +1054,7 @@ module.exports = {
   buscarEstadosFuzzy,
   buscarMunicipiosFuzzy,
   obtenerCobertura,
+  obtenerCoberturaPorId,
   agregarCobertura,
   eliminarCobertura,
   obtenerCoberturaProyecto,

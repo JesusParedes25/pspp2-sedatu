@@ -24,7 +24,7 @@
  * traduce "no autorizado" a un 403 con mensaje.
  * ─────────────────────────────────────────────────────────────────
  */
-const { puedeEditarNodo, puedeEditarContenidoProyecto } = require('../utils/autorizacion');
+const { puedeEditarNodo, puedeEditarContenidoProyecto, tienePeldanoNodo, tienePeldanoProyecto } = require('../utils/autorizacion');
 const pool = require('../db/pool');
 
 const MENSAJE = 'No tienes permisos para capturar en este proyecto. '
@@ -32,6 +32,13 @@ const MENSAJE = 'No tienes permisos para capturar en este proyecto. '
 
 function rechazar(res) {
   return res.status(403).json({ error: true, mensaje: MENSAJE, codigo: 'NO_AUTORIZADO' });
+}
+
+const MENSAJE_RESPONSABLE = 'Crear o eliminar elementos de la estructura requiere ser responsable aquí, '
+  + 'no solo poder capturar. Solicítalo a quien administra este proyecto.';
+
+function rechazarResponsable(res) {
+  return res.status(403).json({ error: true, mensaje: MENSAJE_RESPONSABLE, codigo: 'NO_AUTORIZADO' });
 }
 
 // Protege rutas cuyo :param identifica una etapa, acción o tarea.
@@ -58,6 +65,38 @@ function exigirEdicionProyecto(param = 'id') {
       if (!idProyecto) return rechazar(res);
       const permitido = await puedeEditarContenidoProyecto({ usuario: req.usuario, idProyecto });
       return permitido ? next() : rechazar(res);
+    } catch (err) {
+      return next(err);
+    }
+  };
+}
+
+// Crear o eliminar un hijo (etapa/acción/subacción/tarea) exige
+// 'responsable' EN EL PADRE — un peldaño más que capturar en el padre
+// mismo (docs/modelo-permisos.md, tabla de peldaños mínimos). Protege
+// las rutas anidadas de creación; DELETE /etapas|acciones|tareas/:id
+// aplican la misma regla por su cuenta, dentro del controller
+// (puedeGestionarNodo, ya resuelve "responsable en el padre").
+function exigirResponsableNodo(tipoNodo, param = 'id') {
+  return async (req, res, next) => {
+    try {
+      const idNodo = req.params[param];
+      if (!idNodo) return rechazarResponsable(res);
+      const permitido = await tienePeldanoNodo(req.usuario, tipoNodo, idNodo, 'responsable');
+      return permitido ? next() : rechazarResponsable(res);
+    } catch (err) {
+      return next(err);
+    }
+  };
+}
+
+function exigirResponsableProyecto(param = 'id') {
+  return async (req, res, next) => {
+    try {
+      const idProyecto = req.params[param];
+      if (!idProyecto) return rechazarResponsable(res);
+      const permitido = await tienePeldanoProyecto(req.usuario, idProyecto, 'responsable');
+      return permitido ? next() : rechazarResponsable(res);
     } catch (err) {
       return next(err);
     }
@@ -194,6 +233,8 @@ function exigirEdicionAportacionNueva(param = 'id') {
 module.exports = {
   exigirEdicionNodo,
   exigirEdicionProyecto,
+  exigirResponsableNodo,
+  exigirResponsableProyecto,
   exigirEdicionDeEntidadEnCuerpo,
   exigirEdicionComentario,
   exigirEdicionRiesgo,

@@ -3,6 +3,25 @@
  * PROPÓSITO: Endpoints para catálogo geográfico y cobertura.
  */
 const geografiaQueries = require('../db/queries/geografia.queries');
+const { tienePeldanoProyecto, tienePeldanoNodo } = require('../utils/autorizacion');
+
+// Captura sobre el nodo (o el proyecto, si tipo_entidad es 'proyecto') —
+// ligar/quitar territorio es una forma de capturar, igual que registrar
+// avance o reportar un riesgo (docs/modelo-permisos.md). No tenía ningún
+// chequeo: cualquier usuario autenticado podía ligar o quitar territorio
+// de cualquier nodo de cualquier proyecto.
+async function puedeCapturarEnEntidad(usuario, tipoEntidad, idEntidad) {
+  if (tipoEntidad === 'proyecto') return tienePeldanoProyecto(usuario, idEntidad, 'captura');
+  return tienePeldanoNodo(usuario, tipoEntidad, idEntidad, 'captura');
+}
+
+function rechazarCobertura(res) {
+  return res.status(403).json({
+    error: true,
+    codigo: 'NO_AUTORIZADO',
+    mensaje: 'No tienes permisos para modificar el territorio de este elemento.',
+  });
+}
 
 // GET /catalogos/estados
 async function obtenerEstados(req, res, next) {
@@ -53,6 +72,7 @@ async function agregarCobertura(req, res, next) {
     const { tipo, id } = req.params;
     const { id_estado, id_municipio } = req.body;
     if (!id_estado) return res.status(400).json({ error: 'Se requiere id_estado' });
+    if (!(await puedeCapturarEnEntidad(req.usuario, tipo, id))) return rechazarCobertura(res);
     const registro = await geografiaQueries.agregarCobertura(tipo, id, id_estado, id_municipio);
     res.status(201).json({ datos: registro, mensaje: 'Cobertura agregada' });
   } catch (err) {
@@ -60,9 +80,14 @@ async function agregarCobertura(req, res, next) {
   }
 }
 
-// DELETE /cobertura/:id
+// DELETE /cobertura/:id — el id es de la fila de cobertura, no del nodo;
+// hay que resolver a qué nodo/proyecto pertenece antes de poder verificar
+// el permiso.
 async function eliminarCobertura(req, res, next) {
   try {
+    const fila = await geografiaQueries.obtenerCoberturaPorId(req.params.id);
+    if (!fila) return res.status(404).json({ error: 'Registro no encontrado' });
+    if (!(await puedeCapturarEnEntidad(req.usuario, fila.tipo_entidad, fila.id_entidad))) return rechazarCobertura(res);
     const eliminado = await geografiaQueries.eliminarCobertura(req.params.id);
     if (!eliminado) return res.status(404).json({ error: 'Registro no encontrado' });
     res.json({ mensaje: 'Cobertura eliminada' });

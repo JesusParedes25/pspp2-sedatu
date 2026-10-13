@@ -110,7 +110,8 @@ export default function GestorUsuariosProyecto({ proyecto, proyectoId, abrirInvi
   }
 
   async function handleAmpliarATodoElProyecto(m) {
-    if (!confirm(`¿Invitar a ${m.nombre_completo} a todo el proyecto como ${m.rol}? Podrá aceptar o rechazar la invitación.`)) return;
+    const etiquetaRol = (ROL_CFG[m.rol] || ROL_CFG.lectura).label;
+    if (!confirm(`¿Invitar a ${m.nombre_completo} a todo el proyecto como ${etiquetaRol}? Podrá aceptar o rechazar la invitación.`)) return;
     try {
       await crearInvitacion(proyectoId, m.id_usuario, m.rol);
       await cargar();
@@ -232,9 +233,10 @@ export default function GestorUsuariosProyecto({ proyecto, proyectoId, abrirInvi
 
 // ─── Participante Card ────────────────────────────────────────
 const ROL_CFG = {
+  administracion_proyecto: { label: 'Responsable', bg: '#7B1C3E',  badgeCls: 'bg-guinda-100 text-guinda-700 border-guinda-200' },
   responsable: { label: 'Responsable', bg: '#7B1C3E',  badgeCls: 'bg-guinda-100 text-guinda-700 border-guinda-200' },
-  colaborador:  { label: 'Colaborador', bg: '#1e40af',  badgeCls: 'bg-blue-100 text-blue-700 border-blue-200' },
-  invitado:     { label: 'Invitado',    bg: '#6b7280',  badgeCls: 'bg-gray-100 text-gray-600 border-gray-200' },
+  captura:      { label: 'Colaborador', bg: '#1e40af',  badgeCls: 'bg-blue-100 text-blue-700 border-blue-200' },
+  lectura:      { label: 'Invitado',    bg: '#6b7280',  badgeCls: 'bg-gray-100 text-gray-600 border-gray-200' },
 };
 
 function iniciales(nombre) {
@@ -251,9 +253,9 @@ function alcanceLabel(alcance, nodo_tipo, nodo_nombre) {
 }
 
 function ParticipanteCard({ miembro: m, puedeGestionar, puedeSalir, onEliminar, onCambiarRol, onAmpliarATodoElProyecto, mostrarAlcance = true }) {
-  const cfg = ROL_CFG[m.rol] || ROL_CFG.invitado;
+  const cfg = ROL_CFG[m.rol] || ROL_CFG.lectura;
   const scopeText = mostrarAlcance ? alcanceLabel(m.alcance, m.nodo_tipo, m.nodo_nombre) : null;
-  const puedeCambiarRol = puedeGestionar && m.rol !== 'invitado';
+  const puedeCambiarRol = puedeGestionar && m.rol !== 'lectura';
 
   return (
     <div className="relative group border border-gray-200 rounded-xl p-3 bg-white hover:shadow-sm transition-shadow flex flex-col gap-2">
@@ -293,7 +295,7 @@ function ParticipanteCard({ miembro: m, puedeGestionar, puedeSalir, onEliminar, 
               onClick={e => e.stopPropagation()}
               className={`mt-0.5 text-[10px] font-medium pl-1.5 pr-1 py-0 rounded-full border outline-none cursor-pointer ${cfg.badgeCls}`}
             >
-              <option value="colaborador">Colaborador</option>
+              <option value="captura">Colaborador</option>
               <option value="responsable">Responsable</option>
             </select>
           ) : (
@@ -361,7 +363,7 @@ function ModalInvitar({ proyectoId, onClose, onInvitado }) {
   const [cargandoU, setCargandoU] = useState(false);
   const [filtros, setFiltros] = useState({ id_dg: '', id_da: '', nombre: '' });
   const [seleccionado, setSeleccionado] = useState(null);
-  const [rol, setRol] = useState('colaborador');
+  const [rol, setRol] = useState('captura');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
   const [alcance, setAlcance] = useState('proyecto');
@@ -517,9 +519,9 @@ function ModalInvitar({ proyectoId, onClose, onInvitado }) {
                 <div>
                   <label className="text-xs text-gray-600 mr-1">Función:</label>
                   <select value={rol} onChange={e => setRol(e.target.value)} className="text-xs border border-gray-300 rounded px-2 py-1">
-                    <option value="colaborador">Colaborador</option>
+                    <option value="captura">Colaborador</option>
                     <option value="responsable">Responsable</option>
-                    {seleccionado?.rol === 'externo' && <option value="invitado">Invitado</option>}
+                    {seleccionado?.rol === 'externo' && <option value="lectura">Invitado</option>}
                   </select>
                 </div>
               </div>

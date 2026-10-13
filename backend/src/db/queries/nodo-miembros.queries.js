@@ -59,7 +59,7 @@ async function listarMiembros(tipo, idNodo, idProyecto, db) {
     LEFT JOIN usuarios inv ON inv.id = src.id_invitado_por
     ORDER BY
       src.es_responsable_principal DESC,
-      CASE src.rol WHEN 'responsable' THEN 1 WHEN 'colaborador' THEN 2 ELSE 3 END,
+      CASE src.rol WHEN 'responsable' THEN 1 WHEN 'captura' THEN 2 ELSE 3 END,
       u.nombre_completo
   `, [tipo, idNodo]);
 
@@ -100,7 +100,12 @@ async function listarMiembros(tipo, idNodo, idProyecto, db) {
   // — se muestra una sola vez, con su alcance de proyecto.
   const idsProyecto = new Set(filasProyecto.map(r => r.id_usuario));
   const filasNodo = rows.filter(r => !idsProyecto.has(r.id_usuario));
-  const peso = r => (r.rol === 'responsable' ? 1 : r.rol === 'colaborador' ? 2 : 3);
+  // r.rol puede venir de proyecto_usuarios (filasProyecto, donde el
+  // administrador del proyecto tiene rol='administracion_proyecto' desde
+  // la migración 079) o de nodo_miembros (filasNodo, solo responsable/
+  // captura/lectura) — administracion_proyecto pesa igual que responsable
+  // para este orden.
+  const peso = r => (r.rol === 'responsable' || r.rol === 'administracion_proyecto' ? 1 : r.rol === 'captura' ? 2 : 3);
 
   return [...filasProyecto, ...filasNodo].sort((a, b) => {
     if (a.alcance !== b.alcance) return a.alcance === 'proyecto' ? -1 : 1;
@@ -135,7 +140,7 @@ async function agregarMiembro(tipo, idNodo, idUsuario, rol, idInvitadoPor, db) {
           estado = CASE WHEN nodo_miembros.estado = 'rechazada' THEN 'pendiente' ELSE nodo_miembros.estado END,
           motivo_rechazo = CASE WHEN nodo_miembros.estado = 'rechazada' THEN NULL ELSE nodo_miembros.motivo_rechazo END
     RETURNING *
-  `, [tipo, idNodo, idUsuario, rol || 'colaborador', idInvitadoPor || null]);
+  `, [tipo, idNodo, idUsuario, rol || 'captura', idInvitadoPor || null]);
   return rows[0];
 }
 

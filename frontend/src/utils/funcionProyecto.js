@@ -89,7 +89,7 @@ export function calcularFuncion(proyecto, usuario, permisos) {
   const esCreador = usuario.id === proyecto.id_creador;
   const esMismaDG = !!usuario.id_dg && usuario.id_dg === proyecto.id_dg_lider;
 
-  if (esCreador || rolProyecto === 'responsable') return FUNCION.RESPONSABLE;
+  if (esCreador || rolProyecto === 'responsable' || rolProyecto === 'administracion_proyecto') return FUNCION.RESPONSABLE;
 
   // El superadmin administra la plataforma; el ejecutivo y el director
   // ejercen atribuciones sobre su ámbito. Ninguno participa en el
@@ -97,7 +97,7 @@ export function calcularFuncion(proyecto, usuario, permisos) {
   if (usuario.rol === 'superadmin') return FUNCION.ATRIBUCION;
   if ((usuario.rol === 'ejecutivo' || usuario.rol === 'direccion') && esMismaDG) return FUNCION.ATRIBUCION;
 
-  if (rolProyecto === 'colaborador') return FUNCION.COLABORADOR;
+  if (rolProyecto === 'colaborador' || rolProyecto === 'captura') return FUNCION.COLABORADOR;
 
   // Invitado solo a una etapa o acción: no participa en el proyecto
   // entero, pero tampoco es un lector. Solo el servidor lo sabe, así que

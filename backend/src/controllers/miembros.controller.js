@@ -3,10 +3,21 @@
  * PROPÓSITO: Endpoints para gestión de miembros e invitaciones de proyecto.
  */
 const miembrosQueries = require('../db/queries/miembros.queries');
-const { puedeGestionarParticipantes } = require('../utils/autorizacion');
+const { resolverAccesoProyecto } = require('../utils/autorizacion');
 const { registrarActividad } = require('../utils/actividad-log');
 const { crearNotificacion } = require('../utils/notificaciones');
 const pool = require('../db/pool');
+
+// Contrapeso de un permiso implícito (Fase 1 del modelo de permisos,
+// docs/modelo-permisos.md punto 4): cuando un ejecutivo gestiona
+// participantes de un proyecto SOLO por pertenecer a la misma DG (no por
+// estar invitado ni ser el creador), la bitácora debe decirlo.
+async function notaViaDG(acceso, usuario) {
+  if (acceso.via !== 'ejecutivo_dg' || !usuario?.id_dg) return '';
+  const { rows } = await pool.query('SELECT siglas FROM direcciones_generales WHERE id = $1', [usuario.id_dg]);
+  const dg = rows[0]?.siglas || 'su DG';
+  return ` (por su perfil de ejecutivo de ${dg})`;
+}
 
 // Notifica al usuario que fue agregado a un proyecto. No lanza error: si
 // falla, la membresía ya quedó creada (lo importante) y no queremos que
@@ -125,26 +136,24 @@ async function agregarMiembro(req, res, next) {
     if (!id_usuario || !rol) {
       return res.status(400).json({ mensaje: 'id_usuario y rol son requeridos' });
     }
-    // Regla única en utils/autorizacion.js: responsable o creador del
-    // proyecto, la Dirección General que lo lidera, o los cargos con
-    // alcance institucional (superadmin, ejecutivo).
-    const puedeGestionar = await puedeGestionarParticipantes({ usuario: req.usuario, idProyecto: req.params.id });
-    if (!puedeGestionar) {
+    // Peldaño mínimo 'responsable' a nivel proyecto (docs/modelo-permisos.md).
+    const acceso = await resolverAccesoProyecto(req.usuario, req.params.id, 'responsable');
+    if (!acceso.permitido) {
       return res.status(403).json({ mensaje: 'No tienes permisos para gestionar miembros' });
     }
 
-    // Cambiar la función del único responsable a 'colaborador' deja el
-    // proyecto sin dueño igual que quitarlo. Mismo freno.
-    if (rol !== 'responsable' && await miembrosQueries.esUnicoResponsable(req.params.id, id_usuario)) {
+    // Cambiar la función del único administrador a cualquier otro peldaño
+    // deja el proyecto sin dueño igual que quitarlo. Mismo freno.
+    if (rol !== 'administracion_proyecto' && await miembrosQueries.esUnicoAdministrador(req.params.id, id_usuario)) {
       return res.status(409).json({
         error: true,
         codigo: 'ULTIMO_RESPONSABLE',
-        mensaje: 'Este proyecto se quedaría sin responsable. Designa antes a otra persona como responsable y vuelve a intentarlo.',
+        mensaje: 'Este proyecto se quedaría sin administrador. Designa antes a otra persona como administradora y vuelve a intentarlo.',
       });
     }
 
     const miembro = await miembrosQueries.agregarMiembro(req.params.id, id_usuario, rol, req.usuario.id);
-    await registrarActividad({ id_proyecto: req.params.id, id_usuario: req.usuario.id, tipo: 'miembro', titulo: 'Nuevo miembro agregado al proyecto', entidad_tipo: 'proyecto', entidad_id: req.params.id, metadata: { id_usuario_nuevo: id_usuario, rol } });
+    await registrarActividad({ id_proyecto: req.params.id, id_usuario: req.usuario.id, tipo: 'miembro', titulo: 'Nuevo miembro agregado al proyecto', descripcion: `Agregado por ${req.usuario.nombre_completo}${await notaViaDG(acceso, req.usuario)}.`, entidad_tipo: 'proyecto', entidad_id: req.params.id, metadata: { id_usuario_nuevo: id_usuario, rol } });
     await notificarNuevoMiembro(req.params.id, id_usuario, rol, req.usuario.nombre_completo);
     res.status(201).json({ datos: miembro, mensaje: 'Miembro agregado' });
   } catch (err) { next(err); }
@@ -160,19 +169,19 @@ async function eliminarMiembro(req, res, next) {
     // facultad de gestionar participantes.
     const esAutoeliminacion = req.usuario?.id === userId;
     if (!esAutoeliminacion) {
-      const puedeGestionar = await puedeGestionarParticipantes({ usuario: req.usuario, idProyecto: id });
-      if (!puedeGestionar) {
+      const acceso = await resolverAccesoProyecto(req.usuario, id, 'responsable');
+      if (!acceso.permitido) {
         return res.status(403).json({ mensaje: 'No tienes permisos para eliminar miembros' });
       }
     }
-    // Ningún proyecto debe quedarse sin responsable: sin él no hay a quién
-    // avisarle las solicitudes ni quién designe participantes. Aplica
-    // también cuando alguien se quita a sí mismo.
-    if (await miembrosQueries.esUnicoResponsable(id, userId)) {
+    // Ningún proyecto debe quedarse sin administrador: sin él no hay a
+    // quién avisarle las solicitudes ni quién designe participantes.
+    // Aplica también cuando alguien se quita a sí mismo.
+    if (await miembrosQueries.esUnicoAdministrador(id, userId)) {
       return res.status(409).json({
         error: true,
         codigo: 'ULTIMO_RESPONSABLE',
-        mensaje: 'Este proyecto se quedaría sin responsable. Designa antes a otra persona como responsable y vuelve a intentarlo.',
+        mensaje: 'Este proyecto se quedaría sin administrador. Designa antes a otra persona como administradora y vuelve a intentarlo.',
       });
     }
 
@@ -193,8 +202,8 @@ async function crearInvitacion(req, res, next) {
     if (!id_usuario) {
       return res.status(400).json({ mensaje: 'id_usuario es requerido' });
     }
-    const puedeInvitar = await puedeGestionarParticipantes({ usuario: req.usuario, idProyecto: req.params.id });
-    if (!puedeInvitar) {
+    const acceso = await resolverAccesoProyecto(req.usuario, req.params.id, 'responsable');
+    if (!acceso.permitido) {
       return res.status(403).json({ mensaje: 'No tienes permisos para invitar usuarios' });
     }
 
@@ -207,41 +216,11 @@ async function crearInvitacion(req, res, next) {
       return res.status(409).json({ mensaje: 'Este usuario ya es miembro del proyecto' });
     }
 
-    const miembro = await miembrosQueries.agregarMiembro(req.params.id, id_usuario, rol || 'colaborador', req.usuario.id);
-    await registrarActividad({ id_proyecto: req.params.id, id_usuario: req.usuario.id, tipo: 'miembro', titulo: 'Usuario agregado al proyecto', entidad_tipo: 'proyecto', entidad_id: req.params.id, metadata: { id_usuario_nuevo: id_usuario, rol } });
-    await notificarNuevoMiembro(req.params.id, id_usuario, rol || 'colaborador', req.usuario.nombre_completo);
+    const rolFinal = rol || 'captura';
+    const miembro = await miembrosQueries.agregarMiembro(req.params.id, id_usuario, rolFinal, req.usuario.id);
+    await registrarActividad({ id_proyecto: req.params.id, id_usuario: req.usuario.id, tipo: 'miembro', titulo: 'Usuario agregado al proyecto', descripcion: `Agregado por ${req.usuario.nombre_completo}${await notaViaDG(acceso, req.usuario)}.`, entidad_tipo: 'proyecto', entidad_id: req.params.id, metadata: { id_usuario_nuevo: id_usuario, rol: rolFinal } });
+    await notificarNuevoMiembro(req.params.id, id_usuario, rolFinal, req.usuario.nombre_completo);
     res.status(201).json({ datos: miembro, mensaje: 'Usuario agregado al proyecto' });
-  } catch (err) { next(err); }
-}
-
-// GET /proyectos/:id/invitaciones
-async function listarInvitaciones(req, res, next) {
-  try {
-    const invitaciones = await miembrosQueries.listarInvitaciones(req.params.id);
-    res.json({ datos: invitaciones });
-  } catch (err) { next(err); }
-}
-
-// POST /invitaciones/:token/aceptar
-async function aceptarInvitacion(req, res, next) {
-  try {
-    const { token } = req.params;
-    const resultado = await miembrosQueries.aceptarInvitacion(token, req.usuario.id);
-    if (!resultado) {
-      return res.status(404).json({ mensaje: 'Invitación no encontrada o ya procesada' });
-    }
-    res.json({ datos: resultado, mensaje: 'Invitación aceptada, ahora eres miembro del proyecto' });
-  } catch (err) { next(err); }
-}
-
-// DELETE /invitaciones/:id — cancel a pending invitation
-async function cancelarInvitacion(req, res, next) {
-  try {
-    const resultado = await miembrosQueries.cancelarInvitacion(req.params.id);
-    if (!resultado) {
-      return res.status(404).json({ mensaje: 'Invitación no encontrada o ya procesada' });
-    }
-    res.json({ mensaje: 'Invitación cancelada' });
   } catch (err) { next(err); }
 }
 
@@ -252,7 +231,4 @@ module.exports = {
   agregarMiembro,
   eliminarMiembro,
   crearInvitacion,
-  listarInvitaciones,
-  aceptarInvitacion,
-  cancelarInvitacion
 };

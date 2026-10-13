@@ -17,8 +17,13 @@
  *       externo    — participa solo en lo que se le asigna
  *
  *   • FUNCIÓN — lo que hace en ESTE proyecto (o en esta etapa/acción).
- *     Vive en proyecto_usuarios.rol y nodo_miembros.rol:
- *       responsable / colaborador / invitado
+ *     Vive en proyecto_usuarios.rol y nodo_miembros.rol, como una
+ *     escalera de cuatro peldaños (lectura/captura/responsable/
+ *     administracion_proyecto — el último solo existe a nivel
+ *     proyecto, nunca en un nodo). Este archivo sigue mostrando las
+ *     mismas tres etiquetas de siempre (Responsable/Colaborador/
+ *     Invitado); "administracion_proyecto" se muestra como
+ *     Responsable, igual que antes de la migración 079.
  *
  * Regla corta: el perfil dice DÓNDE alcanza, la función dice QUÉ hace.
  *
@@ -125,7 +130,7 @@ export function usePermisosProyecto(proyecto) {
     const esMismaDG = !!usuario.id_dg && usuario.id_dg === proyecto.id_dg_lider;
     const esCreador = usuario.id === proyecto.id_creador;
     const funcionProyecto = proyecto.rol_usuario_actual;
-    const esResponsableProyecto = funcionProyecto === 'responsable';
+    const esResponsableProyecto = funcionProyecto === 'responsable' || funcionProyecto === 'administracion_proyecto';
     // Participar es estar escrito en el proyecto. Pertenecer al área que
     // lo lidera ya NO cuenta como participar: si el área tiene que
     // capturar, a alguien de esa área se le invita, y así queda quién.

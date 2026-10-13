@@ -15,23 +15,8 @@ export async function eliminarMiembro(proyectoId, userId) {
   return data;
 }
 
-export async function listarInvitaciones(proyectoId) {
-  const { data } = await client.get(`/proyectos/${proyectoId}/invitaciones`);
-  return data.datos;
-}
-
-export async function crearInvitacion(proyectoId, id_usuario, rol = 'colaborador') {
+export async function crearInvitacion(proyectoId, id_usuario, rol = 'captura') {
   const { data } = await client.post(`/proyectos/${proyectoId}/invitaciones`, { id_usuario, rol });
-  return data;
-}
-
-export async function aceptarInvitacion(token) {
-  const { data } = await client.post(`/invitaciones/${token}/aceptar`);
-  return data;
-}
-
-export async function cancelarInvitacion(invitacionId) {
-  const { data } = await client.delete(`/invitaciones/${invitacionId}`);
   return data;
 }
 

@@ -294,10 +294,13 @@ async function obtenerSubarbol(etapaId, db) {
            (SELECT COALESCE(json_agg(json_build_object('cve_mun', em.cve_mun, 'nombre', gm.nombre) ORDER BY gm.nombre), '[]'::json)
               FROM etapa_municipios em JOIN geo_municipios gm ON gm.cvegeo = em.cve_mun
               WHERE em.etapa_id = e.id) AS municipios,
+           -- 'captura' (antes 'colaborador', migración 079 del modelo de
+           -- permisos) — comparar contra el nombre viejo aquí dejaría esta
+           -- lista siempre vacía sin que ningún error lo delatara.
            (SELECT COALESCE(json_agg(json_build_object('id', nm.id_usuario, 'nombre', u2.nombre_completo)), '[]'::json)
               FROM nodo_miembros nm JOIN usuarios u2 ON u2.id = nm.id_usuario
               WHERE nm.tipo_nodo = 'etapa' AND nm.id_nodo = e.id
-                AND nm.rol = 'colaborador' AND nm.estado = 'aceptada') AS colaboradores,
+                AND nm.rol = 'captura' AND nm.estado = 'aceptada') AS colaboradores,
            (SELECT COUNT(*)::int FROM riesgos r WHERE r.entidad_tipo = 'Etapa' AND r.entidad_id = e.id
               AND r.estado IN ('Abierto','En_mitigacion')) AS riesgos_abiertos
     FROM etapas e
@@ -320,7 +323,7 @@ async function obtenerSubarbol(etapaId, db) {
            (SELECT COALESCE(json_agg(json_build_object('id', nm.id_usuario, 'nombre', u2.nombre_completo)), '[]'::json)
               FROM nodo_miembros nm JOIN usuarios u2 ON u2.id = nm.id_usuario
               WHERE nm.tipo_nodo = 'accion' AND nm.id_nodo = a.id
-                AND nm.rol = 'colaborador' AND nm.estado = 'aceptada') AS colaboradores,
+                AND nm.rol = 'captura' AND nm.estado = 'aceptada') AS colaboradores,
            (SELECT COUNT(*)::int FROM riesgos r WHERE r.entidad_tipo = 'Accion' AND r.entidad_id = a.id
               AND r.estado IN ('Abierto','En_mitigacion')) AS riesgos_abiertos
     FROM acciones a
@@ -353,7 +356,7 @@ async function obtenerSubarbol(etapaId, db) {
              (SELECT COALESCE(json_agg(json_build_object('id', nm.id_usuario, 'nombre', u2.nombre_completo)), '[]'::json)
                 FROM nodo_miembros nm JOIN usuarios u2 ON u2.id = nm.id_usuario
                 WHERE nm.tipo_nodo = 'accion' AND nm.id_nodo = s.id
-                  AND nm.rol = 'colaborador' AND nm.estado = 'aceptada') AS colaboradores,
+                  AND nm.rol = 'captura' AND nm.estado = 'aceptada') AS colaboradores,
              (SELECT COUNT(*)::int FROM riesgos r WHERE r.entidad_tipo = 'Subaccion' AND r.entidad_id = s.id
                 AND r.estado IN ('Abierto','En_mitigacion')) AS riesgos_abiertos
       FROM acciones s
@@ -393,7 +396,7 @@ async function tareasDe(idAccion, conn) {
            (SELECT COALESCE(json_agg(json_build_object('id', nm.id_usuario, 'nombre', u2.nombre_completo)), '[]'::json)
               FROM nodo_miembros nm JOIN usuarios u2 ON u2.id = nm.id_usuario
               WHERE nm.tipo_nodo = 'tarea' AND nm.id_nodo = t.id
-                AND nm.rol = 'colaborador' AND nm.estado = 'aceptada') AS colaboradores,
+                AND nm.rol = 'captura' AND nm.estado = 'aceptada') AS colaboradores,
            (SELECT COUNT(*)::int FROM riesgos r WHERE r.entidad_tipo = 'Tarea' AND r.entidad_id = t.id
               AND r.estado IN ('Abierto','En_mitigacion')) AS riesgos_abiertos
     FROM tareas t

@@ -48,9 +48,14 @@ async function nodosEditablesUsuario(proyectoId, usuarioId, db) {
   );
 
   // Asignaciones explícitas: nodo_miembros aceptados + la columna id_responsable.
+  // 'lectura' queda fuera a propósito (Fase 1 del modelo de permisos,
+  // docs/modelo-permisos.md 6.1): antes CUALQUIER fila aceptada contaba
+  // como editable sin mirar el rol — así 'invitado' (hoy 'lectura') daba
+  // capacidad de captura igual que 'responsable'/'colaborador', pese a
+  // que la intención siempre fue "ver sin capturar".
   const { rows: miembros } = await conn.query(`
     SELECT tipo_nodo, id_nodo FROM nodo_miembros
-    WHERE id_usuario = $1 AND estado = 'aceptada'
+    WHERE id_usuario = $1 AND estado = 'aceptada' AND rol != 'lectura'
       AND (
         (tipo_nodo = 'etapa'  AND id_nodo = ANY($2::uuid[])) OR
         (tipo_nodo = 'accion' AND id_nodo = ANY($3::uuid[])) OR
