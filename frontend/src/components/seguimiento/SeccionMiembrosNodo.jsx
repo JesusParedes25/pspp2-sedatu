@@ -2,12 +2,13 @@
  * ARCHIVO: SeccionMiembrosNodo.jsx
  * PROPÓSITO: Quién trabaja en esta etapa, acción o tarea, y con qué función.
  *
- * MINI-CLASE: función, estado de la invitación y la función "invitado"
+ * MINI-CLASE: función, estado de la invitación y la función "lectura"
  * ─────────────────────────────────────────────────────────────────
- * FUNCIÓN es lo que la persona hace aquí: responsable, colaborador o
- * —solo para gente ajena a la Secretaría— invitado, que ve sin capturar.
- * No confundir con el PERFIL (usuarios.rol), que es lo que la persona es
- * en SEDATU y no cambia de un proyecto a otro.
+ * FUNCIÓN es lo que la persona hace aquí: responsable, captura (rol en
+ * nodo_miembros, mostrado como "Colaborador") o —solo para gente ajena
+ * a la Secretaría— lectura (mostrado como "Invitado"), que ve sin
+ * capturar. No confundir con el PERFIL (usuarios.rol), que es lo que la
+ * persona es en SEDATU y no cambia de un proyecto a otro.
  *
  * Agregar a alguien ya no lo mete de golpe: le llega una invitación que
  * puede aceptar o rechazar, y hasta entonces no tiene permisos. Por eso

@@ -18,7 +18,7 @@ async function test() {
   console.log('   OK, rol:', rol);
 
   console.log('3. agregarMiembro...');
-  const m = await miembrosQueries.agregarMiembro(proyectoId, userId, 'colaborador', invitadoPor);
+  const m = await miembrosQueries.agregarMiembro(proyectoId, userId, 'captura', invitadoPor);
   console.log('   OK:', JSON.stringify(m));
 }
 

@@ -508,7 +508,7 @@ async function obtenerAccionesAgenda(usuarioId) {
       WHERE COALESCE(e.fecha_limite, e.fecha_fin) IS NOT NULL
         AND (p.id_creador = $1 OR EXISTS (
           SELECT 1 FROM proyecto_usuarios pu
-          WHERE pu.id_proyecto = p.id AND pu.id_usuario = $1 AND pu.rol = 'responsable'
+          WHERE pu.id_proyecto = p.id AND pu.id_usuario = $1 AND pu.rol IN ('responsable', 'administracion_proyecto')
         ))
         AND (e.id_responsable IS NULL OR e.id_responsable != $1)
         AND NOT EXISTS (
@@ -534,7 +534,7 @@ async function obtenerAccionesAgenda(usuarioId) {
       WHERE COALESCE(a.fecha_limite, a.fecha_fin) IS NOT NULL
         AND (p.id_creador = $1 OR EXISTS (
           SELECT 1 FROM proyecto_usuarios pu
-          WHERE pu.id_proyecto = p.id AND pu.id_usuario = $1 AND pu.rol = 'responsable'
+          WHERE pu.id_proyecto = p.id AND pu.id_usuario = $1 AND pu.rol IN ('responsable', 'administracion_proyecto')
         ))
         AND (a.id_responsable IS NULL OR a.id_responsable != $1)
         AND NOT EXISTS (
@@ -560,7 +560,7 @@ async function obtenerAccionesAgenda(usuarioId) {
       WHERE t.fecha_limite IS NOT NULL
         AND (p.id_creador = $1 OR EXISTS (
           SELECT 1 FROM proyecto_usuarios pu
-          WHERE pu.id_proyecto = p.id AND pu.id_usuario = $1 AND pu.rol = 'responsable'
+          WHERE pu.id_proyecto = p.id AND pu.id_usuario = $1 AND pu.rol IN ('responsable', 'administracion_proyecto')
         ))
         AND (t.id_responsable IS NULL OR t.id_responsable != $1)
 
@@ -569,10 +569,13 @@ async function obtenerAccionesAgenda(usuarioId) {
       SELECT DISTINCT ON (tipo, id) *
       FROM todas
       ORDER BY tipo, id,
+        -- mi_rol sale de nm.rol en las ramas "miembro de nodo" (ya
+        -- 'captura'/'lectura' desde la migración 079) o de los literales
+        -- 'responsable'/'coordinador' de las demás ramas de este UNION.
         CASE mi_rol
           WHEN 'responsable' THEN 1
-          WHEN 'colaborador' THEN 2
-          WHEN 'invitado'    THEN 3
+          WHEN 'captura'     THEN 2
+          WHEN 'lectura'     THEN 3
           WHEN 'coordinador' THEN 4
           ELSE 5
         END

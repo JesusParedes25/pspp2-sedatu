@@ -38,7 +38,7 @@ async function main() {
   if (!user) { console.log('No hay usuarios fuera del proyecto'); return; }
 
   // 3. Invite user
-  const inv = await req('POST', `/api/v1/proyectos/${proyectoId}/invitaciones`, { id_usuario: user.id, rol: 'colaborador' }, token);
+  const inv = await req('POST', `/api/v1/proyectos/${proyectoId}/invitaciones`, { id_usuario: user.id, rol: 'captura' }, token);
   console.log('3. POST /invitaciones:', inv.status, '|', inv.body.mensaje || inv.body.error);
 
   if (inv.status !== 201) {

@@ -202,7 +202,7 @@ async function destinatariosDe(idProyecto, db) {
     WITH responsables AS (
       SELECT pu.id_usuario
       FROM proyecto_usuarios pu
-      WHERE pu.id_proyecto = $1 AND pu.rol = 'responsable' AND pu.estado = 'aceptada'
+      WHERE pu.id_proyecto = $1 AND pu.rol IN ('responsable', 'administracion_proyecto') AND pu.estado = 'aceptada'
     ),
     areas AS (
       SELECT DISTINCT u.id_direccion_area
@@ -257,7 +257,7 @@ async function pendientesQuePuedeResolver(usuario, db) {
         OR EXISTS (
           SELECT 1 FROM proyecto_usuarios pu
           WHERE pu.id_proyecto = p.id AND pu.id_usuario = $1
-            AND pu.rol = 'responsable' AND pu.estado = 'aceptada'
+            AND pu.rol IN ('responsable', 'administracion_proyecto') AND pu.estado = 'aceptada'
         )
       )
     ORDER BY s.created_at DESC

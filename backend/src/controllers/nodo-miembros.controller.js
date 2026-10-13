@@ -68,7 +68,7 @@ async function notificarNuevoMiembroNodo(tipo, idNodo, idUsuarioNuevo, rol, quie
     const nombreNodo = await nombreDeNodo(tipo, idNodo);
     await crearNotificacion({
       tipo: 'Invitacion',
-      mensaje: `${quienInvita || 'Alguien'} te invitó a ${ETIQUETA_POR_TIPO[tipo]} "${nombreNodo}" como ${rol || 'colaborador'}. Puedes aceptar o rechazar la invitación.`,
+      mensaje: `${quienInvita || 'Alguien'} te invitó a ${ETIQUETA_POR_TIPO[tipo]} "${nombreNodo}" como ${ETIQUETA_ROL[rol] || rol || 'colaborador'}. Puedes aceptar o rechazar la invitación.`,
       entidadTipo: ENTIDAD_TIPO_POR_TIPO[tipo],
       entidadId: idNodo,
       idUsuario: idUsuarioNuevo,
