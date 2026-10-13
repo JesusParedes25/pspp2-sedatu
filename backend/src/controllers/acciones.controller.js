@@ -18,6 +18,7 @@ const { cambiarEstado: cambiarEstadoUtil, tipoRealAccion, verificarAutoCompletar
 const { recalcularEtapa, recalcularProyecto } = require('../utils/recalculos');
 const avanceSemaforo = require('../utils/avance-semaforo');
 const { recalcularAportacionesProyecto } = require('../db/queries/aportaciones.queries');
+const { tienePeldanoNodo, minimoParaPatchNodo } = require('../utils/autorizacion');
 const municipiosNodoQueries = require('../db/queries/municipios-nodo.queries');
 const { sincronizarCobertura } = require('../db/queries/cobertura-sync.queries');
 const { recalcularIndicadoresProyecto } = require('../db/queries/indicadores.queries');
@@ -304,12 +305,27 @@ async function patchCampo(req, res, next) {
 }
 
 // PATCH /acciones/:id — Actualizar avance/semáforo/estatus/prioridad/fecha_limite
+//
+// Mezcla "registrar avance" (captura) y "editar la ficha" (responsable)
+// bajo una sola ruta — mínimo según los campos del payload, ver
+// minimoParaPatchNodo en utils/autorizacion.js.
 async function patchAvanceSemaforo(req, res, next) {
   const accionId = req.params.id;
   const { avance_actual, semaforo, estado, prioridad, fecha_limite, fecha_inicio,
           escala_territorial, instrumento, cve_ent, cve_mun, id_zm, tipo, id_responsable,
           instancia_responsable, enlace_responsable, nombre, descripcion, observaciones,
           estatus_cualitativo, municipios, motivo_bloqueo, nota_resolucion } = req.body;
+
+  const minimo = minimoParaPatchNodo(req.body);
+  if (!(await tienePeldanoNodo(req.usuario, 'accion', accionId, minimo))) {
+    return res.status(403).json({
+      error: true,
+      mensaje: minimo === 'responsable'
+        ? 'Editar la ficha requiere ser responsable aquí, no solo poder capturar.'
+        : 'No tienes permisos para capturar en este proyecto.',
+      codigo: 'NO_AUTORIZADO',
+    });
+  }
 
   const client = await pool.connect();
   try {

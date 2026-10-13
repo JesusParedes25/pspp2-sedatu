@@ -20,7 +20,10 @@ const router = Router();
 
 router.get('/:id', accionesController.obtenerPorId);
 router.put('/:id', exigirEdicionNodo('accion'), accionesController.actualizar);
-router.patch('/:id', exigirEdicionNodo('accion'), accionesController.patchAvanceSemaforo);
+// Sin exigirEdicionNodo aquí a propósito: ver el comentario equivalente
+// en etapas.routes.js — el controller decide el mínimo por los campos
+// del payload (minimoParaPatchNodo en utils/autorizacion.js).
+router.patch('/:id', accionesController.patchAvanceSemaforo);
 router.patch('/:id/campo', exigirEdicionNodo('accion'), accionesController.patchCampo);
 router.delete('/:id', accionesController.eliminar);   // verifica adentro (puedeGestionarNodo)
 

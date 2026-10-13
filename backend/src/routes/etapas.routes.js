@@ -24,7 +24,11 @@ const router = Router();
 router.get('/:id/indicadores', indicadoresController.listarPorEtapa);
 router.get('/:id', etapasController.obtenerPorId);
 router.put('/:id', exigirEdicionNodo('etapa'), etapasController.actualizar);
-router.patch('/:id', exigirEdicionNodo('etapa'), etapasController.patchAvanceSemaforo);
+// Sin exigirEdicionNodo aquí a propósito: este endpoint mezcla registrar
+// avance (requiere 'captura') y editar la ficha (requiere 'responsable')
+// bajo la misma ruta — el controller decide el mínimo según los campos
+// del payload (ver minimoParaPatchNodo en utils/autorizacion.js).
+router.patch('/:id', etapasController.patchAvanceSemaforo);
 router.patch('/:id/campo', exigirEdicionNodo('etapa'), etapasController.patchCampo);
 router.post('/:id/duplicar', exigirEdicionNodo('etapa'), etapasController.duplicar);
 router.delete('/:id', etapasController.eliminar);   // verifica adentro (puedeGestionarNodo)

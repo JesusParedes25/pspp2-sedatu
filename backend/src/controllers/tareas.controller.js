@@ -10,7 +10,7 @@ const { recalcularEtapa, recalcularProyecto } = require('../utils/recalculos');
 const actividadQueries = require('../db/queries/actividad.queries');
 const municipiosNodoQueries = require('../db/queries/municipios-nodo.queries');
 const { sincronizarCobertura } = require('../db/queries/cobertura-sync.queries');
-const { puedeGestionarNodo } = require('../utils/autorizacion');
+const { puedeGestionarNodo, tienePeldanoNodo, minimoParaPatchNodo } = require('../utils/autorizacion');
 const { cambiarEstado: cambiarEstadoUtil } = require('../utils/validaciones-estado');
 
 async function listar(req, res, next) {
@@ -121,8 +121,23 @@ async function eliminar(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Mezcla "registrar avance" (captura) y "editar la ficha" (responsable)
+// bajo una sola ruta — mínimo según los campos del payload, ver
+// minimoParaPatchNodo en utils/autorizacion.js.
 async function patchAvanceSemaforo(req, res, next) {
   const pool = require('../db/pool');
+
+  const minimo = minimoParaPatchNodo(req.body);
+  if (!(await tienePeldanoNodo(req.usuario, 'tarea', req.params.id, minimo))) {
+    return res.status(403).json({
+      error: true,
+      mensaje: minimo === 'responsable'
+        ? 'Editar la ficha requiere ser responsable aquí, no solo poder capturar.'
+        : 'No tienes permisos para capturar en este proyecto.',
+      codigo: 'NO_AUTORIZADO',
+    });
+  }
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');

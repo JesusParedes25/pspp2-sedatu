@@ -292,6 +292,7 @@ router.post('/carteras', carterasController.crear);
 router.get('/carteras/:id', carterasController.obtener);
 router.put('/carteras/:id', carterasController.actualizar);
 router.delete('/carteras/:id', carterasController.eliminar);
+router.patch('/carteras/:id/administrador', carterasController.reasignarAdministrador);
 router.get('/carteras/:id/confirmar-eliminar', carterasController.confirmarEliminar);
 router.get('/carteras/:id/proyectos', carterasController.listarProyectos);
 router.get('/carteras/:id/resumen', carterasController.resumen);

@@ -148,6 +148,48 @@ async function puedeGestionarProyecto({ usuario, idProyecto }, db) {
   return tienePeldanoProyecto(usuario, idProyecto, 'administracion_proyecto', db);
 }
 
+// ─── PATCH /etapas|acciones|tareas/:id — mínimo según los campos del
+// payload (punto 5 de la ronda de correcciones) ────────────────────
+// Este único endpoint mezcla dos acciones de naturaleza distinta:
+// "registrar avance" (avance_actual, estatus_cualitativo, y los cambios
+// de estado/territorio que viajan con la misma lógica de seguimiento)
+// y "editar la ficha" (nombre, fechas, prioridad, instrumento y demás
+// metadatos estructurales). Resuelto por los campos presentes en el
+// payload, sin partir el endpoint en dos: si viene AL MENOS un campo de
+// ficha, exige 'responsable'; si no viene ninguno, basta 'captura'
+// (cubre avance_actual/estatus_cualitativo solos, o junto con estado,
+// motivo_bloqueo/nota_resolucion, o los campos de territorio — todos
+// comparten el nivel de "dar seguimiento", no de "editar la ficha").
+const CAMPOS_FICHA_NODO = [
+  'nombre', 'descripcion', 'tipo', 'id_responsable',
+  'prioridad', 'fecha_inicio', 'fecha_limite',
+  'instrumento', 'escala_territorial',
+  'instancia_responsable', 'enlace_responsable',
+  'semaforo', 'observaciones',
+];
+
+function minimoParaPatchNodo(body) {
+  const traeCampoFicha = CAMPOS_FICHA_NODO.some(campo => body[campo] !== undefined);
+  return traeCampoFicha ? 'responsable' : 'captura';
+}
+
+// ─── ¿Puede VER el proyecto (aunque no lo edite)? ─────────────────
+// "Todos ven todos los proyectos, pero solo captura quien está escrito
+// en ellos" (ver BotonSolicitarParticipar.jsx): dentro de SEDATU la
+// visibilidad ya es total, sin importar el peldaño de la escalera —
+// 'lectura' como peldaño solo existe para dar visibilidad puntual a
+// alguien de fuera de la Secretaría. Por eso esto NO es un alias de
+// tienePeldanoProyecto(..., 'lectura'): un 'enlace' sin ninguna fila en
+// proyecto_usuarios/nodo_miembros igual puede VER cualquier proyecto
+// (solo no puede editarlo) — lo usa, por ejemplo, agregar un proyecto a
+// una cartera, que exige "al menos poder ver" el proyecto, no un
+// peldaño formal sobre él.
+async function puedeVerProyecto(usuario, idProyecto, db) {
+  if (!usuario || !idProyecto) return false;
+  if (usuario.rol !== 'externo') return true;
+  return tienePeldanoProyecto(usuario, idProyecto, 'lectura', db);
+}
+
 module.exports = {
   obtenerProyectoIdDeNodo,
   // Primitivas genéricas (para quien necesite el peldaño/vía exactos,
@@ -160,6 +202,8 @@ module.exports = {
   // Facultades con nombre, usadas por controllers y middleware.
   puedeGestionarProyecto,
   puedeEditarProyecto,
+  puedeVerProyecto,
+  minimoParaPatchNodo,
   puedeGestionarParticipantes,
   puedeEditarContenidoProyecto,
   puedeEditarNodo,

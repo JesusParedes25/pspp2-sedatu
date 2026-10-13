@@ -53,6 +53,17 @@ BEGIN
   -- ─── proyecto_usuarios: mismo patrón ───
   ALTER TABLE proyecto_usuarios DROP CONSTRAINT IF EXISTS proyecto_usuarios_rol_check;
 
+  -- La columna nacía VARCHAR(20) (migración 030) — suficiente para
+  -- 'responsable'/'colaborador', pero NO para 'administracion_proyecto'
+  -- (23 caracteres). Sin este ALTER, el UPDATE de abajo falla con
+  -- "value too long for type character varying(20)" — se descubrió
+  -- corriendo esta migración por primera vez contra una base con el
+  -- esquema real completo, nunca se había ejecutado antes. TEXT en vez
+  -- de un VARCHAR(N) más grande, mismo criterio ya usado en
+  -- nodo_miembros.rol (migración 033): sin tope artificial que un
+  -- peldaño futuro pueda volver a golpear.
+  ALTER TABLE proyecto_usuarios ALTER COLUMN rol TYPE TEXT;
+
   UPDATE proyecto_usuarios SET rol = 'captura' WHERE rol = 'colaborador';
 
   -- El creador, si ya tiene fila, sube a administracion_proyecto.
@@ -149,6 +160,9 @@ END$$;
 --   -- dato exacto previo a la migración — si eso importa, restaurar
 --   -- desde el respaldo de antes de aplicar 079 en vez de usar este DOWN).
 --   UPDATE proyecto_usuarios SET rol = 'responsable' WHERE rol = 'administracion_proyecto';
+--   -- Recién aquí, con 'administracion_proyecto' ya convertido, cabe
+--   -- volver a VARCHAR(20) sin que ningún valor restante lo exceda.
+--   ALTER TABLE proyecto_usuarios ALTER COLUMN rol TYPE VARCHAR(20);
 --   ALTER TABLE proyecto_usuarios ADD CONSTRAINT proyecto_usuarios_rol_check
 --     CHECK (rol IN ('responsable', 'colaborador'));
 --

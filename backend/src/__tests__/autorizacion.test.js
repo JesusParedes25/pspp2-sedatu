@@ -138,6 +138,32 @@ describe('puedeGestionarNodo (eliminar / crear hijo) — evalúa el PADRE, no el
   });
 });
 
+describe('puedeVerProyecto — visibilidad universal dentro de SEDATU, salvo externo', () => {
+  test('un perfil interno sin ninguna relación con el proyecto igual puede verlo', async () => {
+    mockFuncionEfectivaEnProyecto.mockResolvedValueOnce(null);
+    expect(await autorizacion.puedeVerProyecto(USUARIO, UUID_1)).toBe(true);
+    // Ni siquiera consulta funcionEfectiva: la visibilidad no depende del peldaño.
+    expect(mockFuncionEfectivaEnProyecto).not.toHaveBeenCalled();
+  });
+
+  test("un perfil 'externo' sin ninguna invitación no puede ver el proyecto", async () => {
+    mockFuncionEfectivaEnProyecto.mockResolvedValueOnce(null);
+    const externo = { id: UUID_1, rol: 'externo' };
+    expect(await autorizacion.puedeVerProyecto(externo, UUID_1)).toBe(false);
+  });
+
+  test("un perfil 'externo' con una invitación aceptada (aunque sea 'lectura') sí puede verlo", async () => {
+    mockFuncionEfectivaEnProyecto.mockResolvedValueOnce({ peldano: 'lectura', via: 'proyecto' });
+    const externo = { id: UUID_1, rol: 'externo' };
+    expect(await autorizacion.puedeVerProyecto(externo, UUID_1)).toBe(true);
+  });
+
+  test('sin usuario o sin idProyecto, siempre false', async () => {
+    expect(await autorizacion.puedeVerProyecto(null, UUID_1)).toBe(false);
+    expect(await autorizacion.puedeVerProyecto(USUARIO, null)).toBe(false);
+  });
+});
+
 describe('resolverAccesoProyecto / resolverAccesoNodo — devuelven la vía para la bitácora', () => {
   test('propaga peldano y via sin transformarlos', async () => {
     mockFuncionEfectivaEnProyecto.mockResolvedValueOnce({ peldano: 'responsable', via: 'ejecutivo_dg' });
