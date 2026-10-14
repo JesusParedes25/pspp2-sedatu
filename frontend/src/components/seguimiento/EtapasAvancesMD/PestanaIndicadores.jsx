@@ -84,7 +84,7 @@ export default function PestanaIndicadores({ tipo, id, nodo, proyectoId, permiso
       ) : (aportaciones || []).length === 0 ? (
         <p className="text-xs text-gray-400 py-4">Este elemento no aporta a ningún indicador.</p>
       ) : (
-        <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
           <table className="w-full text-xs">
             <thead className="bg-gray-50 text-gray-500">
               <tr>
