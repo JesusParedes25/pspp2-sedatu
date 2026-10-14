@@ -17,7 +17,7 @@
  * servidor para aceptar o rechazar la escritura, nunca un cálculo propio
  * de este componente) lleva un candado y queda "bloqueada"; uno donde sí
  * puede, lleva un lápiz y queda "asignada". El apagado vive SIEMPRE en el
- * FONDO del renglón (bg-gray-200 bloqueada / bg-white asignada), nunca en
+ * FONDO del renglón (bg-gray-150 bloqueada / bg-white asignada), nunca en
  * el texto — dos rondas anteriores probaron que atenuar+oscurecer el
  * texto se cancelan entre sí (ronda 1→2) y que bg-gray-50 era
  * imperceptible (ronda 2→3, verificado en producción). Con el porcentaje
@@ -27,12 +27,25 @@
  *
  * Tres señales distinguen una fila "asignada": fondo blanco, nombre en
  * semi-negrita, y el lápiz (en vez del candado) — nunca la barra de
- * acento de la izquierda, que sigue siendo exclusiva de "este es el nodo
+ * acento de la izquierda, que es exclusiva de "este es el nodo
  * seleccionado" (navegación), un significado distinto y preexistente.
- * Selección y permiso son estados independientes: si el nodo seleccionado
- * también está bloqueado, gana el resaltado de selección sobre el lavado
- * gris, pero el candado sigue presente — la selección nunca oculta el
- * estado de permiso.
+ *
+ * Fondo = permiso, barra de acento = selección — nunca se cruzan (ronda
+ * 5). Antes, seleccionar una fila bloqueada hacía que el lavado rosado de
+ * la selección reemplazara el gris, pintando la fila como si el usuario
+ * tuviera permiso justo al lado del candado que dice lo contrario. Ahora
+ * `fondoFila` decide el color SOLO por `esConsulta`; `esSeleccionado`
+ * únicamente agrega la barra de acento — nunca cambia qué color de fondo
+ * corresponde. El único matiz es que una fila bloqueada seleccionada no
+ * puede quedarse con exactamente el mismo gris que una no seleccionada
+ * (perdería la marca de "aquí estás parado" si alguna vez la barra no
+ * fuera suficiente por sí sola): usa `bg-gray-200`, el valor de la ronda
+ * anterior — un escalón más oscuro que el `bg-gray-150` nuevo de esta
+ * ronda, nunca el rosado. `colorNombre` sigue la misma prioridad: una
+ * fila bloqueada se queda en `text-gray-700` sin importar si está
+ * seleccionada (antes se volvía `text-guinda-700 font-semibold`, la
+ * misma marca visual que "esto es mío" — justo lo que esta ronda corrige
+ * también en el texto, no solo en el fondo).
  *
  * Sin tema oscuro: la plataforma no lo tiene y no está planeado — no
  * agregar clases `dark:` aquí (se agregaron y se retiraron en una ronda
@@ -47,7 +60,9 @@ import { hijosDe } from './utils';
 // El candado es el único elemento de esta fila para el que la opacidad
 // debe pasar el mínimo de contraste de TEXTO (4.5:1, es un ícono que se
 // lee igual que una palabra) — parte del tono más fuerte disponible,
-// `gray-900`, mezclado al 65% mide 5.52:1 contra blanco.
+// `gray-900`, mezclado al 65% mide 5.19:1 contra `bg-gray-150` (el fondo
+// real sobre el que se dibuja; 5.06:1 contra `bg-gray-200`, el fondo de
+// una fila bloqueada seleccionada) — ambos con margen sobre el mínimo.
 const CLASE_CANDADO = 'text-gray-900 opacity-[0.65]';
 
 // El lápiz de una fila asignada no necesita atenuarse (el fondo ya está
@@ -95,33 +110,42 @@ export default function NodoArbol({ nodo, tipo, expandidos, seleccionadoId, onTo
 
   function activar() { onSelect(tipo, nodo.id, nodo); }
 
-  // El fondo decide tres estados mutuamente excluyentes, en este orden
-  // de prioridad: seleccionado (navegación) > bloqueado (lavado gris) >
-  // asignado (blanco del panel, el caso por defecto). La barra de acento
-  // de la izquierda queda SOLO en el caso seleccionado — nunca marca
-  // "esto es mío", ver cabecera del archivo. El lavado de selección se
-  // suavizó (de /70 a /40) porque, con el fondo de la fila ahora
-  // cargando significado propio (blanco=asignada, gris=bloqueada), la
-  // selección no debe aplastarlo — es un estado pasajero (qué estoy
-  // viendo), no permanente (qué es mío).
-  const fondoFila = esSeleccionado
-    ? 'bg-guinda-50/40 border-l-[3px] border-l-guinda-600'
-    : esConsulta
-      ? 'bg-gray-200 border-l-[3px] border-l-transparent hover:bg-gray-300/60'
+  // Fondo = permiso, barra de acento = selección — dos señales, dos
+  // significados, sin cruce (ronda 5, ver cabecera del archivo). El
+  // color decide primero por `esConsulta` (nunca por `esSeleccionado`);
+  // la selección solo agrega `border-l-guinda-600`. Una fila bloqueada
+  // seleccionada usa `bg-gray-200` (un escalón más oscuro que el
+  // `bg-gray-150` de una bloqueada normal) en vez del lavado rosado —
+  // nunca se pinta como si el usuario tuviera permiso. El lavado rosado
+  // (`bg-guinda-50/40`) se queda exclusivo de una fila asignada
+  // seleccionada, exactamente como ya estaba.
+  const fondoFila = esConsulta
+    ? esSeleccionado
+      ? 'bg-gray-200 border-l-[3px] border-l-guinda-600'
+      : 'bg-gray-150 border-l-[3px] border-l-transparent hover:bg-gray-200/60'
+    : esSeleccionado
+      ? 'bg-guinda-50/40 border-l-[3px] border-l-guinda-600'
       : 'bg-white border-l-[3px] border-l-transparent hover:bg-gray-50';
 
-  const colorNombre = esSeleccionado
-    ? 'font-semibold text-guinda-700'
-    : esConsulta
-      ? 'text-gray-700'
+  // Misma prioridad que el fondo: una fila bloqueada se queda en
+  // `text-gray-700` sin importar la selección — el texto tampoco debe
+  // tomar prestado el color de "esto es mío" (`text-guinda-700`) solo
+  // porque está seleccionada.
+  const colorNombre = esConsulta
+    ? 'text-gray-700'
+    : esSeleccionado
+      ? 'font-semibold text-guinda-700'
       : 'font-semibold text-gray-700'; // "es mío" — un escalón de peso por encima de lo normal
 
   // Porcentaje: color primario (gray-700, el mismo del nombre) en vez
   // del tenue (gray-500) cuando la fila está bloqueada — medido contra
-  // bg-gray-200: gray-700 da 8.33:1, gray-500 (el de antes) caía a
-  // 3.90:1, bajo el mínimo de 4.5:1. En una fila asignada se queda en
-  // gray-500, su tono de siempre (no forma parte de la marca "es mío",
-  // que ya la dan el nombre en negrita y el lápiz).
+  // bg-gray-150 (el fondo por defecto de una fila bloqueada): gray-700
+  // da 8.84:1; contra bg-gray-200 (bloqueada seleccionada) sigue en
+  // 8.33:1. gray-500 (el de antes) caía a 3.90:1 contra gray-200, bajo
+  // el mínimo de 4.5:1 — y aclarar el fondo solo lo habría hundido más.
+  // En una fila asignada se queda en gray-500, su tono de siempre (no
+  // forma parte de la marca "es mío", que ya la dan el nombre en
+  // negrita y el lápiz).
   const colorPorcentaje = esConsulta ? 'text-gray-700' : 'text-gray-500';
 
   return (

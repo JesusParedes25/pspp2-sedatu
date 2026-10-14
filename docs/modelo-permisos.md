@@ -1,10 +1,12 @@
 # Modelo de permisos de PSPP v2.0
 
-> **Este documento corresponde al commit `fccc2045c20907f328a641263da597c189a3390b`
-> (2026-10-14, Fase 3 — segunda corrección visual) + un cuarto ajuste al
-> estado de consulta (fondo `gray-200`, lápiz de pertenencia, retiro
-> completo del tema oscuro, lienzo gris del panel), descrito en este
-> mismo PR (sección 11.2 y 11.4).**
+> **Este documento corresponde al commit `3a03938a24b8e882f9a6cb3d0d721897b590c661`
+> (2026-10-14, Fase 3 — cuarto ajuste al estado de consulta: fondo
+> `gray-200`, lápiz de pertenencia, retiro completo del tema oscuro,
+> lienzo gris del panel) + un quinto ajuste — fondo = permiso, barra de
+> acento = selección sin cruce, y el token `gray-150` (un paso más claro
+> que `gray-200`) como fondo por defecto de una fila/panel bloqueado —,
+> descrito en este mismo PR (sección 11.2 y 11.4).**
 > Regenerado por completo (no es un parche del documento anterior), porque
 > la versión previa describía el modelo PRE-Fase-1: el CHECK de 2 valores
 > de `proyecto_usuarios.rol`, el CHECK de 3 valores con `'invitado'` de
@@ -552,16 +554,18 @@ vacía, así que "¿esto es mío?" se lee de un vistazo por presencia, no
 por ausencia. Tres señales distinguen una fila asignada: fondo blanco,
 nombre en semi-negrita, y el lápiz (antes: candado).
 
-**Conflicto resuelto**: el árbol ya usaba una barra de acento a la
-izquierda para marcar el nodo *seleccionado* (navegación). Se decidió
-dejarla exclusiva de ese significado — "asignado" se señala solo por
-las tres vías del párrafo anterior, nunca por una barra — para que
-"estoy viendo este nodo" y "este nodo es mío" no compitan por la misma
-señal. Selección y bloqueo son estados independientes: si el nodo
-seleccionado también está bloqueado, gana el resaltado de selección
-sobre el lavado gris, pero el candado sigue presente.
+**Conflicto resuelto (ronda 4, superado en ronda 5 — ver abajo)**: el
+árbol ya usaba una barra de acento a la izquierda para marcar el nodo
+*seleccionado* (navegación). Se decidió dejarla exclusiva de ese
+significado — "asignado" se señala solo por las tres vías del párrafo
+anterior, nunca por una barra — para que "estoy viendo este nodo" y
+"este nodo es mío" no compitan por la misma señal. En esta ronda,
+selección y bloqueo seguían resolviéndose por prioridad: si el nodo
+seleccionado también estaba bloqueado, ganaba el resaltado de selección
+(el lavado rosado) sobre el lavado gris, aunque el candado seguía
+presente.
 
-**Peso relativo, revisado**: con el fondo de la fila cargando
+**Peso relativo, revisado (ronda 4)**: con el fondo de la fila cargando
 significado propio (blanco=asignada, gris=bloqueada), el lavado de
 selección (`bg-guinda-50/70` + barra) competía de más con esa señal —
 la selección es un estado pasajero, la pertenencia es permanente, y en
@@ -571,14 +575,71 @@ pantalla pesaba al revés. El lavado se suaviza de `/70` a `/40`
 seleccionada deja ver el fondo que tiene debajo (blanco o gris) en vez
 de taparlo con un rosa fuerte.
 
+**Ronda 4→5 — fondo = permiso, barra de acento = selección, sin cruce
+nunca**: reportado en producción el defecto exacto que dejaba abierta
+la prioridad de la ronda 4 — al seleccionar una etapa bloqueada, el
+lavado rosado de la selección reemplazaba el lavado gris y la fila se
+pintaba como si el usuario tuviera permiso, tres píxeles a la izquierda
+de un candado que decía lo contrario. La prioridad "seleccionado >
+bloqueado > asignado" de la ronda 4 permitía justo esa combinación. Se
+retira esa prioridad: `fondoFila` decide el color **solo** por
+`esConsulta` (el estado de permiso); `esSeleccionado` únicamente agrega
+`border-l-guinda-600` — nunca cambia qué color de fondo corresponde.
+Igual que `colorNombre`: ahora decide primero por `esConsulta`, así que
+una fila bloqueada se queda en `text-gray-700` sin importar si está
+seleccionada (antes, seleccionada, se volvía `text-guinda-700
+font-semibold` — la misma marca de "esto es mío" que el candado, al
+lado, contradecía).
+
+Una fila bloqueada *y* seleccionada no puede quedar con exactamente el
+mismo gris que una bloqueada sin seleccionar — perdería la única señal
+de "aquí estás parado" si la barra de 3px no bastara por sí sola en
+algún caso de uso. Se reutiliza `bg-gray-200` (el valor que esta misma
+ronda retira como fondo *por defecto* de una fila bloqueada, ver más
+abajo) para ese único caso — ya estaba calibrado y medido desde la
+ronda 4, un escalón más oscuro que el `bg-gray-150` nuevo, y nunca el
+rosado. Resultado: dos señales independientes, sin cruce — el fondo
+dice "esto es tuyo o no", la barra dice "estás aquí", y ninguna de las
+dos pisa a la otra en ningún estado posible (asignada/bloqueada ×
+seleccionada/no seleccionada, las 4 combinaciones).
+
+**El gris por defecto de una fila bloqueada, un paso más claro**: a
+pedido explícito del usuario, `bg-gray-200` (el valor de la ronda 4)
+baja un escalón **pequeño**, no completo — en vez de saltar a
+`gray-100` (que ya se había probado y descartado en la ronda 2→3, ver
+arriba), se define `gray-150` como token con nombre en
+`tailwind.config.cjs` (`theme.extend.colors.gray.150`, no un valor
+suelto en una clase — cae fuera de la escala por defecto de Tailwind):
+el punto medio exacto entre `gray-100` (`#F3F4F6`) y `gray-200`
+(`#E5E7EB`), **`#ECEEF1`**. Separación medida contra el blanco del
+panel: **1.167:1** — más que `gray-100` (1.101:1) y menos que
+`gray-200` (1.238:1), justo el escalón intermedio pedido, con el mismo
+criterio de "debe seguir distinguiéndose claramente del blanco" ya
+usado en rondas anteriores (sigue siendo casi 3 veces la separación de
+`gray-50`, 1.045:1, el valor que se descartó por imperceptible en la
+ronda 2→3).
+
+El contraste de texto no era el problema de este cambio (aclarar el
+fondo solo lo mejora), pero se confirma con la misma medición de
+siempre: `text-gray-700` (nombre/porcentaje) contra `gray-150` sube a
+**8.84:1** (antes 8.33:1 contra `gray-200`); el candado
+(`text-gray-900` al 65% de opacidad) contra `gray-150` sube a
+**5.19:1** (antes 5.06:1 contra `gray-200`) — ambos con más margen
+sobre el mínimo de 4.5:1 que antes, nunca menos.
+
 **Medido**:
 
-| Elemento | Antes (gray-500 sobre blanco) | Ahora (gray-700 sobre `gray-200`) |
+| Elemento | Ronda 4 (`gray-700`/candado sobre `gray-200`) | Ronda 5 (sobre `gray-150`, el nuevo valor por defecto) |
 |---|---|---|
-| Separación del fondo bloqueado contra blanco | — | **1.238:1** |
-| Nombre (`text-gray-700`) contra `gray-200` | — | **8.33:1** |
-| Porcentaje, bloqueada (`text-gray-700`, subido) contra `gray-200` | — | **8.33:1** |
-| Porcentaje, bloqueada, si se hubiera dejado en `gray-500` (referencia, descartado) | 4.83:1 (contra blanco) | 3.90:1 (contra `gray-200`) — **fallaría** |
+| Separación del fondo bloqueado contra blanco | 1.238:1 | **1.167:1** |
+| Nombre (`text-gray-700`) | 8.33:1 | **8.84:1** |
+| Porcentaje, bloqueada (`text-gray-700`, subido) | 8.33:1 | **8.84:1** |
+| Candado (`text-gray-900` @ 65% opacidad) | 5.06:1 | **5.19:1** |
+| Porcentaje, si se hubiera dejado en `gray-500` (referencia, descartado desde la ronda 4) | 3.90:1 — fallaría | 4.16:1 — seguiría fallando |
+
+Una fila bloqueada *seleccionada* se queda en `bg-gray-200` (no en
+`gray-150`, ver arriba) — sus números de contraste de texto son
+exactamente los de la columna "Ronda 4" de esta tabla, sin cambios.
 
 El punto del semáforo y la etiqueta de estado (`"Vencida"`,
 `"Bloqueada"`, etc.) siguen con la atenuación leve (`opacity-[0.72]`)
@@ -638,30 +699,41 @@ instancia que ya vive en `GestorUsuariosProyecto.jsx` y
 `SeccionMiembrosNodo.jsx`, ahora también aquí.
 
 **El lienzo del panel va gris, igual que la fila — el contenido nunca
-cambia de color (ronda 4).** `PanelDetalle.jsx` aplica el mismo
-`bg-gray-200` del árbol al contenedor scrolleable completo cuando
-`permisos.esSoloLectura` — el encabezado, la banda, la tira de datos y
-las pestañas se asientan sobre ese fondo sin tocar su propio color de
-texto, mismo criterio ya validado en 11.2: el apagado vive en la
-superficie, nunca en el contenido. Las "subsuperficies" que ya eran
+cambia de color (ronda 4, fondo actualizado en ronda 5).**
+`PanelDetalle.jsx` aplica al contenedor scrolleable completo, cuando
+`permisos.esSoloLectura`, el mismo `bg-gray-150` que usa el árbol para
+una fila bloqueada *sin seleccionar* (sección 11.2) — en la ronda 4 era
+`bg-gray-200`, bajado un escalón en la ronda 5 junto con el resto de
+esta funcionalidad. El panel no tiene un concepto de "selección" propio
+(siempre muestra el nodo actualmente elegido, no hay un segundo estado
+que distinguir) — así que, a diferencia del árbol, no necesita el
+escalón más oscuro (`bg-gray-200`) que ahí sí hace falta para una fila
+bloqueada *y* seleccionada a la vez. El encabezado, la banda, la tira
+de datos y las pestañas se asientan sobre ese fondo sin tocar su propio
+color de texto, mismo criterio ya validado en 11.2: el apagado vive en
+la superficie, nunca en el contenido. Las "subsuperficies" que ya eran
 blancas (las tablas de `PestanaDocumentos.jsx`, `PestanaIndicadores.jsx`,
 `PestanaRiesgos.jsx`) ganaron un `bg-white` explícito — antes eran
 blancas solo porque el panel detrás lo era; sin ese `bg-white` propio,
 se habrían vuelto grises al heredar el nuevo fondo, justo lo que el
 usuario pidió evitar ("para que el contenido respire").
 
-**Medido** (texto principal y secundario del panel contra el nuevo
-`bg-gray-200`): el título del nodo (`text-gray-900`) mide **14.33:1**;
-la descripción (`text-gray-600`) mide **6.10:1** — ambos con margen
-sobre el mínimo de 4.5:1. Dos tonos más tenues que también aparecen en
-el panel, pero que el usuario no pidió medir, quedan señalados aparte:
-`text-gray-500` (chips/contadores) cae a 3.90:1 contra este fondo
-—pasaba 4.5:1 contra blanco (4.83:1) pero no contra `gray-200`— y
-`text-gray-400` (leyendas como "Calculado desde sus acciones.") cae a
-2.05:1 —ya fallaba el mínimo gráfico de 3:1 contra blanco puro
-(2.54:1), antes de este PR—. Ninguno de los dos es el texto
-"principal" ni "secundario" que se pidió medir; se documentan aquí
-como hallazgo, no se tocan en este PR.
+**Medido** (texto principal y secundario del panel contra `bg-gray-150`,
+el fondo actual — el contraste solo mejora al aclarar el fondo, así que
+estos números no eran el riesgo de este cambio, pero se confirman
+igual): el título del nodo (`text-gray-900`) mide **15.26:1** (antes
+14.33:1 contra `gray-200`); la descripción (`text-gray-600`) mide
+**6.50:1** (antes 6.10:1) — ambos con más margen sobre el mínimo de
+4.5:1 que antes. Dos tonos más tenues que también aparecen en el
+panel, preexistentes y fuera de alcance de ambas rondas, quedan
+señalados aparte: `text-gray-500` (chips/contadores) sube a 4.16:1
+contra `gray-150` (antes 3.90:1 contra `gray-200`) —sigue sin alcanzar
+4.5:1, aunque más cerca— y `text-gray-400` (leyendas como "Calculado
+desde sus acciones.") sube a 2.18:1 (antes 2.05:1) —sigue sin alcanzar
+el mínimo gráfico de 3:1, que ya fallaba contra blanco puro (2.54:1)
+antes de la ronda 4—. Ninguno de los dos es el texto "principal" ni
+"secundario" que se pidió medir en ninguna de las dos rondas; siguen
+documentados aquí como hallazgo, sin tocarse.
 
 Las pestañas de contenido (Actividad, Documentos, Indicadores,
 Territorio, Riesgos, Equipo y permisos) se leen completas sin importar
@@ -727,8 +799,9 @@ descendiente) — una asignación en un nodo nunca sube a su padre.
   intentar atenuar el punto.
 - **`text-gray-500` (chips/contadores del panel) y `text-gray-400`
   (leyendas como "Calculado desde sus acciones.") no pasan 4.5:1 contra
-  el nuevo fondo `bg-gray-200` del panel bloqueado** (3.90:1 y 2.05:1 —
-  sección 11.4) — `gray-400` ya fallaba incluso el mínimo gráfico de
-  3:1 contra blanco puro (2.54:1) antes de este PR. No se pidió medir
+  el fondo `bg-gray-150` del panel bloqueado** (4.16:1 y 2.18:1 — ambos
+  mejoraron respecto a `gray-200`, 3.90:1 y 2.05:1, pero ninguno cruzó
+  el mínimo — sección 11.4) — `gray-400` ya fallaba incluso el mínimo
+  gráfico de 3:1 contra blanco puro (2.54:1) antes de este PR. No se pidió medir
   ni corregir estos dos tonos en esta ronda (solo texto "principal" y
   "secundario"); quedan anotados para una revisión de paleta aparte.

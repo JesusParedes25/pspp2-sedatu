@@ -110,8 +110,16 @@ export default function PanelDetalle({
           el contenido. Las tablas de Documentos/Indicadores/Riesgos
           (PestanaDocumentos.jsx/PestanaIndicadores.jsx/PestanaRiesgos.jsx)
           ya declaran su propio `bg-white` para seguir respirando encima
-          de este fondo sin cambios de color en su contenido. */}
-      <div className={`flex-1 overflow-y-auto px-5 py-4 max-w-5xl ${permisos.esSoloLectura ? 'bg-gray-200' : ''}`}>
+          de este fondo sin cambios de color en su contenido.
+
+          `bg-gray-150` (ronda 5, docs/modelo-permisos.md sección 11.4):
+          un paso más claro que el `bg-gray-200` de la ronda anterior, el
+          mismo token nuevo que usa NodoArbol.jsx para una fila bloqueada
+          sin seleccionar — el panel no tiene un concepto de "selección"
+          propio (siempre muestra el nodo actualmente elegido), así que
+          no necesita el escalón más oscuro que sí usa el árbol para una
+          fila bloqueada Y seleccionada a la vez. */}
+      <div className={`flex-1 overflow-y-auto px-5 py-4 max-w-5xl ${permisos.esSoloLectura ? 'bg-gray-150' : ''}`}>
         <EncabezadoDetalle
           nodo={seleccion}
           ruta={ruta}
