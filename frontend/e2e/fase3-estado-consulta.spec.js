@@ -44,21 +44,26 @@ test.describe('Fase 3 — estado de consulta en el árbol de Detalle', () => {
     await expect(filaConCandado.first()).toBeVisible();
     await expect(filaSinCandado.first()).toBeVisible();
 
-    // Segunda ronda: el apagado vive en el FONDO de la fila (gray-50),
-    // no en el texto — nombre/porcentaje usan sus colores normales, sin
-    // clase de opacidad. Solo el punto del semáforo/etiqueta llevan la
-    // atenuación leve (0.72).
+    // Ronda 4: el apagado vive en el FONDO de la fila (gray-200), no en
+    // el texto — nombre/porcentaje usan sus colores normales (el
+    // porcentaje, en una fila bloqueada, usa el mismo color primario
+    // que el nombre, no el tenue de antes). Solo el punto del
+    // semáforo/etiqueta llevan la atenuación leve (0.72). Candado y
+    // lápiz son mutuamente excluyentes en la misma columna.
     const primeraConCandado = filaConCandado.first();
-    await expect(primeraConCandado).toHaveClass(/bg-gray-50/);
+    await expect(primeraConCandado).toHaveClass(/bg-gray-200/);
     const nombre = primeraConCandado.locator('span.truncate').first();
     await expect(nombre).not.toHaveClass(/opacity-/);
     const punto = primeraConCandado.locator('span.rounded-full').first();
     await expect(punto).toHaveClass(/opacity-/);
+    await expect(primeraConCandado.locator('svg[aria-label="Puedes capturar en este elemento"]')).toHaveCount(0);
 
-    // Una fila asignada: fondo blanco y nombre en semi-negrita.
+    // Una fila asignada: fondo blanco, nombre en semi-negrita, lápiz
+    // (no candado) en la misma columna.
     const primeraSinCandado = filaSinCandado.first();
     await expect(primeraSinCandado).toHaveClass(/bg-white/);
     await expect(primeraSinCandado.locator('span.truncate').first()).toHaveClass(/font-semibold/);
+    await expect(primeraSinCandado.locator('svg[aria-label="Puedes capturar en este elemento"]')).toBeVisible();
   });
 
   test('caso mixto: la etapa sin participación lleva candado, su acción con invitación directa no', async ({ page }) => {
@@ -88,9 +93,12 @@ test.describe('Fase 3 — el panel de detalle no se atenúa, y la banda reemplaz
     // El chip "Consulta" vive junto a los demás chips del encabezado.
     await expect(page.getByText('Consulta', { exact: true })).toBeVisible();
 
-    // El panel (no el árbol) debe quedar a opacidad plena.
+    // Ronda 4: el lienzo del panel también va gris (mismo bg-gray-200
+    // del árbol) — el apagado vive en la superficie, el contenido
+    // conserva sus colores. Las tablas de Documentos/Indicadores/
+    // Riesgos declaran su propio bg-white para seguir respirando.
     const panel = page.locator('text=Estás en modo consulta').locator('xpath=ancestor::div[contains(@class,"flex-1")][1]');
-    await expect(panel).not.toHaveClass(/opacity-/);
+    await expect(panel).toHaveClass(/bg-gray-200/);
 
     // El contenido de lectura (pestañas) sigue completo.
     for (const pestana of ['Actividad', 'Documentos', 'Indicadores', 'Territorio', 'Riesgos']) {
@@ -98,7 +106,7 @@ test.describe('Fase 3 — el panel de detalle no se atenúa, y la banda reemplaz
     }
   });
 
-  test('un nodo con captura sigue mostrando "Registrar avance"/"Más acciones", sin banda', async ({ page }) => {
+  test('un nodo con captura sigue mostrando "Registrar avance"/"Más acciones", sin banda, panel sin lavado gris', async ({ page }) => {
     await login(page);
     await page.goto('/proyectos');
     await page.getByRole('link', { name: /ver proyecto|detalle/i }).first().click();
@@ -109,5 +117,8 @@ test.describe('Fase 3 — el panel de detalle no se atenúa, y la banda reemplaz
 
     await expect(page.getByRole('button', { name: /registrar avance/i })).toBeVisible();
     await expect(page.getByText(/est[aá]s en modo consulta/i)).toHaveCount(0);
+
+    const panel = page.getByRole('button', { name: /registrar avance/i }).locator('xpath=ancestor::div[contains(@class,"flex-1")][1]');
+    await expect(panel).not.toHaveClass(/bg-gray-200/);
   });
 });

@@ -138,7 +138,7 @@ export default function PestanaDocumentos({ tipo, id, permisos, permisosProyecto
       ) : (documentos || []).length === 0 ? (
         <p className="text-xs text-gray-400 py-4">Sin documentos adjuntos.</p>
       ) : (
-        <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
           <table className="w-full text-xs">
             <thead className="bg-gray-50 text-gray-500">
               <tr>

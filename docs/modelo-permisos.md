@@ -1,8 +1,10 @@
 # Modelo de permisos de PSPP v2.0
 
-> **Este documento corresponde al commit `73f743acffbe834215b503b57726ca1983f10989`
-> (2026-10-14, Fase 3 — primera versión) + la corrección del tratamiento
-> visual de las filas bloqueadas (sección 11.2), descrita en este mismo PR.**
+> **Este documento corresponde al commit `fccc2045c20907f328a641263da597c189a3390b`
+> (2026-10-14, Fase 3 — segunda corrección visual) + un cuarto ajuste al
+> estado de consulta (fondo `gray-200`, lápiz de pertenencia, retiro
+> completo del tema oscuro, lienzo gris del panel), descrito en este
+> mismo PR (sección 11.2 y 11.4).**
 > Regenerado por completo (no es un parche del documento anterior), porque
 > la versión previa describía el modelo PRE-Fase-1: el CHECK de 2 valores
 > de `proyecto_usuarios.rol`, el CHECK de 3 valores con `'invitado'` de
@@ -511,26 +513,44 @@ criterio correcto, pero sin quitarlos).
 
 ### 11.2 El árbol — el apagado vive en el fondo, no en el texto
 
-**Primera versión (corregida)**: atenuaba el texto (opacidad 0.65 +
-oscurecer el color base a `gray-900` para que, ya mezclado, siguiera
-pasando 4.5:1 — ver más abajo el detalle de esa medición). Verificado
-en producción con un usuario real (`enlace`, 2 de 15 etapas asignadas):
-el candado aparecía exactamente donde debía, pero el apagado era
-imperceptible — oscurecer el color y luego atenuarlo con opacidad se
-cancelan casi por completo entre sí.
+**Ronda 1→2**: atenuaba el texto (opacidad 0.65 + oscurecer el color
+base a `gray-900` para que, ya mezclado, siguiera pasando 4.5:1).
+Verificado en producción con un usuario real (`enlace`, 2 de 15 etapas
+asignadas): el candado aparecía exactamente donde debía, pero el
+apagado era imperceptible — oscurecer el color y luego atenuarlo con
+opacidad se cancelan casi por completo entre sí.
 
-**Corrección**: el apagado se mueve al FONDO del renglón, que es el
-que hace todo el trabajo visual. Un nodo donde
-`permisos.puedeEditarNodo(tipo, id)` es `false` (`NodoArbol.jsx`) queda
-con fondo `bg-gray-50` (en vez del blanco del panel) y lleva un candado
-entre el nombre y el porcentaje — el nombre y el porcentaje regresan a
-sus colores normales de siempre (`text-gray-700`/`text-gray-500`), sin
-opacidad ni oscurecimiento: como el texto nunca cambia de color, no hay
-nada que calibrar contra 4.5:1 en este bloque. Un nodo "asignado" (el
-usuario SÍ puede capturar ahí) usa el fondo blanco normal del panel y
-el nombre en semi-negrita (`font-semibold`) — un escalón de peso por
-encima de lo normal. Tres señales distinguen una fila asignada: fondo
-blanco, nombre en semi-negrita, y la ausencia de candado.
+**Ronda 2→3**: el apagado se mueve al FONDO del renglón (`bg-gray-50`),
+el nombre y el porcentaje regresan a sus colores normales. Verificado
+otra vez en producción: `gray-50` es casi blanco, el bloqueo sigue sin
+percibirse.
+
+**Ronda 3→4 (actual)**: fondo `bg-gray-200` para una fila bloqueada
+(`permisos.puedeEditarNodo(tipo, id)` es `false`) — separación de
+1.238:1 contra el blanco del panel, más del doble que `gray-50`
+(1.045:1). El nombre se queda en `text-gray-700`, su color normal de
+siempre — pero **el porcentaje sube de `text-gray-500` (el tenue de
+antes) a `text-gray-700` (el color primario, el mismo del nombre)**:
+el problema de contraste de las rondas anteriores (el porcentaje caía
+bajo 4.5:1 con cualquier fondo lo bastante oscuro para percibirse)
+nunca fue el fondo — era que `gray-500` es un tono débil que cualquier
+fondo no-blanco tumba. Con el porcentaje ya en su color primario, el
+fondo puede ser tan oscuro como se necesite sin volver a calibrar nada
+contra 4.5:1 en este bloque — ver medición abajo. En una fila
+*asignada* el porcentaje se queda en `gray-500`, su tono de siempre: no
+forma parte de la marca "es mío", que ya dan el nombre en negrita y el
+lápiz (ver más abajo).
+
+**Marca positiva de pertenencia**: antes, una fila asignada solo se
+distinguía por semi-negrita + ausencia de candado — encontrar una
+ausencia exige revisar renglón por renglón. Ahora la misma columna
+donde vive el candado tiene un segundo estado: un ícono de lápiz
+(`Pencil`, color `text-guinda-600`, el acento institucional) cuando
+`permisos.puedeEditarNodo(tipo, id)` es `true`. Candado y lápiz son
+mutuamente excluyentes y siempre presentes — la columna nunca queda
+vacía, así que "¿esto es mío?" se lee de un vistazo por presencia, no
+por ausencia. Tres señales distinguen una fila asignada: fondo blanco,
+nombre en semi-negrita, y el lápiz (antes: candado).
 
 **Conflicto resuelto**: el árbol ya usaba una barra de acento a la
 izquierda para marcar el nodo *seleccionado* (navegación). Se decidió
@@ -539,63 +559,54 @@ las tres vías del párrafo anterior, nunca por una barra — para que
 "estoy viendo este nodo" y "este nodo es mío" no compitan por la misma
 señal. Selección y bloqueo son estados independientes: si el nodo
 seleccionado también está bloqueado, gana el resaltado de selección
-(`bg-guinda-50/70` + barra) sobre el lavado gris, pero el candado sigue
-presente — la selección nunca oculta el estado de permiso.
+sobre el lavado gris, pero el candado sigue presente.
 
-**Medido** (lo único que sigue aplicando contra 4.5:1 en este bloque,
-por instrucción explícita, es que el texto normal siga pasando contra
-el fondo nuevo): `bg-gray-100` se descartó — contra ese fondo, el
-porcentaje (`text-gray-500`) cae a 4.39:1, por debajo del mínimo.
-`bg-gray-50` sí pasa (4.63:1, con margen) y da 1.045:1 de separación
-contra el blanco del panel — la misma separación que ya usa
-`hover:bg-gray-50` en una fila normal de este mismo componente, ya
-probada como perceptible. El hover de una fila bloqueada usa un paso
-más oscuro (`gray-100`) para no confundirse con el hover de una fila
-asignada.
+**Peso relativo, revisado**: con el fondo de la fila cargando
+significado propio (blanco=asignada, gris=bloqueada), el lavado de
+selección (`bg-guinda-50/70` + barra) competía de más con esa señal —
+la selección es un estado pasajero, la pertenencia es permanente, y en
+pantalla pesaba al revés. El lavado se suaviza de `/70` a `/40`
+(`bg-guinda-50/40`); la barra y el color del texto seleccionado
+(`text-guinda-700 font-semibold`) no cambian. Con esto, una fila
+seleccionada deja ver el fondo que tiene debajo (blanco o gris) en vez
+de taparlo con un rosa fuerte.
+
+**Medido**:
+
+| Elemento | Antes (gray-500 sobre blanco) | Ahora (gray-700 sobre `gray-200`) |
+|---|---|---|
+| Separación del fondo bloqueado contra blanco | — | **1.238:1** |
+| Nombre (`text-gray-700`) contra `gray-200` | — | **8.33:1** |
+| Porcentaje, bloqueada (`text-gray-700`, subido) contra `gray-200` | — | **8.33:1** |
+| Porcentaje, bloqueada, si se hubiera dejado en `gray-500` (referencia, descartado) | 4.83:1 (contra blanco) | 3.90:1 (contra `gray-200`) — **fallaría** |
 
 El punto del semáforo y la etiqueta de estado (`"Vencida"`,
-`"Bloqueada"`, etc.) sí llevan una atenuación leve (`opacity-[0.72]`)
-sobre su propio color, sin oscurecer nada — no son texto de lectura
-continua, así que no se calibran contra 4.5:1 (instrucción explícita);
-acompañan al fondo apagado sin perder su matiz. El candado conserva el
-tratamiento de la primera ronda (el único de los cuatro elementos que
-de verdad necesita pasar 4.5:1 contra el fondo, porque se lee igual que
-una palabra): parte del tono más fuerte disponible, `gray-900`, mezclado
-al 65% — mide 5.52:1, con margen.
-
-**Tema oscuro**: la misma lógica, invertida — fila bloqueada con fondo
-`dark:bg-gray-950` (más hundido que el `dark:bg-gray-900` del panel),
-fila asignada sobre el `dark:bg-gray-900` del panel sin tinte adicional.
-Separación entre ambos fondos: 1.135:1 (mayor que en claro). Texto
-normal en tema oscuro usa tonos claros (`dark:text-gray-300` nombre
-bloqueada / `dark:text-gray-100` nombre asignada / `dark:text-gray-400`
-porcentaje) — contraste contra sus respectivos fondos entre 6.99:1 y
-16.12:1, sin apretar ningún mínimo. El candado se invierte a
-`dark:text-gray-100` (claro sobre oscuro) por la misma razón que en
-claro necesita el tono más fuerte disponible: oscuro-sobre-oscuro
-también se volvería invisible.
-
-**Esto no se activa solo todavía, a propósito**: la plataforma es
-monotema claro hoy — ningún otro panel tiene su propio tratamiento
-oscuro. Con la estrategia por defecto de Tailwind (`media`, por
-preferencia del sistema operativo), estas clases `dark:` ya se
-activarían hoy para cualquiera cuyo sistema prefiera oscuro, mostrando
-una pantalla mitad clara mitad oscura que nadie pidió. Se cambió
-`darkMode` a `'class'` en `tailwind.config.cjs` — las clases `dark:`
-quedan definidas y calibradas, pero inertes (nunca se aplican, en
-ningún navegador) hasta que la plataforma agregue de verdad un
-interruptor de tema que ponga la clase `.dark` en `<html>`. Cambio de
-una línea, sin efecto visible para nadie hoy: ningún otro lugar del
-código usaba la variante `dark:` de Tailwind antes de este PR (la única
-excepción, `frontend/src/utils/carrilesEventos.js`, detecta el tema con
-`matchMedia` en JavaScript puro, no con la variante de Tailwind, y no
-se ve afectada por este cambio).
+`"Bloqueada"`, etc.) siguen con la atenuación leve (`opacity-[0.72]`)
+de la ronda anterior, sin cambios — no son texto de lectura continua,
+no se calibran contra 4.5:1 (instrucción explícita). El candado
+conserva su tratamiento (`text-gray-900 opacity-[0.65]`, 5.52:1 contra
+blanco) — es el único ícono que se lee igual que una palabra.
 
 **No se tocó `SemaforoDot.jsx`/`COLORES_SEMAFORO`** — es la única
 fuente de verdad visual del semáforo en toda la plataforma (Detalle,
 Diagrama, Cronograma, Agenda); envolverlo en una lógica de atenuación
 distinta solo para filas de consulta hubiera sido la misma clase de
 duplicación que motivó 11.1.
+
+**Sin tema oscuro**: una ronda anterior agregó clases `dark:`
+calibradas pero inertes (`darkMode: 'class'` en `tailwind.config.cjs`,
+sin interruptor real que las activara) para un eventual tema oscuro.
+Decisión del usuario: la plataforma no va a tener tema oscuro —
+retiradas por completo, y revertido `tailwind.config.cjs` a como
+estaba (sin la clave `darkMode`). Verificado con `git grep dark: ` contra
+el commit inmediatamente anterior a Fase 3 (`c71dba2`): **cero**
+resultados en todo `frontend/` — ninguna otra pantalla tenía clases
+`dark:` antes de este trabajo, así que retirarlas no apaga nada que
+existiera en otro lugar. La única detección de tema del repositorio,
+`frontend/src/utils/carrilesEventos.js` (marcadores de la línea de
+tiempo, `matchMedia` en JavaScript puro, no la variante `dark:` de
+Tailwind), no se tocó y no se vio afectada en ningún momento por este
+vaivén.
 
 **Hallazgos aparte, preexistentes a este PR, no resueltos aquí:**
 - `COLORES_SEMAFORO.gris` (`#94a3b8`) no pasa el mínimo gráfico de 3:1
@@ -626,12 +637,37 @@ sesión, sin cambios) con `nodo={{tipo, id, nombre}}` — la misma
 instancia que ya vive en `GestorUsuariosProyecto.jsx` y
 `SeccionMiembrosNodo.jsx`, ahora también aquí.
 
-**El panel de detalle en sí no se atenúa** — solo el árbol. Las
-pestañas de contenido (Actividad, Documentos, Indicadores, Territorio,
-Riesgos, Equipo y permisos) se leen completas sin importar si el
-usuario participa: ninguna de ellas esconde contenido de lectura por
-`esSoloLectura`, solo ocultan o deshabilitan sus propios controles de
-escritura (confirmado archivo por archivo: `PestanaDocumentos.jsx`,
+**El lienzo del panel va gris, igual que la fila — el contenido nunca
+cambia de color (ronda 4).** `PanelDetalle.jsx` aplica el mismo
+`bg-gray-200` del árbol al contenedor scrolleable completo cuando
+`permisos.esSoloLectura` — el encabezado, la banda, la tira de datos y
+las pestañas se asientan sobre ese fondo sin tocar su propio color de
+texto, mismo criterio ya validado en 11.2: el apagado vive en la
+superficie, nunca en el contenido. Las "subsuperficies" que ya eran
+blancas (las tablas de `PestanaDocumentos.jsx`, `PestanaIndicadores.jsx`,
+`PestanaRiesgos.jsx`) ganaron un `bg-white` explícito — antes eran
+blancas solo porque el panel detrás lo era; sin ese `bg-white` propio,
+se habrían vuelto grises al heredar el nuevo fondo, justo lo que el
+usuario pidió evitar ("para que el contenido respire").
+
+**Medido** (texto principal y secundario del panel contra el nuevo
+`bg-gray-200`): el título del nodo (`text-gray-900`) mide **14.33:1**;
+la descripción (`text-gray-600`) mide **6.10:1** — ambos con margen
+sobre el mínimo de 4.5:1. Dos tonos más tenues que también aparecen en
+el panel, pero que el usuario no pidió medir, quedan señalados aparte:
+`text-gray-500` (chips/contadores) cae a 3.90:1 contra este fondo
+—pasaba 4.5:1 contra blanco (4.83:1) pero no contra `gray-200`— y
+`text-gray-400` (leyendas como "Calculado desde sus acciones.") cae a
+2.05:1 —ya fallaba el mínimo gráfico de 3:1 contra blanco puro
+(2.54:1), antes de este PR—. Ninguno de los dos es el texto
+"principal" ni "secundario" que se pidió medir; se documentan aquí
+como hallazgo, no se tocan en este PR.
+
+Las pestañas de contenido (Actividad, Documentos, Indicadores,
+Territorio, Riesgos, Equipo y permisos) se leen completas sin importar
+si el usuario participa: ninguna de ellas esconde contenido de lectura
+por `esSoloLectura`, solo ocultan o deshabilitan sus propios controles
+de escritura (confirmado archivo por archivo: `PestanaDocumentos.jsx`,
 `PestanaIndicadores.jsx`, `PestanaRiesgos.jsx`, `PestanaTerritorio.jsx`,
 `TiraDatos.jsx`) — es la decisión de producto que distingue este estado
 del de un `externo`.
@@ -656,17 +692,12 @@ descendiente) — una asignación en un nodo nunca sube a su padre.
   imagen de cualquier proyecto por id) necesita un mecanismo nuevo
   (token también por query string, o reescribir a `fetch`+blob) — con
   el usuario, se decidió dejarlo fuera de este PR.
-- **Tema oscuro, el interruptor real**: se definieron y calibraron las
-  clases `dark:` del árbol de Detalle (sección 11.2) y se cambió
-  `darkMode` a `'class'` en `tailwind.config.cjs` para que queden
-  inertes hasta que exista un interruptor real — pero ese interruptor
-  (una clase `.dark` en `<html>`, un toggle visible, persistencia de la
-  preferencia) no se construyó, y ningún otro panel de la plataforma
-  tiene su propio tratamiento oscuro todavía. La única excepción previa
-  a este PR es `frontend/src/utils/carrilesEventos.js` (marcadores de
-  la línea de tiempo), que reacciona a `prefers-color-scheme` con
-  `matchMedia` en JavaScript puro, no con la variante `dark:` de
-  Tailwind, y no se ve afectada por el cambio de `darkMode`.
+- **Tema oscuro**: decisión de producto, no pendiente — la plataforma
+  no va a tener tema oscuro. Una ronda intermedia había agregado clases
+  `dark:` calibradas (pero inertes) al árbol de Detalle; se retiraron
+  por completo en la ronda siguiente (sección 11.2), junto con el
+  cambio de `darkMode` en `tailwind.config.cjs` que las volvía
+  inertes — el archivo queda exactamente como estaba antes de Fase 3.
 
 ## 12. Qué queda pendiente (decisiones de producto y endpoints sin migrar)
 
@@ -687,11 +718,17 @@ descendiente) — una asignación en un nodo nunca sube a su padre.
   gate mínimo de lectura en exportación, y la confirmación con conteo al
   eliminar un nodo con descendientes, quedaron pendientes de otra ronda —
   no tocados por este documento ni por el Paso 0/1.
-- **`GET /proyectos/:id/imagen` sin autenticar** y el **tema oscuro
-  inexistente** (sección 11.6) — fuera de este PR por decisión
-  explícita, no por descuido.
+- **`GET /proyectos/:id/imagen` sin autenticar** (sección 11.6) — fuera
+  de este PR por decisión explícita, no por descuido.
 - **`COLORES_SEMAFORO.gris` no pasa 3:1 contra blanco ni a opacidad
   plena, y la paleta del semáforo (particularmente verde vs. ámbar)
   nunca se validó contra deficiencias de visión de color** (sección
   11.2) — preexistente a este PR, que solo lo hizo más visible al
   intentar atenuar el punto.
+- **`text-gray-500` (chips/contadores del panel) y `text-gray-400`
+  (leyendas como "Calculado desde sus acciones.") no pasan 4.5:1 contra
+  el nuevo fondo `bg-gray-200` del panel bloqueado** (3.90:1 y 2.05:1 —
+  sección 11.4) — `gray-400` ya fallaba incluso el mínimo gráfico de
+  3:1 contra blanco puro (2.54:1) antes de este PR. No se pidió medir
+  ni corregir estos dos tonos en esta ronda (solo texto "principal" y
+  "secundario"); quedan anotados para una revisión de paleta aparte.

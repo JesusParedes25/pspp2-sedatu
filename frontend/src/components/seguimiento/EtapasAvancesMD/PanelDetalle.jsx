@@ -101,8 +101,17 @@ export default function PanelDetalle({
           en pantallas anchas): las tablas de Documentos/Indicadores/
           Riesgos ya son `w-full` y se benefician directo del ancho extra;
           sigue acotado (no 100%) para no estirar de más el texto de la
-          ficha/descripción en pantallas muy anchas. */}
-      <div className="flex-1 overflow-y-auto px-5 py-4 max-w-5xl">
+          ficha/descripción en pantallas muy anchas.
+
+          Fase 3 del modelo de permisos: el LIENZO del panel (no el texto)
+          lleva el mismo gris de una fila bloqueada cuando el usuario no
+          puede capturar aquí (permisos.esSoloLectura) — mismo criterio ya
+          validado en el árbol: el apagado vive en la superficie, nunca en
+          el contenido. Las tablas de Documentos/Indicadores/Riesgos
+          (PestanaDocumentos.jsx/PestanaIndicadores.jsx/PestanaRiesgos.jsx)
+          ya declaran su propio `bg-white` para seguir respirando encima
+          de este fondo sin cambios de color en su contenido. */}
+      <div className={`flex-1 overflow-y-auto px-5 py-4 max-w-5xl ${permisos.esSoloLectura ? 'bg-gray-200' : ''}`}>
         <EncabezadoDetalle
           nodo={seleccion}
           ruta={ruta}
