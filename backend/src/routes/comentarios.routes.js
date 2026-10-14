@@ -15,11 +15,14 @@ const { Router } = require('express');
 const comentariosController = require('../controllers/comentarios.controller');
 
 const { exigirEdicionDeEntidadEnCuerpo, exigirEdicionComentario } = require('../middleware/permisos.middleware');
+const { exigirVisibilidadDeEntidadEnQuery } = require('../utils/alcance-lectura');
 
 const router = Router();
 
-router.get('/', comentariosController.listar);
-// Leer comentarios es para todos; escribirlos, solo para quien participa.
+// Leer es para cualquier interno (visibilidad total entre perfiles
+// internos); solo se cierra para 'externo' fuera de sus proyectos
+// invitados. Escribir sigue exigiendo captura, sin cambios.
+router.get('/', exigirVisibilidadDeEntidadEnQuery(), comentariosController.listar);
 router.post('/', exigirEdicionDeEntidadEnCuerpo(), comentariosController.crear);
 router.post('/:id/responder', exigirEdicionComentario(), comentariosController.responder);
 

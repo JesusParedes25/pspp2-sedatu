@@ -15,11 +15,12 @@ const { Router } = require('express');
 const riesgosController = require('../controllers/riesgos.controller');
 
 const { exigirEdicionDeEntidadEnCuerpo, exigirEdicionRiesgo } = require('../middleware/permisos.middleware');
+const { exigirVisibilidadRiesgo } = require('../utils/alcance-lectura');
 
 const router = Router();
 
 router.post('/', exigirEdicionDeEntidadEnCuerpo(), riesgosController.crear);
-router.get('/:id', riesgosController.obtenerPorId);
+router.get('/:id', exigirVisibilidadRiesgo(), riesgosController.obtenerPorId);
 router.put('/:id', exigirEdicionRiesgo(), riesgosController.actualizar);
 router.delete('/:id', exigirEdicionRiesgo(), riesgosController.eliminar);
 // Responder la propia asignación de responsable — no requiere permiso de

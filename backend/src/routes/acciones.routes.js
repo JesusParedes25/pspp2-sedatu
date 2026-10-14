@@ -15,10 +15,11 @@
 const { Router } = require('express');
 const accionesController = require('../controllers/acciones.controller');
 const { exigirEdicionNodo } = require('../middleware/permisos.middleware');
+const { exigirVisibilidadNodo } = require('../utils/alcance-lectura');
 
 const router = Router();
 
-router.get('/:id', accionesController.obtenerPorId);
+router.get('/:id', exigirVisibilidadNodo('accion'), accionesController.obtenerPorId);
 router.put('/:id', exigirEdicionNodo('accion'), accionesController.actualizar);
 // Sin exigirEdicionNodo aquí a propósito: ver el comentario equivalente
 // en etapas.routes.js — el controller decide el mínimo por los campos

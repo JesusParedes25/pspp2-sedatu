@@ -230,28 +230,16 @@ function exigirEdicionAportacionNueva(param = 'id') {
   });
 }
 
-// ─── Bloqueos: GET por query string, resolver por id de la fila ──────────
+// ─── Bloqueos: resolver por id de la fila ─────────────────────────────
 //
-// Un bloqueo expone detalle interno de un nodo (motivo, quién lo creó) —
-// a diferencia de un comentario o un riesgo, no es información neutra
-// para cualquiera, así que aquí "leer" exige el mismo peldaño que
-// "escribir": captura-or-superior en la entidad dueña.
-
-// GET /bloqueos y GET /bloqueos/activo: entidad_tipo/entidad_id vienen en
-// la query string, no en el body — sin entidad no hay nada que
-// autorizar, se deja pasar para que el controller devuelva su propio 400.
-function exigirEdicionDeEntidadEnQuery() {
-  return async (req, res, next) => {
-    try {
-      const { entidad_tipo, entidad_id } = req.query || {};
-      if (!entidad_tipo || !entidad_id) return next();
-      const permitido = await puedeCapturarEn(req.usuario, entidad_tipo, entidad_id);
-      return permitido ? next() : rechazar(res);
-    } catch (err) {
-      return next(err);
-    }
-  };
-}
+// GET /bloqueos y GET /bloqueos/activo (leer) usaban aquí un criterio de
+// captura-o-superior (exigirEdicionDeEntidadEnQuery, Fase 2/Paso 0) — se
+// retiró en Fase 2/Paso 1: un bloqueo es parte de la bitácora del nodo,
+// con la misma visibilidad total entre internos que cualquier otro dato
+// de proyecto (ver docs/modelo-permisos.md sección 7.1), así que esos dos
+// GET pasan a exigirVisibilidadDeEntidadEnQuery (utils/alcance-lectura.js)
+// en vez de vivir aquí. Resolver un bloqueo SÍ sigue siendo una acción de
+// escritura, no una lectura — por eso solo esta factory se queda.
 
 // PUT /bloqueos/:id/resolver: lo puede resolver quien lo creó, o quien
 // tiene captura-or-superior en la entidad que el bloqueo bloquea — el
@@ -304,7 +292,6 @@ module.exports = {
   exigirEdicionIndicador,
   exigirEdicionAportacion,
   exigirEdicionAportacionNueva,
-  exigirEdicionDeEntidadEnQuery,
   exigirResolverBloqueo,
   exigirEdicionDeNodoEnCuerpo,
 };

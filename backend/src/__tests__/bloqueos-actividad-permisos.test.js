@@ -1,11 +1,16 @@
 /**
  * ARCHIVO: bloqueos-actividad-permisos.test.js
  * PROPÓSITO: Fase 2, Paso 0 del modelo de permisos (docs/modelo-permisos.md)
- *            — bugs 1 y 2: PUT /bloqueos/:id/resolver, GET /bloqueos,
- *            GET /bloqueos/activo y POST /actividad no tenían ningún
- *            chequeo de autorización. Prueba las factories nuevas de
- *            permisos.middleware.js directamente, como middleware Express
- *            (req, res, next), no a través de los controllers.
+ *            — bugs 1 y 2: PUT /bloqueos/:id/resolver y POST /actividad no
+ *            tenían ningún chequeo de autorización. Prueba las factories
+ *            de permisos.middleware.js directamente, como middleware
+ *            Express (req, res, next), no a través de los controllers.
+ *            GET /bloqueos y GET /bloqueos/activo tuvieron aquí su propio
+ *            caso (exigirEdicionDeEntidadEnQuery) hasta Fase 2/Paso 1, que
+ *            lo retiró a favor de exigirVisibilidadDeEntidadEnQuery
+ *            (utils/alcance-lectura.js, cubierta en alcance-lectura.test.js)
+ *            — leer un bloqueo pasó a ser visibilidad total entre
+ *            internos, no un criterio de captura.
  *
  * Ejecutar: npm test
  */
@@ -30,50 +35,11 @@ jest.mock('../utils/autorizacion', () => ({
 const pool = require('../db/pool');
 const { puedeEditarNodo } = require('../utils/autorizacion');
 const {
-  exigirEdicionDeEntidadEnQuery,
   exigirResolverBloqueo,
   exigirEdicionDeNodoEnCuerpo,
 } = require('../middleware/permisos.middleware');
 
 beforeEach(() => jest.clearAllMocks());
-
-describe('GET /bloqueos y /bloqueos/activo — exigirEdicionDeEntidadEnQuery', () => {
-  test('sin captura en la entidad, 403 y nunca llega al controller', async () => {
-    puedeEditarNodo.mockResolvedValueOnce(false);
-    const req = { usuario: { id: UUID_USUARIO }, query: { entidad_tipo: 'Etapa', entidad_id: UUID_NODO } };
-    const res = crearRes();
-    const next = jest.fn();
-
-    await exigirEdicionDeEntidadEnQuery()(req, res, next);
-
-    expect(puedeEditarNodo).toHaveBeenCalledWith({ usuario: req.usuario, tipoNodo: 'etapa', idNodo: UUID_NODO });
-    expect(res.status).toHaveBeenCalledWith(403);
-    expect(next).not.toHaveBeenCalled();
-  });
-
-  test('con captura en la entidad, deja pasar', async () => {
-    puedeEditarNodo.mockResolvedValueOnce(true);
-    const req = { usuario: { id: UUID_USUARIO }, query: { entidad_tipo: 'Accion', entidad_id: UUID_NODO } };
-    const res = crearRes();
-    const next = jest.fn();
-
-    await exigirEdicionDeEntidadEnQuery()(req, res, next);
-
-    expect(next).toHaveBeenCalledWith();
-    expect(res.status).not.toHaveBeenCalled();
-  });
-
-  test('sin entidad_tipo/entidad_id en la query, deja pasar para que el controller dé su propio 400', async () => {
-    const req = { usuario: { id: UUID_USUARIO }, query: {} };
-    const res = crearRes();
-    const next = jest.fn();
-
-    await exigirEdicionDeEntidadEnQuery()(req, res, next);
-
-    expect(puedeEditarNodo).not.toHaveBeenCalled();
-    expect(next).toHaveBeenCalledWith();
-  });
-});
 
 describe('PUT /bloqueos/:id/resolver — exigirResolverBloqueo', () => {
   test('sin ser el creador y sin captura en la entidad dueña, 403', async () => {

@@ -16,13 +16,16 @@ const { Router } = require('express');
 const etapasController = require('../controllers/etapas.controller');
 const indicadoresController = require('../controllers/indicadores.controller');
 const { exigirEdicionNodo } = require('../middleware/permisos.middleware');
+const { exigirVisibilidadNodo } = require('../utils/alcance-lectura');
 
 const router = Router();
 
-// Lectura: abierta a cualquier usuario autenticado (la plataforma es de
-// visibilidad total). Escritura: solo quien puede capturar en el proyecto.
+// Lectura: abierta a cualquier interno (la plataforma es de visibilidad
+// total entre perfiles internos); solo se cierra para 'externo' fuera de
+// los proyectos a los que fue invitado (exigirVisibilidadNodo, ver
+// docs/modelo-permisos.md). Escritura: solo quien puede capturar.
 router.get('/:id/indicadores', indicadoresController.listarPorEtapa);
-router.get('/:id', etapasController.obtenerPorId);
+router.get('/:id', exigirVisibilidadNodo('etapa'), etapasController.obtenerPorId);
 router.put('/:id', exigirEdicionNodo('etapa'), etapasController.actualizar);
 // Sin exigirEdicionNodo aquí a propósito: este endpoint mezcla registrar
 // avance (requiere 'captura') y editar la ficha (requiere 'responsable')

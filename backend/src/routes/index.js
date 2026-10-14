@@ -32,6 +32,15 @@ const {
   exigirResponsableNodo, exigirResponsableProyecto,
 } = require('../middleware/permisos.middleware');
 
+// Permiso de VISIBILIDAD (no de escritura) para las rutas de lectura que
+// hoy no verifican nada — cierra el único caso donde la lectura no es
+// total entre perfiles internos: un usuario 'externo' fuera de sus
+// proyectos invitados (ver utils/alcance-lectura.js, docs/modelo-permisos.md).
+const {
+  exigirVisibilidadProyecto, exigirVisibilidadNodo, exigirVisibilidadRiesgo,
+  exigirVisibilidadIndicador,
+} = require('../utils/alcance-lectura');
+
 // Importar routers de cada recurso
 const authRoutes = require('./auth.routes');
 const proyectosRoutes = require('./proyectos.routes');
@@ -165,26 +174,34 @@ router.get('/acciones/:id/tareas', tareasController.listar);
 router.post('/acciones/:id/tareas', exigirResponsableNodo('accion'), tareasController.crear);
 
 // Evidencias de etapas, acciones, riesgos y subacciones
-router.get('/etapas/:id/evidencias', evidenciasController.listarPorEtapa);
+router.get('/etapas/:id/evidencias', exigirVisibilidadNodo('etapa'), evidenciasController.listarPorEtapa);
 router.post('/etapas/:id/evidencias', exigirEdicionNodo('etapa'), upload.single('archivo'), corregirCodificacionArchivo, evidenciasController.subirParaEtapa);
-router.get('/acciones/:id/evidencias', evidenciasController.listarPorAccion);
+router.get('/acciones/:id/evidencias', exigirVisibilidadNodo('accion'), evidenciasController.listarPorAccion);
 router.post('/acciones/:id/evidencias', exigirEdicionNodo('accion'), upload.single('archivo'), corregirCodificacionArchivo, evidenciasController.subirParaAccion);
-router.get('/riesgos/:id/evidencias', evidenciasController.listarPorRiesgo);
+router.get('/riesgos/:id/evidencias', exigirVisibilidadRiesgo(), evidenciasController.listarPorRiesgo);
 router.post('/riesgos/:id/evidencias', exigirEdicionRiesgo(), upload.single('archivo'), corregirCodificacionArchivo, evidenciasController.subirParaRiesgo);
-router.get('/subacciones/:id/evidencias', evidenciasController.listarPorSubaccion);
+router.get('/subacciones/:id/evidencias', exigirVisibilidadNodo('accion'), evidenciasController.listarPorSubaccion);
 router.post('/subacciones/:id/evidencias', exigirEdicionNodo('accion'), upload.single('archivo'), corregirCodificacionArchivo, evidenciasController.subirParaSubaccion);
-router.get('/proyectos/:id/evidencias', evidenciasController.listarPorProyecto);
+router.get('/proyectos/:id/evidencias', exigirVisibilidadProyecto(), evidenciasController.listarPorProyecto);
 
 // Documentos agregados (pestaña "Documentos" de Detalle, Fase 4) — incluye
 // los del nodo y, por omisión, los de sus descendientes (?incluirHijos=false
 // para solo el propio). Distinto de los endpoints exactos de arriba, que
 // alimentan el modal "Adjuntar documento" (solo lo propio del nodo).
-router.get('/etapas/:id/documentos', evidenciasController.obtenerDocumentosAgregados);
-router.get('/acciones/:id/documentos', evidenciasController.obtenerDocumentosAgregados);
-router.get('/tareas/:id/documentos', evidenciasController.obtenerDocumentosAgregados);
+router.get('/etapas/:id/documentos', exigirVisibilidadNodo('etapa'), evidenciasController.obtenerDocumentosAgregados);
+router.get('/acciones/:id/documentos', exigirVisibilidadNodo('accion'), evidenciasController.obtenerDocumentosAgregados);
+router.get('/tareas/:id/documentos', exigirVisibilidadNodo('tarea'), evidenciasController.obtenerDocumentosAgregados);
 
 // Riesgos de un proyecto, etapa, acción, subacción y tarea
-router.get('/proyectos/:id/riesgos', riesgosController.listarPorProyecto);
+//
+// NOTA DE ALCANCE: solo /proyectos/:id/riesgos (listado a nivel proyecto)
+// y GET /riesgos/:id (riesgos.routes.js) quedan protegidos en este PR —
+// son los que el Paso 1/2 nombran explícitamente. Los listados por nodo
+// de esta misma sección (etapa/acción/subacción/tarea) tienen el mismo
+// hueco hoy (sin control) pero no se tocan aquí a propósito: no están en
+// la lista pedida y se reportan aparte para no exceder el alcance de
+// este PR.
+router.get('/proyectos/:id/riesgos', exigirVisibilidadProyecto(), riesgosController.listarPorProyecto);
 router.get('/etapas/:id/riesgos', riesgosController.listarPorEtapa);
 router.get('/acciones/:id/riesgos', riesgosController.listarPorAccion);
 router.get('/subacciones/:id/riesgos', riesgosController.listarPorSubaccion);
@@ -194,13 +211,17 @@ router.get('/tareas/:id/riesgos', riesgosController.listarPorTarea);
 router.get('/riesgos-asignados-pendientes', riesgosController.listarAsignacionesPendientes);
 
 // Indicadores de un proyecto (nivel proyecto, nivel etapa, o todos)
-router.get('/proyectos/:id/indicadores', indicadoresController.listarPorProyecto);
-router.get('/proyectos/:id/indicadores/todos', indicadoresController.listarTodosPorProyecto);
+//
+// NOTA DE ALCANCE: /etapas/:id/indicadores no se toca en este PR — mismo
+// hueco de visibilidad hoy, pero fuera de lo nombrado en el Paso 1/2;
+// reportado aparte.
+router.get('/proyectos/:id/indicadores', exigirVisibilidadProyecto(), indicadoresController.listarPorProyecto);
+router.get('/proyectos/:id/indicadores/todos', exigirVisibilidadProyecto(), indicadoresController.listarTodosPorProyecto);
 router.post('/proyectos/:id/indicadores', exigirEdicionProyecto(), indicadoresController.crear);
 router.get('/etapas/:id/indicadores', indicadoresController.listarPorEtapa);
 router.get('/indicadores/publicos', indicadoresController.listarPublicables);
 router.get('/indicadores/mios', indicadoresController.listarMios);
-router.get('/indicadores/:id', indicadoresController.obtenerPorId);
+router.get('/indicadores/:id', exigirVisibilidadIndicador(), indicadoresController.obtenerPorId);
 router.put('/indicadores/:id', exigirEdicionIndicador(), indicadoresController.actualizar);
 router.delete('/indicadores/:id', exigirEdicionIndicador(), indicadoresController.eliminar);
 router.get('/indicadores/:id/resumen-aportaciones', indicadoresController.resumenAportaciones);
@@ -208,16 +229,16 @@ router.patch('/indicadores/:id/publicar', exigirEdicionIndicador(), indicadoresC
 router.patch('/indicadores/:id/valor', exigirEdicionIndicador(), indicadoresController.establecerValor);
 
 // Aportaciones a indicadores
-router.get('/indicadores/:id/aportaciones', aportacionesController.listar);
+router.get('/indicadores/:id/aportaciones', exigirVisibilidadIndicador(), aportacionesController.listar);
 router.post('/indicadores/:id/aportaciones', exigirEdicionAportacionNueva(), aportacionesController.crear);
 router.patch('/aportaciones/:id', exigirEdicionAportacion(), aportacionesController.actualizar);
 router.delete('/aportaciones/:id', exigirEdicionAportacion(), aportacionesController.eliminar);
-router.get('/etapas/:id/aportaciones', aportacionesController.listarPorNodo);
-router.get('/acciones/:id/aportaciones', aportacionesController.listarPorNodo);
-router.get('/tareas/:id/aportaciones', aportacionesController.listarPorNodo);
+router.get('/etapas/:id/aportaciones', exigirVisibilidadNodo('etapa'), aportacionesController.listarPorNodo);
+router.get('/acciones/:id/aportaciones', exigirVisibilidadNodo('accion'), aportacionesController.listarPorNodo);
+router.get('/tareas/:id/aportaciones', exigirVisibilidadNodo('tarea'), aportacionesController.listarPorNodo);
 
 // Indicadores con valor realizado (dashboard-ready)
-router.get('/proyectos/:id/indicadores/resumen', indicadoresController.resumenConValores);
+router.get('/proyectos/:id/indicadores/resumen', exigirVisibilidadProyecto(), indicadoresController.resumenConValores);
 
 // Estadísticas del proyecto (para el resumen/dashboard)
 router.get('/proyectos/:id/stats', proyectosStatsController.obtenerStats);
@@ -261,8 +282,12 @@ router.get('/inicio/mapa/zm', geoController.obtenerMapaZmInicio);
 router.get('/inicio/filtros/proyectos', inicioController.obtenerProyectosFiltro);
 router.get('/inicio/filtros/carteras', inicioController.obtenerCarterasFiltro);
 
-// Panorama del proyecto (tab Panorama)
-router.get('/proyectos/:id/panorama', panoramaController.obtenerPanorama);
+// Panorama del proyecto (tab Panorama) — incluye participantes, que
+// Fase 2/Paso 1 (Bloque B, docs/modelo-permisos.md) exige acotar para
+// 'externo' a los proyectos a los que fue invitado; exigirVisibilidadProyecto
+// ya cierra exactamente ese caso (y de paso cierra el mismo hueco de
+// visibilidad que tenía el resto del panorama, sin filtro hasta ahora).
+router.get('/proyectos/:id/panorama', exigirVisibilidadProyecto(), panoramaController.obtenerPanorama);
 // Panorama compacto (hover de ProyectoCard en Inicio): árbol ligero + actividad reciente
 router.get('/proyectos/:id/panorama-rapido', panoramaController.obtenerPanoramaRapido);
 
@@ -280,8 +305,10 @@ router.post('/tareas/:tareaId/miembros-nodo', nodoMiembrosController.agregar);
 router.put('/tareas/:tareaId/miembros-nodo/:userId', nodoMiembrosController.actualizar);
 router.delete('/tareas/:tareaId/miembros-nodo/:userId', nodoMiembrosController.eliminar);
 
-// Miembros e invitaciones de proyecto
-router.get('/proyectos/:id/miembros', miembrosController.listarMiembros);
+// Miembros e invitaciones de proyecto — mismo criterio que panorama: la
+// lista de miembros es, para 'externo', el mismo caso de "a quiénes
+// devuelve" que rige el directorio (docs/modelo-permisos.md, Bloque B).
+router.get('/proyectos/:id/miembros', exigirVisibilidadProyecto(), miembrosController.listarMiembros);
 router.post('/proyectos/:id/miembros', miembrosController.agregarMiembro);
 router.delete('/proyectos/:id/miembros/:userId', miembrosController.eliminarMiembro);
 router.post('/proyectos/:id/invitaciones', miembrosController.crearInvitacion);
