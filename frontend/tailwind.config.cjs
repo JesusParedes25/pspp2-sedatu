@@ -13,6 +13,18 @@
  */
 module.exports = {
   content: ['./index.html', './src/**/*.{jsx,js}'],
+  // 'class' en vez del default 'media': la plataforma es monotema claro
+  // hoy (sin ningún toggle ni clase .dark en ningún lado) — Fase 3 del
+  // modelo de permisos (NodoArbol.jsx) definió las clases `dark:` del
+  // árbol de Detalle calibradas para cuando exista un tema oscuro real,
+  // pero con el default 'media' esas clases ya activarían hoy mismo
+  // para cualquiera cuyo sistema operativo prefiera oscuro — y como
+  // ningún otro panel de la plataforma tiene aún su propio tratamiento
+  // oscuro, el resultado sería una pantalla mitad clara mitad oscura sin
+  // que nadie lo pidiera. 'class' las deja inertes (nunca se aplica
+  // ninguna, en ningún navegador) hasta que la app agregue de verdad un
+  // interruptor de tema que ponga la clase .dark en <html>.
+  darkMode: 'class',
   theme: {
     extend: {
       fontFamily: {
