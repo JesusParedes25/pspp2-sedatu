@@ -2,7 +2,8 @@
 
 > **Este documento corresponde al commit `c7807cd0c3079aeb43fc5a41b75da6ae28bf0b06`
 > (2026-10-13) + Fase 2 / Paso 0 (sección 6) + Fase 2 / Paso 1 (sección 7) +
-> Fase 2 / Paso 2 (sección 9), descritos en este mismo PR.**
+> Fase 2 / Paso 2 (sección 9) + Fase 3, estado de consulta en la interfaz
+> (sección 11), descritos en este mismo PR.**
 > Regenerado por completo (no es un parche del documento anterior), porque
 > la versión previa describía el modelo PRE-Fase-1: el CHECK de 2 valores
 > de `proyecto_usuarios.rol`, el CHECK de 3 valores con `'invitado'` de
@@ -34,8 +35,9 @@ es sobre la primera:
    llevan ese bono. Fase 2/Paso 1 (sección 7) cerró el grueso de la
    lectura estructural y el directorio de usuarios; Fase 2/Paso 2
    (sección 9) cerró el bono de DG y conectó dashboard/mapas agregados
-   al alcance real, retirando el `?id_dg=` libre. Lo que queda pendiente
-   está en la sección 10.
+   al alcance real, retirando el `?id_dg=` libre; Fase 3 (sección 11)
+   mostró ese cálculo en la interfaz (candado, banda de consulta) sin
+   cambiar el modelo. Lo que queda pendiente está en la sección 12.
 
 La arquitectura de la pregunta 1 es una **escalera única de 4 peldaños**
 (`lectura < captura < responsable < administracion_proyecto`), resuelta
@@ -468,7 +470,152 @@ aporta filas — nunca un error, nunca el alcance completo sin filtrar.
 `alcanceProyectoIds === null` (superadmin/ejecutivo) sigue dejando que
 `id_dg` filtre solo, como ya hacía.
 
-## 10. Qué queda pendiente (decisiones de producto y endpoints sin migrar)
+## 11. Fase 3 — estado de consulta en la interfaz
+
+Presentación, no lógica de permisos: el backend ya calcula desde la Fase
+1 (sección 2) quién puede hacer qué — este paso solo lo muestra. La
+regla de arranque es que el candado y la banda explicativa de abajo
+salen **siempre** de `permisos.puedeEditarNodo(tipo, id)` /
+`permisos.esSoloLectura` — nunca de un cálculo propio de un componente
+de presentación.
+
+### 11.1 Fuente única: `nodosEditablesUsuario` delegó en `funcionEfectivaPorLotes`
+
+Antes de este paso, `GET /proyectos/:id/mis-permisos`
+(`proyectos.controller.js::misPermisos`) ya devolvía `nodos_editables`
+por nodo (`{etapa:[],accion:[],tarea:[]}`, expandido hacia abajo), pero
+`permisos.queries.js::nodosEditablesUsuario` lo calculaba con su propio
+SQL (asignación directa + un `while` de herencia) — un segundo cálculo
+de lo mismo que ya resolvía `funcionEfectivaPorLotes`
+(`utils/funcion-efectiva.js`, construida en Fase 1 explícitamente para
+esto, con su propio test, nunca conectada a ningún controller hasta
+ahora). Daban el mismo resultado por construcción, pero eran dos
+implementaciones independientes de la misma pregunta — el mismo patrón
+que ya costó inconsistencias en otros módulos de esta plataforma. Este
+paso retira el SQL propio: `nodosEditablesUsuario(proyectoId, usuario)`
+ahora llama a `funcionEfectivaPorLotes(usuario, proyectoId)` y filtra
+`alcanza(candidato, 'captura')` — mismo contrato de salida de
+`mis-permisos`, cero cambio visible, pero el candado del árbol sale de
+la MISMA función que usa `autorizacion.js` para aceptar o rechazar una
+escritura real, no de una copia. El controller pasa ahora el objeto
+`usuario` completo (antes solo `usuario.id`) porque
+`funcionEfectivaPorLotes` necesita `rol`/`id_dg` para el bono de DG.
+
+En el frontend, `usePermisos.js::permisosDeNodo` (líneas 184-220) ya
+hacía exactamente lo que este paso necesitaba mostrar — `esSoloLectura`
+por nodo, ya conectado en `NodoCard.jsx`, `PropiedadesElemento.jsx`,
+`FichaNodo.jsx`, `PanelDetalle.jsx` y `VistaDiagrama/PanelDrawer.jsx`.
+Lo único que faltaba era la presentación en el árbol de "Detalle"
+(`NodoArbol.jsx`, que no recibía `permisos` en absoluto) y el panel de
+acciones (`FilaAcciones.jsx`, que ya deshabilitaba sus controles con el
+criterio correcto, pero sin quitarlos).
+
+### 11.2 El árbol — candado + atenuación por elemento, no una sola opacidad de fila
+
+Un nodo donde `permisos.puedeEditarNodo(tipo, id)` es `false`
+(`NodoArbol.jsx`) lleva un candado (ícono `Lock`, con
+`aria-label="Sin permiso de edición en este elemento"`) entre el nombre
+y el porcentaje, y la fila se atenúa. **Medido, no supuesto** (WCAG
+1.4.3, mínimo 4.5:1 para texto): aplicar `opacity: 0.65` a la fila
+completa sobre su fondo real (`bg-white`) deja el nombre
+(`text-gray-700`) en 3.79:1 y el porcentaje (`text-gray-500`) en
+2.52:1 — ambos por debajo del mínimo. La solución (decidida con el
+usuario): el atenuado se aplica **por elemento**, no con una sola
+opacidad de contenedor, y cada elemento de texto/ícono parte del tono
+MÁS FUERTE que ya usa esta pantalla (`text-gray-900`, el mismo del
+título del nodo en `EncabezadoDetalle.jsx`) en vez de su tono normal —
+`gray-900` mezclado al 65% mide **5.52:1**, con margen sobre el
+mínimo. Nombre, porcentaje y candado comparten esa misma clase
+(`text-gray-900 opacity-[0.65]`); dentro de una fila de consulta se
+leen con un peso parecido entre sí a propósito — la jerarquía que
+importa en esta pantalla es "mis ramas vs. las que no son mías", y esa
+la da la atenuación de la fila, no el peso relativo del porcentaje.
+
+**El punto del semáforo queda sin atenuar.** Se midió si existía una
+opacidad entre 0.80 y 1.00 (en pasos de 0.05) que dejara pasar los
+cuatro colores de `COLORES_SEMAFORO` el mínimo gráfico de 3:1 contra el
+fondo de la fila — ninguna lo logra: **gris (`#94a3b8`) ya falla
+incluso a opacidad plena (2.56:1, sin ningún atenuado)**, y verde/ámbar
+caen por debajo de 3:1 entre 0.90 y 0.95. Oscurecer la base del punto
+para forzar el contraste (probado: verde/ámbar/rojo/gris a tonos
+`-800`) sí pasa 3:1 los cuatro, pero **empeora la distinguibilidad
+entre ellos** — sus luminancias quedan más parecidas entre sí que hoy
+(rojo vs. gris cae a 1.01:1). Por eso el punto se queda a opacidad
+plena dentro de una fila atenuada — es "lo primero que la gente lee
+del árbol" y necesita conservar su fuerza — y `SemaforoDot.jsx`/
+`COLORES_SEMAFORO` no se tocan: es la única fuente de verdad visual del
+semáforo en toda la plataforma (Detalle, Diagrama, Cronograma, Agenda),
+y una paleta distinta solo para filas de consulta hubiera sido la
+misma clase de duplicación que motivó 11.1.
+
+**Hallazgos aparte, preexistentes a este PR, no resueltos aquí:**
+- `COLORES_SEMAFORO.gris` (`#94a3b8`) no pasa el mínimo gráfico de 3:1
+  contra fondo blanco **a opacidad plena** (2.56:1) — un problema de la
+  paleta en sí, no de la atenuación de Fase 3.
+- La paleta del semáforo nunca se validó contra deficiencias de visión
+  de color. Verde vs. ámbar es el par de menor contraste de luminancia
+  entre sí (1.03:1 a opacidad plena) — ambos siguen separándose por
+  matiz para visión de color típica, pero no hay evidencia en este
+  repositorio de que se haya probado contra deuteranopia/protanopia,
+  que es justo donde ese par (y verde/rojo) arriesgan confundirse.
+
+### 11.3 El encabezado — chip "Consulta"
+
+`EncabezadoDetalle.jsx` agrega un chip `Consulta` (ícono `Lock`) junto
+a los que ya existen (tipo de nodo, estado, número de hijos) cuando
+`permisos.esSoloLectura` — mismo booleano por nodo que ya controla ahí
+mismo si el nombre/descripción son editables.
+
+### 11.4 El panel de acciones — banda en vez de botones apagados
+
+`PanelDetalle.jsx` reemplaza `FilaAcciones` (Registrar avance/Agregar
+hijo/Más acciones) por `BandaConsulta.jsx` cuando `permisos.esSoloLectura`
+es `true` — los botones se QUITAN, no se deshabilitan (uno apagado
+invita a un clic que nunca responde). La banda explica el estado y
+monta `BotonSolicitarParticipar.jsx` (existente desde antes de esta
+sesión, sin cambios) con `nodo={{tipo, id, nombre}}` — la misma
+instancia que ya vive en `GestorUsuariosProyecto.jsx` y
+`SeccionMiembrosNodo.jsx`, ahora también aquí.
+
+**El panel de detalle en sí no se atenúa** — solo el árbol. Las
+pestañas de contenido (Actividad, Documentos, Indicadores, Territorio,
+Riesgos, Equipo y permisos) se leen completas sin importar si el
+usuario participa: ninguna de ellas esconde contenido de lectura por
+`esSoloLectura`, solo ocultan o deshabilitan sus propios controles de
+escritura (confirmado archivo por archivo: `PestanaDocumentos.jsx`,
+`PestanaIndicadores.jsx`, `PestanaRiesgos.jsx`, `PestanaTerritorio.jsx`,
+`TiraDatos.jsx`) — es la decisión de producto que distingue este estado
+del de un `externo`.
+
+### 11.5 El caso de herencia mixta
+
+Un usuario invitado a una acción pero no a la etapa que la contiene: la
+etapa queda con candado y atenuada, la acción no — probado en
+`nodos-editables-usuario.test.js` contra la implementación real de
+`funcionEfectivaPorLotes` (sin mocks de la escalera, solo de `pool`).
+La herencia de la escalera solo corre hacia abajo (de ascendiente a
+descendiente) — una asignación en un nodo nunca sube a su padre.
+
+### 11.6 Fuera de alcance de este PR (decisiones explícitas)
+
+- **`GET /proyectos/:id/imagen`**: sigue respondiendo sin pasar por
+  `verificarToken` — la razón del comentario en `routes/index.js` es
+  real (un `<img src>` nunca envía el header `Authorization`; el JWT
+  vive en `localStorage`, nunca en una cookie), así que moverlo tal
+  cual rompería el 100% de las portadas, no solo las de quien no tiene
+  permiso. Cerrar el hueco real (cualquiera, sin sesión, puede pedir la
+  imagen de cualquier proyecto por id) necesita un mecanismo nuevo
+  (token también por query string, o reescribir a `fetch`+blob) — con
+  el usuario, se decidió dejarlo fuera de este PR.
+- **Tema oscuro**: no se tocó. La plataforma es monotema claro hoy (sin
+  ninguna clase `dark:` ni `darkMode` en Tailwind) — la única excepción
+  es `frontend/src/utils/carrilesEventos.js` (marcadores de la línea de
+  tiempo), que sí reacciona a `prefers-color-scheme` con su propia
+  paleta, acotada a esos marcadores — no existe ningún fondo/texto de
+  superficie "oscuro" para el árbol o el panel de Detalle contra el
+  cual medir.
+
+## 12. Qué queda pendiente (decisiones de producto y endpoints sin migrar)
 
 - **Listados de riesgos por nodo, `/etapas/:id/indicadores`,
   `/proyectos/:id/panorama-rapido`**: mismo hueco de visibilidad
@@ -487,3 +634,11 @@ aporta filas — nunca un error, nunca el alcance completo sin filtrar.
   gate mínimo de lectura en exportación, y la confirmación con conteo al
   eliminar un nodo con descendientes, quedaron pendientes de otra ronda —
   no tocados por este documento ni por el Paso 0/1.
+- **`GET /proyectos/:id/imagen` sin autenticar** y el **tema oscuro
+  inexistente** (sección 11.6) — fuera de este PR por decisión
+  explícita, no por descuido.
+- **`COLORES_SEMAFORO.gris` no pasa 3:1 contra blanco ni a opacidad
+  plena, y la paleta del semáforo (particularmente verde vs. ámbar)
+  nunca se validó contra deficiencias de visión de color** (sección
+  11.2) — preexistente a este PR, que solo lo hizo más visible al
+  intentar atenuar el punto.

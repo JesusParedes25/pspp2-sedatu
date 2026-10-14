@@ -502,6 +502,7 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
                 seleccionadoId={seleccion?.id}
                 onToggle={toggleExpandir}
                 onSelect={irANodo}
+                permisos={permisos}
               />
             ))
           )}
@@ -581,6 +582,7 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
             key={seleccion.id}
             seleccion={seleccion}
             proyectoId={proyectoId}
+            proyecto={proyecto}
             permisos={permisos}
             onActualizado={recargar}
             mostrarToast={mostrarToast}
