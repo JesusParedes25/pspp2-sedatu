@@ -69,6 +69,55 @@ async function obtenerUsuarios(idDg, opciones = {}) {
   return resultado.rows;
 }
 
+// Mismo listado que obtenerUsuarios, pero acotado a quienes comparten AL
+// MENOS un proyecto con idUsuario — para un usuario 'externo', que nunca
+// debe ver el directorio completo (docs/modelo-permisos.md, Bloque B:
+// "a quiénes devuelve cada perfil"). Mismos filtros opcionales que
+// obtenerUsuarios para no bifurcar el contrato de la función — en la
+// práctica 'externo' no usa el selector de invitar, pero no hay razón
+// para que esta función soporte menos que la otra.
+async function obtenerUsuariosCoparticipantes(idUsuario, opciones = {}) {
+  const { id_direccion_area, nombre, excluir_proyecto } = opciones;
+  const condiciones = [
+    'u.activo = true',
+    `u.id IN (
+      SELECT pu2.id_usuario FROM proyecto_usuarios pu2
+      WHERE pu2.estado = 'aceptada' AND pu2.id_proyecto IN (
+        SELECT id_proyecto FROM proyecto_usuarios WHERE id_usuario = $1 AND estado = 'aceptada'
+      )
+    )`,
+  ];
+  const parametros = [idUsuario];
+
+  if (id_direccion_area) {
+    parametros.push(id_direccion_area);
+    condiciones.push(`u.id_direccion_area = $${parametros.length}`);
+  }
+  if (nombre) {
+    parametros.push(`%${nombre}%`);
+    condiciones.push(`u.nombre_completo ILIKE $${parametros.length}`);
+  }
+  if (excluir_proyecto) {
+    parametros.push(excluir_proyecto);
+    condiciones.push(`u.id NOT IN (SELECT id_usuario FROM proyecto_usuarios WHERE id_proyecto = $${parametros.length})`);
+  }
+
+  const resultado = await pool.query(`
+    SELECT
+      u.id, u.nombre_completo, u.correo, u.cargo, u.rol, u.id_dg,
+      dg.nombre AS dg_nombre, dg.siglas AS dg_siglas,
+      u.id_direccion_area, da.nombre AS da_nombre, da.siglas AS direccion_area_siglas
+    FROM usuarios u
+    LEFT JOIN direcciones_generales dg ON dg.id = u.id_dg
+    LEFT JOIN direcciones_area da ON da.id = u.id_direccion_area
+    WHERE ${condiciones.join(' AND ')}
+    ORDER BY u.nombre_completo
+    LIMIT 100
+  `, parametros);
+
+  return resultado.rows;
+}
+
 // Lista programas activos con unidad responsable y descripción
 async function obtenerProgramas() {
   const resultado = await pool.query(`
@@ -128,6 +177,7 @@ async function buscarEtiquetas(q, limite = 10) {
 module.exports = {
   obtenerDGs,
   obtenerUsuarios,
+  obtenerUsuariosCoparticipantes,
   obtenerProgramas,
   obtenerDireccionesArea,
   buscarEtiquetas
