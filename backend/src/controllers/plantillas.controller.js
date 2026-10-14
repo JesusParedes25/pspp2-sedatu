@@ -120,6 +120,15 @@ async function actualizar(req, res, next) {
       });
     }
 
+    const mismaDG = existente[0].id_dg && req.usuario?.id_dg && existente[0].id_dg === req.usuario.id_dg;
+    if (req.usuario?.rol !== 'superadmin' && !mismaDG) {
+      return res.status(403).json({
+        error: true,
+        mensaje: 'Solo puedes editar plantillas de tu propia Dirección General.',
+        codigo: 'NO_AUTORIZADO',
+      });
+    }
+
     const { rows } = await pool.query(`
       UPDATE plantillas_importacion
       SET nombre = COALESCE($1, nombre),
@@ -159,6 +168,15 @@ async function eliminar(req, res, next) {
         error: true,
         mensaje: 'No se pueden eliminar plantillas del sistema.',
         codigo: 'PREDETERMINADA',
+      });
+    }
+
+    const mismaDG = existente[0].id_dg && req.usuario?.id_dg && existente[0].id_dg === req.usuario.id_dg;
+    if (req.usuario?.rol !== 'superadmin' && !mismaDG) {
+      return res.status(403).json({
+        error: true,
+        mensaje: 'Solo puedes eliminar plantillas de tu propia Dirección General.',
+        codigo: 'NO_AUTORIZADO',
       });
     }
 

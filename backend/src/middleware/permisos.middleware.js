@@ -230,6 +230,68 @@ function exigirEdicionAportacionNueva(param = 'id') {
   });
 }
 
+// ─── Bloqueos: GET por query string, resolver por id de la fila ──────────
+//
+// Un bloqueo expone detalle interno de un nodo (motivo, quién lo creó) —
+// a diferencia de un comentario o un riesgo, no es información neutra
+// para cualquiera, así que aquí "leer" exige el mismo peldaño que
+// "escribir": captura-or-superior en la entidad dueña.
+
+// GET /bloqueos y GET /bloqueos/activo: entidad_tipo/entidad_id vienen en
+// la query string, no en el body — sin entidad no hay nada que
+// autorizar, se deja pasar para que el controller devuelva su propio 400.
+function exigirEdicionDeEntidadEnQuery() {
+  return async (req, res, next) => {
+    try {
+      const { entidad_tipo, entidad_id } = req.query || {};
+      if (!entidad_tipo || !entidad_id) return next();
+      const permitido = await puedeCapturarEn(req.usuario, entidad_tipo, entidad_id);
+      return permitido ? next() : rechazar(res);
+    } catch (err) {
+      return next(err);
+    }
+  };
+}
+
+// PUT /bloqueos/:id/resolver: lo puede resolver quien lo creó, o quien
+// tiene captura-or-superior en la entidad que el bloqueo bloquea — el
+// mismo criterio de puedeCapturarEn, con la excepción del creador porque
+// resolver tu propio bloqueo no debería depender de seguir teniendo
+// permiso de captura en ese nodo más adelante.
+const exigirResolverBloqueo = (param = 'id') => async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT entidad_tipo, entidad_id, id_creador FROM bloqueos WHERE id = $1',
+      [req.params[param]]
+    );
+    const bloqueo = rows[0];
+    if (!bloqueo) return rechazar(res);
+    if (bloqueo.id_creador === req.usuario?.id) return next();
+    const permitido = await puedeCapturarEn(req.usuario, bloqueo.entidad_tipo, bloqueo.entidad_id);
+    return permitido ? next() : rechazar(res);
+  } catch (err) {
+    return next(err);
+  }
+};
+
+// POST /actividad: mismo criterio "leer abierto, escribir cerrado" que ya
+// aplica comentarios.routes.js vía exigirEdicionDeEntidadEnCuerpo, pero
+// actividad.controller.js nombra sus campos tipo_nodo/id_nodo en vez de
+// entidad_tipo/entidad_id — no reusa esa factory porque los nombres de
+// campo no calzan, pero sí reusa puedeCapturarEn, el mismo núcleo.
+function exigirEdicionDeNodoEnCuerpo() {
+  return async (req, res, next) => {
+    try {
+      const { tipo_nodo, id_nodo } = req.body || {};
+      if (!tipo_nodo || !id_nodo) return next();
+      const permitido = await puedeCapturarEn(req.usuario, tipo_nodo, id_nodo);
+      return permitido ? next() : rechazar(res);
+    } catch (err) {
+      return next(err);
+    }
+  };
+}
+
 module.exports = {
   exigirEdicionNodo,
   exigirEdicionProyecto,
@@ -242,4 +304,7 @@ module.exports = {
   exigirEdicionIndicador,
   exigirEdicionAportacion,
   exigirEdicionAportacionNueva,
+  exigirEdicionDeEntidadEnQuery,
+  exigirResolverBloqueo,
+  exigirEdicionDeNodoEnCuerpo,
 };
