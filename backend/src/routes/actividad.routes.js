@@ -15,13 +15,18 @@ const multer = require('multer');
 const actividadController = require('../controllers/actividad.controller');
 const corregirCodificacionArchivo = require('../middleware/corregirCodificacionArchivo.middleware');
 const { exigirEdicionDeNodoEnCuerpo } = require('../middleware/permisos.middleware');
+const { exigirVisibilidadActividadPorId, exigirVisibilidadNodoEnParams } = require('../utils/alcance-lectura');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
 
 const router = Router();
 
-router.get('/:id/descargar', actividadController.descargar);
+// Leer (listado y descarga) exige solo visibilidad del proyecto dueño —
+// total entre internos, cerrado para 'externo' fuera de lo invitado.
+// Escribir sigue exigiendo captura (exigirEdicionDeNodoEnCuerpo, sin
+// cambios desde Fase 2 / Paso 0).
+router.get('/:id/descargar', exigirVisibilidadActividadPorId(), actividadController.descargar);
 router.post('/', upload.single('archivo'), corregirCodificacionArchivo, exigirEdicionDeNodoEnCuerpo(), actividadController.crear);
-router.get('/:tipo_nodo/:id_nodo', actividadController.obtenerPorNodo);
+router.get('/:tipo_nodo/:id_nodo', exigirVisibilidadNodoEnParams(), actividadController.obtenerPorNodo);
 
 module.exports = router;

@@ -15,11 +15,16 @@ const { Router } = require('express');
 const evidenciasController = require('../controllers/evidencias.controller');
 
 const { exigirEdicionEvidencia } = require('../middleware/permisos.middleware');
+const { exigirVisibilidadEvidencia } = require('../utils/alcance-lectura');
 
 const router = Router();
 
+// listarTodas ya filtra por alcanceProyectosUsuarioONull (vista
+// personalizada, acotada a participación — fuera de este PR, ver
+// docs/modelo-permisos.md). La descarga por UUID no filtraba nada: solo
+// se cierra el caso 'externo' fuera de su proyecto invitado.
 router.get('/', evidenciasController.listarTodas);
-router.get('/:id/descargar', evidenciasController.descargar);
+router.get('/:id/descargar', exigirVisibilidadEvidencia(), evidenciasController.descargar);
 router.delete('/:id', exigirEdicionEvidencia(), evidenciasController.eliminar);
 
 module.exports = router;

@@ -26,10 +26,18 @@ async function obtenerDGs(req, res, next) {
 }
 
 // GET /catalogos/usuarios — Lista usuarios con filtros opcionales
+//
+// Alcance (docs/modelo-permisos.md, Bloque B): cualquier perfil interno
+// recibe el directorio completo, sin cambio — lo necesitan para invitar
+// gente a sus proyectos. 'externo' nunca ve el directorio completo, solo
+// a quienes ya comparten un proyecto con él.
 async function obtenerUsuarios(req, res, next) {
   try {
     const { id_dg, id_direccion_area, nombre, excluir_proyecto } = req.query;
-    const usuarios = await catalogosQueries.obtenerUsuarios(id_dg, { id_direccion_area, nombre, excluir_proyecto });
+    const opciones = { id_direccion_area, nombre, excluir_proyecto };
+    const usuarios = req.usuario?.rol === 'externo'
+      ? await catalogosQueries.obtenerUsuariosCoparticipantes(req.usuario.id, opciones)
+      : await catalogosQueries.obtenerUsuarios(id_dg, opciones);
     res.json({ datos: usuarios, mensaje: 'Usuarios obtenidos' });
   } catch (err) {
     next(err);

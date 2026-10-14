@@ -9,20 +9,25 @@
  * PUT /bloqueos/:id/resolver → cerrar bloqueo con nota de resolución
  * La creación de bloqueos se maneja internamente en cambiarEstado().
  *
- * Un bloqueo expone detalle interno de un nodo (motivo, quién lo creó),
- * así que las tres rutas exigen captura-or-superior en la entidad
- * dueña (o, para resolver, haberlo creado) — ver exigirEdicionDeEntidadEnQuery
- * y exigirResolverBloqueo en permisos.middleware.js.
+ * Leer (GET) y escribir (PUT /resolver) exigen criterios distintos a
+ * propósito: un bloqueo es parte de la bitácora del nodo — visibilidad
+ * total entre perfiles internos, como cualquier otro dato de proyecto
+ * (ver docs/modelo-permisos.md) — así que los GET solo cierran el caso
+ * 'externo' fuera de sus proyectos invitados (exigirVisibilidadDeEntidadEnQuery).
+ * Resolverlo sigue siendo una acción, no una lectura: exige captura-or-
+ * superior en la entidad, o haber creado el bloqueo (exigirResolverBloqueo,
+ * sin cambios desde Fase 2 / Paso 0).
  * ─────────────────────────────────────────────────────────────────
  */
 const { Router } = require('express');
 const ctrl = require('../controllers/bloqueos.controller');
-const { exigirEdicionDeEntidadEnQuery, exigirResolverBloqueo } = require('../middleware/permisos.middleware');
+const { exigirResolverBloqueo } = require('../middleware/permisos.middleware');
+const { exigirVisibilidadDeEntidadEnQuery } = require('../utils/alcance-lectura');
 
 const router = Router();
 
-router.get('/',       exigirEdicionDeEntidadEnQuery(), ctrl.listarHistorial);
-router.get('/activo', exigirEdicionDeEntidadEnQuery(), ctrl.obtenerActivo);
+router.get('/',       exigirVisibilidadDeEntidadEnQuery(), ctrl.listarHistorial);
+router.get('/activo', exigirVisibilidadDeEntidadEnQuery(), ctrl.obtenerActivo);
 router.put('/:id/resolver', exigirResolverBloqueo(), ctrl.resolverBloqueo);
 
 module.exports = router;
