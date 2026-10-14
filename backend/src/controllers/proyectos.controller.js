@@ -454,7 +454,7 @@ async function misPermisos(req, res, next) {
     // Si ya puede capturar en todo el proyecto, la lista por nodo sobra.
     const nodosEditables = puedeCapturar
       ? { etapa: [], accion: [], tarea: [] }
-      : await permisosQueries.nodosEditablesUsuario(idProyecto, usuario?.id);
+      : await permisosQueries.nodosEditablesUsuario(idProyecto, usuario);
 
     res.json({
       datos: {

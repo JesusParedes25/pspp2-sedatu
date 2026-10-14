@@ -18,7 +18,7 @@
  * valor y otro control distinto para cambiarlo.
  */
 import { useState } from 'react';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Lock } from 'lucide-react';
 import { hijosDe } from './utils';
 import { NIVELES } from '../../../config/niveles';
 import { COLORES_SEMAFORO } from '../../common/SemaforoDot';
@@ -85,6 +85,15 @@ export default function EncabezadoDetalle({ nodo, ruta, permisos, onNavegarLinea
         {hijos.length > 0 && (
           <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-500">
             {hijos.length} {(nivel.hijoLabelPlural || 'elementos').toLowerCase()}
+          </span>
+        )}
+        {/* Fase 3 del modelo de permisos — mismo permisos.esSoloLectura por
+            nodo que ya oculta los controles de edición de este encabezado
+            (ver CampoTextoInline/SelectorEstado arriba), no un cálculo
+            propio del chip. */}
+        {permisos.esSoloLectura && (
+          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-gray-100 text-gray-600">
+            <Lock size={9} /> Consulta
           </span>
         )}
       </div>

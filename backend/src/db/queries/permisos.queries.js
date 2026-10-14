@@ -18,79 +18,44 @@
  * Así el frontend solo pregunta "¿está este id en la lista?" y no tiene
  * que reimplementar la herencia, que es justo donde las dos capas se
  * desincronizan.
+ *
+ * Fase 3 (docs/modelo-permisos.md, "estado de consulta en la interfaz"):
+ * esta función dejó de reimplementar la escalera a mano con SQL propio
+ * (asignación directa + herencia por `while`) y pasó a DELEGAR en
+ * `funcionEfectivaPorLotes` — la misma función que ya resuelve, nodo por
+ * nodo, exactamente lo que `autorizacion.js` usa para aceptar o rechazar
+ * una escritura real. Antes de este cambio existían dos cálculos
+ * independientes de "¿puede capturar aquí?" (este archivo y
+ * funcion-efectiva.js) que daban el mismo resultado por construcción,
+ * pero que podían divergir con el tiempo sin que nada lo avisara — el
+ * mismo patrón que ya costó inconsistencias en otros módulos de esta
+ * plataforma (el % de avance calculado en 8 lugares, el bono de DG
+ * duplicado). Con esta delegación, el candado de Fase 3 (y cualquier
+ * otro consumidor de `nodos_editables`) sale de la MISMA fuente que el
+ * servidor usa para rechazar la escritura, no de una copia.
  * ─────────────────────────────────────────────────────────────────
  */
-const pool = require('../pool');
+const { funcionEfectivaPorLotes, alcanza } = require('../../utils/funcion-efectiva');
 
-// Nodos del proyecto en los que el usuario está asignado, expandidos a
-// sus descendientes. Devuelve { etapa: [...ids], accion: [...], tarea: [...] }.
-async function nodosEditablesUsuario(proyectoId, usuarioId, db) {
-  const conn = db || pool;
+// Nodos del proyecto en los que el usuario puede capturar (peldaño
+// 'captura' o superior), expandidos a sus descendientes por herencia —
+// la herencia y la resolución de vías (invitación directa, responsable
+// de nodo, bono de DG, etc.) las resuelve funcionEfectivaPorLotes().
+// Devuelve { etapa: [...ids], accion: [...], tarea: [...] }.
+async function nodosEditablesUsuario(proyectoId, usuario, db) {
   const vacio = { etapa: [], accion: [], tarea: [] };
-  if (!proyectoId || !usuarioId) return vacio;
+  if (!proyectoId || !usuario) return vacio;
 
-  // Estructura del proyecto: quién cuelga de quién.
-  const { rows: etapas } = await conn.query(
-    'SELECT id, id_responsable FROM etapas WHERE id_proyecto = $1', [proyectoId]
-  );
-  const idsEtapas = etapas.map(e => e.id);
-
-  const { rows: acciones } = await conn.query(`
-    SELECT a.id, a.id_etapa, a.id_accion_padre, a.id_responsable
-    FROM acciones a
-    WHERE a.id_proyecto = $1 OR a.id_etapa = ANY($2::uuid[])
-  `, [proyectoId, idsEtapas]);
-  const idsAcciones = acciones.map(a => a.id);
-
-  const { rows: tareas } = await conn.query(
-    'SELECT id, id_accion, id_responsable FROM tareas WHERE id_accion = ANY($1::uuid[])',
-    [idsAcciones]
-  );
-
-  // Asignaciones explícitas: nodo_miembros aceptados + la columna id_responsable.
-  // 'lectura' queda fuera a propósito (Fase 1 del modelo de permisos,
-  // docs/modelo-permisos.md 6.1): antes CUALQUIER fila aceptada contaba
-  // como editable sin mirar el rol — así 'invitado' (hoy 'lectura') daba
-  // capacidad de captura igual que 'responsable'/'colaborador', pese a
-  // que la intención siempre fue "ver sin capturar".
-  const { rows: miembros } = await conn.query(`
-    SELECT tipo_nodo, id_nodo FROM nodo_miembros
-    WHERE id_usuario = $1 AND estado = 'aceptada' AND rol != 'lectura'
-      AND (
-        (tipo_nodo = 'etapa'  AND id_nodo = ANY($2::uuid[])) OR
-        (tipo_nodo = 'accion' AND id_nodo = ANY($3::uuid[])) OR
-        (tipo_nodo = 'tarea'  AND id_nodo = ANY($4::uuid[]))
-      )
-  `, [usuarioId, idsEtapas, idsAcciones, tareas.map(t => t.id)]);
-
-  const asignadas = { etapa: new Set(), accion: new Set(), tarea: new Set() };
-  for (const m of miembros) asignadas[m.tipo_nodo]?.add(m.id_nodo);
-  for (const e of etapas) if (e.id_responsable === usuarioId) asignadas.etapa.add(e.id);
-  for (const a of acciones) if (a.id_responsable === usuarioId) asignadas.accion.add(a.id);
-  for (const t of tareas) if (t.id_responsable === usuarioId) asignadas.tarea.add(t.id);
-
-  if (!asignadas.etapa.size && !asignadas.accion.size && !asignadas.tarea.size) return vacio;
-
-  // Herencia hacia abajo. Las subacciones pueden anidarse, así que se
-  // recorre la lista de acciones hasta que deje de crecer.
-  let creció = true;
-  while (creció) {
-    creció = false;
-    for (const a of acciones) {
-      if (asignadas.accion.has(a.id)) continue;
-      const heredaDeEtapa = a.id_etapa && asignadas.etapa.has(a.id_etapa);
-      const heredaDePadre = a.id_accion_padre && asignadas.accion.has(a.id_accion_padre);
-      if (heredaDeEtapa || heredaDePadre) { asignadas.accion.add(a.id); creció = true; }
-    }
-  }
-  for (const t of tareas) {
-    if (t.id_accion && asignadas.accion.has(t.id_accion)) asignadas.tarea.add(t.id);
-  }
+  const resultado = await funcionEfectivaPorLotes(usuario, proyectoId, db);
+  const idsConCaptura = (porNodo) =>
+    Object.entries(porNodo)
+      .filter(([, candidato]) => alcanza(candidato, 'captura'))
+      .map(([id]) => id);
 
   return {
-    etapa: [...asignadas.etapa],
-    accion: [...asignadas.accion],
-    tarea: [...asignadas.tarea],
+    etapa: idsConCaptura(resultado.etapa),
+    accion: idsConCaptura(resultado.accion),
+    tarea: idsConCaptura(resultado.tarea),
   };
 }
 

@@ -30,6 +30,7 @@ import { useState, useCallback } from 'react';
 import PestanasDetalle from './PestanasDetalle';
 import ModalRegistrarAvance from '../../nodos/ModalRegistrarAvance';
 import FilaAcciones from './FilaAcciones';
+import BandaConsulta from './BandaConsulta';
 import EncabezadoDetalle from './EncabezadoDetalle';
 import TiraDatos from './TiraDatos';
 import ModalEditarFicha from './ModalEditarFicha';
@@ -38,7 +39,7 @@ import { resolverRutaConIds } from './utils';
 import { permisosDeNodo } from '../../../hooks/usePermisos';
 
 export default function PanelDetalle({
-  seleccion, proyectoId, permisos: permisosProyecto, onActualizado, mostrarToast, arbol,
+  seleccion, proyectoId, proyecto, permisos: permisosProyecto, onActualizado, mostrarToast, arbol,
   onNavegarNodo, onAbrirArbol,
   riesgoAAbrir, onRiesgoConsumido, avanceAAbrir,
 }) {
@@ -113,25 +114,35 @@ export default function PanelDetalle({
           onMarcarCompletada={!esContenedor ? () => abrirAvance({ completar: true }) : undefined}
         />
 
-        <FilaAcciones
-          tipo={tipo}
-          nodo={data}
-          id={id}
-          proyectoId={proyectoId}
-          permisos={permisos}
-          permisosProyecto={permisosProyecto}
-          esContenedor={esContenedor}
-          onCambiado={onActualizado}
-          mostrarToast={mostrarToast}
-          onEditarFicha={() => setEditandoFicha(true)}
-          onAbrirAvance={() => abrirAvance()}
-          onAccionRapida={setAccionRapida}
-          onEliminado={() => {
-            const padre = ruta[ruta.length - 2];
-            if (padre) onNavegarNodo(padre.tipo, padre.id);
-            onActualizado?.();
-          }}
-        />
+        {/* Fase 3 del modelo de permisos — mismo permisos.esSoloLectura por
+            nodo que ya usaba FilaAcciones para deshabilitar sus propios
+            controles. Sin captura aquí, los botones se QUITAN (no se
+            deshabilitan) y se reemplazan por la explicación + "Solicitar
+            participar" — un botón apagado invita a un clic que nunca
+            responde. */}
+        {permisos.esSoloLectura ? (
+          <BandaConsulta tipo={tipo} nodo={data} proyecto={proyecto} permisosProyecto={permisosProyecto} />
+        ) : (
+          <FilaAcciones
+            tipo={tipo}
+            nodo={data}
+            id={id}
+            proyectoId={proyectoId}
+            permisos={permisos}
+            permisosProyecto={permisosProyecto}
+            esContenedor={esContenedor}
+            onCambiado={onActualizado}
+            mostrarToast={mostrarToast}
+            onEditarFicha={() => setEditandoFicha(true)}
+            onAbrirAvance={() => abrirAvance()}
+            onAccionRapida={setAccionRapida}
+            onEliminado={() => {
+              const padre = ruta[ruta.length - 2];
+              if (padre) onNavegarNodo(padre.tipo, padre.id);
+              onActualizado?.();
+            }}
+          />
+        )}
 
         <TiraDatos nodo={seleccion} permisos={permisos} onEditar={() => setEditandoFicha(true)} />
 
