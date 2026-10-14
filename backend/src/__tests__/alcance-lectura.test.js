@@ -18,6 +18,7 @@ jest.mock('../db/pool', () => ({ query: jest.fn() }));
 const pool = require('../db/pool');
 const {
   exigirVisibilidadProyecto, exigirVisibilidadNodo, exigirVisibilidadNodoEnParams,
+  exigirVisibilidadEntidadEnParams,
   exigirVisibilidadDeEntidadEnQuery, exigirVisibilidadRiesgo, exigirVisibilidadIndicador,
   exigirVisibilidadEvidencia, exigirVisibilidadActividadPorId, exigirSoloInternos,
 } = require('../utils/alcance-lectura');
@@ -90,6 +91,11 @@ const CASOS = [
   { nombre: 'exigirVisibilidadIndicador', mw: () => exigirVisibilidadIndicador(), req: () => ({ params: { id: INDICADOR_A } }) },
   { nombre: 'exigirVisibilidadEvidencia', mw: () => exigirVisibilidadEvidencia(), req: () => ({ params: { id: EVIDENCIA_A } }) },
   { nombre: 'exigirVisibilidadActividadPorId', mw: () => exigirVisibilidadActividadPorId(), req: () => ({ params: { id: ACTIVIDAD_A } }) },
+  // Fase 2 / Paso 2, Grupo 3: cobertura/mapa-territorial de un solo
+  // proyecto/nodo — mismo tratamiento Paso 1 (lectura total entre
+  // internos), tipo dinámico en la propia ruta (GET /cobertura/:tipo/:id).
+  { nombre: "exigirVisibilidadEntidadEnParams (tipo='proyecto')", mw: () => exigirVisibilidadEntidadEnParams(), req: () => ({ params: { tipo: 'proyecto', id: PROYECTO_A } }) },
+  { nombre: "exigirVisibilidadEntidadEnParams (tipo='etapa')", mw: () => exigirVisibilidadEntidadEnParams(), req: () => ({ params: { tipo: 'etapa', id: ETAPA_A } }) },
 ];
 
 describe.each(CASOS)('$nombre', ({ mw, req }) => {

@@ -152,14 +152,26 @@ async function obtenerCoberturaDetalladaProyecto(idProyecto) {
  * Drill-down territorial: dado un id_estado, devuelve TODAS las acciones
  * de TODOS los proyectos que tienen cobertura en ese estado, agrupadas
  * por proyecto y etapa. Incluye riesgos e indicadores publicables.
+ *
+ * `alcanceProyectoIds` (Fase 2 / Paso 2, docs/modelo-permisos.md sección
+ * 7.4) es el alcance real del usuario (null = sin restricción); solo se
+ * filtra la query de acciones — riesgos e indicadores de abajo heredan
+ * la restricción automáticamente porque solo consideran los proyecto_id
+ * que ya salieron de esa primera query filtrada. `filtros.id_dg` sigue
+ * siendo un filtro de conveniencia que solo acota DENTRO de ese alcance.
  */
-async function obtenerResumenTerritorial(idEstado, filtros = {}) {
+async function obtenerResumenTerritorial(idEstado, filtros = {}, alcanceProyectoIds = null) {
   const params = [idEstado];
-  let filtrosDG = '';
+  const condiciones = [];
+  if (alcanceProyectoIds !== null) {
+    params.push(alcanceProyectoIds);
+    condiciones.push(`p.id = ANY($${params.length})`);
+  }
   if (filtros.id_dg) {
     params.push(filtros.id_dg);
-    filtrosDG = `AND p.id_dg_lider = $${params.length}`;
+    condiciones.push(`p.id_dg_lider = $${params.length}`);
   }
+  const filtroExtra = condiciones.length ? `AND ${condiciones.join(' AND ')}` : '';
 
   // Acciones con cobertura en este estado
   const { rows: acciones } = await pool.query(`
@@ -176,7 +188,7 @@ async function obtenerResumenTerritorial(idEstado, filtros = {}) {
     LEFT JOIN etapas e ON a.id_etapa = e.id
     LEFT JOIN direcciones_generales dg ON p.id_dg_lider = dg.id
     LEFT JOIN cat_municipios m ON cg.id_municipio = m.id
-    WHERE cg.id_estado = $1 AND a.estado != 'Cancelada' ${filtrosDG}
+    WHERE cg.id_estado = $1 AND a.estado != 'Cancelada' ${filtroExtra}
     ORDER BY p.nombre, e.orden NULLS LAST, a.fecha_fin
   `, params);
 
@@ -262,15 +274,23 @@ async function obtenerResumenTerritorial(idEstado, filtros = {}) {
 }
 
 /**
- * Resumen para el mapa: conteo de acciones por estado para colorear coropletas.
+ * Resumen para el mapa: conteo de acciones por estado para colorear
+ * coropletas. `alcanceProyectoIds` (Fase 2 / Paso 2) es el alcance real
+ * del usuario (null = sin restricción); `filtros.id_dg` solo acota
+ * DENTRO de ese alcance.
  */
-async function obtenerResumenPorEstados(filtros = {}) {
+async function obtenerResumenPorEstados(filtros = {}, alcanceProyectoIds = null) {
   const params = [];
-  let filtrosDG = '';
+  const condiciones = [];
+  if (alcanceProyectoIds !== null) {
+    params.push(alcanceProyectoIds);
+    condiciones.push(`p.id = ANY($${params.length})`);
+  }
   if (filtros.id_dg) {
     params.push(filtros.id_dg);
-    filtrosDG = `AND p.id_dg_lider = $${params.length}`;
+    condiciones.push(`p.id_dg_lider = $${params.length}`);
   }
+  const filtroExtra = condiciones.length ? `AND ${condiciones.join(' AND ')}` : '';
 
   const { rows } = await pool.query(`
     SELECT
@@ -284,7 +304,7 @@ async function obtenerResumenPorEstados(filtros = {}) {
     JOIN cat_entidades_federativas ef ON cg.id_estado = ef.id
     JOIN acciones a ON cg.tipo_entidad = 'accion' AND cg.id_entidad = a.id
     JOIN proyectos p ON a.id_proyecto = p.id AND p.deleted_at IS NULL
-    WHERE a.estado != 'Cancelada' ${filtrosDG}
+    WHERE a.estado != 'Cancelada' ${filtroExtra}
     GROUP BY ef.id, ef.clave, ef.nombre
     ORDER BY ef.nombre
   `, params);

@@ -103,6 +103,19 @@ const exigirVisibilidadProyecto = (param = 'id') =>
 const exigirVisibilidadNodo = (tipoNodo, param = 'id') =>
   exigirVisibilidadResuelta((req) => obtenerProyectoIdDeNodo(tipoNodo, req.params[param]));
 
+// GET /cobertura/:tipo/:id — el tipo de entidad (proyecto/etapa/accion/
+// subaccion/tarea) viaja en la propia ruta, igual que ya hace
+// puedeCapturarEnEntidad en geografia.controller.js para el lado de
+// escritura. 'proyecto' resuelve directo; cualquier otro tipo se resuelve
+// como nodo (obtenerProyectoIdDeNodo ya trata 'subaccion' como 'accion').
+const exigirVisibilidadEntidadEnParams = (tipoParam = 'tipo', idParam = 'id') =>
+  exigirVisibilidadResuelta((req) => {
+    const tipo = String(req.params[tipoParam] || '').toLowerCase();
+    const id = req.params[idParam];
+    if (tipo === 'proyecto') return id;
+    return obtenerProyectoIdDeNodo(tipo, id);
+  });
+
 // GET /actividad/:tipo_nodo/:id_nodo — el tipo viaja en la propia ruta.
 // Un tipo fuera de los tres soportados deja pasar (next()) para que
 // actividadController dé su propio 400 "tipo_nodo inválido" — mismo
@@ -188,6 +201,7 @@ module.exports = {
   exigirVisibilidadProyecto,
   exigirVisibilidadNodo,
   exigirVisibilidadNodoEnParams,
+  exigirVisibilidadEntidadEnParams,
   exigirVisibilidadDeEntidadEnQuery,
   exigirVisibilidadRiesgo,
   exigirVisibilidadIndicador,

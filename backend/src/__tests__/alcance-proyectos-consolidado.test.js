@@ -7,6 +7,14 @@
  *            Ahora comparten una sola función,
  *            alcanceProyectosUsuarioONull, en utils/alcanceProyectos.js.
  *
+ *            Fase 2 / Paso 2 (sección 9): esa única función gana el
+ *            bono de DG para 'direccion' que la Fase 1 había dejado
+ *            deliberadamente pendiente — ver alcanceProyectos.test.js
+ *            para la cobertura completa de esa regla (unión con
+ *            participación, nunca por membresía de terceros, null-safe).
+ *            Aquí solo se actualiza el caso puntual que esta suite ya
+ *            cubría para que refleje la regla nueva en vez de la vieja.
+ *
  * Ejecutar: npm test
  */
 
@@ -39,12 +47,11 @@ describe('alcanceProyectosUsuarioONull', () => {
     expect(resultado).toBeNull();
   });
 
-  test("direccion YA NO recibe un bono por DG: usa la misma lista de 'solo miembro' que enlace/externo", async () => {
+  test('direccion recibe la unión de su participación y los proyectos de su propia DG (Fase 2 / Paso 2)', async () => {
     miembrosQueries.obtenerProyectosUsuario.mockResolvedValueOnce([UUID_1]);
-    const resultado = await alcanceProyectosUsuarioONull({ rol: 'direccion', id: UUID_2, id_dg: 'dg-1' });
-    expect(resultado).toEqual([UUID_1]);
-    // No debe haber ninguna consulta aparte filtrando por id_dg_lider.
-    expect(mockQuery).not.toHaveBeenCalled();
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: UUID_2 }] });
+    const resultado = await alcanceProyectosUsuarioONull({ rol: 'direccion', id: 'u1', id_dg: 'dg-1' });
+    expect(resultado.sort()).toEqual([UUID_1, UUID_2].sort());
   });
 
   test('enlace recibe solo los proyectos donde participa', async () => {
