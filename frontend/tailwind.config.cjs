@@ -52,6 +52,22 @@ module.exports = {
         gris:       '#98989A',   /* muted / labels */
         'gris-claro': '#E5E5E5', /* borders / dividers */
         fondo:      '#F5F5F0',   /* page background */
+        /* gray-150: escalón intermedio entre el gray-100 (#F3F4F6) y el
+         * gray-200 (#E5E7EB) de Tailwind — el punto medio exacto de ambos,
+         * #ECEEF1. Fase 3 del modelo de permisos (docs/modelo-permisos.md,
+         * sección 11.2): fondo de una fila/panel bloqueado, un paso más
+         * claro que gray-200 (el valor de la ronda anterior) a pedido
+         * explícito del usuario, sin perder la separación medible contra
+         * el blanco del panel (1.167:1, entre el 1.101:1 de gray-100 y el
+         * 1.238:1 de gray-200 — ver sección 11.2 para la medición
+         * completa). Se define como token con nombre, no como un valor
+         * suelto (`bg-[#ECEEF1]`) en las clases que lo usan, porque cae
+         * fuera de la escala por defecto de Tailwind y aparece en más de
+         * un archivo (NodoArbol.jsx, PanelDetalle.jsx).
+         */
+        gray: {
+          150: '#ECEEF1',
+        },
         /* ── Semantic (keep as-is) ── */
         'verde-success': '#16A34A',
         'ambar-warning': '#D97706',

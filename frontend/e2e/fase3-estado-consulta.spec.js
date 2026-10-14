@@ -44,19 +44,32 @@ test.describe('Fase 3 — estado de consulta en el árbol de Detalle', () => {
     await expect(filaConCandado.first()).toBeVisible();
     await expect(filaSinCandado.first()).toBeVisible();
 
-    // Ronda 4: el apagado vive en el FONDO de la fila (gray-200), no en
-    // el texto — nombre/porcentaje usan sus colores normales (el
+    // Ronda 4: el apagado vive en el FONDO de la fila (gray-150, ronda
+    // 5 — un paso más claro que el gray-200 de la ronda 4), no en el
+    // texto — nombre/porcentaje usan sus colores normales (el
     // porcentaje, en una fila bloqueada, usa el mismo color primario
     // que el nombre, no el tenue de antes). Solo el punto del
     // semáforo/etiqueta llevan la atenuación leve (0.72). Candado y
     // lápiz son mutuamente excluyentes en la misma columna.
     const primeraConCandado = filaConCandado.first();
-    await expect(primeraConCandado).toHaveClass(/bg-gray-200/);
+    await expect(primeraConCandado).toHaveClass(/bg-gray-150/);
     const nombre = primeraConCandado.locator('span.truncate').first();
     await expect(nombre).not.toHaveClass(/opacity-/);
+    await expect(nombre).not.toHaveClass(/text-guinda-700/);
     const punto = primeraConCandado.locator('span.rounded-full').first();
     await expect(punto).toHaveClass(/opacity-/);
     await expect(primeraConCandado.locator('svg[aria-label="Puedes capturar en este elemento"]')).toHaveCount(0);
+
+    // Ronda 5: el fondo pertenece al permiso, no a la selección — al
+    // seleccionar la fila bloqueada, el fondo pasa a gray-200 (un
+    // escalón más oscuro, nunca el rosado de "esto es mío") y el nombre
+    // se queda en su color de bloqueada, con solo la barra de acento
+    // marcando la selección.
+    await primeraConCandado.click();
+    await expect(primeraConCandado).toHaveClass(/bg-gray-200/);
+    await expect(primeraConCandado).not.toHaveClass(/bg-guinda-50/);
+    await expect(primeraConCandado).toHaveClass(/border-l-guinda-600/);
+    await expect(nombre).not.toHaveClass(/text-guinda-700/);
 
     // Una fila asignada: fondo blanco, nombre en semi-negrita, lápiz
     // (no candado) en la misma columna.
@@ -93,12 +106,13 @@ test.describe('Fase 3 — el panel de detalle no se atenúa, y la banda reemplaz
     // El chip "Consulta" vive junto a los demás chips del encabezado.
     await expect(page.getByText('Consulta', { exact: true })).toBeVisible();
 
-    // Ronda 4: el lienzo del panel también va gris (mismo bg-gray-200
-    // del árbol) — el apagado vive en la superficie, el contenido
+    // Ronda 4/5: el lienzo del panel también va gris (mismo bg-gray-150
+    // del árbol, ronda 5 — un paso más claro que el gray-200 de la
+    // ronda 4) — el apagado vive en la superficie, el contenido
     // conserva sus colores. Las tablas de Documentos/Indicadores/
     // Riesgos declaran su propio bg-white para seguir respirando.
     const panel = page.locator('text=Estás en modo consulta').locator('xpath=ancestor::div[contains(@class,"flex-1")][1]');
-    await expect(panel).toHaveClass(/bg-gray-200/);
+    await expect(panel).toHaveClass(/bg-gray-150/);
 
     // El contenido de lectura (pestañas) sigue completo.
     for (const pestana of ['Actividad', 'Documentos', 'Indicadores', 'Territorio', 'Riesgos']) {
@@ -119,6 +133,6 @@ test.describe('Fase 3 — el panel de detalle no se atenúa, y la banda reemplaz
     await expect(page.getByText(/est[aá]s en modo consulta/i)).toHaveCount(0);
 
     const panel = page.getByRole('button', { name: /registrar avance/i }).locator('xpath=ancestor::div[contains(@class,"flex-1")][1]');
-    await expect(panel).not.toHaveClass(/bg-gray-200/);
+    await expect(panel).not.toHaveClass(/bg-gray-150/);
   });
 });
