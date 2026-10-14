@@ -1,8 +1,8 @@
 # Modelo de permisos de PSPP v2.0
 
-> **Este documento corresponde al commit `f999d93dd7a30479d3631fae483197816e8d201a`
-> (2026-10-13) + los 3 fixes de Fase 2 / Paso 0 (sección 6) + Fase 2 / Paso 1,
-> Bloques A y B (sección 7), descritos en este mismo PR.**
+> **Este documento corresponde al commit `c7807cd0c3079aeb43fc5a41b75da6ae28bf0b06`
+> (2026-10-13) + Fase 2 / Paso 0 (sección 6) + Fase 2 / Paso 1 (sección 7) +
+> Fase 2 / Paso 2 (sección 9), descritos en este mismo PR.**
 > Regenerado por completo (no es un parche del documento anterior), porque
 > la versión previa describía el modelo PRE-Fase-1: el CHECK de 2 valores
 > de `proyecto_usuarios.rol`, el CHECK de 3 valores con `'invitado'` de
@@ -28,13 +28,14 @@ es sobre la primera:
    direccion/enlace/externo). La REGLA ya está decidida (sección 5):
    lectura total entre perfiles internos sobre cualquier proyecto,
    `externo` solo ve lo que le invitaron, y las vistas personalizadas
-   (Tablero, dashboard, mapas, Mis actividades) se quedan acotadas a
-   participación aparte de esa regla general. Lo que sigue en marcha es
-   **aplicar** esa regla ya decidida en cada endpoint — Fase 2/Paso 1
-   (sección 7) cerró el grueso de la lectura estructural (etapas,
-   acciones, riesgos, indicadores, comentarios, bloqueos, evidencias,
-   actividad) y el directorio de usuarios; dashboard, mapas y el filtro
-   libre `?id_dg=` quedan para el siguiente paso — ver sección 8.
+   (Tablero, dashboard, mapas, Mis indicadores, Documentos) se quedan
+   acotadas a participación + el bono de DG de `direccion` (sección 9.1)
+   — excepto Mis actividades/Agenda, que son trabajo propio y nunca
+   llevan ese bono. Fase 2/Paso 1 (sección 7) cerró el grueso de la
+   lectura estructural y el directorio de usuarios; Fase 2/Paso 2
+   (sección 9) cerró el bono de DG y conectó dashboard/mapas agregados
+   al alcance real, retirando el `?id_dg=` libre. Lo que queda pendiente
+   está en la sección 10.
 
 La arquitectura de la pregunta 1 es una **escalera única de 4 peldaños**
 (`lectura < captura < responsable < administracion_proyecto`), resuelta
@@ -214,20 +215,24 @@ para `externo`.
 
 **Las únicas excepciones a "lectura total entre internos" son las vistas
 personalizadas** — pantallas que agregan a propósito "lo tuyo", no "todo":
-Tablero, dashboard, mapas de Territorio, Mis actividades. Ahí sí se acota
-a participación (hoy vía `backend/src/utils/alcanceProyectos.js`, sección
-8), con una excepción propia: `direccion` suma también los proyectos de
-su DG líder aunque no participe en ellos directamente. La sección
-**Proyectos con el filtro "Todos"**, en cambio, es una vista estructural
-(no personalizada) y queda abierta a cualquier perfil interno, igual que
-cualquier otra lectura de proyecto.
+Tablero, dashboard, mapas de Territorio, Mis indicadores, Documentos. Ahí
+sí se acota a participación (`backend/src/utils/alcanceProyectos.js`,
+sección 9.1), con una excepción propia: `direccion` suma también los
+proyectos de su DG líder aunque no participe en ellos directamente (el
+bono de DG). **Mis actividades y Agenda son la excepción a la excepción**:
+son trabajo propio de la persona (asignaciones directas), nunca llevan el
+bono — un director no hereda ahí los pendientes de los enlaces de su DG
+(sección 9.1). La sección **Proyectos con el filtro "Todos"**, en cambio,
+es una vista estructural (no personalizada) y queda abierta a cualquier
+perfil interno, igual que cualquier otra lectura de proyecto.
 
 ### 5.1 Dónde se aplica cada cosa
 
 | Qué | Regla | Dónde |
 |---|---|---|
 | Estructura/avance/documentos/comentarios/riesgos/bitácora de un proyecto | Lectura total entre internos, `externo` solo si invitado | `puedeVerProyecto` + `utils/alcance-lectura.js` (sección 7) |
-| Tablero, dashboard, mapas, Mis actividades | Acotado a participación (+ bono de DG para `direccion`) | `utils/alcanceProyectos.js` (sección 8, sin tocar en este PR) |
+| Tablero, dashboard, mapas, Mis indicadores, Documentos | Acotado a participación + bono de DG para `direccion` | `utils/alcanceProyectos.js` (sección 9.1) |
+| Mis actividades, Agenda | Acotado a asignación directa — SIN el bono de DG | `acciones.queries.js::obtenerAccionesAgenda` (sección 9.1) |
 | Proyectos → filtro "Todos" | Abierto a cualquier interno | ya así, sin cambios |
 | Directorio de usuarios (nombre/cargo/correo/DG/teléfono) | Campos por perfil + alcance por perfil | sección 7.3 (Bloque B) |
 
@@ -374,12 +379,97 @@ implementó, independiente de la pieza de teléfono:
   proyecto, lo que automáticamente limita a "los demás participantes de
   un proyecto al que fue invitado", exactamente la regla pedida.
 
-## 8. Qué queda pendiente (decisiones de producto y endpoints sin migrar)
+## 9. Fase 2, Paso 2 — bono de DG + Grupo 2 + Grupo 3
 
-- **Dashboard, mapas de Territorio y el filtro libre `?id_dg=`**: mismo
-  hueco de visibilidad que cerró el Bloque A, pero deliberadamente fuera
-  de este Paso 1 — cambian comportamiento visible de una vista agregada,
-  a medir por separado en el siguiente paso.
+Este paso conecta las vistas personalizadas (Tablero, dashboard, mapas
+agregados, Mis indicadores, Documentos) al alcance real del usuario, y
+cierra la definición del bono de DG que `alcanceProyectos.js` dejaba sin
+resolver desde Fase 1 (sección 8, punto ya retirado de la lista de
+pendientes). "Personalizada" distingue estas vistas de las estructurales
+del Paso 1 (sección 7): ahí el usuario pide UN proyecto/nodo concreto;
+aquí pide un agregado de "lo que me toca" entre TODOS los proyectos.
+
+### 9.1 El bono de DG — definición exacta
+
+Un usuario `direccion` recibe la **unión de exactamente dos conjuntos**,
+calculada por `alcanceProyectosUsuario`/`alcanceProyectosUsuarioONull`
+(`backend/src/utils/alcanceProyectos.js`):
+
+1. Los proyectos donde participa — igual que cualquier otro perfil
+   (`miembrosQueries.obtenerProyectosUsuario`).
+2. Los proyectos cuya dirección general dueña es la suya
+   (`proyectos.id_dg_lider = usuario.id_dg`), participe o no.
+
+**Nada más.** Deliberadamente **NO** incluye proyectos de otra DG por el
+solo hecho de que un enlace de su propia dirección participe ahí —
+eso se consideró y se descartó por costo/complejidad; si se pide en el
+futuro, es otro PR. La resolución compara `proyectos.id_dg_lider` contra
+`usuario.id_dg` directamente — **nunca** cruzando `proyecto_usuarios` ni
+`nodo_miembros` para rastrear membresías de terceros (la prueba que fija
+esto, `alcanceProyectos.test.js`, verifica que el SQL del lado de DG no
+referencia ninguna de esas dos tablas). `direccion` sin `id_dg` no recibe
+bono (cae a solo participación, sin error). `superadmin`/`ejecutivo` ven
+todo, sin tocar membresía. `enlace`/`externo` nunca llevan bono.
+
+**Mis actividades y Agenda son la excepción a la excepción** (ya anotado
+en la sección 5): `acciones.controller.js::agenda` resuelve siempre por
+el id propio del usuario, nunca por `id_dg` — un director no hereda ahí
+los pendientes de los enlaces de su DG.
+
+### 9.2 Grupo 1 — ya conectados, ganan el bono sin cambio de código propio
+
+Estos endpoints ya llamaban a `alcanceProyectosUsuario`/`ONull` antes de
+este paso — al implementar el bono dentro de esa única función
+compartida, lo ganan automáticamente: `GET /inicio`,
+`/inicio/filtros/proyectos`, `/inicio/filtros/carteras`,
+`GET /inicio/mapa`, `/inicio/mapa/zm`,
+`GET /geo/territorio/estado/:cve_ent/detalle`, `/municipios-actividad`,
+`/geo/territorio/zm/:gid/detalle`, `GET /indicadores/mios` ("Mis
+indicadores"), `GET /evidencias` (listado, "Documentos"). Decisión de
+producto confirmada: un director ve en estos lugares los indicadores y
+documentos de los proyectos de su DG, igual que el resto del Grupo 1.
+
+### 9.3 Grupo 2 — conectados por primera vez a `alcanceProyectosUsuarioONull`
+
+`GET /dashboard` (+ sus 4 queries agregadas, incluyendo
+`obtenerAvancePorDG`, que antes de este paso no recibía ningún filtro),
+`GET /mapa/resumen-estados`, `GET /mapa/estado/:id`. Antes de este paso
+no filtraban nada — cualquier interno veía el agregado completo sin
+acotar. **Confirmado por rastreo exhaustivo de imports en
+`frontend/src`: ninguno de los tres tiene consumidor real hoy**
+(`frontend/src/api/dashboard.js` y `frontend/src/api/mapa.js` no se
+importan desde ninguna pantalla — la pantalla real de Territorio usa
+`/inicio/mapa`, `/geo/territorio/estado/:cve_ent/detalle` y
+`/municipios-actividad`, ya Grupo 1). Se protegen igual que si tuvieran
+consumidor (defensa en profundidad), y quedan documentados aquí como
+**endpoints sin uso conocido en el frontend** — la reducción de alcance
+para `enlace`/`direccion` existe a nivel API pero hoy es invisible en
+pantalla.
+
+### 9.4 Grupo 3 — reclasificados al tratamiento del Paso 1, no al del Grupo 1/2
+
+`GET /proyectos/:id/mapa-territorial`, `/proyectos/:id/cobertura`,
+`/proyectos/:id/cobertura-detallada`, `GET /cobertura/:tipo/:id`. Pese a
+que el pedido original los agrupaba junto al resto de este paso, son
+estructuralmente un solo proyecto/nodo, no un agregado "todos los que
+puedo ver" — mismo patrón que `etapas/:id` en el Paso 1. Reclasificados
+(con aprobación explícita) a `exigirVisibilidadProyecto()` /
+`exigirVisibilidadEntidadEnParams()` (nueva factory, mismo archivo
+`alcance-lectura.js`) — **cero cambio visible para cualquier interno**,
+igual que el resto del Paso 1.
+
+### 9.5 `?id_dg=` — intersección estricta, no una ampliación libre
+
+En los 3 endpoints del Grupo 2 y los 2 de Geografía donde el parámetro
+de conveniencia `?id_dg=` ya existía libre, pasa a combinarse con el
+alcance real mediante `AND` en la misma consulta SQL, nunca `OR`: una DG
+que no está en el alcance del usuario no amplía nada, simplemente no
+aporta filas — nunca un error, nunca el alcance completo sin filtrar.
+`alcanceProyectoIds === null` (superadmin/ejecutivo) sigue dejando que
+`id_dg` filtre solo, como ya hacía.
+
+## 10. Qué queda pendiente (decisiones de producto y endpoints sin migrar)
+
 - **Listados de riesgos por nodo, `/etapas/:id/indicadores`,
   `/proyectos/:id/panorama-rapido`**: mismo hueco de visibilidad
   (`externo` sin filtrar) que el resto de la lectura estructural, no
@@ -387,17 +477,6 @@ implementó, independiente de la pieza de teléfono:
 - **Teléfono en el directorio de usuarios**: columna que no existe hoy en
   `usuarios` — pendiente de decidir si se agrega (y entonces aplicar el
   filtro de campo por perfil ya diseñado en 7.3) antes de construir nada.
-- **Alcance de lectura en vistas personalizadas** (Tablero, mapas,
-  Indicadores "míos", API pública, Cartera): resuelto de forma parcial y
-  ya parcialmente unificado por `backend/src/utils/alcanceProyectos.js`
-  (`alcanceProyectosUsuario`/`alcanceProyectosUsuarioONull`/
-  `resolverProyectoIdsFiltro`), cuyo propio encabezado documenta que ya
-  consolidó dos de tres implementaciones divergentes que existían antes,
-  dejó caer a propósito el bono de DG que tenía `direccion` en una de
-  ellas (la inconsistencia, no una regla a preservar) — el bono de DG
-  para `direccion` SÍ es una regla a preservar según el modelo ya decidido
-  (sección 5), así que `alcanceProyectos.js` necesita revisarse contra
-  esa regla antes de darlo por cerrado.
 - **Administrador de cartera**: patrón ya implementado para proyectos
   (`administracion_proyecto`, sección 2) — el equivalente a nivel cartera
   existe en `carteras.controller.js` pero no es parte de la escalera de

@@ -1,9 +1,11 @@
 /**
  * ARCHIVO: alcanceProyectos.js
- * PROPÓSITO: A qué proyectos tiene acceso un usuario para el Tablero
- *            (/inicio y /inicio/mapa*) — superadmin/ejecutivo ven todos
- *            los proyectos activos, cualquier otro rol solo los que ya
- *            le pertenecen.
+ * PROPÓSITO: A qué proyectos tiene acceso un usuario en las vistas
+ *            personalizadas (Tablero, dashboard, mapas por DG/estado,
+ *            Mis indicadores, Documentos) — superadmin/ejecutivo ven
+ *            todos los proyectos activos; `direccion` ve los suyos más
+ *            el bono de DG (sección 9.1 de docs/modelo-permisos.md);
+ *            cualquier otro rol (`enlace`) solo los que ya le pertenecen.
  *
  * Antes este mismo bloque vivía duplicado tal cual en
  * inicio.controller.js y en geo.controller.js (obtenerMapaInicio y
@@ -15,10 +17,29 @@
  * que ya existe en geo.controller.js para los endpoints de drill-down
  * territorial (esos sí soportan `null` = sin restricción en su propia
  * query); no se tocan ni se unifican, son dos contratos distintos.
+ *
+ * EL BONO DE DG (Fase 2 / Paso 2, docs/modelo-permisos.md sección 9.1):
+ * un usuario `direccion` recibe la UNIÓN de exactamente dos conjuntos —
+ * (1) los proyectos donde participa, igual que cualquier otro perfil, y
+ * (2) los proyectos cuya `id_dg_lider` es la propia `usuario.id_dg`,
+ * participe o no. Nada más — en particular, NO se amplía por que un
+ * tercero de su misma DG participe en un proyecto de OTRA DG: el bono se
+ * resuelve comparando `proyectos.id_dg_lider` contra `usuario.id_dg`
+ * directamente, nunca cruzando `proyecto_usuarios`/`nodo_miembros` de
+ * nadie más. Null-safe: un `direccion` sin `id_dg` asignada no gana nada
+ * de más, se queda solo con su participación real.
  */
 const pool = require('../db/pool');
 const miembrosQueries = require('../db/queries/miembros.queries');
 const carterasQueries = require('../db/queries/carteras.queries');
+
+async function proyectosDeLaDG(idDg) {
+  const { rows } = await pool.query(
+    "SELECT id FROM proyectos WHERE deleted_at IS NULL AND estado != 'Cancelada' AND id_dg_lider = $1",
+    [idDg]
+  );
+  return rows.map(r => r.id);
+}
 
 async function alcanceProyectosUsuario(usuario) {
   if (usuario.rol === 'superadmin' || usuario.rol === 'ejecutivo') {
@@ -30,7 +51,13 @@ async function alcanceProyectosUsuario(usuario) {
     );
     return rows.map(r => r.id);
   }
-  return miembrosQueries.obtenerProyectosUsuario(usuario.id);
+
+  const propios = await miembrosQueries.obtenerProyectosUsuario(usuario.id);
+  if (usuario.rol === 'direccion' && usuario.id_dg) {
+    const deSuDG = await proyectosDeLaDG(usuario.id_dg);
+    return Array.from(new Set([...propios, ...deSuDG]));
+  }
+  return propios;
 }
 
 // Misma regla que alcanceProyectosUsuario, pero devolviendo null (en vez
@@ -39,22 +66,19 @@ async function alcanceProyectosUsuario(usuario) {
 // absoluto" de "una lista de ids" (ver obtenerDetalleEstado y similares
 // en geografia.queries.js, que con null se saltan la condición
 // `AND p.id = ANY($n)` por completo en vez de recibir una lista enorme).
+// Para cualquier otro rol delega en alcanceProyectosUsuario — un único
+// lugar donde vive el bono de DG, nunca duplicado entre esta función y
+// la de arriba.
 //
 // Punto de consolidación (Fase 1 del modelo de permisos, docs/modelo-permisos.md
 // sección 6.3): antes existían TRES implementaciones independientes de
 // "a qué proyectos tiene acceso este usuario", que no coincidían para
 // 'direccion' — geo.controller.js::resolverProyectoIds y
 // evidencias.controller.js::resolverProyectoIdsAcceso ahora son ambos un
-// alias de esta única función. El comportamiento que se conserva es el de
-// resolverProyectoIds (el que ya coincidía con alcanceProyectosUsuario):
-// 'direccion' ve solo los proyectos donde participa, SIN el bono de ver
-// también todos los de su DG que sí daba evidencias.controller.js antes
-// de esta consolidación — ese bono era la inconsistencia documentada, no
-// una regla a preservar. La Fase 2 decide las reglas finales de alcance
-// por perfil; aquí solo queda un único lugar donde cambiarlas.
+// alias de esta única función.
 async function alcanceProyectosUsuarioONull(usuario) {
   if (usuario.rol === 'superadmin' || usuario.rol === 'ejecutivo') return null;
-  return miembrosQueries.obtenerProyectosUsuario(usuario.id);
+  return alcanceProyectosUsuario(usuario);
 }
 
 // Intersecta el alcance real del usuario con el filtro de

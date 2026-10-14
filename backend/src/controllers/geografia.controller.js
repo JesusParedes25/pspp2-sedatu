@@ -4,6 +4,7 @@
  */
 const geografiaQueries = require('../db/queries/geografia.queries');
 const { tienePeldanoProyecto, tienePeldanoNodo } = require('../utils/autorizacion');
+const { alcanceProyectosUsuarioONull } = require('../utils/alcanceProyectos');
 
 // Captura sobre el nodo (o el proyecto, si tipo_entidad es 'proyecto') —
 // ligar/quitar territorio es una forma de capturar, igual que registrar
@@ -106,24 +107,32 @@ async function obtenerCoberturaDetallada(req, res, next) {
   }
 }
 
-// GET /mapa/resumen-estados — coropletas para el mapa territorial
+// GET /mapa/resumen-estados — coropletas para el mapa territorial. Vista
+// personalizada (docs/modelo-permisos.md sección 9.1): acotada al
+// alcance real del usuario; ?id_dg= solo acota dentro de ese alcance, ya
+// no se obedece a ciegas. Sin importador conocido en el frontend hoy
+// (confirmado: frontend/src/api/mapa.js sin callers) — se protege igual.
 async function resumenPorEstados(req, res, next) {
   try {
     const filtros = {};
     if (req.query.id_dg) filtros.id_dg = req.query.id_dg;
-    const datos = await geografiaQueries.obtenerResumenPorEstados(filtros);
+    const alcanceProyectoIds = await alcanceProyectosUsuarioONull(req.usuario);
+    const datos = await geografiaQueries.obtenerResumenPorEstados(filtros, alcanceProyectoIds);
     res.json({ datos });
   } catch (err) {
     next(err);
   }
 }
 
-// GET /mapa/estado/:id — drill-down territorial rico
+// GET /mapa/estado/:id — drill-down territorial rico. Mismo criterio que
+// resumenPorEstados; mismo aviso de sin importador conocido en el
+// frontend hoy.
 async function resumenTerritorial(req, res, next) {
   try {
     const filtros = {};
     if (req.query.id_dg) filtros.id_dg = req.query.id_dg;
-    const datos = await geografiaQueries.obtenerResumenTerritorial(req.params.id, filtros);
+    const alcanceProyectoIds = await alcanceProyectosUsuarioONull(req.usuario);
+    const datos = await geografiaQueries.obtenerResumenTerritorial(req.params.id, filtros, alcanceProyectoIds);
     res.json({ datos });
   } catch (err) {
     next(err);

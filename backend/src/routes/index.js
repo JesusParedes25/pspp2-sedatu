@@ -38,7 +38,7 @@ const {
 // proyectos invitados (ver utils/alcance-lectura.js, docs/modelo-permisos.md).
 const {
   exigirVisibilidadProyecto, exigirVisibilidadNodo, exigirVisibilidadRiesgo,
-  exigirVisibilidadIndicador,
+  exigirVisibilidadIndicador, exigirVisibilidadEntidadEnParams,
 } = require('../utils/alcance-lectura');
 
 // Importar routers de cada recurso
@@ -260,13 +260,17 @@ router.get('/agenda', accionesController.agenda);
 // Campos extra schema (para DataGrid dinámico)
 router.get('/proyectos/:id/campos-extra-schema', etapasController.obtenerCamposExtraSchema);
 
-// Cobertura geográfica
-router.get('/cobertura/:tipo/:id', geografiaController.obtenerCobertura);
+// Cobertura geográfica — de un solo proyecto/nodo, mismo tratamiento que
+// etapas/:id o riesgos/:id (Fase 2 / Paso 1): lectura total entre
+// internos, solo se cierra el caso 'externo' fuera de sus proyectos
+// invitados. NO lleva alcanceProyectosUsuario (eso es para vistas
+// agregadas "todos los proyectos que veo", esto es "puedo ver ESTE").
+router.get('/cobertura/:tipo/:id', exigirVisibilidadEntidadEnParams(), geografiaController.obtenerCobertura);
 router.post('/cobertura/:tipo/:id', geografiaController.agregarCobertura);
 router.delete('/cobertura/:id', geografiaController.eliminarCobertura);
-router.get('/proyectos/:id/cobertura', geografiaController.obtenerCoberturaProyecto);
-router.get('/proyectos/:id/cobertura-detallada', geografiaController.obtenerCoberturaDetallada);
-router.get('/proyectos/:id/mapa-territorial', geoController.obtenerMapaTerritorial);
+router.get('/proyectos/:id/cobertura', exigirVisibilidadProyecto(), geografiaController.obtenerCoberturaProyecto);
+router.get('/proyectos/:id/cobertura-detallada', exigirVisibilidadProyecto(), geografiaController.obtenerCoberturaDetallada);
+router.get('/proyectos/:id/mapa-territorial', exigirVisibilidadProyecto(), geoController.obtenerMapaTerritorial);
 
 // Módulo cartográfico territorial
 router.get('/mapa/resumen-estados', geografiaController.resumenPorEstados);
