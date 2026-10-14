@@ -336,7 +336,7 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
       <div
         style={{ '--ancho-arbol': `${anchoArbol}px` }}
         className={[
-          'flex-shrink-0 border-r border-gray-200 flex flex-col bg-white',
+          'flex-shrink-0 border-r border-gray-200 dark:border-gray-700 flex flex-col bg-white dark:bg-gray-900',
           'lg:w-[var(--ancho-arbol)] lg:relative lg:translate-x-0',
           treePanelAbierto
             ? 'fixed left-0 top-0 bottom-0 w-80 z-30 shadow-2xl translate-x-0'

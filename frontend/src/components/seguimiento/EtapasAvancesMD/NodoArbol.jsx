@@ -15,33 +15,52 @@
  * consulta en la interfaz"): un nodo donde el usuario no puede capturar
  * (`permisos.puedeEditarNodo(tipo, id)` — la MISMA fuente que usa el
  * servidor para aceptar o rechazar la escritura, nunca un cálculo propio
- * de este componente) lleva un candado y queda atenuada. El atenuado NO
- * es una sola opacidad sobre todo el renglón: se aplicó por elemento,
- * partiendo siempre del tono más fuerte del texto (`gray-900`, no el
- * tenue de cada quien) para que, incluso ya mezclado al 65% contra el
- * fondo blanco de la fila, nombre/porcentaje/candado sigan pasando el
- * mínimo de contraste de texto (4.5:1 — medido, no supuesto: con el gris
- * normal de cada uno el resultado caía a 3.79:1 y 2.52:1). El punto del
- * semáforo queda deliberadamente SIN atenuar: medido también, ninguna
- * opacidad entre 0.80 y 1.00 deja pasar los cuatro colores el mínimo
- * gráfico de 3:1 a la vez (el gris ya falla incluso a opacidad plena,
- * 2.56:1 — un hallazgo previo a este PR, anotado en la sección de
- * pendientes) — oscurecer la base para forzarlo tampoco sirve, porque
- * acerca los cuatro colores entre sí en vez de separarlos. No se tocó
- * SemaforoDot/COLORES_SEMAFORO por esto: es la única fuente de verdad
- * visual del semáforo en toda la plataforma.
+ * de este componente) lleva un candado y queda "bloqueada".
+ *
+ * CORRECCIÓN (segunda ronda): la primera versión atenuaba el TEXTO
+ * (opacidad + oscurecer el color base para que, ya mezclado, siguiera
+ * pasando 4.5:1). Verificado en producción: el apagado quedó invisible
+ * — oscurecer y luego atenuar se cancelan casi por completo entre sí.
+ * El apagado se movió al FONDO del renglón, que es el que hace todo el
+ * trabajo visual; el texto del nombre/porcentaje regresa a sus colores
+ * normales sin ningún ajuste (nunca hay que calibrar nada contra 4.5:1
+ * aquí: el texto nunca cambió de color, solo el fondo detrás de él). El
+ * punto del semáforo y la etiqueta de estado sí llevan una atenuación
+ * leve (0.72) sobre su propio color — no es texto de lectura continua,
+ * y a ese nivel acompañan el fondo sin perder su matiz. El candado
+ * conserva su tratamiento de la primera ronda (gray-900 + opacity-0.65,
+ * el único de los cuatro elementos que de verdad necesita pasar 4.5:1
+ * contra blanco) — salvo en tema oscuro, donde se invierte a un tono
+ * claro por la misma razón: oscuro-sobre-oscuro también se volvería
+ * invisible.
+ *
+ * Una fila "asignada" (el usuario SÍ puede capturar ahí) se distingue
+ * por TRES señales — fondo blanco (sin el lavado gris), nombre en
+ * semi-negrita, y la ausencia del candado — nunca por la barra de
+ * acento de la izquierda: esa sigue siendo exclusiva de "este es el
+ * nodo seleccionado" (navegación), un significado distinto que ya
+ * existía antes de Fase 3. Mezclar ambos en la misma barra habría hecho
+ * que "estoy viendo este nodo" y "este nodo es mío" compitieran por la
+ * misma señal.
  */
 import { ChevronRight, ChevronDown, Lock } from 'lucide-react';
 import SemaforoDot from '../../common/SemaforoDot';
 import { hijosDe } from './utils';
 
-// Mismo tono (`gray-900`) para los tres elementos de texto/ícono de una
-// fila de consulta — es el color más fuerte que ya usa esta pantalla
-// (el título del nodo en EncabezadoDetalle.jsx), no uno nuevo. Mezclado
-// al 65% contra el blanco de la fila mide 5.52:1 — con margen cómodo
-// sobre el mínimo de 4.5:1. `opacity-[0.65]` va en el elemento mismo,
-// no en un contenedor que envuelva también al punto del semáforo.
-const CLASE_ATENUADA = 'text-gray-900 opacity-[0.65]';
+// El candado es el único elemento de esta fila para el que la opacidad
+// debe pasar el mínimo de contraste de TEXTO (4.5:1, es un ícono que se
+// lee igual que una palabra) — parte del tono más fuerte disponible en
+// cada tema (gray-900 en claro, gray-100 en oscuro) para que, ya
+// mezclado al 65% contra el fondo, siga claramente visible (5.52:1
+// medido en claro). El resto de la fila (fondo, dot, etiqueta) no
+// necesita este cálculo — ver cabecera del archivo.
+const CLASE_CANDADO = 'text-gray-900 dark:text-gray-100 opacity-[0.65]';
+
+// Atenuación leve del punto del semáforo y la etiqueta de estado en una
+// fila bloqueada — no es texto de lectura, así que no se calibra contra
+// 4.5:1 (instrucción explícita): acompaña al fondo apagado sin perder
+// el matiz de su color real.
+const OPACIDAD_LEVE = 'opacity-[0.72]';
 
 const INDENT_PX = { etapa: 0, accion: 36, tarea: 58 };
 
@@ -77,6 +96,32 @@ export default function NodoArbol({ nodo, tipo, expandidos, seleccionadoId, onTo
 
   function activar() { onSelect(tipo, nodo.id, nodo); }
 
+  // El fondo decide tres estados mutuamente excluyentes, en este orden
+  // de prioridad: seleccionado (navegación, sin importar el permiso) >
+  // bloqueado (lavado gris) > asignado (blanco del panel, el caso por
+  // defecto). La barra de acento de la izquierda queda SOLO en el caso
+  // seleccionado — nunca marca "esto es mío", ver cabecera del archivo.
+  // bg-gray-50, no bg-gray-100: medido — contra gray-100 el porcentaje
+  // (gray-500) cae a 4.39:1, bajo el mínimo de 4.5:1 que sigue aplicando
+  // porque el texto normal tiene que seguir pasando contra el fondo
+  // nuevo (instrucción explícita). gray-50 da 4.63:1 (con margen) y
+  // 1.045:1 de separación contra blanco — la misma separación que ya
+  // usa hover:bg-gray-50 en una fila normal, así que es una diferencia
+  // ya probada como perceptible en este mismo componente. El hover de
+  // una fila bloqueada usa un paso más oscuro (gray-100) para no
+  // confundirse con el hover de una fila asignada.
+  const fondoFila = esSeleccionado
+    ? 'bg-guinda-50/70 dark:bg-guinda-900/30 border-l-[3px] border-l-guinda-600 dark:border-l-guinda-500'
+    : esConsulta
+      ? 'bg-gray-50 dark:bg-gray-950 border-l-[3px] border-l-transparent hover:bg-gray-100 dark:hover:bg-gray-900'
+      : 'bg-white dark:bg-gray-900 border-l-[3px] border-l-transparent hover:bg-gray-50 dark:hover:bg-gray-800';
+
+  const colorNombre = esSeleccionado
+    ? 'font-semibold text-guinda-700 dark:text-guinda-300'
+    : esConsulta
+      ? 'text-gray-700 dark:text-gray-300'
+      : 'font-semibold text-gray-700 dark:text-gray-100'; // "es mío" — un escalón de peso por encima de lo normal
+
   return (
     <div>
       <div
@@ -91,8 +136,7 @@ export default function NodoArbol({ nodo, tipo, expandidos, seleccionadoId, onTo
           if (e.key === 'ArrowRight' && tieneHijos && !esExpandido) { e.preventDefault(); onToggle(nodo.id); }
           if (e.key === 'ArrowLeft' && tieneHijos && esExpandido) { e.preventDefault(); onToggle(nodo.id); }
         }}
-        className={`flex items-center gap-1.5 pr-3 py-[7px] border-b border-gray-100 cursor-pointer outline-none transition-colors
-          ${esSeleccionado ? 'bg-guinda-50/70 border-l-[3px] border-l-guinda-600' : 'border-l-[3px] border-l-transparent hover:bg-gray-50'}`}
+        className={`flex items-center gap-1.5 pr-3 py-[7px] border-b border-gray-100 dark:border-gray-800 cursor-pointer outline-none transition-colors ${fondoFila}`}
         style={{ paddingLeft: `${INDENT_PX[tipo] + 10}px` }}
       >
         <button
@@ -105,19 +149,14 @@ export default function NodoArbol({ nodo, tipo, expandidos, seleccionadoId, onTo
           )}
         </button>
 
-        <SemaforoDot semaforo={sem} estado={nodo.estado} avance={avance} size={7} />
+        <SemaforoDot semaforo={sem} estado={nodo.estado} avance={avance} size={7} className={esConsulta ? OPACIDAD_LEVE : ''} />
 
-        <span
-          className={`flex-1 min-w-0 truncate text-[13px] ${
-            esConsulta ? CLASE_ATENUADA : esSeleccionado ? 'font-semibold text-guinda-700' : 'text-gray-700'
-          }`}
-          title={nodo.nombre}
-        >
+        <span className={`flex-1 min-w-0 truncate text-[13px] ${colorNombre}`} title={nodo.nombre}>
           {nodo.nombre}
         </span>
 
         {etiqueta && (
-          <span className={`flex-shrink-0 text-[10px] font-medium bg-gray-100 px-1.5 py-0.5 rounded leading-none ${esConsulta ? CLASE_ATENUADA : 'text-gray-500'}`}>
+          <span className={`flex-shrink-0 text-[10px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded leading-none ${esConsulta ? OPACIDAD_LEVE : ''}`}>
             {etiqueta}
           </span>
         )}
@@ -125,13 +164,13 @@ export default function NodoArbol({ nodo, tipo, expandidos, seleccionadoId, onTo
         {esConsulta && (
           <Lock
             size={11}
-            className={`flex-shrink-0 ${CLASE_ATENUADA}`}
+            className={`flex-shrink-0 ${CLASE_CANDADO}`}
             aria-label="Sin permiso de edición en este elemento"
             role="img"
           />
         )}
 
-        <span className={`flex-shrink-0 font-mono text-[11px] tabular-nums w-9 text-right ${esConsulta ? CLASE_ATENUADA : 'text-gray-500'}`}>
+        <span className="flex-shrink-0 font-mono text-[11px] tabular-nums w-9 text-right text-gray-500 dark:text-gray-400">
           {Math.round(avance)}%
         </span>
       </div>

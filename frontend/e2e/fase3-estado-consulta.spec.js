@@ -44,12 +44,21 @@ test.describe('Fase 3 — estado de consulta en el árbol de Detalle', () => {
     await expect(filaConCandado.first()).toBeVisible();
     await expect(filaSinCandado.first()).toBeVisible();
 
-    // El punto del semáforo de una fila con candado NO debe llevar la
-    // misma clase de opacidad que el nombre/porcentaje de esa fila —
-    // queda a opacidad plena a propósito (sección 11.2).
+    // Segunda ronda: el apagado vive en el FONDO de la fila (gray-50),
+    // no en el texto — nombre/porcentaje usan sus colores normales, sin
+    // clase de opacidad. Solo el punto del semáforo/etiqueta llevan la
+    // atenuación leve (0.72).
     const primeraConCandado = filaConCandado.first();
+    await expect(primeraConCandado).toHaveClass(/bg-gray-50/);
+    const nombre = primeraConCandado.locator('span.truncate').first();
+    await expect(nombre).not.toHaveClass(/opacity-/);
     const punto = primeraConCandado.locator('span.rounded-full').first();
-    await expect(punto).not.toHaveClass(/opacity-/);
+    await expect(punto).toHaveClass(/opacity-/);
+
+    // Una fila asignada: fondo blanco y nombre en semi-negrita.
+    const primeraSinCandado = filaSinCandado.first();
+    await expect(primeraSinCandado).toHaveClass(/bg-white/);
+    await expect(primeraSinCandado.locator('span.truncate').first()).toHaveClass(/font-semibold/);
   });
 
   test('caso mixto: la etapa sin participación lleva candado, su acción con invitación directa no', async ({ page }) => {

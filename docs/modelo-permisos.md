@@ -1,9 +1,8 @@
 # Modelo de permisos de PSPP v2.0
 
-> **Este documento corresponde al commit `c7807cd0c3079aeb43fc5a41b75da6ae28bf0b06`
-> (2026-10-13) + Fase 2 / Paso 0 (sección 6) + Fase 2 / Paso 1 (sección 7) +
-> Fase 2 / Paso 2 (sección 9) + Fase 3, estado de consulta en la interfaz
-> (sección 11), descritos en este mismo PR.**
+> **Este documento corresponde al commit `73f743acffbe834215b503b57726ca1983f10989`
+> (2026-10-14, Fase 3 — primera versión) + la corrección del tratamiento
+> visual de las filas bloqueadas (sección 11.2), descrita en este mismo PR.**
 > Regenerado por completo (no es un parche del documento anterior), porque
 > la versión previa describía el modelo PRE-Fase-1: el CHECK de 2 valores
 > de `proyecto_usuarios.rol`, el CHECK de 3 valores con `'invitado'` de
@@ -510,43 +509,93 @@ Lo único que faltaba era la presentación en el árbol de "Detalle"
 acciones (`FilaAcciones.jsx`, que ya deshabilitaba sus controles con el
 criterio correcto, pero sin quitarlos).
 
-### 11.2 El árbol — candado + atenuación por elemento, no una sola opacidad de fila
+### 11.2 El árbol — el apagado vive en el fondo, no en el texto
 
-Un nodo donde `permisos.puedeEditarNodo(tipo, id)` es `false`
-(`NodoArbol.jsx`) lleva un candado (ícono `Lock`, con
-`aria-label="Sin permiso de edición en este elemento"`) entre el nombre
-y el porcentaje, y la fila se atenúa. **Medido, no supuesto** (WCAG
-1.4.3, mínimo 4.5:1 para texto): aplicar `opacity: 0.65` a la fila
-completa sobre su fondo real (`bg-white`) deja el nombre
-(`text-gray-700`) en 3.79:1 y el porcentaje (`text-gray-500`) en
-2.52:1 — ambos por debajo del mínimo. La solución (decidida con el
-usuario): el atenuado se aplica **por elemento**, no con una sola
-opacidad de contenedor, y cada elemento de texto/ícono parte del tono
-MÁS FUERTE que ya usa esta pantalla (`text-gray-900`, el mismo del
-título del nodo en `EncabezadoDetalle.jsx`) en vez de su tono normal —
-`gray-900` mezclado al 65% mide **5.52:1**, con margen sobre el
-mínimo. Nombre, porcentaje y candado comparten esa misma clase
-(`text-gray-900 opacity-[0.65]`); dentro de una fila de consulta se
-leen con un peso parecido entre sí a propósito — la jerarquía que
-importa en esta pantalla es "mis ramas vs. las que no son mías", y esa
-la da la atenuación de la fila, no el peso relativo del porcentaje.
+**Primera versión (corregida)**: atenuaba el texto (opacidad 0.65 +
+oscurecer el color base a `gray-900` para que, ya mezclado, siguiera
+pasando 4.5:1 — ver más abajo el detalle de esa medición). Verificado
+en producción con un usuario real (`enlace`, 2 de 15 etapas asignadas):
+el candado aparecía exactamente donde debía, pero el apagado era
+imperceptible — oscurecer el color y luego atenuarlo con opacidad se
+cancelan casi por completo entre sí.
 
-**El punto del semáforo queda sin atenuar.** Se midió si existía una
-opacidad entre 0.80 y 1.00 (en pasos de 0.05) que dejara pasar los
-cuatro colores de `COLORES_SEMAFORO` el mínimo gráfico de 3:1 contra el
-fondo de la fila — ninguna lo logra: **gris (`#94a3b8`) ya falla
-incluso a opacidad plena (2.56:1, sin ningún atenuado)**, y verde/ámbar
-caen por debajo de 3:1 entre 0.90 y 0.95. Oscurecer la base del punto
-para forzar el contraste (probado: verde/ámbar/rojo/gris a tonos
-`-800`) sí pasa 3:1 los cuatro, pero **empeora la distinguibilidad
-entre ellos** — sus luminancias quedan más parecidas entre sí que hoy
-(rojo vs. gris cae a 1.01:1). Por eso el punto se queda a opacidad
-plena dentro de una fila atenuada — es "lo primero que la gente lee
-del árbol" y necesita conservar su fuerza — y `SemaforoDot.jsx`/
-`COLORES_SEMAFORO` no se tocan: es la única fuente de verdad visual del
-semáforo en toda la plataforma (Detalle, Diagrama, Cronograma, Agenda),
-y una paleta distinta solo para filas de consulta hubiera sido la
-misma clase de duplicación que motivó 11.1.
+**Corrección**: el apagado se mueve al FONDO del renglón, que es el
+que hace todo el trabajo visual. Un nodo donde
+`permisos.puedeEditarNodo(tipo, id)` es `false` (`NodoArbol.jsx`) queda
+con fondo `bg-gray-50` (en vez del blanco del panel) y lleva un candado
+entre el nombre y el porcentaje — el nombre y el porcentaje regresan a
+sus colores normales de siempre (`text-gray-700`/`text-gray-500`), sin
+opacidad ni oscurecimiento: como el texto nunca cambia de color, no hay
+nada que calibrar contra 4.5:1 en este bloque. Un nodo "asignado" (el
+usuario SÍ puede capturar ahí) usa el fondo blanco normal del panel y
+el nombre en semi-negrita (`font-semibold`) — un escalón de peso por
+encima de lo normal. Tres señales distinguen una fila asignada: fondo
+blanco, nombre en semi-negrita, y la ausencia de candado.
+
+**Conflicto resuelto**: el árbol ya usaba una barra de acento a la
+izquierda para marcar el nodo *seleccionado* (navegación). Se decidió
+dejarla exclusiva de ese significado — "asignado" se señala solo por
+las tres vías del párrafo anterior, nunca por una barra — para que
+"estoy viendo este nodo" y "este nodo es mío" no compitan por la misma
+señal. Selección y bloqueo son estados independientes: si el nodo
+seleccionado también está bloqueado, gana el resaltado de selección
+(`bg-guinda-50/70` + barra) sobre el lavado gris, pero el candado sigue
+presente — la selección nunca oculta el estado de permiso.
+
+**Medido** (lo único que sigue aplicando contra 4.5:1 en este bloque,
+por instrucción explícita, es que el texto normal siga pasando contra
+el fondo nuevo): `bg-gray-100` se descartó — contra ese fondo, el
+porcentaje (`text-gray-500`) cae a 4.39:1, por debajo del mínimo.
+`bg-gray-50` sí pasa (4.63:1, con margen) y da 1.045:1 de separación
+contra el blanco del panel — la misma separación que ya usa
+`hover:bg-gray-50` en una fila normal de este mismo componente, ya
+probada como perceptible. El hover de una fila bloqueada usa un paso
+más oscuro (`gray-100`) para no confundirse con el hover de una fila
+asignada.
+
+El punto del semáforo y la etiqueta de estado (`"Vencida"`,
+`"Bloqueada"`, etc.) sí llevan una atenuación leve (`opacity-[0.72]`)
+sobre su propio color, sin oscurecer nada — no son texto de lectura
+continua, así que no se calibran contra 4.5:1 (instrucción explícita);
+acompañan al fondo apagado sin perder su matiz. El candado conserva el
+tratamiento de la primera ronda (el único de los cuatro elementos que
+de verdad necesita pasar 4.5:1 contra el fondo, porque se lee igual que
+una palabra): parte del tono más fuerte disponible, `gray-900`, mezclado
+al 65% — mide 5.52:1, con margen.
+
+**Tema oscuro**: la misma lógica, invertida — fila bloqueada con fondo
+`dark:bg-gray-950` (más hundido que el `dark:bg-gray-900` del panel),
+fila asignada sobre el `dark:bg-gray-900` del panel sin tinte adicional.
+Separación entre ambos fondos: 1.135:1 (mayor que en claro). Texto
+normal en tema oscuro usa tonos claros (`dark:text-gray-300` nombre
+bloqueada / `dark:text-gray-100` nombre asignada / `dark:text-gray-400`
+porcentaje) — contraste contra sus respectivos fondos entre 6.99:1 y
+16.12:1, sin apretar ningún mínimo. El candado se invierte a
+`dark:text-gray-100` (claro sobre oscuro) por la misma razón que en
+claro necesita el tono más fuerte disponible: oscuro-sobre-oscuro
+también se volvería invisible.
+
+**Esto no se activa solo todavía, a propósito**: la plataforma es
+monotema claro hoy — ningún otro panel tiene su propio tratamiento
+oscuro. Con la estrategia por defecto de Tailwind (`media`, por
+preferencia del sistema operativo), estas clases `dark:` ya se
+activarían hoy para cualquiera cuyo sistema prefiera oscuro, mostrando
+una pantalla mitad clara mitad oscura que nadie pidió. Se cambió
+`darkMode` a `'class'` en `tailwind.config.cjs` — las clases `dark:`
+quedan definidas y calibradas, pero inertes (nunca se aplican, en
+ningún navegador) hasta que la plataforma agregue de verdad un
+interruptor de tema que ponga la clase `.dark` en `<html>`. Cambio de
+una línea, sin efecto visible para nadie hoy: ningún otro lugar del
+código usaba la variante `dark:` de Tailwind antes de este PR (la única
+excepción, `frontend/src/utils/carrilesEventos.js`, detecta el tema con
+`matchMedia` en JavaScript puro, no con la variante de Tailwind, y no
+se ve afectada por este cambio).
+
+**No se tocó `SemaforoDot.jsx`/`COLORES_SEMAFORO`** — es la única
+fuente de verdad visual del semáforo en toda la plataforma (Detalle,
+Diagrama, Cronograma, Agenda); envolverlo en una lógica de atenuación
+distinta solo para filas de consulta hubiera sido la misma clase de
+duplicación que motivó 11.1.
 
 **Hallazgos aparte, preexistentes a este PR, no resueltos aquí:**
 - `COLORES_SEMAFORO.gris` (`#94a3b8`) no pasa el mínimo gráfico de 3:1
@@ -607,13 +656,17 @@ descendiente) — una asignación en un nodo nunca sube a su padre.
   imagen de cualquier proyecto por id) necesita un mecanismo nuevo
   (token también por query string, o reescribir a `fetch`+blob) — con
   el usuario, se decidió dejarlo fuera de este PR.
-- **Tema oscuro**: no se tocó. La plataforma es monotema claro hoy (sin
-  ninguna clase `dark:` ni `darkMode` en Tailwind) — la única excepción
-  es `frontend/src/utils/carrilesEventos.js` (marcadores de la línea de
-  tiempo), que sí reacciona a `prefers-color-scheme` con su propia
-  paleta, acotada a esos marcadores — no existe ningún fondo/texto de
-  superficie "oscuro" para el árbol o el panel de Detalle contra el
-  cual medir.
+- **Tema oscuro, el interruptor real**: se definieron y calibraron las
+  clases `dark:` del árbol de Detalle (sección 11.2) y se cambió
+  `darkMode` a `'class'` en `tailwind.config.cjs` para que queden
+  inertes hasta que exista un interruptor real — pero ese interruptor
+  (una clase `.dark` en `<html>`, un toggle visible, persistencia de la
+  preferencia) no se construyó, y ningún otro panel de la plataforma
+  tiene su propio tratamiento oscuro todavía. La única excepción previa
+  a este PR es `frontend/src/utils/carrilesEventos.js` (marcadores de
+  la línea de tiempo), que reacciona a `prefers-color-scheme` con
+  `matchMedia` en JavaScript puro, no con la variante `dark:` de
+  Tailwind, y no se ve afectada por el cambio de `darkMode`.
 
 ## 12. Qué queda pendiente (decisiones de producto y endpoints sin migrar)
 
