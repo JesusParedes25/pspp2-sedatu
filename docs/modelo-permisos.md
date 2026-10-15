@@ -1,12 +1,13 @@
 # Modelo de permisos de PSPP v2.0
 
-> **Este documento corresponde al commit `3a03938a24b8e882f9a6cb3d0d721897b590c661`
-> (2026-10-14, Fase 3 — cuarto ajuste al estado de consulta: fondo
-> `gray-200`, lápiz de pertenencia, retiro completo del tema oscuro,
-> lienzo gris del panel) + un quinto ajuste — fondo = permiso, barra de
-> acento = selección sin cruce, y el token `gray-150` (un paso más claro
-> que `gray-200`) como fondo por defecto de una fila/panel bloqueado —,
-> descrito en este mismo PR (sección 11.2 y 11.4).**
+> **Este documento corresponde al commit `feda7ded0be1b07d4ba30012bdc0b8f8b07669c0`
+> (2026-10-15, Fase 3 — fondo = permiso, barra de acento = selección sin
+> cruce, token `gray-150`) + Fase 4, parte A — la matriz de capacidades
+> completa (sección 13), el desplegable de función con descripciones, el
+> cierre de los tres caminos hacia `rol = 'lectura'` para un interno, el
+> alcance correcto (nodo, no siempre el proyecto completo) para resolver
+> una solicitud de participación, y el candado de `GET
+> /proyectos/:id/exportar` — descrito en este mismo PR (sección 13).**
 > Regenerado por completo (no es un parche del documento anterior), porque
 > la versión previa describía el modelo PRE-Fase-1: el CHECK de 2 valores
 > de `proyecto_usuarios.rol`, el CHECK de 3 valores con `'invitado'` de
@@ -40,7 +41,10 @@ es sobre la primera:
    (sección 9) cerró el bono de DG y conectó dashboard/mapas agregados
    al alcance real, retirando el `?id_dg=` libre; Fase 3 (sección 11)
    mostró ese cálculo en la interfaz (candado, banda de consulta) sin
-   cambiar el modelo. Lo que queda pendiente está en la sección 12.
+   cambiar el modelo. La Fase 4/parte A (sección 13) no cambia el modelo
+   tampoco — levanta la matriz de capacidades y cierra tres huecos de
+   implementación (lectura para interno, alcance de solicitudes,
+   exportar). Lo que queda pendiente está en la sección 14.
 
 La arquitectura de la pregunta 1 es una **escalera única de 4 peldaños**
 (`lectura < captura < responsable < administracion_proyecto`), resuelta
@@ -771,7 +775,235 @@ descendiente) — una asignación en un nodo nunca sube a su padre.
   cambio de `darkMode` en `tailwind.config.cjs` que las volvía
   inertes — el archivo queda exactamente como estaba antes de Fase 3.
 
-## 12. Qué queda pendiente (decisiones de producto y endpoints sin migrar)
+## 13. Fase 4, parte A — qué se puede asignar y quién lo resuelve
+
+Hasta aquí este documento describe QUIÉN tiene qué peldaño. Esta sección
+es la otra mitad: QUÉ permite hacer cada peldaño exactamente, acción por
+acción — la matriz de capacidades que le sirvió de base al rediseño del
+desplegable de función (13.5) y a los tres cierres de huecos de
+13.2-13.4. Es la tabla más consultada de todo este documento — si algo
+de aquí deja de coincidir con el código, regenerar esta sección primero.
+
+### 13.1 La matriz de capacidades
+
+| # | Acción | lectura | captura | responsable | admin_proyecto | Dónde se decide |
+|---|---|:-:|:-:|:-:|:-:|---|
+| 1 | Registrar avance en un nodo | No | **Sí** | Sí | Sí | `PATCH /etapas\|acciones\|tareas/:id` sin middleware de ruta (`etapas.routes.js:24`, `acciones.routes.js:21`, `tareas.routes.js:13`) → el controller llama `minimoParaPatchNodo(body)` (`autorizacion.js:171-174`): si el payload no trae ningún campo de `CAMPOS_FICHA_NODO` (líneas 163-169), basta `captura`. |
+| 2 | Cambiar el estatus de un nodo | No | **Sí** | Sí | Sí | Mismo mecanismo (`estado` no es campo de ficha) **o** `PUT /estado` → `estado.controller.js::tienePermisoCambiarEstado` (líneas 42-49): `captura` para nodos, `administracion_proyecto` si `entidad_tipo==='Proyecto'`. |
+| 3 | Subir documentos / adjuntar ligas | No | **Sí** | Sí | Sí | `routes/index.js` (POST de evidencias) → `exigirEdicionNodo(tipo)` → `puedeEditarNodo` (`autorizacion.js:114-116`), mínimo `captura`. |
+| 4 | Escribir comentarios | No | **Sí** | Sí | Sí | `comentarios.routes.js` (crear, responder) → `exigirEdicionDeEntidadEnCuerpo`/`exigirEdicionComentario` → `puedeCapturarEn` (`permisos.middleware.js:125-134`) → `captura`. |
+| 5 | Crear, editar y cerrar riesgos | No | **Sí** | Sí | Sí | `riesgos.routes.js` (crear/actualizar/eliminar) — "cerrar" es el mismo PUT con `estado` — vía `puedeCapturarEn` → `captura`. |
+| 6 | Capturar aportaciones de indicadores | No | **Sí** | Sí | Sí | `POST /indicadores/:id/aportaciones` → `exigirEdicionAportacionNueva()`; `PATCH\|DELETE /aportaciones/:id` → `exigirEdicionAportacion()` (`permisos.middleware.js:206-231`) → `captura` en el nodo/proyecto dueño. |
+| 7 | Crear acciones y tareas hijas | No | No | **Sí, EN EL PADRE** | Sí | `exigirResponsableNodo`/`exigirResponsableProyecto` (`permisos.middleware.js:80-104`), mínimo `responsable` — en el padre conceptual del nodo nuevo, no en el nodo mismo. |
+| 8 | Editar nombre / descripción / fechas límite del nodo | No | No | **Sí** | Sí | Mismo `PATCH .../:id`, con algún campo de `CAMPOS_FICHA_NODO` presente → `minimoParaPatchNodo` devuelve `responsable`. |
+| 9 | Eliminar un nodo | No | No | **Sí, EN EL PADRE** | Sí | `puedeGestionarNodo` (`autorizacion.js:134-137`) → `resolverAccesoPadreDeNodo`, llamado dentro de `etapas.controller.js:146`, `acciones.controller.js:168`, `tareas.controller.js:94`. |
+| 10 | Invitar personas al nodo o al proyecto | No | No | **Sí** | Sí | Proyecto: `miembros.controller.js::agregarMiembro`/`crearInvitacion` (líneas 141, 216) → `resolverAccesoProyecto(...,'responsable')`. Nodo: `nodo-miembros.controller.js::agregar` (línea 165) → `puedeGestionarParticipantesNodo` — basta ser responsable de ESE nodo, no de su padre. |
+| 11 | Cambiar la función de otra persona | No | No | **Sí** | Sí | Mismo endpoint que invitar (upsert de rol, `miembros.queries.js::agregarMiembro`) a nivel proyecto; `PUT .../miembros-nodo/:userId` → `nodo-miembros.controller.js::actualizar` (línea 221) a nivel nodo. |
+| 12 | Quitar a alguien del equipo | depende | depende | Sí | Sí | Quitarse a sí mismo: siempre permitido, sin peldaño, salvo ser el único `administracion_proyecto` (freno `ULTIMO_RESPONSABLE`). Quitar a otro: `responsable`, misma función que la fila 11. |
+| 13 | Resolver bloqueos | depende | Sí | Sí | Sí | `exigirResolverBloqueo` (`permisos.middleware.js:249-263`): el creador del bloqueo siempre puede, sin peldaño; si no, `captura`-o-superior en la entidad. |
+| 14 | Resolver solicitudes de participación | No | No | **Sí, EN EL NODO O EL PROYECTO AL QUE SE REFIERE** | Sí | `solicitudes.controller.js::responder` (líneas 255-260): si `solicitud.id_nodo` existe, `puedeGestionarParticipantesNodo` en ESE nodo; si no, `puedeGestionarParticipantes` en el proyecto. Corregido en 13.3 — antes siempre evaluaba contra el proyecto completo. |
+| 15 | Exportar | Sí¹ | Sí | Sí | Sí | `GET /proyectos/:id/exportar` → `exigirVisibilidadProyecto()` (`routes/index.js:133`, corregido en 13.4). |
+| 16 | Editar la configuración del proyecto | No | No | No | **Sí** | `proyectos.controller.js::actualizar` (línea 219) → `puedeEditarProyecto` → `administracion_proyecto`. |
+| 17 | Transferir la administración del proyecto | — | — | — | — | **No existe ningún endpoint.** `carteras.controller.js:84-87` lo confirma al documentar el equivalente de cartera: "mismo criterio que reasignar al administrador de un proyecto, que hoy tampoco tiene una vía de autoservicio." Ningún `UPDATE` en `proyectos.queries.js` toca `id_creador`. Queda para la parte B de esta fase. |
+
+¹ Exportar no pasa por la escalera — es una forma de VER, y la
+visibilidad (sección 5) es total entre internos sin importar el
+peldaño. `exigirVisibilidadProyecto()` solo exige el peldaño `lectura`
+para `externo` (vía `puedeVerProyecto`); cualquier interno exporta sin
+ninguna condición, igual que ve cualquier proyecto.
+
+### 13.2 Tres preguntas resueltas con la matriz
+
+**¿Por nodo, por proyecto, o por los dos?** Por los dos, pero la
+herencia solo corre hacia ABAJO: `funcionEfectivaEnNodo` (líneas
+169-202) resuelve un nodo como el máximo entre lo que ese nodo otorga
+directamente y lo que heredaría de su padre (`comoHeredado`, líneas
+75-81); nunca al revés — ser `captura` de una acción no da nada en la
+etapa que la contiene ni en el proyecto. `masAlto()` (líneas 45-53)
+nunca resta: una vía más alta nunca es cancelada por una más baja.
+
+**`invitadoSoloParaExternos` (ahora `rechazoLecturaParaInterno`):**
+seguía viva solo a nivel nodo antes de esta ronda — se podía rodear por
+los otros dos caminos. Cerrado en 13.3.
+
+**¿Más de un responsable en el mismo nodo?** Sí, sin límite —
+`nodo_miembros` (`033_nodo_miembros.sql:14`) solo tiene `UNIQUE(tipo_nodo,
+id_nodo, id_usuario)`, una fila por persona, no una por nodo. Si una
+etapa y una de sus acciones tienen cada una su propio responsable,
+ninguno manda sobre el otro: ambos llegan a `responsable` en la acción
+(uno directo, el otro heredado) y conviven sin conflicto — el modelo es
+de unión de capacidades, nunca de "el de más abajo/arriba gana".
+Hallazgo relacionado, fuera de alcance de este PR: `administracion_proyecto`
+no tiene un índice único que impida un segundo administrador del
+proyecto — `esUnicoAdministrador` (`miembros.queries.js:110-116`) solo
+bloquea QUITARLE el rol al único administrador, nunca bloquea
+AGREGARLE ese mismo rol a una segunda persona. Es una regla de diseño
+(migración 079), no una restricción de esquema — tocar esto con datos
+reales en producción merece su propia migración y su propio respaldo,
+no se cambia en este PR.
+
+### 13.3 Commit 2 — cerrar los tres caminos hacia `rol = 'lectura'` para un interno
+
+`rechazoLecturaParaInterno` (nueva, `backend/src/utils/validar-funcion-lectura.js`)
+reemplaza la función local `invitadoSoloParaExternos` que solo vivía en
+`nodo-miembros.controller.js` — misma lógica, ahora reusada desde los
+tres caminos que pueden terminar en `rol='lectura'` (nodo_miembros o
+proyecto_usuarios):
+
+1. `nodo-miembros.controller.js::agregar`/`actualizar` (líneas 165-170,
+   221-225) — ya la tenía, ahora importa la versión compartida en vez
+   de una copia local.
+2. `miembros.controller.js::agregarMiembro`/`crearInvitacion` (líneas
+   141-151, 216-221) — hueco real cerrado: `POST /proyectos/:id/miembros`
+   y `/invitaciones` aceptaban `rol:'lectura'` para un interno sin
+   rechazarlo (la UI lo escondía, el servidor no — el `CHECK` de
+   `proyecto_usuarios.rol`, migración 079, sí admite ese valor).
+3. `solicitudes.controller.js::crear` (línea 99) — hueco real cerrado:
+   una solicitud de nodo con `funcion:'lectura'` de un usuario interno
+   se creaba igual y, al aceptarse, insertaba la fila en `nodo_miembros`
+   sin pasar nunca por la validación (`FUNCIONES_NODO` ya incluye
+   `'lectura'`, línea 31, y nada más la filtraba por perfil). Se
+   rechaza al CREAR la solicitud (no al aceptarla) — así nunca puede
+   existir una solicitud pendiente con una combinación que el servidor
+   terminaría rechazando de todos modos.
+
+### 13.4 Commit 3 — una solicitud la resuelve quien gestiona participantes en SU nodo, no siempre en el proyecto completo
+
+**Antes**: `solicitudes.controller.js::responder` evaluaba siempre
+`puedeGestionarParticipantes({idProyecto})`, sin importar si la
+solicitud era de una etapa puntual — un responsable de una sola etapa
+no podía resolver (ni ver en su bandeja) las solicitudes de su propia
+etapa.
+
+**Ahora** (líneas 255-260): si `solicitud.id_nodo` existe, se evalúa
+`puedeGestionarParticipantesNodo` en ese nodo exacto — el mismo
+criterio que ya usa `nodo-miembros.controller.js` para una invitación
+directa; si no, sigue evaluándose contra el proyecto completo, sin
+cambio. `pendientesQuePuedeResolver` (`solicitudes.queries.js:257-290`,
+la bandeja de Notificaciones) se reescribió para llamar exactamente las
+mismas dos funciones por cada solicitud candidata, en vez de replicar
+la condición a mano en SQL mirando solo `proyecto_usuarios` — por
+construcción, lo que aparece en la bandeja es ahora exactamente lo que
+`responder()` va a aceptar; antes podían desincronizarse (y de hecho lo
+estaban, ver el hallazgo de abajo).
+
+**El bono de DG de `direccion`** (poder resolver solicitudes de
+proyectos que lidera su DG) nunca fue parte de la escalera general —
+`funcion-efectiva.js` solo le da ese bono a `ejecutivo`. Es una
+extensión deliberada, exclusiva de solicitudes, que ya vivía en
+`pendientesQuePuedeResolver` desde antes de esta ronda; se replicó
+también dentro de `responder()` (`porBonoDireccion`, líneas 255-257)
+para que ambos lugares queden de acuerdo — **sin este PR, un director
+veía la solicitud en su bandeja por este bono y, al intentar
+aceptarla, se topaba con un 403**: el mismo defecto "visible pero no
+resoluble" que esta ronda vino a cerrar para el caso nodo/proyecto,
+descubierto también aquí.
+
+**Hallazgo nuevo, misma familia de bug**: el SQL anterior de
+`pendientesQuePuedeResolver` trataba a CUALQUIER `ejecutivo` como
+capaz de resolver CUALQUIER solicitud (`$2 IN ('superadmin','ejecutivo')`,
+sin mirar su DG) — pero `funcionEfectivaEnProyecto` nunca le dio ese
+bono incondicional, solo cuando su DG coincide con la del proyecto
+(líneas 111-118). Un ejecutivo de una DG distinta ya veía la solicitud
+en su bandeja y ya se topaba con el mismo 403 al intentar resolverla,
+desde antes de esta ronda. Al reescribir la función para reusar
+`puedeGestionarParticipantes`/`Nodo` en vez de la condición SQL
+duplicada, este segundo caso se cerró de paso, sin tocarlo a propósito
+— un ejecutivo ahora solo ve en su bandeja lo que de verdad puede
+resolver, igual que ya corregía el caso de `direccion`.
+
+Quienes ya podían resolver todo de verdad (no solo verlo en la
+bandeja) siguen pudiendo: `superadmin` (incondicional, dentro de la
+propia `funcionEfectivaEnNodo`/`EnProyecto`), `ejecutivo`/`direccion`
+con el DG correcto, y cualquier `responsable`/`administracion_proyecto`
+del proyecto completo (vía herencia hacia los nodos, sección 13.2).
+
+### 13.5 Commit 4 — `GET /proyectos/:id/exportar` sin candado de visibilidad
+
+Último hueco del audit de Fase 2/Paso 1: a diferencia del resto de la
+lectura estructural de un proyecto, exportar no exigía ni siquiera el
+peldaño `lectura` que `exigirVisibilidadProyecto()` aplica a `externo`
+— cualquier usuario autenticado, sin relación con el proyecto, podía
+descargar su estructura completa en Excel/CSV. Se le aplicó el mismo
+mecanismo que protege el resto (`routes/index.js:133`); cero cambio
+para cualquier interno.
+
+**Dos piezas que salieron del mismo audit y se dejaron fuera de este
+PR, con su motivo:**
+- `PUT /etapas|acciones|tareas/:id` sigue con un gate más débil
+  (`captura`, vía `exigirEdicionNodo`) que su `PATCH` equivalente
+  (`responsable`, vía `minimoParaPatchNodo`) para la misma operación
+  (reemplazar la ficha completa). Confirmado que ningún componente del
+  frontend lo llama — pero una ronda anterior de esta misma sesión
+  reescribió a propósito `actualizarAccionCampos`/`actualizarEtapa`
+  (el SET dinámico que corrige la pérdida de `instancia_responsable`/
+  `observaciones`) asumiendo que ese PUT sigue siendo una vía de API
+  externa válida, no código muerto a borrar. Esa decisión previa pesa
+  más que "nadie lo usa hoy desde la UI" — se deja igual, reportado
+  aquí en vez de borrado o corregido sin preguntar.
+- Que `administracion_proyecto` no tenga un candado de esquema contra
+  un segundo administrador (sección 13.2) — anotado como riesgo
+  conocido, no corregido: cambiar eso con datos reales en producción
+  necesita su propia migración, su propio respaldo, y no es parte del
+  pedido de esta ronda.
+
+### 13.6 Commit 1 — el desplegable de función, con descripciones
+
+`frontend/src/components/common/SelectorFuncion.jsx` (nuevo) reemplaza
+los `<select>` nativos de `GestorUsuariosProyecto.jsx` (equipo del
+proyecto) y `SeccionMiembrosNodo.jsx` (miembros de nodo) — cuatro sitios
+en total (invitar/reasignar × proyecto/nodo). Un `<option>` nativo no
+admite más que texto de una línea, así que es un listbox propio: cada
+opción muestra su nombre (los que la plataforma ya usa — "Colaborador"
+para `captura`, "Invitado" para `lectura` — no se renombraron a
+"Captura"/"Lectura" literal, ver nota) y una línea de qué hace, visible
+en cuanto el panel se abre, sin hover.
+
+**Nota sobre los nombres**: el pedido original decía que el control
+muestra hoy el nombre técnico "Captura" — el código real mostraba
+"Colaborador" (y "Invitado" para `lectura`), nombres ya pensados para
+ser accesibles. Se mantuvieron esos nombres ya establecidos (cambiarlos
+al término técnico habría ido en sentido contrario al propio objetivo
+del commit) y se agregó la descripción debajo de cada uno.
+
+**Texto de cada opción** (el sustantivo cambia según dónde se asigne —
+"esta etapa"/"esta acción"/"esta tarea"/"todo el proyecto",
+`sustantivoAsignacion()` en el mismo archivo):
+- *Colaborador* (`captura`): "Registra avances, sube documentos,
+  comenta y da seguimiento a riesgos e indicadores en {sustantivo}."
+- *Responsable* (`responsable`): "Todo lo de Colaborador, y además
+  crea acciones y tareas, cambia nombres y fechas límite, e invita,
+  retira o cambia la función de otras personas en {sustantivo}." — se
+  agregó "o cambia la función de otras personas" sobre el texto
+  propuesto: la matriz (fila 11) ya distingue esa como una capacidad
+  propia de `responsable`, y el texto original solo mencionaba
+  invitar/retirar.
+- *Invitado* (`lectura`): "Puede ver {sustantivo} sin capturar nada. Es
+  la única forma de que una persona externa tenga acceso." — solo se
+  ofrece cuando `mostrarLectura` es `true`, decidido por el padre según
+  el PERFIL (`usuarios.rol`) de la persona seleccionada, nunca dentro
+  del propio selector.
+
+`administracion_proyecto` nunca aparece en este desplegable — no se
+asigna aquí, se transfiere (fila 17 de la matriz, sin vía de
+autoservicio todavía).
+
+**Efecto colateral necesario, no cosmético**: ninguna de las dos
+consultas que alimentan estos dos archivos (`panorama.controller.js::obtenerTodosParticipantes`,
+usada por `GestorUsuariosProyecto.jsx`; `nodo-miembros.queries.js::listarMiembros`,
+usada por `SeccionMiembrosNodo.jsx`) exponía el PERFIL de un miembro YA
+agregado — solo su FUNCIÓN en ese proyecto/nodo. Sin el perfil, el
+desplegable de reasignación no podía saber si ofrecer "Invitado" al
+cambiarle la función a alguien que ya participa. Se agregó `u.rol AS
+perfil` a ambas consultas (columna nueva, de solo lectura, sin cambio
+de escritura) — de paso corrige un bug latente real en
+`SeccionMiembrosNodo.jsx`: antes de esta ronda, `funcionesPara(m)`
+comparaba `m.rol` (la FUNCIÓN del miembro: captura/responsable/lectura)
+contra `'externo'`, un valor que ese campo nunca tiene — así que el
+`<select>` de reasignación de un miembro ya agregado jamás ofrecía
+"Invitado", ni siquiera para alguien que de verdad era externo.
+
+## 14. Qué queda pendiente (decisiones de producto y endpoints sin migrar)
 
 - **Listados de riesgos por nodo, `/etapas/:id/indicadores`,
   `/proyectos/:id/panorama-rapido`**: mismo hueco de visibilidad
@@ -786,10 +1018,21 @@ descendiente) — una asignación en un nodo nunca sube a su padre.
   `funcion-efectiva.js` (es una facultad de cartera, no de proyecto/nodo);
   no documentado en detalle aquí porque este archivo es sobre la escalera
   proyecto/nodo.
-- **Exportar / eliminar nodo** (huecos 3.1/3.3 de una ronda anterior): el
-  gate mínimo de lectura en exportación, y la confirmación con conteo al
-  eliminar un nodo con descendientes, quedaron pendientes de otra ronda —
-  no tocados por este documento ni por el Paso 0/1.
+- **Eliminar nodo, confirmación con conteo** (hueco 3.3 de una ronda
+  anterior): la confirmación con conteo de descendientes al eliminar un
+  nodo sigue pendiente — es una pieza de UX, no de permisos (el gate de
+  permiso en sí, "responsable en el padre", ya está cerrado, fila 9 de
+  la matriz en 13.1). El gate mínimo de lectura en exportación (hueco
+  3.1) se cerró en la Fase 4/parte A, sección 13.5.
+- **`PUT /etapas|acciones|tareas/:id` con un gate más débil que su
+  `PATCH` equivalente** (sección 13.5) — confirmado sin caller en el
+  frontend, pero deliberadamente no se tocó: una ronda anterior ya
+  decidió mantenerlo vivo para un consumidor de API externo hipotético.
+- **`administracion_proyecto` sin candado de esquema contra un segundo
+  administrador** (sección 13.2) — riesgo conocido, no corregido: es
+  una regla de diseño (migración 079), no una restricción de base de
+  datos; cambiarla con datos reales en producción merece su propia
+  migración y su propio respaldo.
 - **`GET /proyectos/:id/imagen` sin autenticar** (sección 11.6) — fuera
   de este PR por decisión explícita, no por descuido.
 - **`COLORES_SEMAFORO.gris` no pasa 3:1 contra blanco ni a opacidad

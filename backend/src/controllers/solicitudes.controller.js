@@ -10,15 +10,23 @@
  * tiene una invitación esperando respuesta: pedir lo que ya se tiene solo
  * genera ruido para quien decide.
  *
- * Resolverla la puede hacer quien designa participantes en ese proyecto,
- * que es exactamente la misma facultad que invitar (puedeGestionarParti-
- * cipantes). Si aceptar una solicitud exigiera un permiso distinto al de
- * invitar, habría dos maneras de meter gente al proyecto con dos reglas
- * distintas, que es como se abren los huecos.
+ * Resolverla la puede hacer quien designa participantes en el ELEMENTO al
+ * que se refiere — el proyecto completo si la solicitud es del proyecto
+ * (puedeGestionarParticipantes), o ese nodo puntual si la solicitud es de
+ * una etapa/acción/tarea (puedeGestionarParticipantesNodo), exactamente la
+ * misma facultad que ya usa nodo-miembros.controller.js para una
+ * invitación directa. Si aceptar una solicitud exigiera un permiso
+ * distinto al de invitar, habría dos maneras de meter gente al proyecto
+ * (o a un nodo) con dos reglas distintas, que es como se abren los
+ * huecos — antes de la Fase 4/parte A, una solicitud de nodo sí tenía esa
+ * segunda regla por accidente: se evaluaba siempre contra el proyecto
+ * completo, así que un responsable de una sola etapa no podía resolver
+ * (ni ver en su bandeja) las solicitudes de su propia etapa.
  * ─────────────────────────────────────────────────────────────────
  */
 const solicitudesQueries = require('../db/queries/solicitudes.queries');
-const { puedeGestionarParticipantes, obtenerProyectoIdDeNodo } = require('../utils/autorizacion');
+const { puedeGestionarParticipantes, puedeGestionarParticipantesNodo, obtenerProyectoIdDeNodo } = require('../utils/autorizacion');
+const { rechazoLecturaParaInterno } = require('../utils/validar-funcion-lectura');
 const { crearNotificacion } = require('../utils/notificaciones');
 const pool = require('../db/pool');
 
@@ -79,6 +87,18 @@ async function crear(req, res, next) {
     const permitidas = esDeNodo ? FUNCIONES_NODO : FUNCIONES;
     if (funcion && !permitidas.includes(funcion)) {
       return res.status(400).json({ error: true, mensaje: `funcion debe ser una de: ${permitidas.join(', ')}` });
+    }
+
+    // Mismo candado que ya protege la invitación directa: "invitado"
+    // (lectura) es solo para gente ajena a la Secretaría. Sin esto, una
+    // solicitud de nodo con funcion:'lectura' de un usuario interno se
+    // aceptaba igual y terminaba insertando esa fila en nodo_miembros sin
+    // pasar nunca por la validación — FUNCIONES ya excluye 'lectura' a
+    // nivel proyecto, así que esto solo puede dispararse para una
+    // solicitud de nodo.
+    const rechazoLectura = await rechazoLecturaParaInterno(req.usuario.id, funcion);
+    if (rechazoLectura) {
+      return res.status(400).json({ error: true, mensaje: rechazoLectura, codigo: 'FUNCION_NO_APLICABLE' });
     }
 
     // De un nodo se sube al proyecto: es lo que determina quién decide y a
@@ -213,7 +233,31 @@ async function responder(req, res, next) {
       return res.status(409).json({ error: true, mensaje: 'Esta solicitud ya fue respondida.' });
     }
 
-    const permitido = await puedeGestionarParticipantes({ usuario: req.usuario, idProyecto: solicitud.id_proyecto });
+    // La regla nueva: una solicitud la resuelve quien puede gestionar
+    // participantes en el nodo al que se refiere — si es del proyecto
+    // completo, se evalúa contra el proyecto (como siempre); si es de una
+    // etapa/acción/tarea puntual, contra ESE nodo, el mismo criterio que
+    // ya usa nodo-miembros.controller.js para una invitación directa
+    // (puedeGestionarParticipantesNodo, "responsable" en ese nodo o
+    // heredado de un ascendiente). Antes, esto se evaluaba siempre contra
+    // el proyecto completo aunque la solicitud fuera de un solo nodo — un
+    // responsable de una sola etapa no podía resolver ni ver en su
+    // bandeja las solicitudes de su propia etapa.
+    //
+    // El bono de DG de 'direccion' (ver pendientesQuePuedeResolver, que
+    // decide qué le aparece en la bandeja) no es parte de la escalera
+    // general (funcion-efectiva.js) — es una extensión deliberada, solo
+    // para solicitudes, que ya existía ahí antes de esta ronda. Se
+    // replica aquí para que ambos lugares queden consistentes: si
+    // pendientesQuePuedeResolver ya le muestra la solicitud a un
+    // director por el bono de su DG, este gate tiene que dejarlo
+    // resolverla — de lo contrario, la vería pero no podría aceptarla.
+    const porBonoDireccion = req.usuario.rol === 'direccion'
+      && req.usuario.id_dg != null
+      && solicitud.id_dg_lider === req.usuario.id_dg;
+    const permitido = porBonoDireccion || (solicitud.id_nodo
+      ? await puedeGestionarParticipantesNodo({ usuario: req.usuario, tipoNodo: solicitud.tipo_nodo, idNodo: solicitud.id_nodo })
+      : await puedeGestionarParticipantes({ usuario: req.usuario, idProyecto: solicitud.id_proyecto }));
     if (!permitido) {
       return res.status(403).json({ error: true, mensaje: 'No tienes permisos para resolver solicitudes de este proyecto' });
     }

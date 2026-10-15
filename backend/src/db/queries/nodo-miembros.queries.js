@@ -1,6 +1,12 @@
 /**
  * ARCHIVO: nodo-miembros.queries.js
  * PROPÓSITO: Queries SQL para miembros asignados a etapas y acciones específicas.
+ *
+ * `listarMiembros` incluye `u.rol AS perfil` desde la Fase 4/parte A — el
+ * perfil GLOBAL de la persona (nada que ver con `rol` a secas, que en
+ * esta fila es su FUNCIÓN en este nodo/proyecto) — para que
+ * SeccionMiembrosNodo.jsx sepa si puede ofrecer "Invitado" al reasignar a
+ * alguien que ya participa; esa opción solo aplica a perfil='externo'.
  */
 const pool = require('../pool');
 
@@ -15,6 +21,7 @@ async function listarMiembros(tipo, idNodo, idProyecto, db) {
       u.nombre_completo,
       u.correo,
       u.activo    AS usuario_activo,
+      u.rol       AS perfil,
       dg.siglas   AS dg_siglas,
       src.rol,
       src.es_responsable_principal,
@@ -80,6 +87,7 @@ async function listarMiembros(tipo, idNodo, idProyecto, db) {
       u.nombre_completo,
       u.correo,
       u.activo    AS usuario_activo,
+      u.rol       AS perfil,
       dg.siglas   AS dg_siglas,
       pu.rol,
       false       AS es_responsable_principal,

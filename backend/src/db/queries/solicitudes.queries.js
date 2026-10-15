@@ -20,6 +20,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const pool = require('../pool');
+const { puedeGestionarParticipantes, puedeGestionarParticipantesNodo } = require('../../utils/autorizacion');
 
 // Crea la solicitud, de proyecto (sin tipoNodo) o de un nodo concreto.
 // Devuelve { yaParticipa } / { duplicada } / ... en vez de lanzar, para que
@@ -121,9 +122,10 @@ async function listarDeUsuario(idUsuario, db) {
 async function obtener(idSolicitud, db) {
   const conn = db || pool;
   const { rows } = await conn.query(
-    `SELECT s.*, u.nombre_completo
+    `SELECT s.*, u.nombre_completo, p.id_dg_lider
      FROM solicitudes_participacion s
      JOIN usuarios u ON u.id = s.id_usuario
+     JOIN proyectos p ON p.id = s.id_proyecto
      WHERE s.id = $1`,
     [idSolicitud]
   );
@@ -229,16 +231,35 @@ async function destinatariosDe(idProyecto, db) {
 // todos sus proyectos. Es lo que alimenta la bandeja de Notificaciones:
 // sin esto habría que entrar proyecto por proyecto a ver si hay algo.
 //
-// La condición replica en SQL la regla de puedeGestionarParticipantes
-// (utils/autorizacion.js). Se duplica a propósito: llamar a la función
-// una vez por proyecto sería una consulta por fila. Si aquella regla
-// cambia, esta consulta tiene que cambiar con ella.
+// Antes de la Fase 4/parte A, el filtro "¿puede resolverla?" se replicaba
+// a mano en SQL aquí, mirando SOLO proyecto_usuarios — nunca el nodo
+// exacto de la solicitud (nodo_miembros) ni su herencia. Resultado: un
+// responsable de una sola etapa no veía aquí las solicitudes de su
+// propia etapa, aunque sí podría resolverlas si de alguna forma llegaba
+// hasta ellas — la bandeja y el gate de responder() podían desincronizarse
+// sin que nadie lo notara (una solicitud visible pero no resoluble, o al
+// revés). Ahora se reusa la MISMA función que usa responder()
+// (puedeGestionarParticipantes/puedeGestionarParticipantesNodo, según si
+// la solicitud es del proyecto completo o de un nodo puntual) — por
+// construcción, las dos quedan consistentes: lo que aparece aquí es
+// exactamente lo que responder() va a aceptar.
+//
+// El filtro SQL (estado pendiente, no es la propia solicitud) sigue
+// siendo barato; la decisión de permiso se resuelve en código por fila —
+// aceptable porque las solicitudes pendientes en todo el sistema son
+// pocas (eventos esporádicos, no un stream de actividad).
+//
+// El bono de DG de 'direccion' NO es parte de la escalera general
+// (funcion-efectiva.js solo le da ese bono a 'ejecutivo') — es una
+// extensión deliberada, solo para solicitudes, que ya existía aquí desde
+// antes de esta ronda; se mantiene como caso aparte, replicado también
+// en responder() para que ambos lugares sigan de acuerdo.
 async function pendientesQuePuedeResolver(usuario, db) {
   const conn = db || pool;
   const { rows } = await conn.query(`
     SELECT s.*, u.nombre_completo, u.correo, u.cargo, u.rol AS perfil,
            dg.siglas AS dg_siglas,
-           p.nombre AS nombre_proyecto,
+           p.nombre AS nombre_proyecto, p.id_dg_lider,
            CASE s.tipo_nodo
              WHEN 'etapa'  THEN (SELECT e.nombre FROM etapas e   WHERE e.id = s.id_nodo)
              WHEN 'accion' THEN (SELECT a.nombre FROM acciones a WHERE a.id = s.id_nodo)
@@ -248,21 +269,21 @@ async function pendientesQuePuedeResolver(usuario, db) {
     JOIN proyectos p ON p.id = s.id_proyecto AND p.deleted_at IS NULL
     JOIN usuarios u ON u.id = s.id_usuario
     LEFT JOIN direcciones_generales dg ON dg.id = u.id_dg
-    WHERE s.estado = 'pendiente'
-      AND s.id_usuario <> $1
-      AND (
-        $2 IN ('superadmin', 'ejecutivo')
-        OR p.id_creador = $1
-        OR ($2 = 'direccion' AND $3::uuid IS NOT NULL AND p.id_dg_lider = $3::uuid)
-        OR EXISTS (
-          SELECT 1 FROM proyecto_usuarios pu
-          WHERE pu.id_proyecto = p.id AND pu.id_usuario = $1
-            AND pu.rol IN ('responsable', 'administracion_proyecto') AND pu.estado = 'aceptada'
-        )
-      )
+    WHERE s.estado = 'pendiente' AND s.id_usuario <> $1
     ORDER BY s.created_at DESC
-  `, [usuario.id, usuario.rol, usuario.id_dg || null]);
-  return rows;
+  `, [usuario.id]);
+
+  const resultado = [];
+  for (const sol of rows) {
+    const porBonoDireccion = usuario.rol === 'direccion'
+      && usuario.id_dg != null
+      && sol.id_dg_lider === usuario.id_dg;
+    const permitido = porBonoDireccion || (sol.id_nodo
+      ? await puedeGestionarParticipantesNodo({ usuario, tipoNodo: sol.tipo_nodo, idNodo: sol.id_nodo })
+      : await puedeGestionarParticipantes({ usuario, idProyecto: sol.id_proyecto }));
+    if (permitido) resultado.push(sol);
+  }
+  return resultado;
 }
 
 // Las que ESTE usuario ya resolvió (aceptó o declinó), más recientes

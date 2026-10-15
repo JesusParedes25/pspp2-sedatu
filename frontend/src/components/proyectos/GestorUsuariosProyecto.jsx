@@ -26,6 +26,7 @@ import * as etapasApi from '../../api/etapas';
 import { ramasDeEtapas } from '../../utils/arbolSeleccionable';
 import client from '../../api/client';
 import BotonSolicitarParticipar from './BotonSolicitarParticipar';
+import SelectorFuncion, { sustantivoAsignacion } from '../common/SelectorFuncion';
 
 const GUINDA = '#7B1C3E';
 const ETIQUETA_ALCANCE = { etapa: 'etapa', accion: 'acción', tarea: 'tarea' };
@@ -295,15 +296,13 @@ function ParticipanteCard({ miembro: m, puedeGestionar, puedeSalir, onEliminar, 
             )}
           </p>
           {puedeCambiarRol ? (
-            <select
+            <SelectorFuncion
               value={m.rol}
-              onChange={e => onCambiarRol(e.target.value)}
-              onClick={e => e.stopPropagation()}
-              className={`mt-0.5 text-[10px] font-medium pl-1.5 pr-1 py-0 rounded-full border outline-none cursor-pointer ${cfg.badgeCls}`}
-            >
-              <option value="captura">Colaborador</option>
-              <option value="responsable">Responsable</option>
-            </select>
+              onChange={onCambiarRol}
+              className="mt-0.5"
+              sustantivo={sustantivoAsignacion(m.alcance === 'proyecto' ? 'proyecto' : m.nodo_tipo)}
+              mostrarLectura={m.perfil === 'externo'}
+            />
           ) : (
             <span className={`inline-block text-[10px] font-medium px-1.5 py-0 rounded-full border mt-0.5 ${cfg.badgeCls}`}>
               {cfg.label}
@@ -458,6 +457,18 @@ function ModalInvitar({ proyectoId, onClose, onInvitado }) {
 
   const dasFiltradas = filtros.id_dg ? das : [];
 
+  // El sustantivo de SelectorFuncion depende de qué se vaya a marcar: todo
+  // el proyecto, un único nodo ya elegido, varios a la vez (sin un
+  // sustantivo exacto posible), o ninguno todavía (alcance "nodos" recién
+  // elegido, antes de marcar algo en el árbol de abajo).
+  const sustantivoFuncion = alcance === 'proyecto'
+    ? sustantivoAsignacion('proyecto')
+    : nodosSeleccionados.size === 0
+      ? 'lo que selecciones abajo'
+      : nodosSeleccionados.size > 1
+        ? 'los elementos seleccionados'
+        : sustantivoAsignacion([...nodosSeleccionados][0].slice(0, [...nodosSeleccionados][0].indexOf('-')));
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
@@ -524,11 +535,12 @@ function ModalInvitar({ proyectoId, onClose, onInvitado }) {
                 <span className="text-sm text-guinda-700 flex-1 truncate">✓ {seleccionado.nombre_completo}</span>
                 <div>
                   <label className="text-xs text-gray-600 mr-1">Función:</label>
-                  <select value={rol} onChange={e => setRol(e.target.value)} className="text-xs border border-gray-300 rounded px-2 py-1">
-                    <option value="captura">Colaborador</option>
-                    <option value="responsable">Responsable</option>
-                    {seleccionado?.rol === 'externo' && <option value="lectura">Invitado</option>}
-                  </select>
+                  <SelectorFuncion
+                    value={rol}
+                    onChange={setRol}
+                    sustantivo={sustantivoFuncion}
+                    mostrarLectura={seleccionado?.rol === 'externo'}
+                  />
                 </div>
               </div>
 

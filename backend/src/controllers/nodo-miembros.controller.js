@@ -4,6 +4,7 @@
  */
 const nodoMiembrosQueries = require('../db/queries/nodo-miembros.queries');
 const { puedeGestionarParticipantesNodo, obtenerProyectoIdDeNodo } = require('../utils/autorizacion');
+const { rechazoLecturaParaInterno } = require('../utils/validar-funcion-lectura');
 const miembrosQueries = require('../db/queries/miembros.queries');
 const { crearNotificacion } = require('../utils/notificaciones');
 const { registrarActividad } = require('../utils/actividad-log');
@@ -134,19 +135,6 @@ async function responder(req, res, next) {
   } catch (err) { next(err); }
 }
 
-// La función 'invitado' —ver sin capturar— existe para personas ajenas a
-// la Secretaría: alguien de otra dependencia a quien se le abre una parte
-// del proyecto para que le dé seguimiento. Para el personal de SEDATU no
-// tiene sentido: la visibilidad ya es total, así que "invitarlo sin poder
-// capturar" no le agrega nada.
-async function invitadoSoloParaExternos(idUsuario, rol) {
-  if (rol !== 'lectura') return null;
-  const { rows } = await pool.query('SELECT rol FROM usuarios WHERE id = $1', [idUsuario]);
-  if (rows[0]?.rol === 'externo') return null;
-  return 'La función "invitado" es solo para usuarios externos a la Secretaría. '
-    + 'Para personal de SEDATU usa responsable o colaborador.';
-}
-
 // GET /etapas/:etapaId/miembros-nodo
 // GET /acciones/:accionId/miembros-nodo
 async function listar(req, res, next) {
@@ -179,7 +167,7 @@ async function agregar(req, res, next) {
       return res.status(403).json({ error: true, mensaje: 'No tienes permisos para agregar miembros a este nodo', codigo: 'FORBIDDEN' });
     }
 
-    const rechazoInvitado = await invitadoSoloParaExternos(id_usuario, rol);
+    const rechazoInvitado = await rechazoLecturaParaInterno(id_usuario, rol);
     if (rechazoInvitado) {
       return res.status(400).json({ error: true, mensaje: rechazoInvitado, codigo: 'FUNCION_NO_APLICABLE' });
     }
@@ -234,7 +222,7 @@ async function actualizar(req, res, next) {
     if (!permitido) {
       return res.status(403).json({ error: true, mensaje: 'No tienes permisos para modificar miembros de este nodo', codigo: 'FORBIDDEN' });
     }
-    const rechazoInvitado = await invitadoSoloParaExternos(userId, rol);
+    const rechazoInvitado = await rechazoLecturaParaInterno(userId, rol);
     if (rechazoInvitado) {
       return res.status(400).json({ error: true, mensaje: rechazoInvitado, codigo: 'FUNCION_NO_APLICABLE' });
     }

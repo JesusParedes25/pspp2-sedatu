@@ -124,7 +124,13 @@ router.use('/catalogo-indicadores', catalogoIndicadoresRoutes);
 // Etapas de un proyecto
 router.get('/proyectos/:id/etapas', etapasController.listarPorProyecto);
 router.get('/proyectos/:id/arbol', etapasController.obtenerArbol);
-router.get('/proyectos/:id/exportar', exportarController.exportarProyecto);
+// Mismo mecanismo del Paso 1 (alcance de lectura) que ya protege el resto
+// de la lectura estructural de un proyecto — antes, exportar no exigía
+// ni siquiera el peldaño 'lectura' que exigirVisibilidadProyecto aplica a
+// 'externo': cualquier usuario autenticado, sin relación con el
+// proyecto, podía descargar su estructura completa. Para cualquier
+// interno no cambia nada (ya veía cualquier proyecto).
+router.get('/proyectos/:id/exportar', exigirVisibilidadProyecto(), exportarController.exportarProyecto);
 router.post('/proyectos/:id/etapas', exigirResponsableProyecto(), etapasController.crear);
 
 // Acciones de una etapa
