@@ -8,6 +8,7 @@ const { rechazoLecturaParaInterno } = require('../utils/validar-funcion-lectura'
 const miembrosQueries = require('../db/queries/miembros.queries');
 const { crearNotificacion } = require('../utils/notificaciones');
 const { registrarActividad } = require('../utils/actividad-log');
+const { etiquetaFuncion } = require('../utils/etiquetas-funcion');
 const pool = require('../db/pool');
 
 // Extrae tipo ('etapa' | 'accion') del path y el id del nodo
@@ -241,7 +242,21 @@ async function actualizar(req, res, next) {
         + (etiquetaPrevia && etiquetaPrevia !== etiquetaNueva ? ` de ${etiquetaPrevia} a ${etiquetaNueva}.` : ` a ${etiquetaNueva}.`),
     });
 
-    res.json({ datos: miembro, mensaje: 'Rol actualizado' });
+    // Si ya estaba ACEPTADO y la función de verdad cambió, avisarle: no
+    // es una invitación (nada que aceptar o rechazar), es un cambio real
+    // de lo que puede hacer — docs/modelo-permisos.md, sección 15.2.
+    const esCambioDeFuncion = previo?.estado === 'aceptada' && previo.rol !== rol;
+    if (esCambioDeFuncion) {
+      await crearNotificacion({
+        tipo: 'PermisoNuevo',
+        mensaje: `${req.usuario?.nombre_completo || 'Alguien'} cambió tu función en ${ETIQUETA_POR_TIPO[tipo]} "${nombreNodo}". Ahora eres ${etiquetaFuncion(rol)}.`,
+        entidadTipo: ENTIDAD_TIPO_POR_TIPO[tipo],
+        entidadId: idNodo,
+        idUsuario: userId,
+      });
+    }
+
+    res.json({ datos: miembro, mensaje: 'Rol actualizado', cambio_rol: esCambioDeFuncion });
   } catch (err) {
     next(err);
   }
