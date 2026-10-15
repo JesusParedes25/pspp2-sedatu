@@ -198,6 +198,13 @@ async function responder({ idSolicitud, idQuienResuelve, acepta, motivoRespuesta
 //
 // El creador entra solo como red de seguridad: si el proyecto se quedó sin
 // ningún responsable, la solicitud no iría a nadie y quedaría muerta.
+// Devuelve {id_usuario, nombre_completo, correo} de cada destinatario —
+// no solo el id — porque el controller reusa esta MISMA lista para dos
+// cosas: crear la notificación dentro de la plataforma (solo necesita el
+// id) y, desde el frontend, mandar el correo de aviso a cada uno (necesita
+// nombre/correo). Un solo cálculo para ambos canales: si se calcularan
+// por separado, acabarían divergiendo (ver docs/modelo-permisos.md,
+// sección 15.2.3).
 async function destinatariosDe(idProyecto, db) {
   const conn = db || pool;
   const { rows } = await conn.query(`
@@ -211,20 +218,26 @@ async function destinatariosDe(idProyecto, db) {
       FROM responsables r
       JOIN usuarios u ON u.id = r.id_usuario
       WHERE u.id_direccion_area IS NOT NULL
+    ),
+    ids AS (
+      SELECT id_usuario FROM responsables
+      UNION
+      SELECT d.id
+      FROM usuarios d
+      JOIN areas a ON a.id_direccion_area = d.id_direccion_area
+      WHERE d.rol = 'direccion' AND d.activo = true
+      UNION
+      SELECT p.id_creador
+      FROM proyectos p
+      WHERE p.id = $1 AND p.id_creador IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM responsables)
     )
-    SELECT id_usuario FROM responsables
-    UNION
-    SELECT d.id
-    FROM usuarios d
-    JOIN areas a ON a.id_direccion_area = d.id_direccion_area
-    WHERE d.rol = 'direccion' AND d.activo = true
-    UNION
-    SELECT p.id_creador
-    FROM proyectos p
-    WHERE p.id = $1 AND p.id_creador IS NOT NULL
-      AND NOT EXISTS (SELECT 1 FROM responsables)
+    SELECT ids.id_usuario, u.nombre_completo, u.correo
+    FROM ids
+    JOIN usuarios u ON u.id = ids.id_usuario
+    WHERE ids.id_usuario IS NOT NULL
   `, [idProyecto]);
-  return rows.map(r => r.id_usuario).filter(Boolean);
+  return rows;
 }
 
 // Todas las solicitudes pendientes que ESTE usuario puede resolver, de

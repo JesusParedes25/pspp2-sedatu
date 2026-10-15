@@ -7,9 +7,13 @@
 import client from './client';
 
 // Pedir participar en TODO el proyecto. El motivo es opcional.
+// Devuelve { datos, destinatarios } — no solo la solicitud creada — para
+// que quien llama pueda avisar por correo a los mismos destinatarios que
+// ya recibieron la notificación dentro de la plataforma (ver
+// docs/modelo-permisos.md, sección 15.2.3).
 export async function solicitarParticipacion(proyectoId, { funcion = 'captura', motivo } = {}) {
   const { data } = await client.post(`/proyectos/${proyectoId}/solicitudes`, { funcion, motivo });
-  return data.datos;
+  return data;
 }
 
 // Pedir participar solo en una etapa, acción o tarea. Es lo que necesita
@@ -21,7 +25,7 @@ export async function solicitarParticipacionNodo(tipo, idNodo, { funcion = 'capt
   const ruta = RUTA_NODO[tipo];
   if (!ruta) throw new Error(`Tipo de nodo inválido: ${tipo}`);
   const { data } = await client.post(`/${ruta}/${idNodo}/solicitudes`, { funcion, motivo });
-  return data.datos;
+  return data;
 }
 
 // Las que yo mandé, con en qué quedaron.

@@ -155,8 +155,15 @@ async function crear(req, res, next) {
     const destino = describirDestino({ esDeNodo, tipoNodo, nombreDelNodo, nombreDelProyecto: nombre });
     const destinatarios = await solicitudesQueries.destinatariosDe(idProyecto);
     const textoMotivo = resultado.solicitud.motivo ? ` Motivo: ${resultado.solicitud.motivo}` : '';
-    for (const idUsuario of destinatarios) {
-      if (idUsuario === req.usuario.id) continue;
+    // Misma lista para dos canales: la notificación dentro de la plataforma
+    // (aquí) y, del lado del frontend, el correo de aviso — ver
+    // docs/modelo-permisos.md, sección 15.2.3. `destinatariosParaCorreo`
+    // es esta misma lista sin quien solicita, para que el frontend no
+    // tenga que repetir ese filtro ni recalcular nada.
+    const destinatariosParaCorreo = [];
+    for (const d of destinatarios) {
+      if (d.id_usuario === req.usuario.id) continue;
+      destinatariosParaCorreo.push(d);
       await crearNotificacion({
         tipo: 'Solicitud',
         mensaje: `${req.usuario.nombre_completo} solicita participar en ${destino} `
@@ -165,11 +172,15 @@ async function crear(req, res, next) {
         // exactamente en la etapa de la que le están hablando.
         entidadTipo: esDeNodo ? ({ etapa: 'Etapa', accion: 'Accion', tarea: 'Tarea' })[tipoNodo] : 'Proyecto',
         entidadId: esDeNodo ? idNodo : idProyecto,
-        idUsuario,
+        idUsuario: d.id_usuario,
       });
     }
 
-    res.status(201).json({ datos: resultado.solicitud, mensaje: 'Solicitud enviada' });
+    res.status(201).json({
+      datos: resultado.solicitud,
+      destinatarios: destinatariosParaCorreo,
+      mensaje: 'Solicitud enviada',
+    });
   } catch (err) { next(err); }
 }
 

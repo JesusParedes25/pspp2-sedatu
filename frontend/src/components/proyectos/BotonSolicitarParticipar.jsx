@@ -29,10 +29,13 @@ import {
   solicitarParticipacion, solicitarParticipacionNodo, misSolicitudes,
 } from '../../api/solicitudes';
 import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
+import { useAuth } from '../../context/AuthContext';
+import { construirDestino, etiquetaFuncionCorreo, textosSolicitud, enviarCorreoAsignacion } from '../../utils/correoAsignacion';
 
 const ETIQUETA_NODO = { etapa: 'esta etapa', accion: 'esta acción', tarea: 'esta tarea' };
 
 export default function BotonSolicitarParticipar({ proyecto, permisos, nodo = null, className = '' }) {
+  const { usuario } = useAuth();
   const [pendiente, setPendiente] = useState(null);
   const [abierto, setAbierto] = useState(false);
   const [funcion, setFuncion] = useState('captura');
@@ -85,15 +88,44 @@ export default function BotonSolicitarParticipar({ proyecto, permisos, nodo = nu
     setEnviando(true); setError('');
     try {
       const datos = { funcion, motivo: motivo.trim() };
-      const solicitud = esDeNodo
+      const { datos: solicitud, destinatarios } = esDeNodo
         ? await solicitarParticipacionNodo(nodo.tipo, nodo.id, datos)
         : await solicitarParticipacion(idProyecto, datos);
       setPendiente(solicitud);
       setAbierto(false);
+      avisarDestinatarios(destinatarios);
     } catch (err) {
       setError(err.response?.data?.mensaje || 'No se pudo enviar la solicitud');
     } finally {
       setEnviando(false);
+    }
+  }
+
+  // Correo de aviso a quienes resuelven la solicitud — mismos
+  // destinatarios que ya recibieron la notificación dentro de la
+  // plataforma (destinatariosDe en el backend, reusada sin recalcular,
+  // ver docs/modelo-permisos.md sección 15.2.3). Se dispara desde el
+  // navegador de quien solicita, sin esperar ni bloquear: la solicitud
+  // ya quedó guardada y la notificación dentro de la plataforma ya se
+  // creó antes de llegar aquí — si esto falla o no hay destinatarios,
+  // no afecta nada de lo anterior.
+  function avisarDestinatarios(destinatarios) {
+    if (!destinatarios || destinatarios.length === 0) {
+      console.info('[BotonSolicitarParticipar] Solicitud sin destinatarios a quien avisar por correo — se registra y se sigue.');
+      return;
+    }
+    const quien = usuario?.nombre_completo;
+    const funcionEtiqueta = etiquetaFuncionCorreo(funcion);
+    const destino = construirDestino({
+      alcance: esDeNodo ? 'nodo' : 'proyecto',
+      nodoTipo: nodo?.tipo, nodoNombre: nodo?.nombre, proyectoNombre: nombreProyecto,
+    });
+    const textos = textosSolicitud({ quien, funcion: funcionEtiqueta, destino });
+    for (const d of destinatarios) {
+      enviarCorreoAsignacion({
+        nombreDestino: d.nombre_completo, correoDestino: d.correo,
+        destino, funcion: funcionEtiqueta, ...textos,
+      });
     }
   }
 

@@ -1120,23 +1120,28 @@ notificaciones, y que un error tipado de la query se reenvía a
 **Contexto**: ya existía `enviarCorreoInvitacion` (en
 `AdminCatalogos.jsx`) para avisarle a un usuario NUEVO que se le creó
 una cuenta. Esta pieza agrega el aviso a alguien que YA TIENE CUENTA,
-para 4 situaciones: lo asignan a un proyecto completo, lo asignan a una
-parte, le aceptan una solicitud de participación, o le cambian la
-función. La primera versión de esta pieza (mismo PR, antes de esta
-corrección) solo cubría las primeras 3 — dejaba fuera el cambio de
-función con el argumento de que "no hay nada que aceptar o rechazar".
-Ese argumento es cierto, pero no justifica el silencio: a quien le
-cambian la función le cambian lo que puede hacer (subir de Colaborador
-a Responsable, por ejemplo, le da crear acciones/tareas, mover fechas
-límite e invitar o retirar gente), y enterarse de eso no es opcional.
-Ver 15.2.4 para el cierre completo de ese hueco — en los dos canales,
-no solo en el correo.
+para 5 situaciones: lo asignan a un proyecto completo, lo asignan a una
+parte, le aceptan una solicitud de participación, le cambian la
+función, o alguien solicita participar en algo que esa persona puede
+resolver. Las primeras 4 avisan a la persona cuya participación
+cambió; la 5ª es la única que avisa en la dirección contraria — a
+quien DECIDE, no a quien pide (ver 15.2.3, punto 5). La primera versión
+de esta pieza (mismo PR, antes de esta corrección) solo cubría las
+primeras 3 — dejaba fuera el cambio de función con el argumento de que
+"no hay nada que aceptar o rechazar". Ese argumento es cierto, pero no
+justifica el silencio: a quien le cambian la función le cambian lo que
+puede hacer (subir de Colaborador a Responsable, por ejemplo, le da
+crear acciones/tareas, mover fechas límite e invitar o retirar gente),
+y enterarse de eso no es opcional. Ver 15.2.4 para el cierre completo
+de ese hueco — en los dos canales, no solo en el correo. La solicitud
+de participación (5ª situación) se agregó después, en una ronda
+aparte — ver 15.2.3, punto 5.
 
 #### 15.2.1 Dos cuentas de EmailJS, sin ningún valor compartido entre ellas
 
 El plan gratuito de EmailJS da 2 plantillas por cuenta. Con la de
 "Invitación a la plataforma" ya ocupando una, "Asignación de
-participación" (las 4 situaciones de arriba) necesita vivir en una
+participación" (las 5 situaciones de arriba) necesita vivir en una
 **cuenta de EmailJS completamente distinta** — dos cuentas gratuitas
 dan 4 plantillas en total, dos de margen para el futuro. Por eso cada
 plantilla guarda su propio trío COMPLETO e INDEPENDIENTE de
@@ -1172,7 +1177,8 @@ EmailJS no tenga que adivinar ni venir a preguntar:
   `to_name`, `to_email`, `invite_link`.
 - **"Asignación de participación"** — "Se envía a quien ya tiene
   cuenta cuando la asignan a un proyecto o a una parte, cuando le
-  aceptan una solicitud, o cuando cambia su función." Variables: las 8
+  aceptan una solicitud, cuando cambia su función, o —a quien puede
+  resolverla— cuando alguien solicita participar." Variables: las 8
   de 15.2.2.
 
 #### 15.2.2 Una sola plantilla, texto armado por la plataforma
@@ -1192,30 +1198,33 @@ nunca decide la redacción. 8 variables finales
 | `texto_boton` | texto del botón |
 | `enlace` | a dónde lleva el botón |
 
-Los 4 textos fijos, uno por situación (`textosAsignacionProyecto`,
-`textosAsignacionNodo`, `textosSolicitudAceptada`, `textosCambioFuncion`
-en el mismo archivo):
+Los 5 textos fijos, uno por situación (`textosAsignacionProyecto`,
+`textosAsignacionNodo`, `textosSolicitudAceptada`, `textosCambioFuncion`,
+`textosSolicitud`, en el mismo archivo):
 
-| Situación | `titulo` | `texto_boton` | `enlace` |
-|---|---|---|---|
-| Asignado al proyecto completo | Te asignaron a un proyecto | Ver mi invitación | `/notificaciones` |
-| Asignado a una parte | Te asignaron a una parte de un proyecto | Ver mi invitación | `/notificaciones` |
-| Solicitud aceptada | Aceptaron tu solicitud | Ir al proyecto | el proyecto o nodo |
-| Cambio de función | Cambió tu función | Ir al proyecto | el proyecto o nodo |
+| Situación | `titulo` | `mensaje` | `texto_boton` | `enlace` |
+|---|---|---|---|---|
+| Asignado al proyecto completo | Te asignaron a un proyecto | "{quien} te asignó como {funcion} en {destino}." | Ver mi invitación | `/notificaciones` |
+| Asignado a una parte | Te asignaron a una parte de un proyecto | "{quien} te asignó como {funcion} en {destino}." | Ver mi invitación | `/notificaciones` |
+| Solicitud aceptada | Aceptaron tu solicitud | "{quien} aceptó tu solicitud. Ya puedes participar como {funcion} en {destino}." | Ir al proyecto | el proyecto o nodo |
+| Cambio de función | Cambió tu función | "{quien} cambió tu función en {destino}. Ahora eres {funcion}." | Ir al proyecto | el proyecto o nodo |
+| Solicitud de participación | Solicitud de participación | "{quien} solicitó participar como {funcion} en {destino}." | Revisar solicitud | `/notificaciones` |
 
-Las dos primeras llevan a notificaciones porque hay algo que aceptar o
-rechazar; las dos últimas llevan directo al trabajo porque ya no hay
-nada que decidir. `mensaje` se compone con la misma frase natural en
-los 4 casos ("{quien} ...  en {destino}[, ahora eres {funcion}]."),
-donde `destino` ya es una frase completa y autocontenida
-(`construirDestino()`: "el proyecto «Y»" o "la etapa «X» del proyecto
-«Y»") — un ajuste sobre el fraseo textual que se pidió originalmente
-para la situación "asignado a una parte" (que mencionaba `{destino}` y
-`{proyecto}` como dos tokens separados dentro de la misma oración):
-aquí se fusionan en una sola variable `destino` ya completa, en vez de
-agregar una 9ª variable `proyecto` solo para ese caso — mismo criterio
-de "texto armado por la plataforma", con una sola frase coherente en
-los 4 casos en lugar de una construida a mano por caso.
+Las tres primeras filas llevan a notificaciones porque hay algo que
+aceptar o rechazar; "Cambio de función" lleva directo al trabajo
+porque ya no hay nada que decidir. "Solicitud de participación" es la
+única dirigida a quien DECIDE, no a quien actuó — ver 15.2.3, punto 5.
+`mensaje` se compone con la misma frase natural en los 5 casos ("{quien}
+...  en {destino}[, ahora eres {funcion}]."), donde `destino` ya es una
+frase completa y autocontenida (`construirDestino()`: "el proyecto «Y»"
+o "la etapa «X» del proyecto «Y»") — un ajuste sobre el fraseo textual
+que se pidió originalmente para la situación "asignado a una parte"
+(que mencionaba `{destino}` y `{proyecto}` como dos tokens separados
+dentro de la misma oración): aquí se fusionan en una sola variable
+`destino` ya completa, en vez de agregar una 9ª variable `proyecto`
+solo para ese caso — mismo criterio de "texto armado por la
+plataforma", con una sola frase coherente en los 5 casos en lugar de
+una construida a mano por caso.
 
 **Sin configurar → no se envía, y queda registrado**: si a la cuenta
 de "Asignación de participación" le falta cualquiera de sus 3 campos,
@@ -1224,7 +1233,7 @@ de "Asignación de participación" le falta cualquiera de sus 3 campos,
 asignación/aceptación/cambio ya se guardó antes de llegar aquí, así
 que nunca se bloquea por esto.
 
-#### 15.2.3 Disparada en los mismos 4 lugares donde algo le pasa a la participación de alguien
+#### 15.2.3 Disparada en los mismos 5 lugares donde algo le pasa a la participación de alguien
 
 1. **Asignación a proyecto o a nodo** desde Configuración → Equipo y
    permisos — `GestorUsuariosProyecto.jsx::ModalInvitar::handleInvitar`
@@ -1250,6 +1259,47 @@ que nunca se bloquea por esto.
    sigue siendo una asignación (situación 1/2), no un cambio de
    función (situación 4); el frontend confía en ese flag en vez de
    volver a adivinar el estado por su cuenta.
+5. **Solicitud de participación creada** —
+   `BotonSolicitarParticipar.jsx::enviar` → `avisarDestinatarios`. Es
+   la única de las 5 que no avisa a la persona cuya participación
+   cambió: avisa a quienes PUEDEN RESOLVER la solicitud —
+   exactamente a los mismos que ya reciben la notificación dentro de
+   la plataforma, nunca a una lista recalculada aparte. El backend
+   (`solicitudes.controller.js::crear`) llama
+   `solicitudesQueries.destinatariosDe(idProyecto)` **una sola vez** y
+   reusa ese mismo resultado para los dos canales: crea la
+   notificación de cada destinatario y, además, devuelve esa misma
+   lista (sin el propio solicitante) como `destinatarios` en la
+   respuesta del `POST` — si las dos se calcularan por separado,
+   acabarían divergiendo. El frontend solo itera esa lista, sin volver
+   a decidir quién debería enterarse.
+   - **Puede disparar varios correos desde una sola solicitud** — uno
+     por destinatario, todos desde el navegador de quien solicita.
+   - **Orden de guardado invertido respecto al correo**: la solicitud
+     y su notificación dentro de la plataforma ya quedaron guardadas
+     ANTES de intentar el correo — si el envío falla, o si
+     `destinatarios` viene vacío, se registra (`console.info`/
+     `console.error` según el caso) y se sigue sin tronar; nunca al
+     revés.
+   - **Cuota de EmailJS (plan gratuito, límite mensual de envíos)**:
+     `destinatariosDe` resuelve, por diseño (ver el comentario de la
+     función en `solicitudes.queries.js`), un conjunto deliberadamente
+     chico — responsables/administrador del proyecto (nivel proyecto,
+     `estado='aceptada'`) + personal con rol `direccion` que comparte
+     área con ellos + el creador del proyecto, solo como respaldo si
+     no hay ningún responsable. En los datos de prueba disponibles
+     (entorno de desarrollo, no producción) esto dio **2 destinatarios
+     por proyecto** (1 responsable/administrador + 1 persona de
+     dirección de la misma área). Es un dato de un entorno sparse, no
+     una medición real de producción — pero el diseño de la consulta
+     hace improbable que el típico sea alto: casi siempre es 1-2
+     responsables a nivel proyecto (muchos responsables reales viven a
+     nivel etapa/nodo, vía `nodo_miembros`, fuera de este cálculo) más,
+     como mucho, 1 persona de dirección por área compartida — rango
+     esperado de **1 a 3-4 destinatarios por solicitud** en la
+     mayoría de los casos, salvo un proyecto con varios responsables
+     de distintas áreas. No agota la cuota gratuita de EmailJS salvo
+     un volumen de solicitudes inusualmente alto.
 
 #### 15.2.4 El hueco que quedó abierto en la v1: el cambio de función ahora avisa, en los dos canales
 
@@ -1317,8 +1367,8 @@ Por eso la NOTIFICACIÓN dentro de la plataforma (`crearNotificacion`,
 escrita por el backend en la misma petición que aplica el cambio) es
 la que de verdad es confiable, y nunca depende de que el navegador de
 quien actúa siga abierto. El correo es un aviso adicional de mejor
-esfuerzo — toda asignación/aceptación/cambio de función registra
-ambos, nunca solo el correo.
+esfuerzo — toda asignación/aceptación/cambio de función/solicitud de
+participación registra ambos, nunca solo el correo.
 
 ### 15.3 Verificación pedida: `GET /proyectos/:id/exportar`
 
