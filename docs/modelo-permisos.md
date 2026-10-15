@@ -1,13 +1,12 @@
 # Modelo de permisos de PSPP v2.0
 
-> **Este documento corresponde al commit `feda7ded0be1b07d4ba30012bdc0b8f8b07669c0`
-> (2026-10-15, Fase 3 — fondo = permiso, barra de acento = selección sin
-> cruce, token `gray-150`) + Fase 4, parte A — la matriz de capacidades
-> completa (sección 13), el desplegable de función con descripciones, el
-> cierre de los tres caminos hacia `rol = 'lectura'` para un interno, el
-> alcance correcto (nodo, no siempre el proyecto completo) para resolver
-> una solicitud de participación, y el candado de `GET
-> /proyectos/:id/exportar` — descrito en este mismo PR (sección 13).**
+> **Este documento corresponde al commit `4855a8e2f2b775411aff4e98192123a8fe8f830f`
+> (2026-10-15, Fase 4, parte A — la matriz de capacidades completa,
+> sección 13) + Fase 4, parte B — transferencia de administración de
+> proyecto exclusiva de superadmin, correo de aviso de asignación a
+> usuarios ya existentes, y confirmación de que el candado de `GET
+> /proyectos/:id/exportar` de la parte A sigue en pie — descrito en este
+> mismo PR (sección 15).**
 > Regenerado por completo (no es un parche del documento anterior), porque
 > la versión previa describía el modelo PRE-Fase-1: el CHECK de 2 valores
 > de `proyecto_usuarios.rol`, el CHECK de 3 valores con `'invitado'` de
@@ -1032,7 +1031,15 @@ contra `'externo'`, un valor que ese campo nunca tiene — así que el
   administrador** (sección 13.2) — riesgo conocido, no corregido: es
   una regla de diseño (migración 079), no una restricción de base de
   datos; cambiarla con datos reales en producción merece su propia
-  migración y su propio respaldo.
+  migración y su propio respaldo. `transferirAdministracion` (sección
+  15.1) se defiende de este riesgo sin corregirlo: si alguna vez
+  hubiera dos administradores a la vez, los degrada a los DOS a
+  `responsable` antes de promover al nuevo, en vez de asumir que existe
+  exactamente uno.
+- **Transferencia de administración por el propio administrador**
+  (sección 15.1) — fuera de alcance por decisión explícita, no por
+  descuido: hoy solo un superadmin puede transferirla. Un administrador
+  cediéndola por su cuenta queda para una versión posterior.
 - **`GET /proyectos/:id/imagen` sin autenticar** (sección 11.6) — fuera
   de este PR por decisión explícita, no por descuido.
 - **`COLORES_SEMAFORO.gris` no pasa 3:1 contra blanco ni a opacidad
@@ -1048,3 +1055,126 @@ contra `'externo'`, un valor que ese campo nunca tiene — así que el
   gráfico de 3:1 contra blanco puro (2.54:1) antes de este PR. No se pidió medir
   ni corregir estos dos tonos en esta ronda (solo texto "principal" y
   "secundario"); quedan anotados para una revisión de paleta aparte.
+
+## 15. Fase 4, parte B — transferencia de administración + correo de aviso de asignación
+
+### 15.1 Transferencia de administración — exclusiva de superadmin
+
+Decisión de producto tomada por tiempo (recorte deliberado de alcance,
+no un olvido): únicamente un `superadmin` puede transferir
+`administracion_proyecto` de un proyecto. El propio administrador
+cediéndola por su cuenta queda pendiente para una versión posterior —
+ver sección 14.
+
+**Dónde vive**: `AdminCatalogos.jsx`, nuevo tab "Transferir
+administración" (`TabTransferenciaAdmin.jsx`) — dentro de la zona de
+administración, ya blindada con `router.use(requiereRol(['superadmin']))`
+en `admin.routes.js`. No se agregó nada en Configuración del proyecto:
+ahí ningún usuario normal tendría permiso de usarlo, sería un botón que
+solo frustra.
+
+**Backend**: `PATCH /admin/proyectos/:id/administrador`
+(`admin.routes.js`) → `miembros.controller.js::transferirAdministracionProyecto`
+→ `miembros.queries.js::transferirAdministracion`, una sola
+transacción (`BEGIN`/`COMMIT`/`ROLLBACK`, filas bloqueadas con `FOR
+UPDATE`):
+
+| Validación | Código | HTTP |
+|---|---|---|
+| Destinatario no es miembro aceptado del proyecto | `DESTINATARIO_NO_MIEMBRO` | 400 |
+| Destinatario es perfil `externo` | `DESTINATARIO_EXTERNO` | 400 |
+| El proyecto no tiene ningún administrador actual | `SIN_ADMINISTRADOR` | 409 |
+| El destinatario ya es administrador | `MISMO_ADMINISTRADOR` | 400 |
+
+El proyecto nunca queda sin administrador por construcción: la función
+primero degrada a `responsable` a TODOS los que tuvieran hoy
+`administracion_proyecto` con estado `aceptada` (no solo "el" único que
+debería haber, ver el riesgo ya documentado en la sección 14 sobre la
+falta de candado de esquema) y recién después promueve al nuevo — así
+que, si alguna vez hubiera dos administradores a la vez, la
+transferencia los corrige a los dos sin más intervención, aunque no
+corrige la causa (eso sigue pendiente, es cambio de esquema). El
+administrador saliente **no se elimina** del proyecto, queda como
+`responsable`.
+
+Tras la transacción: `registrarActividad` (tipo `miembro`,
+`entidad_tipo: 'Proyecto'`) en la bitácora del proyecto, y
+`crearNotificacion` (tipo `PermisoNuevo` — ya estaba en el CHECK de
+`notificaciones.tipo` desde la migración 060, nunca usado hasta ahora)
+a cada administrador saliente y al nuevo.
+
+**Pruebas**: `backend/src/__tests__/transferir-administracion.test.js`
+(la transacción real contra un `pool.connect()` mockeado — las 4
+validaciones, el happy path, y el caso de dos administradores
+existentes) y `transferir-administracion-controller.test.js` (el
+controller: 400 sin `id_usuario`, happy path con bitácora+2
+notificaciones, y que un error tipado de la query se reenvía a
+`next(err)` sin que el controller lo intercepte).
+
+### 15.2 Correo de aviso a quien ya tiene cuenta
+
+**Contexto**: ya existía `enviarCorreoInvitacion` (en
+`AdminCatalogos.jsx`) para avisarle a un usuario NUEVO que se le creó
+una cuenta. Faltaba la segunda plantilla: avisarle a alguien que YA
+TIENE CUENTA que fue asignado como responsable/colaborador de un
+proyecto o de un nodo.
+
+**Mecanismo, idéntico al ya existente** (EmailJS corre en el
+navegador — `@emailjs/browser` — nunca desde el backend): nuevo helper
+compartido `frontend/src/utils/correoAsignacion.js::enviarCorreoAsignacion`,
+que lee las credenciales de `configuracion_sistema` vía `GET
+/admin/config/publico` (público, sin autenticación — igual que el
+camino de invitación). Nueva clave `emailjs_template_id_asignacion`
+(migración `081_emailjs_template_asignacion.sql`, `ON CONFLICT DO
+NOTHING`, mismo patrón que `041_recuperar_contrasena.sql`), agregada al
+arreglo `claves` de `admin.controller.js::obtenerConfigPublico` y a un
+campo nuevo en `TabConfiguracion` (`AdminCatalogos.jsx`) — **el id del
+template lo crea el superadmin en EmailJS y lo pega ahí; nunca se
+escribe en el código**. Si la clave queda vacía, `enviarCorreoAsignacion`
+devuelve `{enviado:false, motivo:'sin_configuracion'}` sin lanzar — la
+asignación ya se guardó antes de intentar el correo, así que nunca se
+bloquea por esto.
+
+**Variables que debe aceptar el template en EmailJS** (documentadas
+también en el propio archivo): `to_name`, `to_email`,
+`nombre_quien_asigna`, `destino`, `funcion`, `notificaciones_link`. El
+contenido, en ese orden, dice quién lo asignó, a qué proyecto o a qué
+parte, con qué función, y trae un botón/enlace a `/notificaciones` para
+aceptar o rechazar.
+
+**Disparada en los 3 puntos donde hoy se asigna a alguien que ya tiene
+cuenta**:
+1. Invitación al proyecto y a un nodo desde Configuración → Equipo y
+   permisos — ambas comparten un solo call site,
+   `GestorUsuariosProyecto.jsx::ModalInvitar::handleInvitar` (el mismo
+   modal cubre las dos según `alcance`).
+2. Invitación a un nodo desde la pestaña Equipo de Seguimiento
+   (`SeccionMiembrosNodo.jsx::confirmarAgregar`) — un call site
+   DISTINTO del anterior, mismo efecto. Este componente no recibe el
+   nombre del proyecto como prop de ninguno de sus dos padres
+   (`NodoCard.jsx`, `PestanasDetalle.jsx`), así que lo pide por su
+   cuenta vía `obtenerProyecto(idProyecto)` solo cuando hace falta
+   mandar el correo (patrón "self-contenido" ya usado en este archivo).
+3. Aceptación de una solicitud de participación
+   (`SolicitudesPorResolver.jsx::responder`), solo cuando
+   `respuesta === 'aceptar'` — declinar no asigna nada que avisar.
+
+**Un 4to camino existe y se dejó fuera a propósito** (reportado según
+lo pedido, no silenciado): `handleCambiarRol`
+(`GestorUsuariosProyecto.jsx`, alcance proyecto) y `cambiarRol`
+(`SeccionMiembrosNodo.jsx`, alcance nodo) reasignan la función de
+alguien que YA ESTÁ ACEPTADO, sin pasar por invitar/aceptar — es un
+cambio inmediato (vía `agregarMiembro`/`actualizarRolNodo`, un UPSERT),
+no una invitación pendiente. El llamado a la acción del correo
+("acepta o rechaza desde tus notificaciones") no tendría sentido ahí:
+no hay nada pendiente que aceptar o rechazar, el cambio ya se aplicó.
+No se le agregó el correo a este camino.
+
+### 15.3 Verificación pedida: `GET /proyectos/:id/exportar`
+
+Confirmado por lectura directa: `backend/src/routes/index.js` sigue con
+`router.get('/proyectos/:id/exportar', exigirVisibilidadProyecto(),
+exportarController.exportarProyecto);` — el candado cerrado en la Fase
+4/parte A (sección 13.5) sigue en pie, nada lo tocó en esta ronda.
+Cubierto por `backend/src/__tests__/exportar-visibilidad.test.js` (de
+esa misma parte A), sin cambios.
