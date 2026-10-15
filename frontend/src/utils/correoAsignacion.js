@@ -156,6 +156,10 @@ export async function enviarCorreoAsignacion({ nombreDestino, correoDestino, tit
       console.warn('[correoAsignacion] Trío de credenciales incompleto para "Asignación de participación" (Service ID / Template ID / Public Key) — correo no enviado.');
       return { enviado: false, motivo: 'sin_configuracion' };
     }
+    if (!correoDestino) {
+      console.warn(`[correoAsignacion] "${nombreDestino || 'destinatario'}" no tiene correo registrado — correo no enviado.`);
+      return { enviado: false, motivo: 'sin_correo_destino' };
+    }
     await emailjs.send(svcId, tplId, {
       to_name: nombreDestino,
       to_email: correoDestino,
@@ -166,9 +170,17 @@ export async function enviarCorreoAsignacion({ nombreDestino, correoDestino, tit
       texto_boton: textoBoton,
       enlace,
     }, pubKey);
+    // Éxito silencioso a propósito en el resto del flujo (fire-and-forget),
+    // pero logueado explícitamente aquí: EmailJS aceptó el envío no prueba
+    // que el correo haya llegado al buzón (puede ir a spam, o la cuenta
+    // de EmailJS puede rechazarlo después, fuera de lo que ve el
+    // navegador) — este log es lo único que distingue "no se intentó
+    // nada" de "se intentó y EmailJS lo aceptó" cuando se revisa la
+    // consola después de una prueba.
+    console.info(`[correoAsignacion] Enviado a ${correoDestino} ("${titulo}").`);
     return { enviado: true };
   } catch (err) {
-    console.error('[correoAsignacion] Error al enviar correo de asignación:', err);
+    console.error(`[correoAsignacion] Error al enviar correo de asignación a ${correoDestino || 'destinatario sin correo'}:`, err);
     return { enviado: false, motivo: 'error_envio' };
   }
 }
