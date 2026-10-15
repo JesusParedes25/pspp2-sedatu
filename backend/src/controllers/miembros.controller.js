@@ -4,6 +4,7 @@
  */
 const miembrosQueries = require('../db/queries/miembros.queries');
 const { resolverAccesoProyecto } = require('../utils/autorizacion');
+const { rechazoLecturaParaInterno } = require('../utils/validar-funcion-lectura');
 const { registrarActividad } = require('../utils/actividad-log');
 const { crearNotificacion } = require('../utils/notificaciones');
 const pool = require('../db/pool');
@@ -142,6 +143,16 @@ async function agregarMiembro(req, res, next) {
       return res.status(403).json({ mensaje: 'No tienes permisos para gestionar miembros' });
     }
 
+    // Mismo candado que ya protege la invitación a nivel nodo — "invitado"
+    // (lectura) es solo para gente ajena a la Secretaría. Antes de esto,
+    // este endpoint (a diferencia de nodo-miembros.controller.js) nunca lo
+    // verificaba: un interno podía quedar con rol='lectura' a nivel
+    // proyecto completo sin que nada lo rechazara.
+    const rechazoLectura = await rechazoLecturaParaInterno(id_usuario, rol);
+    if (rechazoLectura) {
+      return res.status(400).json({ error: true, mensaje: rechazoLectura, codigo: 'FUNCION_NO_APLICABLE' });
+    }
+
     // Cambiar la función del único administrador a cualquier otro peldaño
     // deja el proyecto sin dueño igual que quitarlo. Mismo freno.
     if (rol !== 'administracion_proyecto' && await miembrosQueries.esUnicoAdministrador(req.params.id, id_usuario)) {
@@ -205,6 +216,11 @@ async function crearInvitacion(req, res, next) {
     const acceso = await resolverAccesoProyecto(req.usuario, req.params.id, 'responsable');
     if (!acceso.permitido) {
       return res.status(403).json({ mensaje: 'No tienes permisos para invitar usuarios' });
+    }
+
+    const rechazoLectura = await rechazoLecturaParaInterno(id_usuario, rol);
+    if (rechazoLectura) {
+      return res.status(400).json({ error: true, mensaje: rechazoLectura, codigo: 'FUNCION_NO_APLICABLE' });
     }
 
     // Verificar que no sea ya miembro

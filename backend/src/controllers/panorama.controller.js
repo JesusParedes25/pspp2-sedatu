@@ -175,6 +175,13 @@ async function obtenerCoberturaProyecto(proyectoId) {
  * miembros del proyecto + miembros de nodos (etapas, acciones y tareas).
  * Prioriza rol del proyecto sobre rol de nodo.
  * Incluye DA, cargo y nombre del nodo de alcance.
+ *
+ * `perfil` (u.rol, el perfil GLOBAL de la persona en la plataforma —
+ * nada que ver con `rol`, su FUNCIÓN en este proyecto/nodo) se agregó en
+ * la Fase 4/parte A para que el desplegable de función
+ * (GestorUsuariosProyecto.jsx) sepa si puede ofrecer "Invitado" al
+ * reasignar a alguien que ya participa — esa opción solo aplica a
+ * perfil='externo' (ver SelectorFuncion.jsx).
  */
 async function obtenerTodosParticipantes(proyectoId) {
   const { rows } = await pool.query(`
@@ -205,6 +212,7 @@ async function obtenerTodosParticipantes(proyectoId) {
     )
     SELECT DISTINCT ON (u.id)
       u.id AS id_usuario, u.nombre_completo, u.correo, u.cargo, u.activo AS usuario_activo,
+      u.rol AS perfil,
       dg.siglas AS dg_siglas,
       da.siglas AS da_siglas,
       f.rol, f.alcance, f.nodo_nombre, f.nodo_tipo, f.nodo_id, f.estado

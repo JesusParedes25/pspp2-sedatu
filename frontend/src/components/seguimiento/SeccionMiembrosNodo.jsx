@@ -34,31 +34,20 @@ import {
   eliminarMiembroNodo,
 } from '../../api/nodo-miembros';
 import BotonSolicitarParticipar from '../proyectos/BotonSolicitarParticipar';
+import SelectorFuncion, { sustantivoAsignacion } from '../common/SelectorFuncion';
 
-const ROLES = [
-  { value: 'responsable', label: 'Responsable', color: 'bg-guinda-100 text-guinda-700' },
-  { value: 'captura',     label: 'Colaborador', color: 'bg-blue-100 text-blue-700' },
-  // Ver sin capturar. Solo tiene sentido para usuarios de otra dependencia:
-  // dentro de SEDATU la visibilidad ya es total, así que "invitar sin poder
-  // capturar" no le agregaría nada a nadie. El servidor aplica la misma
-  // regla (400 FUNCION_NO_APLICABLE).
-  { value: 'lectura',     label: 'Invitado',    color: 'bg-gray-100 text-gray-600', soloExternos: true },
-];
-
-// Funciones ofrecibles a esta persona en particular.
-function funcionesPara(usuario) {
-  return ROLES.filter(r => !r.soloExternos || usuario?.rol === 'externo');
-}
-
-// administracion_proyecto no vive en ROLES: nunca es seleccionable desde
-// este desplegable (quien administra el proyecto siempre se muestra de
-// solo lectura aquí, ver soloLecturaAqui más abajo) — solo necesita su
-// propia etiqueta para no caer en el fallback de "Invitado".
-const ROL_ADMINISTRADOR = { value: 'administracion_proyecto', label: 'Administrador', color: 'bg-guinda-100 text-guinda-700' };
+// Etiquetas de solo lectura (fila ya fija, fuera de SelectorFuncion):
+// miembro de alcance "proyecto" mostrado aquí, o el administrador del
+// proyecto — nunca se eligen desde este archivo, solo se muestran.
+const ETIQUETA_ROL = {
+  responsable: { label: 'Responsable', color: 'bg-guinda-100 text-guinda-700' },
+  captura:     { label: 'Colaborador', color: 'bg-blue-100 text-blue-700' },
+  lectura:     { label: 'Invitado',    color: 'bg-gray-100 text-gray-600' },
+  administracion_proyecto: { label: 'Administrador', color: 'bg-guinda-100 text-guinda-700' },
+};
 
 function rolConfig(rol) {
-  if (rol === 'administracion_proyecto') return ROL_ADMINISTRADOR;
-  return ROLES.find(r => r.value === rol) || ROLES[2];
+  return ETIQUETA_ROL[rol] || ETIQUETA_ROL.lectura;
 }
 
 const ESTADO_INVITACION = {
@@ -236,13 +225,12 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto
                     {esPrincipal ? <Lock size={9} /> : <Building2 size={9} />}{rc.label}
                   </span>
                 ) : permisos.puedeInvitar ? (
-                  <select
+                  <SelectorFuncion
                     value={m.rol}
-                    onChange={e => cambiarRol(m.id_usuario, e.target.value)}
-                    className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full border-0 focus:ring-1 focus:ring-guinda-300 cursor-pointer ${rc.color}`}
-                  >
-                    {funcionesPara(m).map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                  </select>
+                    onChange={rol => cambiarRol(m.id_usuario, rol)}
+                    sustantivo={sustantivoAsignacion(tipo)}
+                    mostrarLectura={m.perfil === 'externo'}
+                  />
                 ) : (
                   <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${rc.color}`}>{rc.label}</span>
                 )}
@@ -330,13 +318,12 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto
           {/* Función en este nodo */}
           <div className="flex items-center gap-2">
             <label className="text-[10px] text-gray-500 font-medium whitespace-nowrap">Función:</label>
-            <select
+            <SelectorFuncion
               value={rolNuevo}
-              onChange={e => setRolNuevo(e.target.value)}
-              className="flex-1 text-xs border border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:border-guinda-300"
-            >
-              {funcionesPara(seleccionado).map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-            </select>
+              onChange={setRolNuevo}
+              sustantivo={sustantivoAsignacion(tipo)}
+              mostrarLectura={seleccionado?.rol === 'externo'}
+            />
           </div>
 
           {error && (

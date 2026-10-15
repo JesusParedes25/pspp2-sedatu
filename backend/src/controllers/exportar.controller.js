@@ -3,10 +3,14 @@
  * PROPÓSITO: GET /proyectos/:id/exportar — descarga la estructura
  *            completa del proyecto en Excel (.xlsx) o CSV.
  *
- * Mismo criterio de acceso que /proyectos/:id/arbol: cualquier usuario
- * autenticado puede VER cualquier proyecto (solo la CAPTURA está
- * restringida a quien está invitado — ver autorizacion.js). Exportar es
- * una forma de ver, así que no exige ninguna facultad adicional.
+ * Mismo criterio de acceso que /proyectos/:id/arbol: cualquier perfil
+ * interno puede VER cualquier proyecto (solo la CAPTURA está restringida
+ * a quien está invitado — ver autorizacion.js). Exportar es una forma de
+ * ver, así que no exige ninguna facultad adicional por sí mismo — pero
+ * SÍ exige el mismo mínimo de visibilidad que cualquier otra lectura
+ * estructural (`exigirVisibilidadProyecto()`, aplicado en la ruta,
+ * routes/index.js): cierra el caso de un 'externo' sin relación con el
+ * proyecto, que antes de la Fase 4/parte A podía exportarlo igual.
  */
 const proyectosQueries = require('../db/queries/proyectos.queries');
 const etapasQueries = require('../db/queries/etapas.queries');
