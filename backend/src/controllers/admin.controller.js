@@ -665,7 +665,10 @@ async function actualizarConfig(req, res, next) {
 // GET /admin/config/publico — sin autenticación, solo para el frontend al enviar emails
 async function obtenerConfigPublico(req, res, next) {
   try {
-    const claves = ['emailjs_service_id', 'emailjs_template_id', 'emailjs_public_key', 'emailjs_enabled', 'emailjs_template_id_asignacion'];
+    const claves = [
+      'emailjs_service_id', 'emailjs_template_id', 'emailjs_public_key', 'emailjs_enabled',
+      'emailjs_asignacion_service_id', 'emailjs_asignacion_template_id', 'emailjs_asignacion_public_key',
+    ];
     const { rows } = await pool.query(
       'SELECT clave, valor FROM configuracion_sistema WHERE clave = ANY($1)', [claves]
     );
