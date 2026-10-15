@@ -27,7 +27,10 @@ import { ramasDeEtapas } from '../../utils/arbolSeleccionable';
 import client from '../../api/client';
 import BotonSolicitarParticipar from './BotonSolicitarParticipar';
 import SelectorFuncion, { sustantivoAsignacion } from '../common/SelectorFuncion';
-import { enviarCorreoAsignacion } from '../../utils/correoAsignacion';
+import {
+  enviarCorreoAsignacion, etiquetaFuncionCorreo, construirDestino, construirRuta,
+  textosAsignacionProyecto, textosAsignacionNodo, textosCambioFuncion,
+} from '../../utils/correoAsignacion';
 
 const GUINDA = '#7B1C3E';
 const ETIQUETA_ALCANCE = { etapa: 'etapa', accion: 'acción', tarea: 'tarea' };
@@ -99,16 +102,34 @@ export default function GestorUsuariosProyecto({ proyecto, proyectoId, abrirInvi
   async function handleCambiarRol(m, nuevoRol) {
     if (nuevoRol === m.rol) return;
     try {
+      let resultado;
       if (m.alcance === 'proyecto') {
-        await agregarMiembro(proyectoId, m.id_usuario, nuevoRol);
+        resultado = await agregarMiembro(proyectoId, m.id_usuario, nuevoRol);
       } else {
-        await actualizarRolNodo(m.nodo_tipo, m.nodo_id, m.id_usuario, nuevoRol);
+        resultado = await actualizarRolNodo(m.nodo_tipo, m.nodo_id, m.id_usuario, nuevoRol);
       }
       await cargar();
       mostrarToast('Función actualizada', 'exito');
+      // Correo de aviso — nunca bloquea (ya se guardó arriba): se
+      // dispara sin esperar. `cambio_rol` lo decide el servidor: solo es
+      // un cambio de función real si la persona ya estaba aceptada;
+      // si seguía pendiente de aceptar, sigue siendo una asignación.
+      enviarCorreoDeFuncion(m, nuevoRol, resultado?.cambio_rol);
     } catch (e) {
       mostrarToast(e.response?.data?.mensaje || 'Error al cambiar la función', 'error');
     }
+  }
+
+  function enviarCorreoDeFuncion(m, nuevoRol, esCambioDeFuncion) {
+    const quien = usuario?.nombre_completo;
+    const funcion = etiquetaFuncionCorreo(nuevoRol);
+    const destino = construirDestino({
+      alcance: m.alcance, nodoTipo: m.nodo_tipo, nodoNombre: m.nodo_nombre, proyectoNombre: proyecto?.nombre,
+    });
+    const textos = esCambioDeFuncion
+      ? textosCambioFuncion({ quien, funcion, destino, ruta: construirRuta({ proyectoId, alcance: m.alcance, nodoId: m.nodo_id }) })
+      : (m.alcance === 'proyecto' ? textosAsignacionProyecto({ quien, funcion, destino }) : textosAsignacionNodo({ quien, funcion, destino }));
+    enviarCorreoAsignacion({ nombreDestino: m.nombre_completo, correoDestino: m.correo, destino, funcion, ...textos });
   }
 
   async function handleAmpliarATodoElProyecto(m) {
@@ -473,28 +494,34 @@ function ModalInvitar({ proyectoId, proyectoNombre, nombreQuienAsigna, onClose, 
   }
 
   function enviarCorreoDeAsignacion() {
-    let destino = `el proyecto «${proyectoNombre || ''}»`;
-    if (alcance === 'nodos') {
-      if (nodosSeleccionados.size === 1) {
-        const [key] = nodosSeleccionados;
-        const idx = key.indexOf('-');
-        const tipo = key.slice(0, idx);
-        const id = key.slice(idx + 1);
-        const nodo = buscarNodoEnRamas(ramas, tipo, id);
-        destino = nodo
-          ? `la ${ETIQUETA_ALCANCE[tipo] || 'elemento'} «${nodo.nombre}» del proyecto «${proyectoNombre || ''}»`
-          : `una parte del proyecto «${proyectoNombre || ''}»`;
-      } else {
-        destino = `${nodosSeleccionados.size} elementos del proyecto «${proyectoNombre || ''}»`;
-      }
+    const quien = nombreQuienAsigna;
+    const funcion = etiquetaFuncionCorreo(rol);
+
+    if (alcance === 'proyecto') {
+      const destino = construirDestino({ alcance: 'proyecto', proyectoNombre });
+      const textos = textosAsignacionProyecto({ quien, funcion, destino });
+      enviarCorreoAsignacion({ nombreDestino: seleccionado.nombre_completo, correoDestino: seleccionado.correo, destino, funcion, ...textos });
+      return;
     }
-    enviarCorreoAsignacion({
-      nombreDestino: seleccionado.nombre_completo,
-      correoDestino: seleccionado.correo,
-      nombreQuienAsigna,
-      destino,
-      funcion: ROL_CFG[rol]?.label || rol,
-    });
+
+    // alcance === 'nodos': con exactamente un elemento elegido hay un
+    // destino preciso; con varios, no hay una sola "parte" que nombrar
+    // — se avisa igual, con una frase genérica (no es ninguna de las 4
+    // situaciones documentadas al pie de la letra, es el caso de borde
+    // de un alta masiva).
+    let destino;
+    if (nodosSeleccionados.size === 1) {
+      const [key] = nodosSeleccionados;
+      const idx = key.indexOf('-');
+      const tipo = key.slice(0, idx);
+      const id = key.slice(idx + 1);
+      const nodo = buscarNodoEnRamas(ramas, tipo, id);
+      destino = construirDestino({ alcance: 'nodo', nodoTipo: tipo, nodoNombre: nodo?.nombre, proyectoNombre });
+    } else {
+      destino = `${nodosSeleccionados.size} elementos del proyecto «${proyectoNombre || ''}»`;
+    }
+    const textos = textosAsignacionNodo({ quien, funcion, destino });
+    enviarCorreoAsignacion({ nombreDestino: seleccionado.nombre_completo, correoDestino: seleccionado.correo, destino, funcion, ...textos });
   }
 
   const dasFiltradas = filtros.id_dg ? das : [];

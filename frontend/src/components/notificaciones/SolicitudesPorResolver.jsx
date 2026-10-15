@@ -28,8 +28,9 @@ import { Check, X, MailQuestion, Loader2, Layers, CornerDownRight } from 'lucide
 import { responderSolicitud } from '../../api/solicitudes';
 import { olvidarPermisos } from '../../hooks/usePermisos';
 import { useAuth } from '../../context/AuthContext';
-import { enviarCorreoAsignacion } from '../../utils/correoAsignacion';
-import { NOMBRE_FUNCION } from '../common/SelectorFuncion';
+import {
+  enviarCorreoAsignacion, etiquetaFuncionCorreo, construirDestino, textosSolicitudAceptada,
+} from '../../utils/correoAsignacion';
 
 const ETIQUETA_NODO = { etapa: 'la etapa', accion: 'la acción', tarea: 'la tarea' };
 
@@ -62,16 +63,13 @@ export default function SolicitudesPorResolver({ solicitudes, onRespondida, ocul
       // se acepta: declinar no asigna nada que avisar. Nunca bloquea la
       // operación (ya se guardó arriba): se dispara sin esperar.
       if (respuesta === 'aceptar') {
-        const destino = sol.id_nodo
-          ? `${ETIQUETA_NODO[sol.tipo_nodo] || 'el elemento'} «${sol.nombre_nodo || 'sin nombre'}» del proyecto «${sol.nombre_proyecto || ''}»`
-          : `el proyecto «${sol.nombre_proyecto || ''}»`;
-        enviarCorreoAsignacion({
-          nombreDestino: sol.nombre_completo,
-          correoDestino: sol.correo,
-          nombreQuienAsigna: usuario?.nombre_completo,
-          destino,
-          funcion: NOMBRE_FUNCION[sol.funcion] || sol.funcion,
+        const funcion = etiquetaFuncionCorreo(sol.funcion);
+        const destino = construirDestino({
+          alcance: sol.id_nodo ? 'nodo' : 'proyecto',
+          nodoTipo: sol.tipo_nodo, nodoNombre: sol.nombre_nodo, proyectoNombre: sol.nombre_proyecto,
         });
+        const textos = textosSolicitudAceptada({ quien: usuario?.nombre_completo, funcion, destino, ruta: rutaDe(sol) });
+        enviarCorreoAsignacion({ nombreDestino: sol.nombre_completo, correoDestino: sol.correo, destino, funcion, ...textos });
       }
       onRespondida?.(sol, respuesta);
     } catch (err) {
