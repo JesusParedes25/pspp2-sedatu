@@ -129,6 +129,18 @@ export function textosCambioFuncion({ quien, funcion, destino, ruta }) {
   };
 }
 
+// Situación 5: alguien solicita participar — a quienes resuelven la
+// solicitud (destinatariosDe), no a quien la envía. Lleva a notificaciones
+// porque hay algo que aceptar o rechazar, igual que 1 y 2.
+export function textosSolicitud({ quien, funcion, destino }) {
+  return {
+    titulo: 'Solicitud de participación',
+    mensaje: `${quien || 'Alguien'} solicitó participar como ${funcion} en ${destino}.`,
+    textoBoton: 'Revisar solicitud',
+    enlace: enlaceNotificaciones(),
+  };
+}
+
 // Envía el correo. Devuelve { enviado: true } o { enviado: false, motivo }
 // — nunca lanza: quien llama lo dispara sin esperar (fire-and-forget),
 // la asignación/aceptación/cambio ya quedó guardado antes de intentar
