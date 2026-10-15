@@ -42,7 +42,11 @@ export function sustantivoAsignacion(tipo) {
   return etiquetas[tipo] || 'esta parte del proyecto';
 }
 
-const NOMBRE = { captura: 'Colaborador', responsable: 'Responsable', lectura: 'Invitado' };
+// Exportado: es la etiqueta canónica de cada función, reusada también
+// fuera de este selector (p. ej. el correo de aviso de asignación en
+// SolicitudesPorResolver.jsx) para no inventar una segunda traducción.
+export const NOMBRE_FUNCION = { captura: 'Colaborador', responsable: 'Responsable', lectura: 'Invitado' };
+const NOMBRE = NOMBRE_FUNCION;
 
 const DESCRIPCION = {
   captura: sust => `Registra avances, sube documentos, comenta y da seguimiento a riesgos e indicadores en ${sust}.`,

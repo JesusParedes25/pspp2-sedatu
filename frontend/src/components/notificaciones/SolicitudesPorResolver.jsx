@@ -27,6 +27,9 @@ import { useNavigate } from 'react-router-dom';
 import { Check, X, MailQuestion, Loader2, Layers, CornerDownRight } from 'lucide-react';
 import { responderSolicitud } from '../../api/solicitudes';
 import { olvidarPermisos } from '../../hooks/usePermisos';
+import { useAuth } from '../../context/AuthContext';
+import { enviarCorreoAsignacion } from '../../utils/correoAsignacion';
+import { NOMBRE_FUNCION } from '../common/SelectorFuncion';
 
 const ETIQUETA_NODO = { etapa: 'la etapa', accion: 'la acción', tarea: 'la tarea' };
 
@@ -41,6 +44,7 @@ function rutaDe(sol) {
 
 export default function SolicitudesPorResolver({ solicitudes, onRespondida, ocultarEncabezado = false }) {
   const navigate = useNavigate();
+  const { usuario } = useAuth();
   const [declinando, setDeclinando] = useState(null);
   const [motivo, setMotivo] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -54,6 +58,21 @@ export default function SolicitudesPorResolver({ solicitudes, onRespondida, ocul
       await responderSolicitud(sol.id, respuesta, textoMotivo);
       olvidarPermisos(sol.id_proyecto);
       setDeclinando(null); setMotivo('');
+      // Correo de aviso a quien solicitó (ya tiene cuenta) — solo cuando
+      // se acepta: declinar no asigna nada que avisar. Nunca bloquea la
+      // operación (ya se guardó arriba): se dispara sin esperar.
+      if (respuesta === 'aceptar') {
+        const destino = sol.id_nodo
+          ? `${ETIQUETA_NODO[sol.tipo_nodo] || 'el elemento'} «${sol.nombre_nodo || 'sin nombre'}» del proyecto «${sol.nombre_proyecto || ''}»`
+          : `el proyecto «${sol.nombre_proyecto || ''}»`;
+        enviarCorreoAsignacion({
+          nombreDestino: sol.nombre_completo,
+          correoDestino: sol.correo,
+          nombreQuienAsigna: usuario?.nombre_completo,
+          destino,
+          funcion: NOMBRE_FUNCION[sol.funcion] || sol.funcion,
+        });
+      }
       onRespondida?.(sol, respuesta);
     } catch (err) {
       setError(err.response?.data?.mensaje || 'No se pudo registrar tu respuesta');

@@ -33,8 +33,16 @@ import {
   actualizarRolNodo,
   eliminarMiembroNodo,
 } from '../../api/nodo-miembros';
+import { obtenerProyecto } from '../../api/proyectos';
 import BotonSolicitarParticipar from '../proyectos/BotonSolicitarParticipar';
 import SelectorFuncion, { sustantivoAsignacion } from '../common/SelectorFuncion';
+import { enviarCorreoAsignacion } from '../../utils/correoAsignacion';
+import { useAuth } from '../../context/AuthContext';
+
+// Para el correo de aviso — "la etapa/acción/tarea «X»". Sustantivo
+// plano (sin "la"/"el") para evitar depender del género; se usa igual
+// para los tres tipos porque "etapa/acción/tarea" son todas femeninas.
+const ETIQUETA_NODO_SINGULAR = { etapa: 'la etapa', accion: 'la acción', tarea: 'la tarea' };
 
 // Etiquetas de solo lectura (fila ya fija, fuera de SelectorFuncion):
 // miembro de alcance "proyecto" mostrado aquí, o el administrador del
@@ -68,6 +76,7 @@ function Iniciales({ nombre, className = '' }) {
 }
 
 export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto, nombreNodo, onContador, altaSolicitada, onAltaConsumida }) {
+  const { usuario } = useAuth();
   const [miembros, setMiembros] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [mostrarPicker, setMostrarPicker] = useState(false);
@@ -136,6 +145,9 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto
     try {
       await agregarMiembroNodo(tipo, idNodo, seleccionado.id, rolNuevo);
       setMostrarPicker(false);
+      // Correo de aviso a quien ya tiene cuenta — nunca bloquea la
+      // operación (ya se guardó arriba): se dispara sin esperar.
+      enviarCorreoDeAsignacion(seleccionado, rolNuevo);
       await cargar();
     } catch (err) {
       // El servidor explica los dos casos que importan: la persona ya
@@ -144,6 +156,27 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto
       // no pasó nada.
       setError(err.response?.data?.mensaje || 'No se pudo agregar a esta persona');
     } finally { setGuardando(false); }
+  }
+
+  // Self-contenido (mismo criterio que el resto del archivo): este
+  // componente nunca recibe el nombre del proyecto como prop desde
+  // ninguno de sus dos padres (NodoCard.jsx, PestanasDetalle.jsx), así
+  // que lo pide por su cuenta, solo cuando de verdad hace falta (al
+  // mandar el correo), en vez de agregar un prop nuevo en dos árboles
+  // de componentes distintos.
+  async function enviarCorreoDeAsignacion(persona, rol) {
+    let nombreProyecto = '';
+    try {
+      const proyecto = await obtenerProyecto(idProyecto);
+      nombreProyecto = proyecto?.datos?.nombre || proyecto?.nombre || '';
+    } catch { /* el correo es best-effort; sin nombre, se manda igual */ }
+    enviarCorreoAsignacion({
+      nombreDestino: persona.nombre_completo,
+      correoDestino: persona.correo,
+      nombreQuienAsigna: usuario?.nombre_completo,
+      destino: `${ETIQUETA_NODO_SINGULAR[tipo] || 'el elemento'} «${nombreNodo || ''}» del proyecto «${nombreProyecto}»`,
+      funcion: rolConfig(rol).label,
+    });
   }
 
   async function cambiarRol(idUsuario, rol) {

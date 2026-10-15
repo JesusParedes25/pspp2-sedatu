@@ -27,6 +27,7 @@ import { ramasDeEtapas } from '../../utils/arbolSeleccionable';
 import client from '../../api/client';
 import BotonSolicitarParticipar from './BotonSolicitarParticipar';
 import SelectorFuncion, { sustantivoAsignacion } from '../common/SelectorFuncion';
+import { enviarCorreoAsignacion } from '../../utils/correoAsignacion';
 
 const GUINDA = '#7B1C3E';
 const ETIQUETA_ALCANCE = { etapa: 'etapa', accion: 'acción', tarea: 'tarea' };
@@ -224,6 +225,8 @@ export default function GestorUsuariosProyecto({ proyecto, proyectoId, abrirInvi
       {modalInvitar && (
         <ModalInvitar
           proyectoId={proyectoId}
+          proyectoNombre={proyecto?.nombre}
+          nombreQuienAsigna={usuario?.nombre_completo}
           onClose={() => setModalInvitar(false)}
           onInvitado={() => { setModalInvitar(false); cargar(); }}
         />
@@ -361,7 +364,18 @@ function ParticipanteCard({ miembro: m, puedeGestionar, puedeSalir, onEliminar, 
 }
 
 // ─── Modal Invitar ────────────────────────────────────────────
-function ModalInvitar({ proyectoId, onClose, onInvitado }) {
+// Busca un nodo por tipo+id dentro de las ramas del árbol (ramasDeEtapas) —
+// solo para armar un texto legible del destino en el correo de aviso.
+function buscarNodoEnRamas(ramas, tipo, id) {
+  for (const rama of ramas) {
+    if (rama.tipo === tipo && String(rama.nodo.id) === String(id)) return rama.nodo;
+    const enHijos = buscarNodoEnRamas(rama.hijos, tipo, id);
+    if (enHijos) return enHijos;
+  }
+  return null;
+}
+
+function ModalInvitar({ proyectoId, proyectoNombre, nombreQuienAsigna, onClose, onInvitado }) {
   const [dgs, setDgs] = useState([]);
   const [das, setDas] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
@@ -449,10 +463,38 @@ function ModalInvitar({ proyectoId, onClose, onInvitado }) {
         });
         await Promise.all(promesas);
       }
+      // Correo de aviso a quien ya tiene cuenta — nunca bloquea la
+      // operación (ya se guardó arriba): se dispara sin esperar.
+      enviarCorreoDeAsignacion();
       onInvitado();
     } catch (err) {
       setError(err.response?.data?.mensaje || 'Error al agregar usuario');
     } finally { setEnviando(false); }
+  }
+
+  function enviarCorreoDeAsignacion() {
+    let destino = `el proyecto «${proyectoNombre || ''}»`;
+    if (alcance === 'nodos') {
+      if (nodosSeleccionados.size === 1) {
+        const [key] = nodosSeleccionados;
+        const idx = key.indexOf('-');
+        const tipo = key.slice(0, idx);
+        const id = key.slice(idx + 1);
+        const nodo = buscarNodoEnRamas(ramas, tipo, id);
+        destino = nodo
+          ? `la ${ETIQUETA_ALCANCE[tipo] || 'elemento'} «${nodo.nombre}» del proyecto «${proyectoNombre || ''}»`
+          : `una parte del proyecto «${proyectoNombre || ''}»`;
+      } else {
+        destino = `${nodosSeleccionados.size} elementos del proyecto «${proyectoNombre || ''}»`;
+      }
+    }
+    enviarCorreoAsignacion({
+      nombreDestino: seleccionado.nombre_completo,
+      correoDestino: seleccionado.correo,
+      nombreQuienAsigna,
+      destino,
+      funcion: ROL_CFG[rol]?.label || rol,
+    });
   }
 
   const dasFiltradas = filtros.id_dg ? das : [];
