@@ -6,6 +6,7 @@ const { Router } = require('express');
 const multer = require('multer');
 const { requiereRol } = require('../middleware/roles.middleware');
 const adminController = require('../controllers/admin.controller');
+const miembrosController = require('../controllers/miembros.controller');
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
@@ -44,6 +45,11 @@ router.get('/areas/das', adminController.listarDAs);
 router.post('/areas/das', adminController.crearDA);
 router.put('/areas/das/:id', adminController.editarDA);
 router.delete('/areas/das/:id', adminController.eliminarDA);
+
+// Transferencia de administración de un proyecto — solo superadmin
+// (decisión de producto, ver docs/modelo-permisos.md). El propio
+// administrador cediéndola por su cuenta queda fuera de este alcance.
+router.patch('/proyectos/:id/administrador', miembrosController.transferirAdministracionProyecto);
 
 // Programas presupuestarios (Ramo 15)
 router.get('/programas', adminController.listarProgramas);

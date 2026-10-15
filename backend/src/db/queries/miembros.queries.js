@@ -118,6 +118,88 @@ async function esUnicoAdministrador(proyectoId, usuarioId, db) {
   return rows[0].total === 1 && rows[0].incluye_a_esta === 1;
 }
 
+// Transferir la administración completa del proyecto a otro miembro —
+// decisión de producto (ver docs/modelo-permisos.md): por ahora SOLO un
+// superadmin puede hacerlo (el controller ya lo exige antes de llamar
+// aquí); el propio administrador cediéndola queda fuera de este alcance,
+// para una versión posterior.
+//
+// El administrador saliente NO se elimina del proyecto: queda como
+// 'responsable' (sigue pudiendo editar la estructura, solo deja de
+// administrar participantes/configuración). Todo en una sola transacción
+// — nunca debe quedar, ni siquiera un instante, un proyecto sin
+// administrador.
+//
+// `esUnicoAdministrador` (arriba) es la invariante que el resto del
+// sistema asume, pero nada en la base de datos la fuerza (riesgo ya
+// documentado, no se corrige en esta ronda) — por eso aquí se degradan
+// TODAS las filas con rol='administracion_proyecto' que hubiera, no solo
+// una, en vez de asumir que existe exactamente una.
+async function transferirAdministracion(proyectoId, nuevoAdministradorId) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rows: destinoRows } = await client.query(`
+      SELECT pu.estado, u.rol AS perfil, u.nombre_completo
+      FROM proyecto_usuarios pu
+      JOIN usuarios u ON u.id = pu.id_usuario
+      WHERE pu.id_proyecto = $1 AND pu.id_usuario = $2
+      FOR UPDATE OF pu
+    `, [proyectoId, nuevoAdministradorId]);
+    const destino = destinoRows[0];
+    if (!destino || destino.estado !== 'aceptada') {
+      const err = new Error('El destinatario debe ser miembro aceptado del proyecto.');
+      err.statusCode = 400; err.codigo = 'DESTINATARIO_NO_MIEMBRO';
+      throw err;
+    }
+    if (destino.perfil === 'externo') {
+      const err = new Error('Un usuario externo no puede recibir la administración del proyecto.');
+      err.statusCode = 400; err.codigo = 'DESTINATARIO_EXTERNO';
+      throw err;
+    }
+
+    const { rows: actuales } = await client.query(`
+      SELECT id_usuario FROM proyecto_usuarios
+      WHERE id_proyecto = $1 AND rol = 'administracion_proyecto' AND estado = 'aceptada'
+      FOR UPDATE
+    `, [proyectoId]);
+    if (actuales.length === 0) {
+      const err = new Error('El proyecto no tiene administrador actual — no hay a quién reemplazar.');
+      err.statusCode = 409; err.codigo = 'SIN_ADMINISTRADOR';
+      throw err;
+    }
+    if (actuales.some(a => a.id_usuario === nuevoAdministradorId)) {
+      const err = new Error('Esa persona ya es la administradora del proyecto.');
+      err.statusCode = 400; err.codigo = 'MISMO_ADMINISTRADOR';
+      throw err;
+    }
+
+    await client.query(
+      `UPDATE proyecto_usuarios SET rol = 'responsable'
+       WHERE id_proyecto = $1 AND rol = 'administracion_proyecto' AND estado = 'aceptada'`,
+      [proyectoId]
+    );
+    await client.query(
+      `UPDATE proyecto_usuarios SET rol = 'administracion_proyecto'
+       WHERE id_proyecto = $1 AND id_usuario = $2`,
+      [proyectoId, nuevoAdministradorId]
+    );
+
+    await client.query('COMMIT');
+    return {
+      administradoresAnteriores: actuales.map(a => a.id_usuario),
+      nuevoAdministrador: nuevoAdministradorId,
+      nombreNuevoAdministrador: destino.nombre_completo,
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 async function eliminarMiembro(proyectoId, usuarioId) {
   const { rowCount } = await pool.query(
     'DELETE FROM proyecto_usuarios WHERE id_proyecto = $1 AND id_usuario = $2',
@@ -202,6 +284,7 @@ module.exports = {
   eliminarMiembro,
   obtenerRolUsuario,
   esUnicoAdministrador,
+  transferirAdministracion,
   responderInvitacion,
   invitacionesPendientes,
   obtenerProyectosUsuario
