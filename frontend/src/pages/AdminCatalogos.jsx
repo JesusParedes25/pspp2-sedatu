@@ -8,12 +8,14 @@ import { useSearchParams } from 'react-router-dom';
 import {
   Plus, Pencil, Trash2, RotateCcw, AlertTriangle, Shield, ChevronDown, ChevronRight,
   Loader2, Save, X, Users, Building2, Settings, Mail, ToggleLeft, ToggleRight,
-  RefreshCw, CheckCircle, EyeOff, Eye, BarChart3, KeyRound, Landmark, Search
+  RefreshCw, CheckCircle, EyeOff, Eye, BarChart3, KeyRound, Landmark, Search,
+  ArrowRightLeft
 } from 'lucide-react';
 import * as adminApi from '../api/admin';
 import TabIndicadores from '../components/admin/TabIndicadores';
 import TabProgramas from '../components/admin/TabProgramas';
 import TabApiIndicadores from '../components/admin/TabApiIndicadores';
+import TabTransferenciaAdmin from '../components/admin/TabTransferenciaAdmin';
 import * as proyectosApi from '../api/proyectos';
 import emailjs from '@emailjs/browser';
 import ConfirmDialog from '../components/common/ConfirmDialog';
@@ -666,6 +668,13 @@ function TabConfiguracion() {
         <Field label="Template ID">
           <input value={config.emailjs_template_id || ''} onChange={e => setConfig(c => ({ ...c, emailjs_template_id: e.target.value }))} placeholder="template_xxxxxxx" className="input-base text-sm" />
         </Field>
+        <Field label="Template ID — aviso de asignación (opcional)">
+          <input value={config.emailjs_template_id_asignacion || ''} onChange={e => setConfig(c => ({ ...c, emailjs_template_id_asignacion: e.target.value }))} placeholder="template_xxxxxxx" className="input-base text-sm" />
+          <p className="text-xs text-gray-400 mt-1">
+            Para el correo que avisa a alguien que YA TIENE CUENTA que fue asignado como responsable/colaborador de un
+            proyecto o de una parte. Mientras quede vacío, ese aviso simplemente no se envía (la asignación se guarda igual).
+          </p>
+        </Field>
         <Field label="Public Key (User ID)">
           <div className="relative">
             <input type={mostrarKey ? 'text' : 'password'} value={config.emailjs_public_key || ''} onChange={e => setConfig(c => ({ ...c, emailjs_public_key: e.target.value }))} placeholder="Tu llave pública" className="input-base text-sm pr-9" />
@@ -726,6 +735,7 @@ const TABS = [
   { id: 'api', label: 'API', icon: KeyRound },
   { id: 'usuarios', label: 'Usuarios', icon: Users },
   { id: 'areas', label: 'Áreas', icon: Building2 },
+  { id: 'transferencia', label: 'Transferir administración', icon: ArrowRightLeft },
   { id: 'papelera', label: 'Papelera', icon: Trash2 },
   { id: 'config', label: 'Configuración', icon: Settings },
 ];
@@ -736,6 +746,7 @@ const TABS = [
 const GRUPOS_NAV = [
   { titulo: 'Personas', ids: ['usuarios', 'areas'] },
   { titulo: 'Datos y catálogos', ids: ['catalogos', 'programas', 'indicadores', 'api'] },
+  { titulo: 'Proyectos', ids: ['transferencia'] },
   { titulo: 'Sistema', ids: ['papelera', 'config'] },
 ];
 
@@ -933,6 +944,7 @@ export default function AdminCatalogos() {
           {tab === 'api' && <TabApiIndicadores />}
           {tab === 'usuarios' && <TabUsuarios dgs={dgs} das={das} />}
           {tab === 'areas' && <TabAreas dgs={dgs} das={das} recargar={cargarAreas} />}
+          {tab === 'transferencia' && <TabTransferenciaAdmin />}
           {tab === 'papelera' && <TabPapelera />}
           {tab === 'config' && <TabConfiguracion />}
         </div>

@@ -134,6 +134,12 @@ export async function eliminarProgramaAdmin(id) {
   return data;
 }
 
+// ─── Transferencia de administración de proyecto ────────────────
+export async function transferirAdministracionProyecto(proyectoId, idUsuario) {
+  const { data } = await API.patch(`/admin/proyectos/${proyectoId}/administrador`, { id_usuario: idUsuario });
+  return data;
+}
+
 // ─── Configuración ─────────────────────────────────────────────
 export async function obtenerConfig() {
   const { data } = await API.get('/admin/config');

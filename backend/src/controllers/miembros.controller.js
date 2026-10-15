@@ -240,6 +240,57 @@ async function crearInvitacion(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// PATCH /admin/proyectos/:id/administrador — { id_usuario }
+// Transferir la administración de un proyecto. Decisión de producto (ver
+// docs/modelo-permisos.md): por ahora SOLO un superadmin puede hacerlo —
+// esta función se monta en admin.routes.js, ya detrás de
+// router.use(requiereRol(['superadmin'])), así que no repite ese chequeo
+// aquí. El propio administrador cediéndola por su cuenta queda fuera de
+// este alcance, para una versión posterior.
+async function transferirAdministracionProyecto(req, res, next) {
+  try {
+    const { id_usuario } = req.body;
+    if (!id_usuario) {
+      return res.status(400).json({ error: true, mensaje: 'id_usuario es obligatorio', codigo: 'CAMPOS_REQUERIDOS' });
+    }
+
+    const resultado = await miembrosQueries.transferirAdministracion(req.params.id, id_usuario);
+
+    const { rows } = await pool.query('SELECT nombre FROM proyectos WHERE id = $1', [req.params.id]);
+    const nombreProyecto = rows[0]?.nombre || 'el proyecto';
+
+    await registrarActividad({
+      id_proyecto: req.params.id,
+      id_usuario: req.usuario.id,
+      tipo: 'miembro',
+      titulo: 'Administración del proyecto transferida',
+      descripcion: `Un superadministrador (${req.usuario.nombre_completo}) transfirió la administración a ${resultado.nombreNuevoAdministrador}.`,
+      entidad_tipo: 'Proyecto',
+      entidad_id: req.params.id,
+      metadata: { administradores_anteriores: resultado.administradoresAnteriores, nuevo_administrador: id_usuario },
+    });
+
+    for (const idSaliente of resultado.administradoresAnteriores) {
+      await crearNotificacion({
+        tipo: 'PermisoNuevo',
+        mensaje: `Un superadministrador transfirió la administración del proyecto "${nombreProyecto}" — ahora participas ahí como responsable.`,
+        entidadTipo: 'Proyecto',
+        entidadId: req.params.id,
+        idUsuario: idSaliente,
+      });
+    }
+    await crearNotificacion({
+      tipo: 'PermisoNuevo',
+      mensaje: `Un superadministrador te asignó como administrador(a) del proyecto "${nombreProyecto}".`,
+      entidadTipo: 'Proyecto',
+      entidadId: req.params.id,
+      idUsuario: id_usuario,
+    });
+
+    res.json({ mensaje: 'Administración del proyecto transferida', datos: resultado });
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   listarMiembros,
   misInvitaciones,
@@ -247,4 +298,5 @@ module.exports = {
   agregarMiembro,
   eliminarMiembro,
   crearInvitacion,
+  transferirAdministracionProyecto,
 };
