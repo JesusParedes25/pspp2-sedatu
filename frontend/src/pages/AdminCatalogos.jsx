@@ -624,12 +624,61 @@ function TabAreas({ dgs, das, recargar }) {
 }
 
 // ─── Tab: Configuración ──────────────────────────────────────────
+// Un bloque = una cuenta de EmailJS completa e independiente (Service
+// ID + Template ID + Public Key). Deliberadamente sin ningún valor
+// compartido entre bloques: el plan gratuito de EmailJS da 2 plantillas
+// por cuenta, así que cada plantilla vive en SU PROPIA cuenta — mezclar
+// credenciales entre bloques perdería ese margen (2 cuentas = 4
+// plantillas). Si a un bloque le falta cualquiera de los 3 campos, ese
+// correo sencillamente no se envía (ver frontend/src/utils/correoAsignacion.js).
+function BloqueEmailJS({ titulo, descripcion, prefijo, variables, config, setConfig, extra }) {
+  const [mostrarKey, setMostrarKey] = useState(false);
+  const clave = (campo) => `${prefijo}${campo}`;
+
+  return (
+    <div className="border border-gray-200 rounded-xl p-5 bg-white space-y-4">
+      <div>
+        <div className="flex items-center gap-2 mb-1">
+          <Mail size={18} className="text-guinda-600" />
+          <h3 className="font-semibold text-gray-800">{titulo}</h3>
+        </div>
+        <p className="text-xs text-gray-500">{descripcion}</p>
+      </div>
+
+      <Field label="Service ID">
+        <input value={config[clave('service_id')] || ''} onChange={e => setConfig(c => ({ ...c, [clave('service_id')]: e.target.value }))} placeholder="service_xxxxxxx" className="input-base text-sm" />
+      </Field>
+      <Field label="Template ID">
+        <input value={config[clave('template_id')] || ''} onChange={e => setConfig(c => ({ ...c, [clave('template_id')]: e.target.value }))} placeholder="template_xxxxxxx" className="input-base text-sm" />
+      </Field>
+      <Field label="Public Key (User ID)">
+        <div className="relative">
+          <input type={mostrarKey ? 'text' : 'password'} value={config[clave('public_key')] || ''} onChange={e => setConfig(c => ({ ...c, [clave('public_key')]: e.target.value }))} placeholder="Tu llave pública" className="input-base text-sm pr-9" />
+          <button type="button" onClick={() => setMostrarKey(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400">
+            {mostrarKey ? <EyeOff size={15} /> : <Eye size={15} />}
+          </button>
+        </div>
+      </Field>
+
+      {extra}
+
+      <div className="pt-1 border-t border-gray-100">
+        <p className="text-xs font-medium text-gray-500 mt-3 mb-1.5">Variables que necesita esta plantilla:</p>
+        <div className="flex flex-wrap gap-1.5">
+          {variables.map(v => (
+            <code key={v} className="text-[11px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded font-mono">{`{{${v}}}`}</code>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TabConfiguracion() {
   const [config, setConfig] = useState({});
   const [cargando, setCargando] = useState(true);
   const [ok, setOk] = useState(false);
   const [error, setError] = useState(null);
-  const [mostrarKey, setMostrarKey] = useState(false);
 
   useEffect(() => {
     adminApi.obtenerConfig().then(r => {
@@ -655,43 +704,38 @@ function TabConfiguracion() {
       {error && <ErrorBanner msg={error} onClose={() => setError(null)} />}
       {ok && <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700"><CheckCircle size={16} />Configuración guardada</div>}
 
-      <div className="border border-gray-200 rounded-xl p-5 bg-white space-y-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Mail size={18} className="text-guinda-600" />
-          <h3 className="font-semibold text-gray-800">Configuración de EmailJS</h3>
-        </div>
-        <p className="text-xs text-gray-500">Estas credenciales se usan para enviar correos de bienvenida al crear usuarios. Consígualas en <a href="https://www.emailjs.com" target="_blank" rel="noreferrer" className="text-blue-600 underline">emailjs.com</a>.</p>
+      <p className="text-xs text-gray-500">
+        Dos plantillas de EmailJS, cada una en su propia cuenta (consíguelas en{' '}
+        <a href="https://www.emailjs.com" target="_blank" rel="noreferrer" className="text-blue-600 underline">emailjs.com</a>).
+        No comparten credenciales entre sí a propósito.
+      </p>
 
-        <Field label="Service ID">
-          <input value={config.emailjs_service_id || ''} onChange={e => setConfig(c => ({ ...c, emailjs_service_id: e.target.value }))} placeholder="service_xxxxxxx" className="input-base text-sm" />
-        </Field>
-        <Field label="Template ID">
-          <input value={config.emailjs_template_id || ''} onChange={e => setConfig(c => ({ ...c, emailjs_template_id: e.target.value }))} placeholder="template_xxxxxxx" className="input-base text-sm" />
-        </Field>
-        <Field label="Template ID — aviso de asignación (opcional)">
-          <input value={config.emailjs_template_id_asignacion || ''} onChange={e => setConfig(c => ({ ...c, emailjs_template_id_asignacion: e.target.value }))} placeholder="template_xxxxxxx" className="input-base text-sm" />
-          <p className="text-xs text-gray-400 mt-1">
-            Para el correo que avisa a alguien que YA TIENE CUENTA que fue asignado como responsable/colaborador de un
-            proyecto o de una parte. Mientras quede vacío, ese aviso simplemente no se envía (la asignación se guarda igual).
-          </p>
-        </Field>
-        <Field label="Public Key (User ID)">
-          <div className="relative">
-            <input type={mostrarKey ? 'text' : 'password'} value={config.emailjs_public_key || ''} onChange={e => setConfig(c => ({ ...c, emailjs_public_key: e.target.value }))} placeholder="Tu llave pública" className="input-base text-sm pr-9" />
-            <button type="button" onClick={() => setMostrarKey(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400">
-              {mostrarKey ? <EyeOff size={15} /> : <Eye size={15} />}
+      <BloqueEmailJS
+        titulo="Invitación a la plataforma"
+        descripcion="Se envía a una persona que aún no tiene cuenta, para que la cree y entre por primera vez."
+        prefijo="emailjs_"
+        variables={['to_name', 'to_email', 'invite_link']}
+        config={config}
+        setConfig={setConfig}
+        extra={
+          <div className="flex items-center gap-3 pt-1">
+            <label className="text-sm text-gray-700 font-medium">Habilitar envío de correos</label>
+            <button onClick={() => setConfig(c => ({ ...c, emailjs_enabled: c.emailjs_enabled === 'true' ? 'false' : 'true' }))}
+              className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-colors ${config.emailjs_enabled === 'true' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+              {config.emailjs_enabled === 'true' ? <><ToggleRight size={16} /> Habilitado</> : <><ToggleLeft size={16} /> Deshabilitado</>}
             </button>
           </div>
-        </Field>
+        }
+      />
 
-        <div className="flex items-center gap-3 pt-1">
-          <label className="text-sm text-gray-700 font-medium">Habilitar envío de correos</label>
-          <button onClick={() => setConfig(c => ({ ...c, emailjs_enabled: c.emailjs_enabled === 'true' ? 'false' : 'true' }))}
-            className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-colors ${config.emailjs_enabled === 'true' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-            {config.emailjs_enabled === 'true' ? <><ToggleRight size={16} /> Habilitado</> : <><ToggleLeft size={16} /> Deshabilitado</>}
-          </button>
-        </div>
-      </div>
+      <BloqueEmailJS
+        titulo="Asignación de participación"
+        descripcion="Se envía a quien ya tiene cuenta cuando la asignan a un proyecto o a una parte, cuando le aceptan una solicitud, o cuando cambia su función."
+        prefijo="emailjs_asignacion_"
+        variables={['to_name', 'to_email', 'titulo', 'mensaje', 'destino', 'funcion', 'texto_boton', 'enlace']}
+        config={config}
+        setConfig={setConfig}
+      />
 
       <button onClick={guardar} disabled={guardando} className="flex items-center gap-2 px-5 py-2.5 bg-guinda-700 text-white rounded-lg text-sm hover:bg-guinda-600 disabled:opacity-50">
         {guardando ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}

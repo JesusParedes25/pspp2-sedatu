@@ -36,13 +36,11 @@ import {
 import { obtenerProyecto } from '../../api/proyectos';
 import BotonSolicitarParticipar from '../proyectos/BotonSolicitarParticipar';
 import SelectorFuncion, { sustantivoAsignacion } from '../common/SelectorFuncion';
-import { enviarCorreoAsignacion } from '../../utils/correoAsignacion';
+import {
+  enviarCorreoAsignacion, etiquetaFuncionCorreo, construirDestino, construirRuta,
+  textosAsignacionNodo, textosCambioFuncion,
+} from '../../utils/correoAsignacion';
 import { useAuth } from '../../context/AuthContext';
-
-// Para el correo de aviso — "la etapa/acción/tarea «X»". Sustantivo
-// plano (sin "la"/"el") para evitar depender del género; se usa igual
-// para los tres tipos porque "etapa/acción/tarea" son todas femeninas.
-const ETIQUETA_NODO_SINGULAR = { etapa: 'la etapa', accion: 'la acción', tarea: 'la tarea' };
 
 // Etiquetas de solo lectura (fila ya fija, fuera de SelectorFuncion):
 // miembro de alcance "proyecto" mostrado aquí, o el administrador del
@@ -146,8 +144,10 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto
       await agregarMiembroNodo(tipo, idNodo, seleccionado.id, rolNuevo);
       setMostrarPicker(false);
       // Correo de aviso a quien ya tiene cuenta — nunca bloquea la
-      // operación (ya se guardó arriba): se dispara sin esperar.
-      enviarCorreoDeAsignacion(seleccionado, rolNuevo);
+      // operación (ya se guardó arriba): se dispara sin esperar. Esto
+      // siempre es una invitación nueva (el picker ya excluye a quien
+      // ya está agregado), nunca un cambio de función.
+      enviarCorreoDeAsignacionANodo(seleccionado, rolNuevo);
       await cargar();
     } catch (err) {
       // El servidor explica los dos casos que importan: la persona ya
@@ -164,25 +164,46 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto
   // que lo pide por su cuenta, solo cuando de verdad hace falta (al
   // mandar el correo), en vez de agregar un prop nuevo en dos árboles
   // de componentes distintos.
-  async function enviarCorreoDeAsignacion(persona, rol) {
-    let nombreProyecto = '';
+  async function nombreDelProyecto() {
     try {
       const proyecto = await obtenerProyecto(idProyecto);
-      nombreProyecto = proyecto?.datos?.nombre || proyecto?.nombre || '';
-    } catch { /* el correo es best-effort; sin nombre, se manda igual */ }
-    enviarCorreoAsignacion({
-      nombreDestino: persona.nombre_completo,
-      correoDestino: persona.correo,
-      nombreQuienAsigna: usuario?.nombre_completo,
-      destino: `${ETIQUETA_NODO_SINGULAR[tipo] || 'el elemento'} «${nombreNodo || ''}» del proyecto «${nombreProyecto}»`,
-      funcion: rolConfig(rol).label,
-    });
+      return proyecto?.datos?.nombre || proyecto?.nombre || '';
+    } catch {
+      return ''; // el correo es best-effort; sin nombre, se manda igual
+    }
   }
 
-  async function cambiarRol(idUsuario, rol) {
+  async function enviarCorreoDeAsignacionANodo(persona, rol) {
+    const nombreProyecto = await nombreDelProyecto();
+    const funcion = etiquetaFuncionCorreo(rol);
+    const destino = construirDestino({ alcance: 'nodo', nodoTipo: tipo, nodoNombre: nombreNodo, proyectoNombre: nombreProyecto });
+    const textos = textosAsignacionNodo({ quien: usuario?.nombre_completo, funcion, destino });
+    enviarCorreoAsignacion({ nombreDestino: persona.nombre_completo, correoDestino: persona.correo, destino, funcion, ...textos });
+  }
+
+  async function enviarCorreoDeCambioFuncion(persona, rolNuevo) {
+    const nombreProyecto = await nombreDelProyecto();
+    const funcion = etiquetaFuncionCorreo(rolNuevo);
+    const destino = construirDestino({ alcance: 'nodo', nodoTipo: tipo, nodoNombre: nombreNodo, proyectoNombre: nombreProyecto });
+    const ruta = construirRuta({ proyectoId: idProyecto, alcance: 'nodo', nodoId: idNodo });
+    const textos = textosCambioFuncion({ quien: usuario?.nombre_completo, funcion, destino, ruta });
+    enviarCorreoAsignacion({ nombreDestino: persona.nombre_completo, correoDestino: persona.correo, destino, funcion, ...textos });
+  }
+
+  async function cambiarRol(m, rol) {
+    const idUsuario = m.id_usuario;
     try {
-      await actualizarRolNodo(tipo, idNodo, idUsuario, rol);
-      setMiembros(prev => prev.map(m => m.id_usuario === idUsuario ? { ...m, rol } : m));
+      const resultado = await actualizarRolNodo(tipo, idNodo, idUsuario, rol);
+      setMiembros(prev => prev.map(x => x.id_usuario === idUsuario ? { ...x, rol } : x));
+      // Correo de aviso — nunca bloquea (ya se guardó arriba): se
+      // dispara sin esperar. `cambio_rol` lo decide el servidor: solo
+      // es un cambio de función real si la persona ya estaba aceptada;
+      // si seguía pendiente de aceptar, sigue siendo una asignación.
+      if (resultado?.cambio_rol) {
+        enviarCorreoDeCambioFuncion(m, rol);
+      } else {
+        enviarCorreoDeAsignacionANodo(m, rol);
+      }
     } catch (err) {
       setError(err.response?.data?.mensaje || 'No se pudo cambiar la función');
       await cargar();
@@ -260,7 +281,7 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto
                 ) : permisos.puedeInvitar ? (
                   <SelectorFuncion
                     value={m.rol}
-                    onChange={rol => cambiarRol(m.id_usuario, rol)}
+                    onChange={rol => cambiarRol(m, rol)}
                     sustantivo={sustantivoAsignacion(tipo)}
                     mostrarLectura={m.perfil === 'externo'}
                   />

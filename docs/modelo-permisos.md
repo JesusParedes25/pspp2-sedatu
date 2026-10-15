@@ -1,12 +1,16 @@
 # Modelo de permisos de PSPP v2.0
 
-> **Este documento corresponde al commit `4855a8e2f2b775411aff4e98192123a8fe8f830f`
+> **Este documento corresponde al commit `d47b152cb7a6f903002bf7380b9284a8de53891e`
 > (2026-10-15, Fase 4, parte A — la matriz de capacidades completa,
-> sección 13) + Fase 4, parte B — transferencia de administración de
-> proyecto exclusiva de superadmin, correo de aviso de asignación a
-> usuarios ya existentes, y confirmación de que el candado de `GET
-> /proyectos/:id/exportar` de la parte A sigue en pie — descrito en este
-> mismo PR (sección 15).**
+> sección 13 — + Fase 4, parte B v1 — transferencia de administración de
+> proyecto exclusiva de superadmin, sección 15.1) + Fase 4, parte B v2 —
+> corrige un hueco real de la v1: el cambio de función ahora avisa, en
+> correo y en notificación dentro de la plataforma; dos cuentas de
+> EmailJS independientes (sin ningún valor compartido) para "Invitación
+> a la plataforma" y "Asignación de participación"; 8 variables de
+> contenido en vez de 6, armadas por la plataforma; la etiqueta visible
+> de función (nunca el valor crudo) en ambos canales — descrito en este
+> mismo PR (sección 15.2).**
 > Regenerado por completo (no es un parche del documento anterior), porque
 > la versión previa describía el modelo PRE-Fase-1: el CHECK de 2 valores
 > de `proyecto_usuarios.rol`, el CHECK de 3 valores con `'invitado'` de
@@ -1111,64 +1115,210 @@ controller: 400 sin `id_usuario`, happy path con bitácora+2
 notificaciones, y que un error tipado de la query se reenvía a
 `next(err)` sin que el controller lo intercepte).
 
-### 15.2 Correo de aviso a quien ya tiene cuenta
+### 15.2 Correo de aviso a quien ya tiene cuenta (v2 — corrige un hueco de la v1)
 
 **Contexto**: ya existía `enviarCorreoInvitacion` (en
 `AdminCatalogos.jsx`) para avisarle a un usuario NUEVO que se le creó
-una cuenta. Faltaba la segunda plantilla: avisarle a alguien que YA
-TIENE CUENTA que fue asignado como responsable/colaborador de un
-proyecto o de un nodo.
+una cuenta. Esta pieza agrega el aviso a alguien que YA TIENE CUENTA,
+para 4 situaciones: lo asignan a un proyecto completo, lo asignan a una
+parte, le aceptan una solicitud de participación, o le cambian la
+función. La primera versión de esta pieza (mismo PR, antes de esta
+corrección) solo cubría las primeras 3 — dejaba fuera el cambio de
+función con el argumento de que "no hay nada que aceptar o rechazar".
+Ese argumento es cierto, pero no justifica el silencio: a quien le
+cambian la función le cambian lo que puede hacer (subir de Colaborador
+a Responsable, por ejemplo, le da crear acciones/tareas, mover fechas
+límite e invitar o retirar gente), y enterarse de eso no es opcional.
+Ver 15.2.4 para el cierre completo de ese hueco — en los dos canales,
+no solo en el correo.
 
-**Mecanismo, idéntico al ya existente** (EmailJS corre en el
-navegador — `@emailjs/browser` — nunca desde el backend): nuevo helper
-compartido `frontend/src/utils/correoAsignacion.js::enviarCorreoAsignacion`,
-que lee las credenciales de `configuracion_sistema` vía `GET
-/admin/config/publico` (público, sin autenticación — igual que el
-camino de invitación). Nueva clave `emailjs_template_id_asignacion`
-(migración `081_emailjs_template_asignacion.sql`, `ON CONFLICT DO
-NOTHING`, mismo patrón que `041_recuperar_contrasena.sql`), agregada al
-arreglo `claves` de `admin.controller.js::obtenerConfigPublico` y a un
-campo nuevo en `TabConfiguracion` (`AdminCatalogos.jsx`) — **el id del
-template lo crea el superadmin en EmailJS y lo pega ahí; nunca se
-escribe en el código**. Si la clave queda vacía, `enviarCorreoAsignacion`
-devuelve `{enviado:false, motivo:'sin_configuracion'}` sin lanzar — la
-asignación ya se guardó antes de intentar el correo, así que nunca se
-bloquea por esto.
+#### 15.2.1 Dos cuentas de EmailJS, sin ningún valor compartido entre ellas
 
-**Variables que debe aceptar el template en EmailJS** (documentadas
-también en el propio archivo): `to_name`, `to_email`,
-`nombre_quien_asigna`, `destino`, `funcion`, `notificaciones_link`. El
-contenido, en ese orden, dice quién lo asignó, a qué proyecto o a qué
-parte, con qué función, y trae un botón/enlace a `/notificaciones` para
-aceptar o rechazar.
+El plan gratuito de EmailJS da 2 plantillas por cuenta. Con la de
+"Invitación a la plataforma" ya ocupando una, "Asignación de
+participación" (las 4 situaciones de arriba) necesita vivir en una
+**cuenta de EmailJS completamente distinta** — dos cuentas gratuitas
+dan 4 plantillas en total, dos de margen para el futuro. Por eso cada
+plantilla guarda su propio trío COMPLETO e INDEPENDIENTE de
+credenciales (Service ID + Template ID + Public Key) — ninguna hereda
+nada de la otra, ni siquiera el toggle "Habilitar envío de correos"
+(ese solo gates el camino de invitación, que ya lo tenía antes de esta
+ronda; el de asignación se envía o no según si su propio trío está
+completo, sin un interruptor aparte).
 
-**Disparada en los 3 puntos donde hoy se asigna a alguien que ya tiene
-cuenta**:
-1. Invitación al proyecto y a un nodo desde Configuración → Equipo y
-   permisos — ambas comparten un solo call site,
-   `GestorUsuariosProyecto.jsx::ModalInvitar::handleInvitar` (el mismo
-   modal cubre las dos según `alcance`).
-2. Invitación a un nodo desde la pestaña Equipo de Seguimiento
-   (`SeccionMiembrosNodo.jsx::confirmarAgregar`) — un call site
-   DISTINTO del anterior, mismo efecto. Este componente no recibe el
-   nombre del proyecto como prop de ninguno de sus dos padres
-   (`NodoCard.jsx`, `PestanasDetalle.jsx`), así que lo pide por su
-   cuenta vía `obtenerProyecto(idProyecto)` solo cuando hace falta
-   mandar el correo (patrón "self-contenido" ya usado en este archivo).
-3. Aceptación de una solicitud de participación
-   (`SolicitudesPorResolver.jsx::responder`), solo cuando
-   `respuesta === 'aceptar'` — declinar no asigna nada que avisar.
+Migración `082_emailjs_asignacion_cuenta_propia.sql` retira la clave
+única de la v1 (`emailjs_template_id_asignacion`, que sí reusaba el
+`service_id`/`public_key` de invitación — el hueco que esta migración
+corrige) y la reemplaza por un trío propio:
+`emailjs_asignacion_service_id`, `emailjs_asignacion_template_id`,
+`emailjs_asignacion_public_key`. El valor que la v1 ya hubiera
+capturado se migra al nuevo campo de `template_id` en la misma
+migración (`UPDATE ... FROM`, solo si el nuevo campo está vacío) —
+nunca se pierde ni hay que volver a escribirlo a mano; verificado
+contra una copia de datos simulando ese caso antes de mergear esta
+ronda. `admin.controller.js::obtenerConfigPublico` expone las 7 claves
+finales (las 4 de invitación — `emailjs_service_id`,
+`emailjs_template_id`, `emailjs_public_key`, `emailjs_enabled` — más
+las 3 nuevas de asignación).
 
-**Un 4to camino existe y se dejó fuera a propósito** (reportado según
-lo pedido, no silenciado): `handleCambiarRol`
-(`GestorUsuariosProyecto.jsx`, alcance proyecto) y `cambiarRol`
-(`SeccionMiembrosNodo.jsx`, alcance nodo) reasignan la función de
-alguien que YA ESTÁ ACEPTADO, sin pasar por invitar/aceptar — es un
-cambio inmediato (vía `agregarMiembro`/`actualizarRolNodo`, un UPSERT),
-no una invitación pendiente. El llamado a la acción del correo
-("acepta o rechaza desde tus notificaciones") no tendría sentido ahí:
-no hay nada pendiente que aceptar o rechazar, el cambio ya se aplicó.
-No se le agregó el correo a este camino.
+**Configuración en Administración** (`TabConfiguracion`,
+`AdminCatalogos.jsx`): dos bloques independientes
+(`BloqueEmailJS`, un componente chico reusado por los dos), cada uno
+con sus 3 campos, una línea que explica para qué sirve, y la lista de
+variables que esa plantilla necesita — para que quien la arme en
+EmailJS no tenga que adivinar ni venir a preguntar:
+- **"Invitación a la plataforma"** — "Se envía a una persona que aún
+  no tiene cuenta, para que la cree y entre por primera vez." Variables:
+  `to_name`, `to_email`, `invite_link`.
+- **"Asignación de participación"** — "Se envía a quien ya tiene
+  cuenta cuando la asignan a un proyecto o a una parte, cuando le
+  aceptan una solicitud, o cuando cambia su función." Variables: las 8
+  de 15.2.2.
+
+#### 15.2.2 Una sola plantilla, texto armado por la plataforma
+
+El texto viaja como variable — la plantilla de EmailJS solo lo pinta,
+nunca decide la redacción. 8 variables finales
+(`frontend/src/utils/correoAsignacion.js`):
+
+| Variable | Contenido |
+|---|---|
+| `to_name` | nombre de quien recibe |
+| `to_email` | correo de quien recibe |
+| `titulo` | encabezado del correo (también sirve de asunto) |
+| `mensaje` | la frase principal, ya armada por la plataforma |
+| `destino` | nombre del proyecto o de la parte |
+| `funcion` | etiqueta visible: Colaborador, Responsable, Solo lectura |
+| `texto_boton` | texto del botón |
+| `enlace` | a dónde lleva el botón |
+
+Los 4 textos fijos, uno por situación (`textosAsignacionProyecto`,
+`textosAsignacionNodo`, `textosSolicitudAceptada`, `textosCambioFuncion`
+en el mismo archivo):
+
+| Situación | `titulo` | `texto_boton` | `enlace` |
+|---|---|---|---|
+| Asignado al proyecto completo | Te asignaron a un proyecto | Ver mi invitación | `/notificaciones` |
+| Asignado a una parte | Te asignaron a una parte de un proyecto | Ver mi invitación | `/notificaciones` |
+| Solicitud aceptada | Aceptaron tu solicitud | Ir al proyecto | el proyecto o nodo |
+| Cambio de función | Cambió tu función | Ir al proyecto | el proyecto o nodo |
+
+Las dos primeras llevan a notificaciones porque hay algo que aceptar o
+rechazar; las dos últimas llevan directo al trabajo porque ya no hay
+nada que decidir. `mensaje` se compone con la misma frase natural en
+los 4 casos ("{quien} ...  en {destino}[, ahora eres {funcion}]."),
+donde `destino` ya es una frase completa y autocontenida
+(`construirDestino()`: "el proyecto «Y»" o "la etapa «X» del proyecto
+«Y»") — un ajuste sobre el fraseo textual que se pidió originalmente
+para la situación "asignado a una parte" (que mencionaba `{destino}` y
+`{proyecto}` como dos tokens separados dentro de la misma oración):
+aquí se fusionan en una sola variable `destino` ya completa, en vez de
+agregar una 9ª variable `proyecto` solo para ese caso — mismo criterio
+de "texto armado por la plataforma", con una sola frase coherente en
+los 4 casos en lugar de una construida a mano por caso.
+
+**Sin configurar → no se envía, y queda registrado**: si a la cuenta
+de "Asignación de participación" le falta cualquiera de sus 3 campos,
+`enviarCorreoAsignacion` no intenta el envío
+(`console.warn` + `{enviado:false, motivo:'sin_configuracion'}`) — la
+asignación/aceptación/cambio ya se guardó antes de llegar aquí, así
+que nunca se bloquea por esto.
+
+#### 15.2.3 Disparada en los mismos 4 lugares donde algo le pasa a la participación de alguien
+
+1. **Asignación a proyecto o a nodo** desde Configuración → Equipo y
+   permisos — `GestorUsuariosProyecto.jsx::ModalInvitar::handleInvitar`
+   (un solo call site cubre las dos situaciones, según `alcance`).
+2. **Asignación a un nodo** desde la pestaña Equipo de Seguimiento
+   (`SeccionMiembrosNodo.jsx::confirmarAgregar`) — call site distinto
+   del anterior, mismo efecto. Este componente sigue sin recibir el
+   nombre del proyecto de ninguno de sus 2 padres (`NodoCard.jsx`,
+   `PestanasDetalle.jsx`): lo pide por su cuenta
+   (`obtenerProyecto(idProyecto)`) solo cuando hace falta mandar el
+   correo.
+3. **Aceptación de una solicitud de participación**
+   (`SolicitudesPorResolver.jsx::responder`, solo si
+   `respuesta === 'aceptar'` — declinar no asigna nada que avisar).
+4. **Cambio de función de alguien ya aceptado** — dos call sites
+   simétricos: `GestorUsuariosProyecto.jsx::handleCambiarRol` (alcance
+   proyecto o nodo, ambos pasan por este mismo handler) y
+   `SeccionMiembrosNodo.jsx::cambiarRol` (alcance nodo, desde
+   Seguimiento). Ninguno de los dos asume que el cambio es real: el
+   backend ya lo sabe con certeza (ver 15.2.4) y lo devuelve en la
+   respuesta (`cambio_rol: true/false`) — si la persona todavía estaba
+   PENDIENTE de aceptar, cambiarle la función antes de que acepte
+   sigue siendo una asignación (situación 1/2), no un cambio de
+   función (situación 4); el frontend confía en ese flag en vez de
+   volver a adivinar el estado por su cuenta.
+
+#### 15.2.4 El hueco que quedó abierto en la v1: el cambio de función ahora avisa, en los dos canales
+
+**Diagnóstico confirmado por lectura directa**: el único caller real
+de `POST /proyectos/:id/miembros` desde la UI es
+`ParticipanteCard::onCambiarRol` — es decir, en la práctica, ese
+endpoint NUNCA es una primera invitación, siempre es un cambio de
+función sobre alguien que ya aparece en "Equipo del proyecto". Pese a
+eso, `miembros.controller.js::agregarMiembro` disparaba SIEMPRE
+`notificarNuevoMiembro` ("te invitó a participar... puedes aceptar o
+rechazar la invitación") — un mensaje falso para el caso real: no hubo
+invitación, el cambio ya se aplicó, y no hay nada que aceptar o
+rechazar. El equivalente a nivel nodo
+(`nodo-miembros.controller.js::actualizar`) ya registraba el cambio en
+la bitácora (`registrarActividadEquipoNodo`) pero no avisaba nada en
+absoluto a la persona afectada — ni siquiera un mensaje incorrecto.
+
+**Fix, en ambos controllers**: antes de aplicar el cambio, se consulta
+la fila actual (`miembrosQueries.obtenerMiembro`/
+`nodoMiembrosQueries.obtenerMiembro`, sin filtrar por estado — a
+diferencia de `obtenerRolUsuario`, que solo cuenta si ya aceptó). Tres
+casos:
+- **Ya ACEPTADO, función distinta** → cambio de función real:
+  `registrarActividad`/`registrarActividadEquipoNodo` con el título
+  correcto ("Función actualizada" / "Función de X cambiada a Y..."),
+  y `crearNotificacion` (tipo `PermisoNuevo` — el mismo tipo ya
+  reusado para el aviso de transferencia de administración, sección
+  15.1) con el mensaje correcto: *"{quien} cambió tu función en {el
+  proyecto/la etapa "X"}. Ahora eres {etiqueta}."* La respuesta HTTP
+  incluye `cambio_rol: true`, que el frontend usa para disparar el
+  correo de la situación "Cambio de función" (15.2.3, punto 4).
+- **Sin fila previa, o todavía PENDIENTE de aceptar** → sigue siendo
+  una invitación, comportamiento sin cambios (`notificarNuevoMiembro`,
+  "te invitó a participar..."); `cambio_rol: false`.
+- **Ya ACEPTADO, misma función** (no-op real) → no notifica ni
+  registra bitácora; `cambio_rol: false`.
+
+**La etiqueta en ambos canales es la misma, y es la visible, nunca el
+valor crudo** — nuevo módulo compartido
+`backend/src/utils/etiquetas-funcion.js`
+(`{ captura: 'Colaborador', responsable: 'Responsable', lectura: 'Solo
+lectura' }`, espejo exacto de `ETIQUETA_FUNCION_CORREO` en
+`correoAsignacion.js` del lado del frontend) — un correo o una
+notificación que dijeran "ahora eres captura" no se entienden. Nota de
+vocabulario: aquí es **"Solo lectura"**, no "Invitado" (la etiqueta que
+sigue usando el `<select>` de función en pantalla, sin cambios, ver
+13.6) — "ahora eres Invitado" en un correo suena a que te invitaron a
+algo, no a que tu acceso quedó en solo ver; "Solo lectura" dice
+exactamente lo que cambió.
+
+Pruebas: `backend/src/__tests__/agregar-miembro-cambio-funcion.test.js`
+y `nodo-miembros-cambio-funcion.test.js` — los 3 casos de arriba, en
+ambos niveles.
+
+#### 15.2.5 Limitación conocida: el correo es de mejor esfuerzo, no garantizado
+
+El envío ocurre en el navegador de quien asigna/acepta/cambia la
+función (`@emailjs/browser`, igual que el correo de invitación) —
+nunca desde el backend. Si esa persona cierra la pestaña de inmediato
+después de la acción, el correo puede no llegar a salir. Esto es
+aceptado como limitación conocida, no un bug: cambiarlo implicaría
+mover el envío al servidor, que no es el alcance de esta ronda.
+
+Por eso la NOTIFICACIÓN dentro de la plataforma (`crearNotificacion`,
+escrita por el backend en la misma petición que aplica el cambio) es
+la que de verdad es confiable, y nunca depende de que el navegador de
+quien actúa siga abierto. El correo es un aviso adicional de mejor
+esfuerzo — toda asignación/aceptación/cambio de función registra
+ambos, nunca solo el correo.
 
 ### 15.3 Verificación pedida: `GET /proyectos/:id/exportar`
 

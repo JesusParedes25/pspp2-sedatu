@@ -7,6 +7,7 @@ const { resolverAccesoProyecto } = require('../utils/autorizacion');
 const { rechazoLecturaParaInterno } = require('../utils/validar-funcion-lectura');
 const { registrarActividad } = require('../utils/actividad-log');
 const { crearNotificacion } = require('../utils/notificaciones');
+const { etiquetaFuncion } = require('../utils/etiquetas-funcion');
 const pool = require('../db/pool');
 
 // Contrapeso de un permiso implícito (Fase 1 del modelo de permisos,
@@ -29,13 +30,34 @@ async function notificarNuevoMiembro(proyectoId, idUsuarioNuevo, rol, quienInvit
     const nombreProyecto = rows[0]?.nombre || 'un proyecto';
     await crearNotificacion({
       tipo: 'Invitacion',
-      mensaje: `${quienInvita || 'Alguien'} te invitó a participar en el proyecto "${nombreProyecto}" como ${rol}. Puedes aceptar o rechazar la invitación.`,
+      mensaje: `${quienInvita || 'Alguien'} te invitó a participar en el proyecto "${nombreProyecto}" como ${etiquetaFuncion(rol)}. Puedes aceptar o rechazar la invitación.`,
       entidadTipo: 'Proyecto',
       entidadId: proyectoId,
       idUsuario: idUsuarioNuevo,
     });
   } catch (err) {
     console.error('[miembros] Error al notificar nuevo miembro:', err.message);
+  }
+}
+
+// Notifica al usuario que YA PARTICIPABA (aceptado) que su función
+// cambió — a diferencia de notificarNuevoMiembro, aquí no hay nada que
+// aceptar o rechazar: el cambio ya se aplicó. Ver agregarMiembro: esta
+// rama es la que corrige el hueco de "te invitaron" en un cambio de
+// función real (docs/modelo-permisos.md, sección 15.2).
+async function notificarCambioRol(proyectoId, idUsuarioObjetivo, rolNuevo, quienCambia) {
+  try {
+    const { rows } = await pool.query('SELECT nombre FROM proyectos WHERE id = $1', [proyectoId]);
+    const nombreProyecto = rows[0]?.nombre || 'un proyecto';
+    await crearNotificacion({
+      tipo: 'PermisoNuevo',
+      mensaje: `${quienCambia || 'Alguien'} cambió tu función en el proyecto "${nombreProyecto}". Ahora eres ${etiquetaFuncion(rolNuevo)}.`,
+      entidadTipo: 'Proyecto',
+      entidadId: proyectoId,
+      idUsuario: idUsuarioObjetivo,
+    });
+  } catch (err) {
+    console.error('[miembros] Error al notificar cambio de función:', err.message);
   }
 }
 
@@ -163,10 +185,30 @@ async function agregarMiembro(req, res, next) {
       });
     }
 
+    // Este endpoint lo llama la UI SOLO para reasignar la función de
+    // alguien que ya aparece en "Equipo del proyecto" (ver
+    // ParticipanteCard::onCambiarRol en GestorUsuariosProyecto.jsx) — en
+    // la práctica real nunca es una primera invitación. Pero la query de
+    // abajo es un UPSERT genérico y el endpoint es alcanzable por API
+    // directa, así que se detecta el caso real en vez de asumirlo: si ya
+    // había una fila ACEPTADA con otra función, es un cambio de función
+    // sobre alguien que ya participa (nada que aceptar o rechazar); si
+    // no había fila, o estaba pendiente/rechazada, sigue siendo una
+    // invitación (comportamiento sin cambios).
+    const previo = await miembrosQueries.obtenerMiembro(req.params.id, id_usuario);
+    const esCambioDeFuncion = previo?.estado === 'aceptada' && previo.rol !== rol;
+    const sinCambioReal = previo?.estado === 'aceptada' && previo.rol === rol;
+
     const miembro = await miembrosQueries.agregarMiembro(req.params.id, id_usuario, rol, req.usuario.id);
-    await registrarActividad({ id_proyecto: req.params.id, id_usuario: req.usuario.id, tipo: 'miembro', titulo: 'Nuevo miembro agregado al proyecto', descripcion: `Agregado por ${req.usuario.nombre_completo}${await notaViaDG(acceso, req.usuario)}.`, entidad_tipo: 'proyecto', entidad_id: req.params.id, metadata: { id_usuario_nuevo: id_usuario, rol } });
-    await notificarNuevoMiembro(req.params.id, id_usuario, rol, req.usuario.nombre_completo);
-    res.status(201).json({ datos: miembro, mensaje: 'Miembro agregado' });
+
+    if (esCambioDeFuncion) {
+      await registrarActividad({ id_proyecto: req.params.id, id_usuario: req.usuario.id, tipo: 'miembro', titulo: 'Función actualizada', descripcion: `${req.usuario.nombre_completo} cambió la función de este miembro${await notaViaDG(acceso, req.usuario)}.`, entidad_tipo: 'proyecto', entidad_id: req.params.id, metadata: { id_usuario_objetivo: id_usuario, rol_anterior: previo.rol, rol_nuevo: rol } });
+      await notificarCambioRol(req.params.id, id_usuario, rol, req.usuario.nombre_completo);
+    } else if (!sinCambioReal) {
+      await registrarActividad({ id_proyecto: req.params.id, id_usuario: req.usuario.id, tipo: 'miembro', titulo: 'Nuevo miembro agregado al proyecto', descripcion: `Agregado por ${req.usuario.nombre_completo}${await notaViaDG(acceso, req.usuario)}.`, entidad_tipo: 'proyecto', entidad_id: req.params.id, metadata: { id_usuario_nuevo: id_usuario, rol } });
+      await notificarNuevoMiembro(req.params.id, id_usuario, rol, req.usuario.nombre_completo);
+    }
+    res.status(201).json({ datos: miembro, mensaje: 'Miembro agregado', cambio_rol: esCambioDeFuncion });
   } catch (err) { next(err); }
 }
 

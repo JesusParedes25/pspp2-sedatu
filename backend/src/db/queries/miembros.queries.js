@@ -21,6 +21,21 @@ async function listarMiembros(proyectoId) {
   return rows;
 }
 
+// Fila cruda de proyecto_usuarios, sin filtrar por estado — a diferencia
+// de obtenerRolUsuario (solo cuenta si 'aceptada'), esta sirve para saber
+// qué había ANTES de un cambio (pendiente/aceptada/rechazada), necesario
+// para distinguir "primera asignación todavía por aceptar" de "cambio de
+// función a alguien que ya participaba" — ver
+// miembros.controller.js::agregarMiembro.
+async function obtenerMiembro(proyectoId, usuarioId, db) {
+  const conn = db || pool;
+  const { rows } = await conn.query(
+    'SELECT * FROM proyecto_usuarios WHERE id_proyecto = $1 AND id_usuario = $2',
+    [proyectoId, usuarioId]
+  );
+  return rows[0] || null;
+}
+
 // Registra la participación. Por omisión queda PENDIENTE: invitar propone,
 // no impone — la persona acepta o rechaza. `yaAceptada` es para los casos
 // en que no hay a quién preguntarle: el creador de un proyecto, o la copia
@@ -283,6 +298,7 @@ module.exports = {
   agregarMiembro,
   eliminarMiembro,
   obtenerRolUsuario,
+  obtenerMiembro,
   esUnicoAdministrador,
   transferirAdministracion,
   responderInvitacion,
