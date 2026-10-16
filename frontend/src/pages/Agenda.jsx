@@ -28,6 +28,7 @@ import { CalendarDays, List, ChevronLeft, ChevronRight, X, AlertCircle, Clock, C
 import * as accionesApi from '../api/acciones';
 import EmptyState from '../components/common/EmptyState';
 import ArbolActividadesProyecto from '../components/nodos/ArbolActividadesProyecto';
+import AvisoPartesDelegadas from '../components/common/AvisoPartesDelegadas';
 import { COLORES_SEMAFORO, LEYENDA_SEMAFORO } from '../components/common/SemaforoDot';
 
 const DIAS=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
@@ -79,6 +80,9 @@ function inicioSemana(d){
 export default function Agenda(){
   const[items,setItems]=useState([]);
   const[load,setLoad]=useState(true);
+  // true si esta persona administra algún proyecto del que delegó al
+  // menos una etapa/acción/tarea — ver AvisoPartesDelegadas.
+  const[hayPartesDelegadas,setHayPartesDelegadas]=useState(false);
   const[vista,setVista]=useState('calendario');
   const[modoCal,setModoCal]=useState('mes'); // 'mes'|'semana'|'dia'
   // Una sola fecha "ancla" para los tres niveles de zoom del calendario —
@@ -97,7 +101,10 @@ export default function Agenda(){
   // refrescar la lista después de registrar avance/riesgo desde cualquier
   // vista — mismo patrón que MisActividades.jsx.
   const cargar=useCallback(()=>{
-    accionesApi.obtenerAgenda().then(r=>setItems((r.datos||[]).map(i=>({...i,fecha_fin:norm(i.fecha_fin),fecha_inicio:norm(i.fecha_inicio)})))).catch(console.error).finally(()=>setLoad(false));
+    accionesApi.obtenerAgenda().then(r=>{
+      setItems((r.datos||[]).map(i=>({...i,fecha_fin:norm(i.fecha_fin),fecha_inicio:norm(i.fecha_inicio)})));
+      setHayPartesDelegadas(!!r.hayPartesDelegadas);
+    }).catch(console.error).finally(()=>setLoad(false));
   },[]);
   useEffect(()=>{ cargar(); },[cargar]);
 
@@ -190,6 +197,8 @@ export default function Agenda(){
   if(load)return(<div className="space-y-4 animate-pulse"><div className="h-8 bg-gray-200 rounded w-1/3"/>{[1,2,3].map(i=><div key={i} className="h-14 bg-gray-200 rounded"/>)}</div>);
   return(<div className="space-y-5">
     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"><div><h1 className="text-2xl font-bold text-gray-900">Agenda</h1><p className="text-sm text-gray-500 mt-0.5">Actividades con fecha — responsable, colaborador o coordinador de proyecto</p></div><div className="flex gap-1 bg-gray-100 rounded-lg p-1 flex-shrink-0">{[{id:'lista',lbl:'Lista',I:List},{id:'calendario',lbl:'Calendario',I:CalendarDays}].map(({id,lbl,I})=>(<button key={id} onClick={()=>{setVista(id);setDia(null);}} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${vista===id?'bg-white text-guinda-600 shadow-sm':'text-gray-500 hover:text-gray-700'}`}><I size={13}/>{lbl}</button>))}</div></div>
+
+    <AvisoPartesDelegadas visible={hayPartesDelegadas}/>
 
     {/* KPIs — filtros rápidos reales: clic para acotar a vencidas/hoy/
         esta semana, otro clic (o "Total") para quitar. Antes eran <div>

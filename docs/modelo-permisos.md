@@ -1378,3 +1378,224 @@ exportarController.exportarProyecto);` — el candado cerrado en la Fase
 4/parte A (sección 13.5) sigue en pie, nada lo tocó en esta ronda.
 Cubierto por `backend/src/__tests__/exportar-visibilidad.test.js` (de
 esa misma parte A), sin cambios.
+
+## 16. Mis actividades: el dueño más cercano (lista de pendientes, no permisos)
+
+### 16.1 Dos preguntas distintas: "¿dónde tengo permiso?" vs. "¿qué está en mi lista?"
+
+Hasta esta sección, todo lo anterior en este documento responde una
+sola pregunta: *¿qué puede HACER esta persona sobre este elemento?*
+(`funcionEfectiva`, la escalera lectura/captura/responsable/
+administracion_proyecto). Esta sección responde una pregunta distinta
+y nunca antes formalizada: *¿aparece este elemento en la lista
+personal de pendientes de esta persona?* ("Mis actividades" y su
+pestaña Agenda, `GET /agenda`).
+
+**Son preguntas independientes, y la respuesta puede diferir para el
+mismo nodo y la misma persona.** El administrador de un proyecto que
+delegó la Etapa A a Ana sigue teniendo `administracion_proyecto` sobre
+toda la Etapa A — `funcionEfectivaEnNodo` no cambia en absoluto, sigue
+heredando hacia abajo sin ninguna excepción (ver 16.2) — puede abrirla,
+editar su ficha, reasignarla, lo que sea. Lo único que cambia es que
+la Etapa A deja de aparecer en SU lista personal de "Mis actividades":
+ya es trabajo de Ana, no un pendiente propio. Confundir estas dos
+preguntas — "tengo permiso" con "está en mi lista" — es la causa raíz
+de que, antes de esta sección, un administrador viera en su Agenda
+cualquier etapa de su proyecto que no tuviera un responsable asignado
+A ÉL directamente, sin importar que ya la hubiera delegado formalmente
+a otra persona (ver 16.3).
+
+### 16.2 Confirmado antes de tocar código: `funcionEfectivaEnNodo` ya hereda hacia abajo, y no se toca
+
+Verificado por lectura directa de `backend/src/utils/funcion-efectiva.js`
+antes de implementar esta sección — requisito explícito antes de
+escribir ningún código:
+
+- `funcionEfectivaEnNodo(usuario, tipoNodo, idNodo, db)` (línea 169) ya
+  resuelve, para CUALQUIER nodo, tanto su asignación directa
+  (`id_responsable`/`nodo_miembros` de ese nodo) como lo que resuelva
+  su ANCESTRO (`nodo.idPadre` → llamada recursiva a
+  `funcionEfectivaEnNodo` sobre el padre, envuelta en `comoHeredado()`;
+  si no hay padre nodo, `nodo.idProyecto` → `funcionEfectivaEnProyecto`,
+  envuelta en `topeNodo()`) — y toma el PELDAÑO MÁS ALTO entre ambos
+  (`masAlto`). Esto significa que quien es responsable o captura de
+  una etapa YA PUEDE capturar hoy en las acciones y tareas de esa
+  etapa, sin que esta sección tenga que agregar nada: la herencia hacia
+  abajo ya existía en el modelo de permisos completo.
+- **Conclusión: este cambio no necesita ninguna migración de datos.**
+  No se agrega ninguna columna, no se reinterpreta ninguna existente —
+  "Mis actividades" pasa a leer la MISMA información que ya existe
+  (`id_responsable`, `nodo_miembros`, `proyecto_usuarios`,
+  `proyectos.id_creador`) con una regla de AGRUPACIÓN distinta, nunca
+  de permisos.
+- `funcion-efectiva.js` **no se tocó en absoluto** en esta sección —
+  cero líneas cambiadas en ese archivo. Si la implementación hubiera
+  necesitado cambiarlo, habría sido señal de que el alcance se entendió
+  distinto, y el criterio acordado era detenerse ahí a confirmar antes
+  de seguir.
+
+### 16.3 Cómo resolvía `/agenda` antes de esta sección, y qué otras pantallas comparten (o no) esa regla
+
+Investigación hecha antes de escribir código, con cita de archivo —
+tres reglas de "qué le corresponde a esta persona" conviven hoy en la
+plataforma, deliberadamente distintas, y **solo la primera cambia en
+esta sección**:
+
+1. **`/agenda`** (`acciones.queries.js::obtenerAccionesAgenda`,
+   consumida por "Mis actividades" — pestañas Pendientes y Agenda, y
+   por la página standalone `/agenda`, las tres sobre el mismo
+   endpoint): antes de esta sección, un UNION de 8 ramas SQL —
+   responsable directo o `nodo_miembros` de CADA tipo de nodo
+   (etapa/acción/tarea), más 3 ramas de "coordinador" que agregaban
+   TODA etapa/acción/tarea de cualquier proyecto donde la persona fuera
+   `id_creador` o tuviera `proyecto_usuarios.rol IN
+   ('responsable','administracion_proyecto')`, excluyendo solo los
+   nodos con asignación directa A ESE NODO EN PARTICULAR. El hueco: esa
+   exclusión no miraba si un ANCESTRO del nodo ya estaba delegado —
+   una subacción dentro de una etapa delegada completa a otra persona
+   igual aparecía en la lista del administrador, porque la subacción
+   en sí no tenía nada asignado. Confirmado explícitamente por
+   `backend/src/__tests__/paso2-casos-especificos.test.js`: esta
+   consulta **nunca** filtra por `id_dg_lider` ni por el bono de DG —
+   es trabajo propio, nunca el de los enlaces de la DG de un director
+   — esa restricción se mantiene intacta en la reescritura (16.4).
+2. **Tarjetas de proyecto, "N pendientes"**
+   (`inicio.queries.js::obtenerProyectosUsuario`,
+   columna `acciones_pendientes`): cuenta TODAS las acciones de nivel
+   superior del PROYECTO con estado activo, sin ningún filtro por
+   quién las tiene asignadas — es un total agregado del proyecto
+   ("cuánto trabajo le queda a este proyecto"), no una lista personal.
+   No comparte regla con `/agenda` porque responde una pregunta
+   distinta a propósito, y esta sección no la toca.
+3. **Tablero — "Acciones vencidas"/"Por vencer"**
+   (`inicio.queries.js::obtenerVencidos`/`obtenerPorVencer`, alimentadas
+   por `proyectoIds` = `alcanceProyectosUsuario(usuario)` desde
+   `inicio.controller.js`): muestra TODO lo vencido/por vencer en
+   cualquier proyecto donde la persona tenga ACCESO (visibilidad de
+   proyecto, el mismo alcance de Fase 3 — Paso 1/2), sin filtrar por
+   quién es responsable de cada acción puntual — es "qué hay vencido en
+   lo que puedo ver", no "qué me toca a mí". Tampoco comparte regla con
+   `/agenda`, por el mismo motivo: responde "qué puedo ver", no "qué es
+   mío", y esta sección no la toca.
+
+**Por qué esto importa**: antes de tocar código se confirmó que estas
+tres reglas YA eran distintas entre sí — no es que esta sección
+introduzca una inconsistencia nueva entre pantallas, es que nunca
+pretendieron ser la misma pregunta. Lo único que cambia en esta
+sección es CUÁL es la regla correcta para la pregunta que responde
+`/agenda` — las otras dos pantallas se quedan exactamente igual.
+
+### 16.4 La regla nueva: el dueño más cercano en el árbol
+
+Un nodo (etapa/acción/tarea) aparece en la lista de pendientes de su
+**dueño más cercano**: subiendo desde el nodo hacia la raíz, el primer
+nivel con **asignación directa** decide quién lo ve. "Asignación
+directa" de un nodo = su columna `id_responsable` (a cualquier
+persona, no solo a quien pregunta), o una fila ACEPTADA de
+`nodo_miembros` de ESE nodo exacto (a cualquier persona). Si ningún
+nivel del árbol de ascendientes (el nodo mismo, su padre, el padre de
+su padre, … hasta la etapa de primer nivel) tiene asignación directa,
+el dueño de respaldo es quien administra el PROYECTO completo —
+`id_creador`, o `proyecto_usuarios.rol IN
+('responsable','administracion_proyecto')` con `estado='aceptada'` —
+así ningún nodo queda fuera de todas las listas, porque todo proyecto
+tiene administrador.
+
+Implementado en `backend/src/db/queries/acciones.queries.js::obtenerAccionesAgenda`,
+reescrita por completo con el mismo patrón ya usado en
+`funcionEfectivaPorLotes` (carga en bloque + recursión memoizada en
+memoria, no una consulta por nodo): (1) una consulta resuelve los
+proyectos relevantes para la persona (donde administra TODO el
+proyecto, o tiene una asignación directa a cualquier profundidad); (2)
+se carga el árbol completo de esos proyectos en un puñado de consultas
+(`acciones.id_proyecto` está siempre poblado desde la migración 065,
+así que una subacción a cualquier profundidad entra con un simple
+`WHERE id_proyecto = ANY($1)`, sin CTE recursivo); (3) `resolverEtapa`/
+`resolverAccion`/`resolverTarea`, memoizadas, devuelven para cada nodo
+`{ nivel: 'nodo'|'proyecto', asignados: Map<usuarioId, rol> }` — si el
+nodo tiene asignación propia, `nivel='nodo'` con esos asignados
+exactos (nunca sigue subiendo); si no, hereda la decisión de su padre
+(o cae al respaldo del proyecto si no hay padre nodo). El resultado
+final solo incluye, por persona, los nodos donde `asignados.has(usuarioId)`.
+
+Los 5 casos pedidos explícitamente, cada uno con su prueba en
+`backend/src/__tests__/agenda-dueno-mas-cercano.test.js`:
+
+1. **Persona asignada a una etapa, sin asignaciones en sus hijos**: ve
+   la etapa y todas sus acciones y tareas — todas heredan la decisión
+   de la etapa, porque ninguna tiene asignación propia.
+2. **Administrador que delegó la Etapa A**: no ve la Etapa A ni nada
+   que cuelgue de ella (la decisión de toda esa rama es `nivel='nodo'`
+   con la persona delegada, nunca llega al respaldo del proyecto); sí
+   ve las etapas que no delegó (sin asignación propia en ningún nivel
+   → cae al respaldo del proyecto, donde el administrador sí está).
+3. **Delegación anidada** (administrador → Etapa A a Ana → Acción A1 a
+   Beto): Beto ve A1 y sus tareas (A1 tiene asignación propia — nunca
+   sube más allá de sí misma); Ana ve el resto de la Etapa A pero no
+   A1 (A1 "corta" la herencia antes de llegar a Ana); el administrador
+   no ve nada de la Etapa A (ninguna rama de ese subárbol llega al
+   respaldo del proyecto, sin importar la profundidad).
+4. **Dos personas asignadas al mismo nodo** (una por `id_responsable`,
+   otra por `nodo_miembros`): el nodo aparece en las listas de ambas —
+   el mapa de asignados de ese nivel las contiene a las dos.
+5. **Ningún nodo queda fuera de todas las listas**: todo nodo resuelve
+   a alguien — a quien lo tiene asignado directamente, a quien tiene
+   asignado el ancestro más cercano que sí tiene algo, o al
+   administrador del proyecto como último respaldo, porque todo
+   proyecto tiene administrador.
+
+### 16.5 Los números cuadran porque todo sale de la misma consulta
+
+`obtenerAccionesAgenda` devuelve `{ items, hayPartesDelegadas }` — una
+sola función, una sola pasada por el árbol. El controlador
+(`GET /agenda`) responde `{ datos: items, hayPartesDelegadas, mensaje }`
+sin tocar la lista. **Tanto la lista como los 5 contadores (Vencidas,
+Próximas, En proceso, Completadas, y el total "Pendientes") de "Mis
+actividades" se calculan en el frontend a partir de ese MISMO arreglo
+`items`** (`MisActividades.jsx`, `useMemo` encadenados:
+`disponibles` → `disponiblesPeriodo` → `porEstado`/`resumen` — ya
+existía este patrón antes de esta sección, documentado en el propio
+archivo) — nunca hay una consulta separada para "la lista" y otra para
+"los contadores", así que no pueden desincronizarse entre sí. La
+pestaña Agenda (`Agenda.jsx`) hace su propia llamada independiente al
+mismo endpoint, con el mismo criterio: sus propios KPIs (Total/
+Vencidas/Hoy/Esta semana) también se calculan sobre el arreglo que le
+llegó a ella, no sobre uno recalculado aparte.
+
+### 16.6 Aviso cuando la lista excluye partes delegadas
+
+`hayPartesDelegadas` (boolean, calculado en la misma pasada que arma
+`items`): verdadero si, para algún proyecto donde esta persona
+administra, al menos un nodo resolvió su decisión en `nivel='nodo'`
+(es decir, alguien más lo tiene asignado) y esta persona no está entre
+sus asignados — exactamente "delegué esto a alguien más". Solo se
+evalúa sobre nodos con fecha (los únicos que podrían haber aparecido
+en la lista) para no mostrar el aviso cuando lo delegado nunca iba a
+verse en la agenda de todos modos.
+
+El frontend lo muestra con un componente nuevo y compartido,
+`frontend/src/components/common/AvisoPartesDelegadas.jsx` (mismo
+lenguaje visual que el toast "info": fondo azul, icono `Info`):
+*"No se muestran las partes que delegaste a otras personas. Puedes
+seguir abriéndolas y editándolas desde el proyecto; solo dejaron de
+aparecer aquí."* — aclara explícitamente que no es un problema de
+permisos ni de datos perdidos. Montado en los dos lugares que leen
+`/agenda` por separado: la pestaña Pendientes de `MisActividades.jsx`
+y `Agenda.jsx` (que alimenta tanto la pestaña Agenda como la página
+standalone `/agenda`).
+
+### 16.7 Limpieza de rótulo: "Actualizado" → "Pendientes"
+
+La primera tarjeta de "Mis actividades" (pestaña Pendientes) decía
+"Actualizado" mostrando el mismo número que, sin ningún filtro de
+estado activo, ya se leía como "{N} resultados" junto a los botones de
+periodo — confirmado por lectura directa de `MisActividades.jsx`:
+`resumen.total` y el conteo de `filtrados` (sin filtro de estado) son
+el mismo cálculo (`disponiblesPeriodo.filter(it => it.estado !==
+'Completada').length`), así que "Actualizado" no agregaba información,
+solo duplicaba visualmente un número ya mostrado. Junto a
+Vencidas/Próximas/En proceso/Completadas — que sí son estados — un
+rótulo que no es un estado confundía. Es, de hecho, el total de
+actividades activas (no completadas) dentro del periodo elegido, antes
+de separar por estado puntual — se renombró a **"Pendientes"**, que
+describe exactamente eso.

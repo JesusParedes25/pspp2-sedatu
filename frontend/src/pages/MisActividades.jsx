@@ -27,6 +27,7 @@ import { useSearchParams } from 'react-router-dom';
 import { ListChecks, CalendarDays, AlertTriangle, Clock, TrendingUp, CheckCircle2, X } from 'lucide-react';
 import * as accionesApi from '../api/acciones';
 import ArbolActividadesProyecto from '../components/nodos/ArbolActividadesProyecto';
+import AvisoPartesDelegadas from '../components/common/AvisoPartesDelegadas';
 import Agenda from './Agenda';
 
 const PERIODOS = [
@@ -77,12 +78,16 @@ export default function MisActividades() {
   const [cargando, setCargando] = useState(true);
   const [periodo, setPeriodo] = useState('mes');
   const [filtrosEstado, setFiltrosEstado] = useState(() => new Set());
+  // true si esta persona administra algún proyecto del que delegó al
+  // menos una etapa/acción/tarea — ver AvisoPartesDelegadas.
+  const [hayPartesDelegadas, setHayPartesDelegadas] = useState(false);
 
   async function cargar() {
     setCargando(true);
     try {
       const res = await accionesApi.obtenerAgenda();
       setItems(res.datos || []);
+      setHayPartesDelegadas(!!res.hayPartesDelegadas);
     } catch (err) {
       console.error('Error cargando pendientes:', err);
     } finally { setCargando(false); }
@@ -174,10 +179,16 @@ export default function MisActividades() {
 
       {tab === 'pendientes' ? (
         <div className="space-y-4">
-          {/* Resumen — "Actualizado" es informativo; el resto son filtros clicables */}
+          <AvisoPartesDelegadas visible={hayPartesDelegadas} />
+
+          {/* Resumen — "Pendientes" es informativo (el total de activas del
+              periodo, antes de separar por estado); el resto son filtros
+              clicables. Antes decía "Actualizado" mostrando ese mismo
+              número — un rótulo que no significaba nada junto a
+              Vencidas/Próximas/En proceso/Completadas, que sí son estados. */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             <div className="card p-3.5">
-              <div className="flex items-center gap-1.5 mb-1"><ListChecks size={13} className="text-gray-400" /><span className="text-xs text-gray-500">Actualizado</span></div>
+              <div className="flex items-center gap-1.5 mb-1"><ListChecks size={13} className="text-gray-400" /><span className="text-xs text-gray-500">Pendientes</span></div>
               <div className="text-2xl font-bold text-gray-800">{resumen.total}</div>
             </div>
             {FILTROS_ESTADO.map(f => {
