@@ -28,6 +28,7 @@ import { ListChecks, CalendarDays, AlertTriangle, Clock, TrendingUp, CheckCircle
 import * as accionesApi from '../api/acciones';
 import ArbolActividadesProyecto from '../components/nodos/ArbolActividadesProyecto';
 import AvisoPartesDelegadas from '../components/common/AvisoPartesDelegadas';
+import EmptyState from '../components/common/EmptyState';
 import Agenda from './Agenda';
 
 const PERIODOS = [
@@ -81,15 +82,22 @@ export default function MisActividades() {
   // true si esta persona administra algún proyecto del que delegó al
   // menos una etapa/acción/tarea — ver AvisoPartesDelegadas.
   const [hayPartesDelegadas, setHayPartesDelegadas] = useState(false);
+  // Si la petición falla, NUNCA se queda con items=[] mostrando 0 en
+  // todo (eso parece "se perdieron tus actividades", no "falló la
+  // red") — se muestra un estado de error explícito con botón de
+  // reintentar, y items conserva lo que ya tenía cargado.
+  const [errorCarga, setErrorCarga] = useState(false);
 
   async function cargar() {
     setCargando(true);
+    setErrorCarga(false);
     try {
       const res = await accionesApi.obtenerAgenda();
       setItems(res.datos || []);
       setHayPartesDelegadas(!!res.hayPartesDelegadas);
     } catch (err) {
       console.error('Error cargando pendientes:', err);
+      setErrorCarga(true);
     } finally { setCargando(false); }
   }
 
@@ -179,6 +187,16 @@ export default function MisActividades() {
 
       {tab === 'pendientes' ? (
         <div className="space-y-4">
+          {errorCarga ? (
+            <EmptyState
+              icono={AlertTriangle}
+              titulo="No se pudieron cargar las actividades"
+              subtitulo="Hubo un problema al conectar con el servidor. Esto no significa que tus actividades se hayan perdido — intenta de nuevo."
+              accion="Reintentar"
+              onAccion={cargar}
+            />
+          ) : (
+          <>
           <AvisoPartesDelegadas visible={hayPartesDelegadas} />
 
           {/* Resumen — "Pendientes" es informativo (el total de activas del
@@ -253,6 +271,8 @@ export default function MisActividades() {
               onCambiado={cargar}
               vacio="Sin actividades con los filtros seleccionados."
             />
+          )}
+          </>
           )}
         </div>
       ) : (
