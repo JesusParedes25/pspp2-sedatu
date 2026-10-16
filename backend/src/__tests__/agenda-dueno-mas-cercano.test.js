@@ -18,6 +18,19 @@
  *   Etapa C (EC)  — asignada DIRECTO a dos personas a la vez (X vía
  *                   id_responsable, Y vía nodo_miembros) — sin hijos.
  *
+ * NOTA SOBRE LAS FECHAS DEL FIXTURE (regresión real, ver commit que
+ * agregó este comentario): `pg` devuelve las columnas DATE/TIMESTAMP
+ * como objetos `Date`, nunca como cadenas — solo se vuelven cadena ISO
+ * después de pasar por `res.json()` (`Date.prototype.toJSON`), fuera
+ * de esta función. La primera versión de este archivo usaba cadenas
+ * ('2026-01-10') en el fixture, y los 6 tests pasaron en verde aunque
+ * `obtenerAccionesAgenda` ordenaba con `localeCompare` — un método que
+ * SÍ existe en String pero NO en Date, y que tronaba con un 500 real
+ * en cuanto `/agenda` corría contra la base de verdad. Por eso TODAS
+ * las fechas de este fixture son objetos `new Date(...)`, no cadenas
+ * — para que esta clase de bug (asumir un tipo que `pg` no entrega)
+ * la atrape la prueba, no producción.
+ *
  * Ejecutar: npm test
  */
 const PROYECTO = '00000000-0000-0000-0000-00000000f001';
@@ -48,17 +61,17 @@ beforeEach(() => {
     proyecto: { id: PROYECTO, nombre: 'Proyecto de prueba', id_creador: ADMIN },
     adminsFilas: [],
     etapas: [
-      { id: EA, nombre: 'Etapa A', estado: 'Pendiente', semaforo: 'verde', semaforo_override: false, avance_actual: 0, fecha_inicio: null, fecha_fin: '2026-01-10', id_responsable: null, id_proyecto: PROYECTO, prioridad: 'Media', estatus_cualitativo: null },
-      { id: EB, nombre: 'Etapa B', estado: 'Pendiente', semaforo: 'verde', semaforo_override: false, avance_actual: 0, fecha_inicio: null, fecha_fin: '2026-02-10', id_responsable: null, id_proyecto: PROYECTO, prioridad: 'Media', estatus_cualitativo: null },
-      { id: EC, nombre: 'Etapa C', estado: 'Pendiente', semaforo: 'verde', semaforo_override: false, avance_actual: 0, fecha_inicio: null, fecha_fin: '2026-03-10', id_responsable: X, id_proyecto: PROYECTO, prioridad: 'Media', estatus_cualitativo: null },
+      { id: EA, nombre: 'Etapa A', estado: 'Pendiente', semaforo: 'verde', semaforo_override: false, avance_actual: 0, fecha_inicio: null, fecha_fin: new Date('2026-01-10'), id_responsable: null, id_proyecto: PROYECTO, prioridad: 'Media', estatus_cualitativo: null },
+      { id: EB, nombre: 'Etapa B', estado: 'Pendiente', semaforo: 'verde', semaforo_override: false, avance_actual: 0, fecha_inicio: null, fecha_fin: new Date('2026-02-10'), id_responsable: null, id_proyecto: PROYECTO, prioridad: 'Media', estatus_cualitativo: null },
+      { id: EC, nombre: 'Etapa C', estado: 'Pendiente', semaforo: 'verde', semaforo_override: false, avance_actual: 0, fecha_inicio: null, fecha_fin: new Date('2026-03-10'), id_responsable: X, id_proyecto: PROYECTO, prioridad: 'Media', estatus_cualitativo: null },
     ],
     acciones: [
-      { id: AA1, nombre: 'Acción A1', estado: 'Pendiente', semaforo: 'verde', semaforo_override: false, avance_actual: 0, fecha_inicio: null, fecha_fin: '2026-01-05', id_responsable: null, id_accion_padre: null, id_etapa: EA, id_proyecto: PROYECTO, prioridad: 'Media', estatus_cualitativo: null },
-      { id: AA2, nombre: 'Acción A2', estado: 'Pendiente', semaforo: 'verde', semaforo_override: false, avance_actual: 0, fecha_inicio: null, fecha_fin: '2026-01-06', id_responsable: null, id_accion_padre: null, id_etapa: EA, id_proyecto: PROYECTO, prioridad: 'Media', estatus_cualitativo: null },
-      { id: AB1, nombre: 'Acción B1', estado: 'Pendiente', semaforo: 'verde', semaforo_override: false, avance_actual: 0, fecha_inicio: null, fecha_fin: '2026-02-05', id_responsable: null, id_accion_padre: null, id_etapa: EB, id_proyecto: PROYECTO, prioridad: 'Media', estatus_cualitativo: null },
+      { id: AA1, nombre: 'Acción A1', estado: 'Pendiente', semaforo: 'verde', semaforo_override: false, avance_actual: 0, fecha_inicio: null, fecha_fin: new Date('2026-01-05'), id_responsable: null, id_accion_padre: null, id_etapa: EA, id_proyecto: PROYECTO, prioridad: 'Media', estatus_cualitativo: null },
+      { id: AA2, nombre: 'Acción A2', estado: 'Pendiente', semaforo: 'verde', semaforo_override: false, avance_actual: 0, fecha_inicio: null, fecha_fin: new Date('2026-01-06'), id_responsable: null, id_accion_padre: null, id_etapa: EA, id_proyecto: PROYECTO, prioridad: 'Media', estatus_cualitativo: null },
+      { id: AB1, nombre: 'Acción B1', estado: 'Pendiente', semaforo: 'verde', semaforo_override: false, avance_actual: 0, fecha_inicio: null, fecha_fin: new Date('2026-02-05'), id_responsable: null, id_accion_padre: null, id_etapa: EB, id_proyecto: PROYECTO, prioridad: 'Media', estatus_cualitativo: null },
     ],
     tareas: [
-      { id: T1, nombre: 'Tarea T1', estado: 'Pendiente', semaforo: 'verde', semaforo_override: false, avance_actual: 0, fecha_inicio: null, fecha_fin: '2026-01-04', id_responsable: null, id_accion: AA1, id_proyecto: PROYECTO },
+      { id: T1, nombre: 'Tarea T1', estado: 'Pendiente', semaforo: 'verde', semaforo_override: false, avance_actual: 0, fecha_inicio: null, fecha_fin: new Date('2026-01-04'), id_responsable: null, id_accion: AA1, id_proyecto: PROYECTO },
     ],
     nodoMiembros: [
       { tipo_nodo: 'etapa', id_nodo: EA, id_usuario: ANA, rol: 'responsable' },

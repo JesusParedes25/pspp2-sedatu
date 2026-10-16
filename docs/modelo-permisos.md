@@ -1599,3 +1599,67 @@ rótulo que no es un estado confundía. Es, de hecho, el total de
 actividades activas (no completadas) dentro del periodo elegido, antes
 de separar por estado puntual — se renombró a **"Pendientes"**, que
 describe exactamente eso.
+
+### 16.8 Incidente real en el primer despliegue: `pg` entrega `Date`, no cadenas
+
+Al desplegar 16.4, `GET /agenda` devolvía 500 en producción con
+`(x.fecha_fin || "9999-99-99").localeCompare is not a function`. Causa
+raíz: `pg` (node-postgres) entrega las columnas `DATE`/`TIMESTAMP`
+como objetos `Date` de JavaScript, no como cadenas — recién se vuelven
+cadena ISO al pasar por `res.json()` (`Date.prototype.toJSON`), un paso
+que ocurre DESPUÉS de `obtenerAccionesAgenda`, nunca dentro de ella. El
+ordenamiento final de `items` se escribió asumiendo cadenas
+(`.localeCompare`), un método que `Date` no tiene — el `ORDER BY
+fecha_fin ASC NULLS LAST` de la consulta vieja nunca tuvo este problema
+porque ordenaba dentro de SQL, nunca en JavaScript sobre el resultado
+ya traído.
+
+**Fix**: `tiempoDeOrden(fecha)` (`acciones.queries.js`) compara con
+`new Date(fecha).getTime()` en vez de `localeCompare` — `new Date(x)`
+acepta tanto un `Date` como una cadena ISO por igual, así que la
+comparación funciona sin importar cuál de los dos tenga la fila en
+ese punto. Sin fecha → `Infinity`, mismo criterio de "al final" que el
+`NULLS LAST` anterior. Revisado el resto de 16.4 en busca de la misma
+clase de error: ningún otro punto compara, ordena o agrupa por fecha
+como si fuera cadena — los únicos otros usos de `fecha_fin`/
+`fecha_inicio` en esa función son checks de verdad (`if (!e.fecha_fin)
+...`), válidos para `Date`, cadena o `null` por igual.
+
+**Verificado contra una base real** (no solo con mocks) antes de
+cerrar el incidente: `SELECT fecha_fin FROM etapas ...` directo
+confirma `instanceof Date: true` y `typeof valor.localeCompare ===
+'function'` → `false` — reproduce exactamente el 500 reportado.
+`obtenerAccionesAgenda` corrida contra esa misma base, con el fix
+puesto, devuelve los nodos reales de un usuario correctamente
+ordenados (confirmado comparando los timestamps de salida uno por
+uno), sin ningún mock de por medio.
+
+**Por qué las pruebas no lo atraparon**: el fixture original de
+`agenda-dueno-mas-cercano.test.js` usaba cadenas ('2026-01-10') para
+`fecha_fin`, no objetos `Date` — así que el bug nunca se ejecutó
+dentro de la prueba, aunque sí en producción contra datos reales. Se
+corrigió reemplazando TODAS las fechas del fixture por `new
+Date(...)`, exactamente lo que `pg` entrega — confirmado revirtiendo
+el fix a propósito y viendo 4 de los 6 tests fallar con el mismo
+`TypeError` reportado, luego restaurando el fix y viendo los 6 pasar
+de nuevo. La lección que queda documentada aquí para no repetirla:
+**un fixture de prueba sobre filas de base de datos debe usar los
+tipos reales que el driver entrega, no la representación que sea más
+cómoda de escribir a mano** — una cadena se ve igual que un `Date` en
+una lectura rápida del código, pero no se comporta igual en absoluto.
+
+### 16.9 El frontend nunca debe mostrar ceros cuando la petición falla
+
+Mientras `/agenda` devolvía 500, "Mis actividades" mostraba 0 en
+Pendientes/Vencidas/Próximas/En proceso/Completadas y una lista vacía
+— indistinguible, para quien mira la pantalla, de "esta persona
+genuinamente no tiene nada pendiente". Eso es peor que un error
+visible: parece pérdida de datos. `MisActividades.jsx` y `Agenda.jsx`
+ahora distinguen explícitamente "cargando", "error" y "cargado con N
+resultados" como tres estados separados — un `catch` ya no se traga el
+error dejando `items` en su valor previo (inicialmente `[]`) como si
+nada hubiera pasado: marca un estado `errorCarga` propio, y mientras
+esté activo la pantalla reemplaza por completo el panel de
+resumen+filtros+lista por un aviso ("No se pudieron cargar las
+actividades... intenta de nuevo") con un botón "Reintentar" que vuelve
+a llamar la misma función de carga — nunca un tablero de ceros.

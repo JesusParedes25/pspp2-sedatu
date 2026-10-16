@@ -664,9 +664,22 @@ async function obtenerAccionesAgenda(usuarioId) {
     });
   }
 
-  items.sort((x, y) => (x.fecha_fin || '9999-99-99').localeCompare(y.fecha_fin || '9999-99-99'));
+  // pg devuelve las columnas DATE/TIMESTAMP como objetos Date, no como
+  // cadenas — recién se vuelven cadena ISO al serializar la respuesta
+  // con res.json() (Date.prototype.toJSON), ya fuera de esta función.
+  // Comparar aquí con localeCompare() (pensado para strings) truena en
+  // cuanto hay algo que ordenar: Date no tiene ese método. new Date(x)
+  // acepta tanto un Date como una cadena ISO por igual, así que esta
+  // comparación funciona sin que importe cuál de los dos tenga la fila
+  // en este punto. Sin fecha → Infinity, para que quede al final,
+  // mismo criterio que el NULLS LAST que usaba el ORDER BY anterior.
+  items.sort((x, y) => tiempoDeOrden(x.fecha_fin) - tiempoDeOrden(y.fecha_fin));
 
   return { items, hayPartesDelegadas };
+}
+
+function tiempoDeOrden(fecha) {
+  return fecha ? new Date(fecha).getTime() : Infinity;
 }
 
 // Crea una subacción dentro de una acción padre
