@@ -387,204 +387,286 @@ async function eliminarAccion(accionId) {
   return resultado.rows[0] || null;
 }
 
-// Obtiene todas las actividades con fecha para la Agenda del usuario:
-// - Etapas/acciones/tareas donde es responsable directo
-// - Etapas/acciones donde es miembro via nodo_miembros (colaborador/invitado)
-// - Todas las actividades de proyectos donde puede gestionar el proyecto
-//   completo (con su responsable) — mismo criterio que puedeGestionarProyecto
-//   en autorizacion.js: id_creador, o proyecto_usuarios.rol = 'responsable'.
-//   ('admin' NUNCA es un valor real de esa columna — su CHECK solo permite
-//   'responsable'/'colaborador' — usarlo aquí dejaba a cualquier Responsable
-//   de proyecto que no fuera también su creador sin ver, en su Agenda, las
-//   tareas sin responsable asignado de ese proyecto.)
+// Obtiene todas las actividades con fecha para la Agenda del usuario,
+// aplicando la regla del "dueño más cercano" (docs/modelo-permisos.md,
+// sección 16): un nodo aparece en la lista de su dueño más cercano en
+// el árbol — subiendo desde el nodo, el primer nivel con ASIGNACIÓN
+// DIRECTA (el nodo mismo, o el ancestro más cercano que la tenga)
+// decide quién lo ve. "Asignación directa" de un nodo = su columna
+// id_responsable (a cualquier persona), o una fila aceptada de
+// nodo_miembros de ESE nodo (a cualquier persona) — no solo de quien
+// pregunta. Si ningún nivel del árbol de ascendientes tiene asignación
+// directa, el dueño de respaldo es quien administra el proyecto
+// completo (su creador, o quien tenga proyecto_usuarios.rol IN
+// ('responsable','administracion_proyecto') aceptada) — así ningún
+// nodo queda sin dueño en ninguna lista, porque todo proyecto tiene
+// administrador.
+//
+// Importante: esto es DISTINTO de funcionEfectiva (utils/funcion-efectiva.js
+// — "¿puedo editar esto?"), que sigue heredando hacia abajo sin ninguna
+// excepción y no se toca aquí. Esta función resuelve una pregunta
+// distinta — "¿aparece esto en MI lista de pendientes?" — un
+// administrador que delegó una etapa sigue pudiendo abrirla y editarla
+// (funcionEfectivaEnNodo ya lo resuelve así, heredando hacia abajo);
+// solo deja de aparecer en SU agenda, porque ya es trabajo de otra
+// persona. No filtra por DG a propósito (ver
+// paso2-casos-especificos.test.js): es trabajo propio, nunca el bono de
+// un director sobre los enlaces de su DG.
 async function obtenerAccionesAgenda(usuarioId) {
-  const resultado = await pool.query(`
-    WITH todas AS (
-
-      -- 1. Etapas donde el usuario es responsable directo
-      SELECT 'etapa'::text AS tipo,
-        e.id::text AS id, e.nombre, e.estado, e.semaforo, e.semaforo_override,
-        COALESCE(e.avance_actual, 0) AS avance_actual,
-        COALESCE(e.fecha_limite, e.fecha_fin) AS fecha_fin,
-        e.fecha_inicio AS fecha_inicio,
-        e.id_responsable::text AS responsable_id,
-        u.nombre_completo AS responsable_nombre,
-        p.id::text AS proyecto_id, p.nombre AS proyecto_nombre,
-        NULL::text AS etapa_id, NULL::text AS etapa_nombre,
-        NULL::text AS accion_id, NULL::text AS accion_nombre,
-        'responsable'::text AS mi_rol, e.prioridad, e.estatus_cualitativo,
-        NULL::boolean AS es_hoja
-      FROM etapas e
-      JOIN proyectos p ON p.id = e.id_proyecto AND p.deleted_at IS NULL
-      LEFT JOIN usuarios u ON u.id = e.id_responsable
-      WHERE COALESCE(e.fecha_limite, e.fecha_fin) IS NOT NULL
-        AND e.id_responsable = $1
-
-      UNION ALL
-
-      -- 2. Etapas donde el usuario es miembro de nodo (colaborador/invitado)
-      SELECT 'etapa', e.id::text, e.nombre, e.estado, e.semaforo, e.semaforo_override,
-        COALESCE(e.avance_actual, 0),
-        COALESCE(e.fecha_limite, e.fecha_fin),
-        e.fecha_inicio,
-        e.id_responsable::text, u.nombre_completo,
-        p.id::text, p.nombre, NULL, NULL, NULL, NULL, nm.rol, e.prioridad, e.estatus_cualitativo,
-        NULL::boolean
-      FROM etapas e
-      JOIN proyectos p ON p.id = e.id_proyecto AND p.deleted_at IS NULL
-      LEFT JOIN usuarios u ON u.id = e.id_responsable
-      JOIN nodo_miembros nm ON nm.tipo_nodo = 'etapa' AND nm.id_nodo = e.id AND nm.id_usuario = $1
-      WHERE COALESCE(e.fecha_limite, e.fecha_fin) IS NOT NULL
-        AND (e.id_responsable IS NULL OR e.id_responsable != $1)
-
-      UNION ALL
-
-      -- 3. Acciones donde el usuario es responsable directo
-      SELECT 'accion', a.id::text, a.nombre, a.estado, a.semaforo, a.semaforo_override,
-        COALESCE(a.avance_actual, 0),
-        COALESCE(a.fecha_limite, a.fecha_fin),
-        a.fecha_inicio,
-        a.id_responsable::text, u.nombre_completo,
-        p.id::text, p.nombre, e.id::text, e.nombre, NULL, NULL, 'responsable', a.prioridad, a.estatus_cualitativo,
-        NOT EXISTS (SELECT 1 FROM acciones sub WHERE sub.id_accion_padre = a.id)
-          AND NOT EXISTS (SELECT 1 FROM tareas tt WHERE tt.id_accion = a.id)
-      FROM acciones a
-      JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
-      LEFT JOIN etapas e ON e.id = a.id_etapa
-      LEFT JOIN usuarios u ON u.id = a.id_responsable
-      WHERE COALESCE(a.fecha_limite, a.fecha_fin) IS NOT NULL
-        AND a.id_responsable = $1
-
-      UNION ALL
-
-      -- 4. Acciones donde el usuario es miembro de nodo
-      SELECT 'accion', a.id::text, a.nombre, a.estado, a.semaforo, a.semaforo_override,
-        COALESCE(a.avance_actual, 0),
-        COALESCE(a.fecha_limite, a.fecha_fin),
-        a.fecha_inicio,
-        a.id_responsable::text, u.nombre_completo,
-        p.id::text, p.nombre, e.id::text, e.nombre, NULL, NULL, nm.rol, a.prioridad, a.estatus_cualitativo,
-        NOT EXISTS (SELECT 1 FROM acciones sub WHERE sub.id_accion_padre = a.id)
-          AND NOT EXISTS (SELECT 1 FROM tareas tt WHERE tt.id_accion = a.id)
-      FROM acciones a
-      JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
-      LEFT JOIN etapas e ON e.id = a.id_etapa
-      LEFT JOIN usuarios u ON u.id = a.id_responsable
-      JOIN nodo_miembros nm ON nm.tipo_nodo = 'accion' AND nm.id_nodo = a.id AND nm.id_usuario = $1
-      WHERE COALESCE(a.fecha_limite, a.fecha_fin) IS NOT NULL
-        AND (a.id_responsable IS NULL OR a.id_responsable != $1)
-
-      UNION ALL
-
-      -- 5. Tareas donde el usuario es responsable directo
-      SELECT 'tarea', t.id::text, t.nombre, t.estado, t.semaforo, t.semaforo_override,
-        COALESCE(t.avance_actual, 0),
-        t.fecha_limite,
-        t.fecha_inicio,
-        t.id_responsable::text, u.nombre_completo,
-        p.id::text, p.nombre, e.id::text, e.nombre, a.id::text, a.nombre, 'responsable', t.prioridad, t.estatus_cualitativo,
-        true
-      FROM tareas t
-      JOIN acciones a ON a.id = t.id_accion
-      JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
-      LEFT JOIN etapas e ON e.id = a.id_etapa
-      LEFT JOIN usuarios u ON u.id = t.id_responsable
-      WHERE t.fecha_limite IS NOT NULL
-        AND t.id_responsable = $1
-
-      UNION ALL
-
-      -- 6. ETAPAS de proyectos donde el usuario es responsable del proyecto o su creador (muestra responsable de cada etapa)
-      SELECT 'etapa', e.id::text, e.nombre, e.estado, e.semaforo, e.semaforo_override,
-        COALESCE(e.avance_actual, 0),
-        COALESCE(e.fecha_limite, e.fecha_fin),
-        e.fecha_inicio,
-        e.id_responsable::text, u.nombre_completo,
-        p.id::text, p.nombre, NULL, NULL, NULL, NULL, 'coordinador', e.prioridad, e.estatus_cualitativo,
-        NULL::boolean
-      FROM etapas e
-      JOIN proyectos p ON p.id = e.id_proyecto AND p.deleted_at IS NULL
-      LEFT JOIN usuarios u ON u.id = e.id_responsable
-      WHERE COALESCE(e.fecha_limite, e.fecha_fin) IS NOT NULL
-        AND (p.id_creador = $1 OR EXISTS (
-          SELECT 1 FROM proyecto_usuarios pu
-          WHERE pu.id_proyecto = p.id AND pu.id_usuario = $1 AND pu.rol IN ('responsable', 'administracion_proyecto')
-        ))
-        AND (e.id_responsable IS NULL OR e.id_responsable != $1)
-        AND NOT EXISTS (
-          SELECT 1 FROM nodo_miembros nm
-          WHERE nm.tipo_nodo = 'etapa' AND nm.id_nodo = e.id AND nm.id_usuario = $1
+  // 1) Proyectos relevantes: donde el usuario administra TODO el
+  //    proyecto, o donde tiene una asignación directa (a cualquier
+  //    profundidad) en algún nodo — unión de ambos, un solo viaje a la
+  //    base. acciones.id_proyecto está siempre poblado (migración 065),
+  //    así que una subacción a cualquier profundidad entra con un
+  //    simple WHERE id_proyecto, sin necesitar recursión.
+  const { rows: proyectosRows } = await pool.query(`
+    SELECT DISTINCT p.id
+    FROM proyectos p
+    WHERE p.deleted_at IS NULL AND (
+      p.id_creador = $1
+      OR EXISTS (
+        SELECT 1 FROM proyecto_usuarios pu
+        WHERE pu.id_proyecto = p.id AND pu.id_usuario = $1
+          AND pu.rol IN ('responsable', 'administracion_proyecto') AND pu.estado = 'aceptada'
+      )
+      OR EXISTS (
+        SELECT 1 FROM etapas e
+        WHERE e.id_proyecto = p.id AND (
+          e.id_responsable = $1
+          OR EXISTS (SELECT 1 FROM nodo_miembros nm WHERE nm.tipo_nodo = 'etapa' AND nm.id_nodo = e.id AND nm.id_usuario = $1 AND nm.estado = 'aceptada')
         )
-
-      UNION ALL
-
-      -- 7. ACCIONES de proyectos donde el usuario es responsable del proyecto o su creador
-      SELECT 'accion', a.id::text, a.nombre, a.estado, a.semaforo, a.semaforo_override,
-        COALESCE(a.avance_actual, 0),
-        COALESCE(a.fecha_limite, a.fecha_fin),
-        a.fecha_inicio,
-        a.id_responsable::text, u.nombre_completo,
-        p.id::text, p.nombre, e.id::text, e.nombre, NULL, NULL, 'coordinador', a.prioridad, a.estatus_cualitativo,
-        NOT EXISTS (SELECT 1 FROM acciones sub WHERE sub.id_accion_padre = a.id)
-          AND NOT EXISTS (SELECT 1 FROM tareas tt WHERE tt.id_accion = a.id)
-      FROM acciones a
-      JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
-      LEFT JOIN etapas e ON e.id = a.id_etapa
-      LEFT JOIN usuarios u ON u.id = a.id_responsable
-      WHERE COALESCE(a.fecha_limite, a.fecha_fin) IS NOT NULL
-        AND (p.id_creador = $1 OR EXISTS (
-          SELECT 1 FROM proyecto_usuarios pu
-          WHERE pu.id_proyecto = p.id AND pu.id_usuario = $1 AND pu.rol IN ('responsable', 'administracion_proyecto')
-        ))
-        AND (a.id_responsable IS NULL OR a.id_responsable != $1)
-        AND NOT EXISTS (
-          SELECT 1 FROM nodo_miembros nm
-          WHERE nm.tipo_nodo = 'accion' AND nm.id_nodo = a.id AND nm.id_usuario = $1
+      )
+      OR EXISTS (
+        SELECT 1 FROM acciones a
+        WHERE a.id_proyecto = p.id AND (
+          a.id_responsable = $1
+          OR EXISTS (SELECT 1 FROM nodo_miembros nm WHERE nm.tipo_nodo = 'accion' AND nm.id_nodo = a.id AND nm.id_usuario = $1 AND nm.estado = 'aceptada')
         )
-
-      UNION ALL
-
-      -- 8. TAREAS de proyectos donde el usuario es responsable del proyecto o su creador
-      SELECT 'tarea', t.id::text, t.nombre, t.estado, t.semaforo, t.semaforo_override,
-        COALESCE(t.avance_actual, 0),
-        t.fecha_limite,
-        t.fecha_inicio,
-        t.id_responsable::text, u.nombre_completo,
-        p.id::text, p.nombre, e.id::text, e.nombre, a.id::text, a.nombre, 'coordinador', t.prioridad, t.estatus_cualitativo,
-        true
-      FROM tareas t
-      JOIN acciones a ON a.id = t.id_accion
-      JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL
-      LEFT JOIN etapas e ON e.id = a.id_etapa
-      LEFT JOIN usuarios u ON u.id = t.id_responsable
-      WHERE t.fecha_limite IS NOT NULL
-        AND (p.id_creador = $1 OR EXISTS (
-          SELECT 1 FROM proyecto_usuarios pu
-          WHERE pu.id_proyecto = p.id AND pu.id_usuario = $1 AND pu.rol IN ('responsable', 'administracion_proyecto')
-        ))
-        AND (t.id_responsable IS NULL OR t.id_responsable != $1)
-
-    ),
-    deduplicadas AS (
-      SELECT DISTINCT ON (tipo, id) *
-      FROM todas
-      ORDER BY tipo, id,
-        -- mi_rol sale de nm.rol en las ramas "miembro de nodo" (ya
-        -- 'captura'/'lectura' desde la migración 079) o de los literales
-        -- 'responsable'/'coordinador' de las demás ramas de este UNION.
-        CASE mi_rol
-          WHEN 'responsable' THEN 1
-          WHEN 'captura'     THEN 2
-          WHEN 'lectura'     THEN 3
-          WHEN 'coordinador' THEN 4
-          ELSE 5
-        END
+      )
+      OR EXISTS (
+        SELECT 1 FROM tareas t
+        JOIN acciones a2 ON a2.id = t.id_accion
+        WHERE a2.id_proyecto = p.id AND (
+          t.id_responsable = $1
+          OR EXISTS (SELECT 1 FROM nodo_miembros nm WHERE nm.tipo_nodo = 'tarea' AND nm.id_nodo = t.id AND nm.id_usuario = $1 AND nm.estado = 'aceptada')
+        )
+      )
     )
-    SELECT * FROM deduplicadas
-    ORDER BY fecha_fin ASC NULLS LAST
   `, [usuarioId]);
+  const proyectoIds = proyectosRows.map(r => r.id);
+  if (proyectoIds.length === 0) return { items: [], hayPartesDelegadas: false };
 
-  return resultado.rows;
+  // 2) El árbol completo (etapas/acciones/tareas) de esos proyectos, en
+  //    un puñado de consultas — nunca una por nodo (mismo criterio que
+  //    funcionEfectivaPorLotes). Se carga TODO el árbol, con o sin
+  //    fecha, porque hace falta para resolver correctamente a quién le
+  //    toca cada nodo sin fecha propia (sus hijos sí pueden tenerla).
+  const [{ rows: proyectos }, { rows: adminsFilas }, { rows: etapas }, { rows: acciones }, { rows: tareas }] = await Promise.all([
+    pool.query('SELECT id, nombre, id_creador FROM proyectos WHERE id = ANY($1)', [proyectoIds]),
+    pool.query(
+      `SELECT id_proyecto, id_usuario FROM proyecto_usuarios
+       WHERE id_proyecto = ANY($1) AND rol IN ('responsable', 'administracion_proyecto') AND estado = 'aceptada'`,
+      [proyectoIds]
+    ),
+    pool.query(
+      `SELECT id, nombre, estado, semaforo, semaforo_override, COALESCE(avance_actual, 0) AS avance_actual,
+              fecha_inicio, COALESCE(fecha_limite, fecha_fin) AS fecha_fin,
+              id_responsable, id_proyecto, prioridad, estatus_cualitativo
+       FROM etapas WHERE id_proyecto = ANY($1)`,
+      [proyectoIds]
+    ),
+    pool.query(
+      `SELECT id, nombre, estado, semaforo, semaforo_override, COALESCE(avance_actual, 0) AS avance_actual,
+              fecha_inicio, COALESCE(fecha_limite, fecha_fin) AS fecha_fin,
+              id_responsable, id_accion_padre, id_etapa, id_proyecto, prioridad, estatus_cualitativo
+       FROM acciones WHERE id_proyecto = ANY($1)`,
+      [proyectoIds]
+    ),
+    pool.query(
+      `SELECT t.id, t.nombre, t.estado, t.semaforo, t.semaforo_override, COALESCE(t.avance_actual, 0) AS avance_actual,
+              t.fecha_inicio, t.fecha_limite AS fecha_fin,
+              t.id_responsable, t.id_accion, a.id_proyecto
+       FROM tareas t JOIN acciones a ON a.id = t.id_accion WHERE a.id_proyecto = ANY($1)`,
+      [proyectoIds]
+    ),
+  ]);
+
+  const idsEtapa = etapas.map(e => e.id);
+  const idsAccion = acciones.map(a => a.id);
+  const idsTarea = tareas.map(t => t.id);
+  const { rows: miembros } = (idsEtapa.length || idsAccion.length || idsTarea.length)
+    ? await pool.query(
+        `SELECT tipo_nodo, id_nodo, id_usuario, rol FROM nodo_miembros
+         WHERE estado = 'aceptada' AND (
+           (tipo_nodo = 'etapa'  AND id_nodo = ANY($1::uuid[])) OR
+           (tipo_nodo = 'accion' AND id_nodo = ANY($2::uuid[])) OR
+           (tipo_nodo = 'tarea'  AND id_nodo = ANY($3::uuid[]))
+         )`,
+        [idsEtapa, idsAccion, idsTarea]
+      )
+    : { rows: [] };
+
+  // Nombres de responsables directos, para responsable_nombre — el
+  // nombre de quien está escrito en la columna id_responsable de ESE
+  // nodo, sin importar quién resuelve verlo (mismo criterio que antes).
+  const idsResponsables = [...new Set([
+    ...etapas.map(e => e.id_responsable), ...acciones.map(a => a.id_responsable), ...tareas.map(t => t.id_responsable),
+  ].filter(Boolean))];
+  const { rows: usuariosResp } = idsResponsables.length
+    ? await pool.query('SELECT id, nombre_completo FROM usuarios WHERE id = ANY($1)', [idsResponsables])
+    : { rows: [] };
+  const nombrePorId = new Map(usuariosResp.map(u => [u.id, u.nombre_completo]));
+
+  // Quién administra cada proyecto (creador + proyecto_usuarios
+  // responsable/administracion_proyecto aceptada) — el dueño de
+  // respaldo de cualquier nodo sin asignación directa en TODO su árbol
+  // de ascendientes.
+  const adminsPorProyecto = new Map(proyectos.map(p => [p.id, new Set(p.id_creador ? [p.id_creador] : [])]));
+  for (const a of adminsFilas) adminsPorProyecto.get(a.id_proyecto)?.add(a.id_usuario);
+
+  const miembroPorNodo = new Map();
+  for (const m of miembros) {
+    const key = `${m.tipo_nodo}:${m.id_nodo}`;
+    if (!miembroPorNodo.has(key)) miembroPorNodo.set(key, new Map());
+    miembroPorNodo.get(key).set(m.id_usuario, m.rol);
+  }
+
+  // Asignados DIRECTOS de un nodo — a cualquier persona, no solo a
+  // quien pregunta: id_responsable de ese nodo (rol 'responsable') más
+  // cada fila aceptada de nodo_miembros de ese nodo. Dos personas
+  // asignadas al mismo nodo quedan ambas en este mapa, y por lo tanto
+  // en las listas de ambas.
+  function asignadosPropios(tipo, nodo) {
+    const asignados = new Map(miembroPorNodo.get(`${tipo}:${nodo.id}`) || []);
+    if (nodo.id_responsable) asignados.set(nodo.id_responsable, 'responsable');
+    return asignados;
+  }
+
+  function decisionProyecto(idProyecto) {
+    const asignados = new Map();
+    for (const id of (adminsPorProyecto.get(idProyecto) || [])) asignados.set(id, 'coordinador');
+    return { nivel: 'proyecto', asignados };
+  }
+
+  const porId = {
+    etapa: new Map(etapas.map(e => [e.id, e])),
+    accion: new Map(acciones.map(a => [a.id, a])),
+    tarea: new Map(tareas.map(t => [t.id, t])),
+  };
+  const memo = { etapa: new Map(), accion: new Map(), tarea: new Map() };
+
+  function resolverEtapa(id) {
+    if (memo.etapa.has(id)) return memo.etapa.get(id);
+    const nodo = porId.etapa.get(id);
+    const propios = asignadosPropios('etapa', nodo);
+    const resultado = propios.size > 0 ? { nivel: 'nodo', asignados: propios } : decisionProyecto(nodo.id_proyecto);
+    memo.etapa.set(id, resultado);
+    return resultado;
+  }
+
+  function resolverAccion(id) {
+    if (memo.accion.has(id)) return memo.accion.get(id);
+    const nodo = porId.accion.get(id);
+    const propios = asignadosPropios('accion', nodo);
+    let resultado;
+    if (propios.size > 0) resultado = { nivel: 'nodo', asignados: propios };
+    else if (nodo.id_accion_padre) resultado = resolverAccion(nodo.id_accion_padre);
+    else if (nodo.id_etapa) resultado = resolverEtapa(nodo.id_etapa);
+    else resultado = decisionProyecto(nodo.id_proyecto);
+    memo.accion.set(id, resultado);
+    return resultado;
+  }
+
+  function resolverTarea(id) {
+    if (memo.tarea.has(id)) return memo.tarea.get(id);
+    const nodo = porId.tarea.get(id);
+    const propios = asignadosPropios('tarea', nodo);
+    const resultado = propios.size > 0 ? { nivel: 'nodo', asignados: propios } : resolverAccion(nodo.id_accion);
+    memo.tarea.set(id, resultado);
+    return resultado;
+  }
+
+  // es_hoja de una acción: sin subacciones propias y sin tareas propias
+  // — calculado sobre el árbol COMPLETO ya cargado, no solo sobre lo
+  // que le toca a usuarioId (mismo criterio que antes).
+  const accionesConHija = new Set(acciones.filter(a => a.id_accion_padre).map(a => a.id_accion_padre));
+  const accionesConTarea = new Set(tareas.map(t => t.id_accion));
+
+  const proyectoPorId = new Map(proyectos.map(p => [p.id, p]));
+
+  // Si usuarioId administra el proyecto de este nodo, y el nodo resolvió
+  // su decisión en un nivel puntual (no el respaldo del proyecto) del
+  // que usuarioId no forma parte, es justo lo que ese administrador
+  // delegó — solo importa para nodos que SÍ tienen fecha (los únicos
+  // que podrían haber aparecido en la lista).
+  let hayPartesDelegadas = false;
+  function marcarSiDelegado(idProyecto, decision) {
+    if (decision.nivel !== 'nodo' || decision.asignados.has(usuarioId)) return;
+    if (adminsPorProyecto.get(idProyecto)?.has(usuarioId)) hayPartesDelegadas = true;
+  }
+
+  const items = [];
+
+  for (const e of etapas) {
+    if (!e.fecha_fin) continue;
+    const decision = resolverEtapa(e.id);
+    const rol = decision.asignados.get(usuarioId);
+    if (!rol) { marcarSiDelegado(e.id_proyecto, decision); continue; }
+    const proyecto = proyectoPorId.get(e.id_proyecto);
+    items.push({
+      tipo: 'etapa', id: e.id, nombre: e.nombre, estado: e.estado, semaforo: e.semaforo, semaforo_override: e.semaforo_override,
+      avance_actual: e.avance_actual, fecha_fin: e.fecha_fin, fecha_inicio: e.fecha_inicio,
+      responsable_id: e.id_responsable, responsable_nombre: e.id_responsable ? (nombrePorId.get(e.id_responsable) || null) : null,
+      proyecto_id: e.id_proyecto, proyecto_nombre: proyecto?.nombre || null,
+      etapa_id: null, etapa_nombre: null, accion_id: null, accion_nombre: null,
+      mi_rol: rol, prioridad: e.prioridad, estatus_cualitativo: e.estatus_cualitativo, es_hoja: null,
+    });
+  }
+
+  for (const a of acciones) {
+    if (!a.fecha_fin) continue;
+    const decision = resolverAccion(a.id);
+    const rol = decision.asignados.get(usuarioId);
+    if (!rol) { marcarSiDelegado(a.id_proyecto, decision); continue; }
+    const proyecto = proyectoPorId.get(a.id_proyecto);
+    // Mismo criterio que antes: la etapa dueña sale de a.id_etapa
+    // directamente — NULL para una subacción (solo tiene
+    // id_accion_padre), que es como ya se comportaba esta columna.
+    const etapaDueña = a.id_etapa ? porId.etapa.get(a.id_etapa) : null;
+    items.push({
+      tipo: 'accion', id: a.id, nombre: a.nombre, estado: a.estado, semaforo: a.semaforo, semaforo_override: a.semaforo_override,
+      avance_actual: a.avance_actual, fecha_fin: a.fecha_fin, fecha_inicio: a.fecha_inicio,
+      responsable_id: a.id_responsable, responsable_nombre: a.id_responsable ? (nombrePorId.get(a.id_responsable) || null) : null,
+      proyecto_id: a.id_proyecto, proyecto_nombre: proyecto?.nombre || null,
+      etapa_id: a.id_etapa || null, etapa_nombre: etapaDueña?.nombre || null,
+      accion_id: null, accion_nombre: null,
+      mi_rol: rol, prioridad: a.prioridad, estatus_cualitativo: a.estatus_cualitativo,
+      es_hoja: !accionesConHija.has(a.id) && !accionesConTarea.has(a.id),
+    });
+  }
+
+  for (const t of tareas) {
+    if (!t.fecha_fin) continue;
+    const decision = resolverTarea(t.id);
+    const rol = decision.asignados.get(usuarioId);
+    if (!rol) { marcarSiDelegado(t.id_proyecto, decision); continue; }
+    const accionPadre = porId.accion.get(t.id_accion);
+    const etapaDueña = accionPadre?.id_etapa ? porId.etapa.get(accionPadre.id_etapa) : null;
+    const proyecto = proyectoPorId.get(t.id_proyecto);
+    items.push({
+      tipo: 'tarea', id: t.id, nombre: t.nombre, estado: t.estado, semaforo: t.semaforo, semaforo_override: t.semaforo_override,
+      avance_actual: t.avance_actual, fecha_fin: t.fecha_fin, fecha_inicio: t.fecha_inicio,
+      responsable_id: t.id_responsable, responsable_nombre: t.id_responsable ? (nombrePorId.get(t.id_responsable) || null) : null,
+      proyecto_id: t.id_proyecto, proyecto_nombre: proyecto?.nombre || null,
+      etapa_id: etapaDueña?.id || null, etapa_nombre: etapaDueña?.nombre || null,
+      accion_id: accionPadre?.id || null, accion_nombre: accionPadre?.nombre || null,
+      mi_rol: rol, prioridad: t.prioridad, estatus_cualitativo: t.estatus_cualitativo, es_hoja: true,
+    });
+  }
+
+  items.sort((x, y) => (x.fecha_fin || '9999-99-99').localeCompare(y.fecha_fin || '9999-99-99'));
+
+  return { items, hayPartesDelegadas };
 }
 
 // Crea una subacción dentro de una acción padre

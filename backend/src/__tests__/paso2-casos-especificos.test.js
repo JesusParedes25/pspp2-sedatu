@@ -84,7 +84,7 @@ describe('GET /agenda — NO hereda el bono de DG ni en Agenda ni en "Mis activi
 
   test('la agenda se resuelve llamando solo con el id del usuario, nunca con su id_dg, sin importar el rol', async () => {
     jest.resetModules();
-    jest.doMock('../db/queries/acciones.queries', () => ({ obtenerAccionesAgenda: jest.fn().mockResolvedValue([]) }));
+    jest.doMock('../db/queries/acciones.queries', () => ({ obtenerAccionesAgenda: jest.fn().mockResolvedValue({ items: [], hayPartesDelegadas: false }) }));
     const accionesQueries = require('../db/queries/acciones.queries');
     const accionesController = require('../controllers/acciones.controller');
     const res = { json: jest.fn().mockReturnThis() };

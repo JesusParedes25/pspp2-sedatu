@@ -250,12 +250,17 @@ async function importarCSV(req, res, next) {
 // GET /agenda — Obtener todas las actividades con fecha del usuario para la agenda
 async function agenda(req, res, next) {
   try {
-    const items = await accionesQueries.obtenerAccionesAgenda(req.usuario.id);
+    const { items, hayPartesDelegadas } = await accionesQueries.obtenerAccionesAgenda(req.usuario.id);
     // Mismo cálculo que ya usa el árbol de Seguimiento — antes la Agenda
     // decidía el color de cada punto solo por días-hasta-vencer, sin mirar
     // prioridad ni respetar un semáforo fijado a mano (semaforo_override).
     const datos = items.map(i => ({ ...i, semaforo_efectivo: avanceSemaforo.semaforoEfectivo(i) }));
-    res.json({ datos, mensaje: 'Agenda obtenida' });
+    // hayPartesDelegadas: true si esta persona administra algún proyecto
+    // del que delegó al menos una etapa/acción/tarea a otra persona — el
+    // frontend lo usa para avisar que la lista no incluye lo delegado
+    // (docs/modelo-permisos.md, sección 16), en vez de dejar que parezca
+    // que esas actividades se perdieron.
+    res.json({ datos, hayPartesDelegadas, mensaje: 'Agenda obtenida' });
   } catch (err) {
     next(err);
   }
