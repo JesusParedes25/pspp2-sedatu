@@ -113,6 +113,14 @@ export default function FilaAcciones({
 
   const numHijosAEliminar = contarHijos(tipo, nodo);
 
+  // Decisión 6: un nodo Completada no recibe actividades nuevas en
+  // silencio — la garantía real vive en el servidor (ver
+  // acciones.queries.js/tareas.queries.js), esto es solo para no dejar
+  // que el usuario abra el modal y se entere del rechazo hasta el final.
+  const estaCompletada = nodo.estado === 'Completada';
+  const sustantivoNodo = tipo === 'etapa' ? 'etapa' : (nodo.id_accion_padre ? 'subacción' : 'acción');
+  const mensajeCompletada = `Esta ${sustantivoNodo} está marcada como Completada. Para agregar actividades, primero cámbiala a En proceso.`;
+
   return (
     <div className="flex items-center gap-2 mb-4">
       <button
@@ -125,8 +133,10 @@ export default function FilaAcciones({
 
       {!soloLectura && NIVELES[tipo]?.hijoTipo && (
         <button
+          disabled={estaCompletada}
+          title={estaCompletada ? mensajeCompletada : undefined}
           onClick={() => setMostrarModalNuevoHijo(true)}
-          className="flex items-center justify-center gap-1.5 text-[12px] font-medium px-3.5 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+          className="flex items-center justify-center gap-1.5 text-[12px] font-medium px-3.5 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
         >
           <Plus size={14} /> Agregar {NIVELES[tipo].hijoLabel.toLowerCase()}
         </button>

@@ -48,7 +48,18 @@ const MAPA_ENTIDAD = {
   },
   Subaccion: {
     tabla: 'acciones',
-    hijos: []
+    // Antes vacío: una subacción (acciones.id_accion_padre IS NOT NULL)
+    // SÍ puede tener sus propias tareas (tareas.id_accion apunta a
+    // cualquier fila de `acciones`, raíz o subacción — mismo esquema,
+    // confirmado en 025_tareas_campos_extra_seeds.sql:48). Con hijos=[]
+    // validarCompletitud()/cascadaCancelacion() se saltaban por completo
+    // esas tareas: se podía marcar Completada una subacción con tareas
+    // propias sin terminar, y cancelarla no las cancelaba en cascada. No
+    // se agrega un hijo de tipo Subaccion aquí — el modelo no soporta
+    // subacciones anidadas más de un nivel (ver utils.js del frontend).
+    hijos: [
+      { tabla: 'tareas', fk: 'id_accion', tipo: 'Tarea', filtro: '' }
+    ]
   },
   Tarea: {
     tabla: 'tareas',
@@ -461,6 +472,22 @@ async function verificarAutoCompletarPadre(entidadTipo, entidadId, idUsuario, cl
   if (!padreInfo) return; // Es raíz (Proyecto), no hay padre
 
   const padre = await obtenerEntidad(padreInfo.padreTipo, padreInfo.padreId, db);
+
+  // obtenerPadreInfo('Tarea', ...) siempre devuelve padreTipo='Accion' sin
+  // mirar si esa acción es en realidad una subacción (tareas.id_accion
+  // apunta a cualquier fila de `acciones`, raíz o subacción — mismo
+  // esquema, ver 025_tareas_campos_extra_seeds.sql:48). Sin esta
+  // corrección, la recursión de más abajo volvía a entrar con el tipo
+  // equivocado: obtenerPadreInfo('Accion', filaDeSubaccion) usa el
+  // id_etapa/id_proyecto que la subacción ya trae por columna propia
+  // (crearSubaccion en acciones.queries.js hereda esos campos del padre
+  // al crearla) para saltar derecho a la Etapa, sin pasar nunca por el
+  // padre real — la Acción contenedora de la subacción nunca se
+  // autocompletaba, y la Etapa se evaluaba con esa acción como si no
+  // existiera.
+  if (padreInfo.padreTipo === 'Accion') {
+    padreInfo.padreTipo = tipoRealAccion(padre);
+  }
 
   // No auto-completar si el padre ya está Completada, Cancelada o Bloqueada,
   // ni si su estatus lo fijó el usuario a mano (estado_override) — el

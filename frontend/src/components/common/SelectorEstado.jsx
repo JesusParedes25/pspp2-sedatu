@@ -18,6 +18,7 @@ import EstadoChip from './EstadoChip';
 import ModalBloqueo from './ModalBloqueo';
 import * as estadoApi from '../../api/estado';
 import { useUI } from '../../context/UIContext';
+import { formatearEstado } from '../../utils/estados';
 
 const ESTADOS = ['Pendiente', 'En_proceso', 'Bloqueada', 'Completada', 'Cancelada'];
 
@@ -215,7 +216,7 @@ export default function SelectorEstado({
                   : 'hover:bg-gray-50 text-gray-700'}`}
             >
               <span className="text-base">{ICONOS_ESTADO[est]}</span>
-              {est.replace(/_/g, ' ')}
+              {formatearEstado(est)}
             </button>
           ))}
           {estadoOverride && esContenedor && (

@@ -28,6 +28,7 @@ import ActividadCartera from '../../components/carteras/ActividadCartera';
 import { ETIQUETA_TIPO_INDICADOR, agruparPorCatalogo, TarjetaIndicadorOAgrupada } from '../../components/indicadores/TarjetaIndicador';
 import ListaEstatusCualitativo, { TituloEstatusCualitativo } from '../../components/indicadores/ListaEstatusCualitativo';
 import { calcularColorSemaforo } from '../../utils/semaforoColor';
+import { formatearEstado } from '../../utils/estados';
 import { COLORES_SEMAFORO } from '../../components/common/SemaforoDot';
 
 const PESTANAS = [
@@ -647,14 +648,14 @@ function FilaEtapaCartera({ etapa }) {
   );
 }
 
-// Punto de color + etiqueta de estatus — sirve tanto para filas de
-// Proyecto (estado: Programado/En_proceso/Pausado/Concluido/Cancelado)
-// como de Etapa (Pendiente/En_proceso/Bloqueada/Completada/Cancelada):
-// dos vocabularios de estado distintos, por eso recibe banderas ya
-// normalizadas (completo/cancelado/bloqueada) en vez de comparar el
-// string crudo contra un solo valor fijo — antes comparaba siempre
-// contra 'Completada', así que una fila de Proyecto Concluido nunca
-// hacía match y cine caía en "Pendiente" gris.
+// Punto de color + etiqueta de estatus, para filas de Proyecto o de Etapa
+// — recibe banderas ya normalizadas (completo/cancelado/bloqueada) en vez
+// de comparar el string crudo contra un solo valor fijo, porque "vencido"
+// y "tieneAccionVencida" son indicadores propios de Carteras (no viven en
+// la columna `estado`) que deben poder ganarle a cualquier estado real.
+// El texto de cada estado real sale de formatearEstado() (utils/estados.js
+// — el mismo glosario que usa el resto de la plataforma), no de una
+// palabra propia de esta pantalla.
 //
 // "vencido" y "tieneAccionVencida" son señales distintas a propósito:
 // antes una sola bandera "vencido" mezclaba "la fecha límite general ya
@@ -665,11 +666,11 @@ function FilaEtapaCartera({ etapa }) {
 function puntoEstado({ estado, vencido, tieneAccionVencida, completo, cancelado, bloqueada }) {
   if (vencido) return { color: 'bg-red-500', texto: 'Vencido' };
   if (tieneAccionVencida) return { color: 'bg-red-500', texto: 'Con acciones vencidas' };
-  if (completo) return { color: 'bg-green-500', texto: 'Concluido' };
-  if (bloqueada) return { color: 'bg-red-500', texto: 'Bloqueada' };
-  if (cancelado) return { color: 'bg-gray-400', texto: 'Cancelada' };
-  if (estado === 'En_proceso') return { color: 'bg-blue-500', texto: 'En proceso' };
-  return { color: 'bg-gray-300', texto: 'Pendiente' };
+  if (completo) return { color: 'bg-green-500', texto: formatearEstado('Completada') };
+  if (bloqueada) return { color: 'bg-red-500', texto: formatearEstado('Bloqueada') };
+  if (cancelado) return { color: 'bg-gray-400', texto: formatearEstado('Cancelada') };
+  if (estado === 'En_proceso') return { color: 'bg-blue-500', texto: formatearEstado('En_proceso') };
+  return { color: 'bg-gray-300', texto: formatearEstado('Pendiente') };
 }
 
 function ModalEliminarCartera({ cartera, onCerrar, onEliminada }) {

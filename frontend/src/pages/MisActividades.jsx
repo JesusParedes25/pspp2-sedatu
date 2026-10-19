@@ -4,31 +4,39 @@
  *            usuario es responsable/asignado) y Agenda (el módulo de Agenda
  *            existente, embebido tal cual).
  *
- * MINI-CLASE: filtro de rango vs. filtro de estado
+ * MINI-CLASE: dos ejes distintos, dos grupos distintos
  * ─────────────────────────────────────────────────────────────────
+ * "Por estado" y "Alertas" miden cosas diferentes y no son comparables
+ * entre sí — por eso van en grupos separados, con encabezado, en vez de
+ * una sola fila de cinco números. "Por estado" es una partición real de
+ * `estado` (cada actividad cae en exactamente una categoría, por eso
+ * suman el total exacto — ver agruparPorEstado). "Alertas" son
+ * subconjuntos de lo no completado/cancelado por fecha límite: Vencidas
+ * y Próximas pueden traslaparse con cualquier categoría de "Por estado"
+ * (una "En proceso" puede estar vencida) pero nunca entre sí, y no
+ * forman parte de la suma del total — mezclar los dos ejes en una sola
+ * fila de tarjetas es lo que hacía que 55+45+32 no sumara 180 y el
+ * usuario leyera eso como un error de conteo.
+ *
  * Los botones Semana/Mes/Trimestre/Año filtran por CUÁNDO vence algo,
  * pero solo hacia el FUTURO — qué tan lejos quiero ver lo que todavía no
  * pasa. Lo ya vencido nunca se recorta por periodo, sin importar hace
  * cuánto: un periodo corto no es "ignora lo viejo", es "no me
- * adelantes tanto lo que aún no llega". Las tarjetas Vencidas/
- * Próximas/En proceso/Completadas filtran por QUÉ ESTADO tiene. Ambos
- * filtros se combinan con AND, y los dos parten de la MISMA base ya
- * recortada por periodo (disponiblesPeriodo): primero se recorta al
- * rango de fechas elegido, y de ahí se separa por estado. Los conteos
- * de las tarjetas también salen de esa misma base — así son siempre
- * el número exacto de resultados que aparecen al hacer clic en una,
- * sin importar el periodo activo (antes los conteos ignoraban el
- * periodo, así que una tarjeta podía marcar "30" con la lista
- * mostrando solo 3, o vacía, según el periodo elegido).
+ * adelantes tanto lo que aún no llega". Ambos filtros (estado/alerta y
+ * periodo) se combinan con AND, y los dos parten de la MISMA base ya
+ * recortada por periodo (disponiblesPeriodo) — así los conteos de las
+ * tarjetas son siempre el número exacto de resultados que aparecen al
+ * hacer clic en una, sin importar el periodo activo.
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ListChecks, CalendarDays, AlertTriangle, Clock, TrendingUp, CheckCircle2, X } from 'lucide-react';
+import { ListChecks, CalendarDays, AlertTriangle, Clock, TrendingUp, CheckCircle2, Ban, ShieldAlert, X } from 'lucide-react';
 import * as accionesApi from '../api/acciones';
 import ArbolActividadesProyecto from '../components/nodos/ArbolActividadesProyecto';
 import AvisoPartesDelegadas from '../components/common/AvisoPartesDelegadas';
 import EmptyState from '../components/common/EmptyState';
+import { formatearEstado } from '../utils/estados';
 import Agenda from './Agenda';
 
 const PERIODOS = [
@@ -38,13 +46,27 @@ const PERIODOS = [
   { id: 'anio', label: 'Año', dias: 365 },
 ];
 
-// Tarjetas de estado convertidas en filtros — 'total' (Actualizado) no es
-// filtrable, es solo informativa, según lo pedido explícitamente.
-const FILTROS_ESTADO = [
+// Grupo "Por estado": partición exacta de `estado` — cada actividad cae
+// en EXACTAMENTE una de estas 5 categorías (igualdad directa, nunca un
+// criterio derivado), así que sus conteos suman el total sin excepción.
+// Bloqueadas y Canceladas solo se muestran como tarjeta si su conteo es
+// > 0 (ver render), pero siempre participan en la suma.
+const CATEGORIAS_ESTADO = [
+  { id: 'sinIniciar', estado: 'Pendiente', I: ListChecks, iconCls: 'text-gray-400', activoCls: 'bg-gray-600 text-white', siempreVisible: true },
+  { id: 'enProceso', estado: 'En_proceso', I: TrendingUp, iconCls: 'text-blue-400', activoCls: 'bg-blue-600 text-white', siempreVisible: true },
+  { id: 'completadas', estado: 'Completada', I: CheckCircle2, iconCls: 'text-emerald-400', activoCls: 'bg-emerald-600 text-white', siempreVisible: true },
+  { id: 'bloqueadas', estado: 'Bloqueada', I: ShieldAlert, iconCls: 'text-red-400', activoCls: 'bg-red-600 text-white', siempreVisible: false },
+  { id: 'canceladas', estado: 'Cancelada', I: Ban, iconCls: 'text-gray-400', activoCls: 'bg-gray-500 text-white', siempreVisible: false },
+];
+const ESTADO_A_CATEGORIA = Object.fromEntries(CATEGORIAS_ESTADO.map(c => [c.estado, c.id]));
+
+// Grupo "Alertas": subconjuntos de lo no completado/cancelado por fecha
+// límite — pueden traslaparse con cualquier categoría de "Por estado"
+// (una tarea "En proceso" puede estar vencida a la vez), nunca forman
+// parte de la suma del total.
+const CATEGORIAS_ALERTA = [
   { id: 'vencidas', lbl: 'Vencidas', I: AlertTriangle, iconCls: 'text-red-400', activoCls: 'bg-red-600 text-white' },
   { id: 'proximas', lbl: 'Próximas (≤7d)', I: Clock, iconCls: 'text-amber-400', activoCls: 'bg-amber-500 text-white' },
-  { id: 'enProceso', lbl: 'En proceso', I: TrendingUp, iconCls: 'text-blue-400', activoCls: 'bg-blue-600 text-white' },
-  { id: 'completadas', lbl: 'Completadas', I: CheckCircle2, iconCls: 'text-emerald-400', activoCls: 'bg-emerald-600 text-white' },
 ];
 
 function diasRestantes(fecha) {
@@ -55,17 +77,28 @@ function diasRestantes(fecha) {
   return Math.ceil((new Date(y, m - 1, d) - hoy) / 86400000);
 }
 
-// A qué categorías de estado pertenece un ítem (puede ser varias a la vez,
-// ej. "vencida" y nada más, o ninguna si está Pendiente sin vencer).
-function categoriasDe(it) {
+// A qué categorías de ALERTA pertenece un ítem (puede ser varias a la
+// vez, o ninguna) — eje de urgencia por fecha, nunca de estado.
+function categoriasAlerta(it) {
   const cats = new Set();
   const activo = it.estado !== 'Completada' && it.estado !== 'Cancelada';
   const d = diasRestantes(it.fecha_fin);
   if (activo && d !== null && d < 0) cats.add('vencidas');
   if (activo && d !== null && d >= 0 && d <= 7) cats.add('proximas');
-  if (it.estado === 'En_proceso') cats.add('enProceso');
-  if (it.estado === 'Completada') cats.add('completadas');
   return cats;
+}
+
+// Grupo "Por estado": partición exacta — recorre la lista una vez y cada
+// ítem incrementa EXACTAMENTE un contador (ESTADO_A_CATEGORIA cubre los
+// 5 valores del catálogo), así que la suma de los 5 siempre es
+// items.length. Exportada para poder probarlo sin montar el componente.
+export function agruparPorEstado(items) {
+  const conteo = { sinIniciar: 0, enProceso: 0, completadas: 0, bloqueadas: 0, canceladas: 0 };
+  for (const it of items) {
+    const cat = ESTADO_A_CATEGORIA[it.estado];
+    if (cat) conteo[cat]++;
+  }
+  return conteo;
 }
 
 export default function MisActividades() {
@@ -111,9 +144,6 @@ export default function MisActividades() {
     });
   }
 
-  // Base: nunca se muestran Canceladas (no hay tarjeta/filtro para eso).
-  const disponibles = useMemo(() => items.filter(it => it.estado !== 'Cancelada'), [items]);
-
   // Base recortada por periodo — "qué tan lejos en el FUTURO quiero ver"
   // (Semana ⊆ Mes ⊆ Trimestre ⊆ Año), nunca "qué tan viejo puede ser lo
   // que ya venció": un item ya vencido (d < 0) siempre se incluye, sin
@@ -130,21 +160,26 @@ export default function MisActividades() {
   // mostrando 3, o vacía).
   const disponiblesPeriodo = useMemo(() => {
     const dias = PERIODOS.find(p => p.id === periodo)?.dias ?? 30;
-    return disponibles.filter(it => {
+    return items.filter(it => {
       const d = diasRestantes(it.fecha_fin);
       return d === null || d < 0 || d <= dias;
     });
-  }, [disponibles, periodo]);
+  }, [items, periodo]);
 
-  // Filtro de estado. Sin selección ("Todas") = comportamiento actual:
-  // excluye Completadas. Con selección, un ítem entra si coincide con
-  // CUALQUIERA de los filtros activos (OR entre chips, AND con el rango,
-  // ya aplicado en disponiblesPeriodo).
+  // Filtro de estado/alerta. Sin selección ("Todas") = comportamiento de
+  // siempre: oculta Completadas y Canceladas (ninguna de las dos necesita
+  // acción). Con selección, un ítem entra si coincide con CUALQUIERA de
+  // los filtros activos (OR entre chips de los dos grupos, AND con el
+  // rango, ya aplicado en disponiblesPeriodo).
   const porEstado = useMemo(() => {
-    if (filtrosEstado.size === 0) return disponiblesPeriodo.filter(it => it.estado !== 'Completada');
+    if (filtrosEstado.size === 0) {
+      return disponiblesPeriodo.filter(it => it.estado !== 'Completada' && it.estado !== 'Cancelada');
+    }
     return disponiblesPeriodo.filter(it => {
-      const cats = categoriasDe(it);
-      for (const f of filtrosEstado) if (cats.has(f)) return true;
+      const catEstado = ESTADO_A_CATEGORIA[it.estado];
+      if (catEstado && filtrosEstado.has(catEstado)) return true;
+      const catsAlerta = categoriasAlerta(it);
+      for (const f of filtrosEstado) if (catsAlerta.has(f)) return true;
       return false;
     });
   }, [disponiblesPeriodo, filtrosEstado]);
@@ -157,17 +192,19 @@ export default function MisActividades() {
 
   // Conteos de las tarjetas: salen de disponiblesPeriodo, así que
   // siempre coinciden con lo que se ve al hacer clic en una tarjeta con
-  // el periodo activo.
+  // el periodo activo. "Por estado" es una partición exacta (suma el
+  // total); "Alertas" son subconjuntos independientes, nunca se suman
+  // al total ni entre sí con los de "Por estado".
   const resumen = useMemo(() => {
-    const activos = disponiblesPeriodo.filter(it => it.estado !== 'Completada');
-    const vencidas = activos.filter(it => categoriasDe(it).has('vencidas')).length;
-    const proximas = activos.filter(it => categoriasDe(it).has('proximas')).length;
-    const enProceso = activos.filter(it => it.estado === 'En_proceso').length;
-    const completadas = disponiblesPeriodo.filter(it => it.estado === 'Completada').length;
-    return { total: activos.length, vencidas, proximas, enProceso, completadas };
+    const porEstadoConteo = agruparPorEstado(disponiblesPeriodo);
+    let vencidas = 0, proximas = 0;
+    for (const it of disponiblesPeriodo) {
+      const cats = categoriasAlerta(it);
+      if (cats.has('vencidas')) vencidas++;
+      if (cats.has('proximas')) proximas++;
+    }
+    return { total: disponiblesPeriodo.length, ...porEstadoConteo, vencidas, proximas };
   }, [disponiblesPeriodo]);
-
-  const CONTEO_POR_FILTRO = { vencidas: resumen.vencidas, proximas: resumen.proximas, enProceso: resumen.enProceso, completadas: resumen.completadas };
 
   return (
     <div className="space-y-5">
@@ -199,35 +236,63 @@ export default function MisActividades() {
           <>
           <AvisoPartesDelegadas visible={hayPartesDelegadas} />
 
-          {/* Resumen — "Pendientes" es informativo (el total de activas del
-              periodo, antes de separar por estado); el resto son filtros
-              clicables. Antes decía "Actualizado" mostrando ese mismo
-              número — un rótulo que no significaba nada junto a
-              Vencidas/Próximas/En proceso/Completadas, que sí son estados. */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-            <div className="card p-3.5">
-              <div className="flex items-center gap-1.5 mb-1"><ListChecks size={13} className="text-gray-400" /><span className="text-xs text-gray-500">Pendientes</span></div>
-              <div className="text-2xl font-bold text-gray-800">{resumen.total}</div>
-            </div>
-            {FILTROS_ESTADO.map(f => {
-              const activo = filtrosEstado.has(f.id);
-              return (
-                <button
-                  key={f.id}
-                  onClick={() => toggleFiltroEstado(f.id)}
-                  title={`Filtrar por ${f.lbl.toLowerCase()}`}
-                  className={`card p-3.5 text-left transition-colors ${activo ? 'ring-2 ring-offset-1 ring-guinda-400' : 'hover:bg-gray-50'}`}
-                >
-                  <div className="flex items-center gap-1.5 mb-1"><f.I size={13} className={f.iconCls} /><span className="text-xs text-gray-500">{f.lbl}</span></div>
-                  <div className={`inline-flex items-center justify-center text-2xl font-bold rounded-md px-1.5 ${activo ? f.activoCls : 'text-gray-800'}`}>
-                    {CONTEO_POR_FILTRO[f.id]}
-                  </div>
-                </button>
-              );
-            })}
+          {/* Total — encabeza, no es un filtro ni se mezcla con los grupos
+              de abajo. "Por estado" y "Alertas" son dos ejes distintos (ver
+              mini-clase arriba): cada uno con su propio encabezado, para
+              que no vuelvan a leerse como una sola serie de números que
+              "debería" sumar. */}
+          <div className="card p-4 flex items-center gap-2.5">
+            <ListChecks size={18} className="text-guinda-500 flex-shrink-0" />
+            <span className="text-lg font-bold text-gray-900">{resumen.total}</span>
+            <span className="text-sm text-gray-500">actividad{resumen.total !== 1 ? 'es' : ''} a mi cargo</span>
           </div>
 
-          {/* Filtro de periodo + limpiar filtros de estado */}
+          <div>
+            <h2 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Por estado</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              {CATEGORIAS_ESTADO.filter(c => c.siempreVisible || resumen[c.id] > 0).map(c => {
+                const activo = filtrosEstado.has(c.id);
+                const lbl = formatearEstado(c.estado);
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => toggleFiltroEstado(c.id)}
+                    title={`Filtrar por ${lbl.toLowerCase()}`}
+                    className={`card p-3.5 text-left transition-colors ${activo ? 'ring-2 ring-offset-1 ring-guinda-400' : 'hover:bg-gray-50'}`}
+                  >
+                    <div className="flex items-center gap-1.5 mb-1"><c.I size={13} className={c.iconCls} /><span className="text-xs text-gray-500">{lbl}</span></div>
+                    <div className={`inline-flex items-center justify-center text-2xl font-bold rounded-md px-1.5 ${activo ? c.activoCls : 'text-gray-800'}`}>
+                      {resumen[c.id]}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Alertas</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              {CATEGORIAS_ALERTA.map(f => {
+                const activo = filtrosEstado.has(f.id);
+                return (
+                  <button
+                    key={f.id}
+                    onClick={() => toggleFiltroEstado(f.id)}
+                    title={`Filtrar por ${f.lbl.toLowerCase()}`}
+                    className={`card p-3.5 text-left transition-colors ${activo ? 'ring-2 ring-offset-1 ring-guinda-400' : 'hover:bg-gray-50'}`}
+                  >
+                    <div className="flex items-center gap-1.5 mb-1"><f.I size={13} className={f.iconCls} /><span className="text-xs text-gray-500">{f.lbl}</span></div>
+                    <div className={`inline-flex items-center justify-center text-2xl font-bold rounded-md px-1.5 ${activo ? f.activoCls : 'text-gray-800'}`}>
+                      {resumen[f.id]}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Filtro de periodo + limpiar filtros */}
           <div className="flex items-center gap-1.5 flex-wrap">
             {PERIODOS.map(p => (
               <button key={p.id} onClick={() => setPeriodo(p.id)}
@@ -251,6 +316,15 @@ export default function MisActividades() {
               >
                 <CheckCircle2 size={11} className="text-emerald-400" />
                 {resumen.completadas} completada{resumen.completadas !== 1 ? 's' : ''} oculta{resumen.completadas !== 1 ? 's' : ''} · Mostrar
+              </button>
+            )}
+            {filtrosEstado.size === 0 && resumen.canceladas > 0 && (
+              <button
+                onClick={() => toggleFiltroEstado('canceladas')}
+                className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full text-gray-500 hover:bg-gray-100"
+              >
+                <Ban size={11} className="text-gray-400" />
+                {resumen.canceladas} cancelada{resumen.canceladas !== 1 ? 's' : ''} oculta{resumen.canceladas !== 1 ? 's' : ''} · Mostrar
               </button>
             )}
           </div>

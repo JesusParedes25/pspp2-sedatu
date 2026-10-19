@@ -14,6 +14,7 @@ import { useState, useRef, useEffect } from 'react';
 import { CheckCircle2, Plus, Trash2, Loader2 } from 'lucide-react';
 import { useStore, Handle, Position, NodeToolbar } from '@xyflow/react';
 import { COLORES_SEMAFORO, LEYENDA_SEMAFORO } from '../../common/SemaforoDot';
+import { formatearEstado } from '../../../utils/estados';
 
 export const DIMENSIONES = {
   etapa: { w: 268, h: 108, etiqueta: 'ETAPA' },
@@ -66,7 +67,7 @@ export default function NodoBase({ id, data, selected, tipo }) {
     <div
       role="treeitem"
       tabIndex={0}
-      aria-label={`${etiqueta}: ${data.nombre}. ${Math.round(avance)} por ciento de avance. Estado: ${estado.replace(/_/g, ' ')}.`}
+      aria-label={`${etiqueta}: ${data.nombre}. ${Math.round(avance)} por ciento de avance. Estado: ${formatearEstado(estado)}.`}
       aria-expanded={tieneHijos ? !colapsado : undefined}
       style={{ width: w, height: h, opacity: data.atenuado ? 0.25 : 1 }}
       className={`rounded-lg border bg-white shadow-sm flex overflow-hidden relative transition-opacity focus:outline-none focus:ring-2 focus:ring-[#7B1C3E] focus:ring-offset-1 ${
@@ -111,8 +112,10 @@ export default function NodoBase({ id, data, selected, tipo }) {
             <>
               {data.puedeCrearHijo && (
                 <button
+                  disabled={completada}
+                  title={completada ? `Esta ${tipo === 'etapa' ? 'etapa' : (data.id_accion_padre ? 'subacción' : 'acción')} está marcada como Completada. Para agregar actividades, primero cámbiala a En proceso.` : undefined}
                   onClick={() => setCreando(true)}
-                  className="flex items-center gap-1 text-[11px] font-medium text-gray-600 hover:text-[#7B1C3E] px-1.5 py-0.5 whitespace-nowrap"
+                  className="flex items-center gap-1 text-[11px] font-medium text-gray-600 hover:text-[#7B1C3E] px-1.5 py-0.5 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-gray-600"
                 >
                   <Plus size={11} /> {data.tipoHijoLabel}
                 </button>

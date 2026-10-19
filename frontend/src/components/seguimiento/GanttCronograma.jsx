@@ -18,6 +18,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useMemo, useCallback } from 'react';
+import { formatearEstado } from '../../utils/estados';
 import { ChevronDown, ChevronRight, Milestone, Layers, CheckSquare } from 'lucide-react';
 import * as accionesApi from '../../api/acciones';
 import * as tareasApi from '../../api/tareas';
@@ -386,7 +387,7 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
         >
           <p className="font-semibold mb-0.5">{tooltip.nombre}</p>
           <p className="text-gray-300">{tooltip.fechas}</p>
-          <p className="text-gray-300">{tooltip.estado?.replace(/_/g, ' ')} · {tooltip.pct?.toFixed(0)}%</p>
+          <p className="text-gray-300">{formatearEstado(tooltip.estado)} · {tooltip.pct?.toFixed(0)}%</p>
         </div>
       )}
     </div>

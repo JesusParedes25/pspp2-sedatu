@@ -16,6 +16,7 @@ jest.mock('../db/pool', () => ({
 const {
   ESTADOS_VALIDOS,
   cambiarEstado,
+  cascadaCancelacion,
   validarCompletitud,
   crearBloqueo,
   cerrarBloqueoActivo,
@@ -23,7 +24,8 @@ const {
   registrarAuditoria,
   contarDescendientes,
   obtenerEntidad,
-  tipoRealAccion
+  tipoRealAccion,
+  verificarAutoCompletarPadre
 } = require('../utils/validaciones-estado');
 
 // ── Helpers para construir respuestas mock ──────────────────────
@@ -200,8 +202,8 @@ describe('cambiarEstado — desbloqueo', () => {
 // 8. validarCompletitud
 // ═════════════════════════════════════════════════════════════════
 describe('validarCompletitud', () => {
-  test('retorna válido si no hay hijos', async () => {
-    const result = await validarCompletitud('Subaccion', UUID_1);
+  test('retorna válido si no hay hijos (Tarea, el único tipo sin hijos declarados)', async () => {
+    const result = await validarCompletitud('Tarea', UUID_1);
     expect(result.valido).toBe(true);
   });
 
@@ -220,6 +222,30 @@ describe('validarCompletitud', () => {
     expect(result.valido).toBe(false);
     expect(result.hijosNoCumplidos).toHaveLength(1);
     expect(result.hijosNoCumplidos[0].nombre).toBe('Acción X');
+  });
+
+  // Decisión 4: Subaccion.hijos ya no está vacío (declara sus propias
+  // tareas, igual que Accion) — antes esto retornaba válido sin ni
+  // siquiera consultar la base, dejando marcar Completada una subacción
+  // con tareas pendientes.
+  test('Subaccion: retorna válido si sus tareas propias están todas Completada/Cancelada', async () => {
+    mockQuery.mockResolvedValueOnce(mockRows([])); // sin tareas pendientes
+    const result = await validarCompletitud('Subaccion', UUID_1);
+    expect(result.valido).toBe(true);
+    expect(mockQuery).toHaveBeenCalledWith(
+      expect.stringContaining('FROM tareas'),
+      [UUID_1]
+    );
+  });
+
+  test('Subaccion: retorna inválido si tiene tareas propias sin terminar', async () => {
+    mockQuery.mockResolvedValueOnce(mockRows([
+      { id: UUID_2, nombre: 'Tarea Y', estado: 'Pendiente' }
+    ]));
+    const result = await validarCompletitud('Subaccion', UUID_1);
+    expect(result.valido).toBe(false);
+    expect(result.hijosNoCumplidos).toHaveLength(1);
+    expect(result.hijosNoCumplidos[0].nombre).toBe('Tarea Y');
   });
 });
 
@@ -438,5 +464,126 @@ describe('cambiarEstado — reactivación', () => {
     await expect(
       cambiarEstado('Subaccion', UUID_1, 'Pendiente', { idUsuario: UUID_USR })
     ).rejects.toThrow('padre está cancelado');
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════
+// 16. cascadaCancelacion — Subaccion alcanza sus propias tareas (decisión 4)
+// ═════════════════════════════════════════════════════════════════
+describe('cascadaCancelacion — Subaccion', () => {
+  test('cancela las tareas propias de una subacción (antes se saltaban por hijos=[])', async () => {
+    // obtener tareas de la subacción, no canceladas
+    mockQuery.mockResolvedValueOnce(mockRows([
+      { id: UUID_2, nombre: 'Tarea de la subacción', estado: 'Pendiente' }
+    ]));
+    // UPDATE tareas batch
+    mockQuery.mockResolvedValueOnce(mockRows([]));
+    // UPDATE bloqueos batch
+    mockQuery.mockResolvedValueOnce(mockRows([]));
+    // registrarAuditoria de la tarea cancelada
+    mockQuery.mockResolvedValueOnce(mockRows([{ id: 'aud-tarea' }]));
+    // recursión: cascadaCancelacion('Tarea', ...) — Tarea.hijos=[], no consulta nada
+
+    await cascadaCancelacion('Subaccion', UUID_1, UUID_USR, UUID_AUD);
+
+    const updateCall = mockQuery.mock.calls.find(call =>
+      typeof call[0] === 'string' &&
+      call[0].includes('UPDATE tareas') &&
+      call[0].includes("SET estado = 'Cancelada'")
+    );
+    expect(updateCall).toBeDefined();
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════
+// 17. verificarAutoCompletarPadre — resuelve el tipo real del padre
+//     cuando es una Subaccion, no una Accion fantasma (decisión 4)
+// ═════════════════════════════════════════════════════════════════
+describe('verificarAutoCompletarPadre — Tarea cuyo padre es una Subaccion', () => {
+  test('autocompleta la Subaccion y la recursión llega a la Accion raíz real, no salta directo a la Etapa', async () => {
+    const TAREA = UUID_1;
+    const SUBACCION = UUID_2;
+    const ACCION_RAIZ = '00000000-0000-0000-0000-0000000000aa';
+    const ETAPA = '00000000-0000-0000-0000-0000000000ee';
+
+    // 1. obtenerEntidad('Tarea', TAREA)
+    mockQuery.mockResolvedValueOnce(mockRows([
+      { id: TAREA, estado: 'Completada', id_accion: SUBACCION }
+    ]));
+    // 2. obtenerPadreInfo('Tarea', ...) da padreTipo='Accion' sin corregir
+    //    todavía — el siguiente obtenerEntidad trae la fila real, que SÍ
+    //    tiene id_accion_padre: es una subacción, no una acción raíz.
+    mockQuery.mockResolvedValueOnce(mockRows([
+      { id: SUBACCION, estado: 'En_proceso', id_accion_padre: ACCION_RAIZ, id_etapa: ETAPA }
+    ]));
+    // 3. validarCompletitud('Subaccion', SUBACCION) → SOLO tareas (fix
+    //    aplicado: si no se corrigiera, aquí se consultarían también
+    //    sub-subacciones como si fuera 'Accion').
+    mockQuery.mockResolvedValueOnce(mockRows([])); // sin tareas pendientes
+    // 4. UPDATE acciones SET estado = 'Completada' ... (la subacción)
+    mockQuery.mockResolvedValueOnce(mockRows([]));
+    // 5. UPDATE acciones SET porcentaje_avance = 100 (padreTipo ya es Subaccion)
+    mockQuery.mockResolvedValueOnce(mockRows([]));
+    // 6. registrarAuditoria de la subacción
+    mockQuery.mockResolvedValueOnce(mockRows([{ id: 'aud-sub' }]));
+    // ── Recursión: verificarAutoCompletarPadre('Subaccion', SUBACCION, ...) ──
+    // 7. obtenerEntidad('Subaccion', SUBACCION)
+    mockQuery.mockResolvedValueOnce(mockRows([
+      { id: SUBACCION, estado: 'Completada', id_accion_padre: ACCION_RAIZ, id_etapa: ETAPA }
+    ]));
+    // 8. obtenerEntidad('Accion', ACCION_RAIZ) — LA ACCIÓN RAÍZ REAL.
+    //    Sin el fix, este paso nunca ocurre: obtenerPadreInfo('Accion',
+    //    filaDeSubaccion) usa id_etapa directo y salta a la Etapa.
+    mockQuery.mockResolvedValueOnce(mockRows([
+      { id: ACCION_RAIZ, estado: 'En_proceso', id_etapa: ETAPA }
+    ]));
+    // 9. validarCompletitud('Accion', ACCION_RAIZ) consulta sus DOS tipos
+    //    de hijos (Subaccion.hijos de MAPA_ENTIDAD.Accion): primero
+    //    sub-acciones (filtro id_accion_padre = ACCION_RAIZ) — se deja con
+    //    una hermana pendiente para detener la recursión aquí...
+    mockQuery.mockResolvedValueOnce(mockRows([
+      { id: 'otra-sub', nombre: 'Otra subacción', estado: 'Pendiente' }
+    ]));
+    // 10. ...y luego tareas directas de la acción raíz (el ciclo siempre
+    //     consulta ambos tipos, sin cortar en el primero que falla).
+    mockQuery.mockResolvedValueOnce(mockRows([]));
+
+    await verificarAutoCompletarPadre('Tarea', TAREA, UUID_USR);
+
+    // La subacción quedó marcada Completada.
+    const updateSubaccion = mockQuery.mock.calls.find(call =>
+      typeof call[0] === 'string' &&
+      call[0].includes("UPDATE acciones SET estado = 'Completada'") &&
+      call[1]?.[0] === SUBACCION
+    );
+    expect(updateSubaccion).toBeDefined();
+
+    // La recursión SÍ llegó a pedir la Acción raíz real por su propio id
+    // (prueba de que no saltó directo a la Etapa).
+    const fetchAccionRaiz = mockQuery.mock.calls.find(call =>
+      typeof call[0] === 'string' &&
+      call[0].includes('SELECT * FROM acciones WHERE id = $1') &&
+      call[1]?.[0] === ACCION_RAIZ
+    );
+    expect(fetchAccionRaiz).toBeDefined();
+
+    // validarCompletitud de la Accion raíz consultó por id_accion_padre
+    // (sus propias subacciones), no por id_etapa (lo que habría pasado
+    // si se hubiera tratado como si la Etapa fuera el siguiente nivel).
+    const completitudAccionRaiz = mockQuery.mock.calls.find(call =>
+      typeof call[0] === 'string' &&
+      call[0].includes('id_accion_padre = $1') &&
+      call[1]?.[0] === ACCION_RAIZ
+    );
+    expect(completitudAccionRaiz).toBeDefined();
+
+    // Nunca se llegó a consultar la Etapa — la recursión se detuvo en la
+    // Acción raíz (hermana pendiente), un nivel antes.
+    const fetchEtapa = mockQuery.mock.calls.find(call =>
+      typeof call[0] === 'string' &&
+      call[0].includes('FROM etapas') &&
+      call[1]?.[0] === ETAPA
+    );
+    expect(fetchEtapa).toBeUndefined();
   });
 });

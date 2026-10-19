@@ -48,7 +48,12 @@ async function crear(req, res, next) {
     }
 
     res.status(201).json({ datos: tarea, mensaje: 'Tarea creada' });
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (err.message.includes('Completada')) {
+      return res.status(400).json({ error: true, mensaje: err.message, codigo: 'VALIDACION_NEGOCIO' });
+    }
+    next(err);
+  }
 }
 
 async function actualizar(req, res, next) {

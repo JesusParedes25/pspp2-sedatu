@@ -10,6 +10,7 @@ import autoTable from 'jspdf-autotable';
 import client from '../api/client';
 import * as evidenciasApi from '../api/evidencias';
 import { formatFecha, estaVencida } from './fecha';
+import { formatearEstado } from './estados';
 
 // ─── Paleta institucional ──────────────────────────────────────
 const C = {
@@ -31,7 +32,7 @@ const C = {
 const fmtDate  = d => formatFecha(d) || '—';
 const fmtPct   = v => `${Math.round(parseFloat(v) || 0)}%`;
 const limita   = (s, n) => s ? (s.length > n ? s.slice(0, n) + '…' : s) : '—';
-const estadoStr = e => (e || 'Pendiente').replace(/_/g, ' ');
+const estadoStr = e => formatearEstado(e || 'Pendiente');
 const semStr    = s => ({ verde:'Verde', ambar:'Ámbar', rojo:'Rojo', gris:'Sin datos' }[s] || s || '—');
 const semColor  = s => ({ verde:C.verde, ambar:C.ambar, rojo:C.rojo, gris:C.grisNeutro }[s] || C.grisNeutro);
 

@@ -56,6 +56,7 @@
 import { ChevronRight, ChevronDown, Lock, Pencil } from 'lucide-react';
 import SemaforoDot from '../../common/SemaforoDot';
 import { hijosDe } from './utils';
+import { formatearEstado } from '../../../utils/estados';
 
 // El candado es el único elemento de esta fila para el que la opacidad
 // debe pasar el mínimo de contraste de TEXTO (4.5:1, es un ícono que se
@@ -78,23 +79,6 @@ const OPACIDAD_LEVE = 'opacity-[0.72]';
 
 const INDENT_PX = { etapa: 0, accion: 36, tarea: 58 };
 
-// Etiqueta corta de estatus — solo se muestra cuando NO es "en proceso
-// sano" (el caso normal no necesita anunciarse). El riesgo abierto nunca
-// entra en el color del semáforo (ver avance-semaforo.js::calcularSemaforo
-// en el backend — el riesgo de un nodo no es un factor de esa fórmula),
-// así que "En riesgo" vive aparte, como señal textual propia, con
-// prioridad menor que vencida/bloqueada/concluida pero mayor que "sin
-// iniciar".
-function etiquetaFila(nodo) {
-  if (nodo.estado === 'Completada') return 'Concluida';
-  if (nodo.estado === 'Cancelada') return 'Cancelada';
-  if (nodo.estado === 'Bloqueada') return 'Bloqueada';
-  if ((nodo.semaforo_efectivo || nodo.semaforo) === 'rojo') return 'Vencida';
-  if ((nodo.riesgos_abiertos || 0) > 0) return 'En riesgo';
-  if (nodo.estado === 'Pendiente') return 'Sin iniciar';
-  return null;
-}
-
 export default function NodoArbol({ nodo, tipo, expandidos, seleccionadoId, onToggle, onSelect, permisos }) {
   const esExpandido = expandidos.has(nodo.id);
   const esSeleccionado = seleccionadoId === nodo.id;
@@ -102,7 +86,10 @@ export default function NodoArbol({ nodo, tipo, expandidos, seleccionadoId, onTo
   const tieneHijos = hijos.length > 0;
   const sem = nodo.semaforo_efectivo || 'gris';
   const avance = nodo.avance_efectivo ?? (tipo === 'etapa' ? parseFloat(nodo.porcentaje_calculado || 0) : parseFloat(nodo.porcentaje_avance || 0));
-  const etiqueta = etiquetaFila(nodo);
+  // Solo estado — la urgencia (vencida/por vencer) ya la dice el punto de
+  // semáforo a la izquierda; mezclar las dos en esta misma etiqueta es lo
+  // que hacía que "estado" y "semáforo" se leyeran como una sola cosa.
+  const etiqueta = formatearEstado(nodo.estado);
   // Misma fuente que usa el servidor para aceptar o rechazar la escritura
   // (ver cabecera de este archivo) — nunca un cálculo propio de la fila.
   const puedeEscribir = permisos ? permisos.puedeEditarNodo(tipo, nodo.id) : true;

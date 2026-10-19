@@ -25,7 +25,7 @@ export const CHIP_BG = { verde: '#e7f3e8', ambar: '#fdeee0', rojo: '#fbe9e9', gr
 // Detalle, Diagrama, Cronograma, Agenda: los cuatro la importan de aquí
 // en vez de redactarla cada uno por su cuenta).
 export const LEYENDA_SEMAFORO = {
-  verde: 'En proceso, en tiempo',
+  verde: 'En tiempo',
   ambar: 'Por vencer',
   rojo: 'Vencida',
   gris: 'Sin iniciar / cancelada',
