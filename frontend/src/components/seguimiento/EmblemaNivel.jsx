@@ -10,6 +10,7 @@
 import { Lock } from 'lucide-react';
 import { NIVELES, rolTexto } from '../../config/niveles';
 import { COLORES_SEMAFORO, CHIP_BG } from '../common/SemaforoDot';
+import { formatearEstado } from '../../utils/estados';
 
 export default function EmblemaNivel({ tipo, esContenedor, estado, sem }) {
   const nivel = NIVELES[tipo];
@@ -36,7 +37,7 @@ export default function EmblemaNivel({ tipo, esContenedor, estado, sem }) {
             className="text-[10px] font-semibold px-2 py-0.5 rounded"
             style={{ backgroundColor: CHIP_BG[sem], color: COLORES_SEMAFORO[sem] }}
           >
-            {(estado || 'Pendiente').replace(/_/g, ' ')}
+            {formatearEstado(estado || 'Pendiente')}
           </span>
           {esContenedor && (
             <span className="flex items-center gap-0.5 text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">

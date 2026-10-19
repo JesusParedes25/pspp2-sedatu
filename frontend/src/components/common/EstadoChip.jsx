@@ -11,6 +11,7 @@
  * texto correctos. Se usa en etapas, acciones, proyectos y riesgos.
  * ─────────────────────────────────────────────────────────────────
  */
+import { formatearEstado } from '../../utils/estados';
 
 // Mapeo de cada estado posible a sus clases de Tailwind
 const estilosPorEstado = {
@@ -35,11 +36,6 @@ const estilosPorEstado = {
   Rechazado:     'bg-red-100 text-red-700',
   Revocado:      'bg-gray-100 text-gray-500',
 };
-
-// Convertir estado con guiones bajos a texto legible
-function formatearEstado(estado) {
-  return estado.replace(/_/g, ' ');
-}
 
 export default function EstadoChip({ estado, className = '' }) {
   const estilos = estilosPorEstado[estado] || 'bg-gray-100 text-gray-600';

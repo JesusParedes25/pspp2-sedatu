@@ -399,12 +399,27 @@ async function contarEtapasProyecto(proyectoId) {
  */
 /**
  * Cuenta nodos vencidos y próximos a vencer EN TODO EL ÁRBOL (etapas +
- * acciones/subacciones + tareas), con el mismo criterio de "vencido" que
- * ya usa calcularSemaforo() (utils/avance-semaforo.js) para pintar el
- * punto rojo en el árbol de Seguimiento: fecha efectiva
- * (fecha_limite, con fecha_fin como respaldo) ya pasada y estado
- * distinto de Completada/Cancelada. Si el nodo tiene semaforo_override,
- * se respeta el color que la persona fijó a mano en vez de recalcular.
+ * acciones/subacciones + tareas).
+ *
+ * "vencidos" replica exactamente semaforoEfectivo()==='rojo'
+ * (avance-semaforo.js::semaforoEfectivo/calcularSemaforo), no una
+ * aproximación: mismo orden de prioridad (override con valor gana;
+ * si no, Completada/Cancelada nunca son rojo; "vencida" es cualquier
+ * otro estado con fecha efectiva ya pasada; Bloqueada además es rojo
+ * con menos de 3 días de margen). Antes comparaba `semaforo_override`
+ * sin exigir que `semaforo` tuviera valor — con override=true y
+ * semaforo=NULL (la clase de bug de la migración 083) la fila no
+ * entraba en ninguna rama del CASE y quedaba fuera del conteo aunque
+ * estuviera vencida por fecha; semaforoEfectivo(), en cambio, sí la
+ * recalculaba por fecha porque exige semaforo no nulo para usar el
+ * valor fijado a mano. También comparaba contra NOW() (el instante
+ * exacto) en vez de CURRENT_DATE (el día completo) — una fecha límite
+ * de HOY se leía como ya vencida desde la medianoche, un día antes de
+ * lo que calcularSemaforo() considera "vencida" (que trabaja con
+ * fechas truncadas a medianoche en ambos lados).
+ *
+ * "por_vencer" es una ventana de planeación propia de la Portada (30
+ * días), no una traducción de ningún color de semáforo — se deja igual.
  *
  * Antes esta cuenta solo miraba la tabla `acciones` (ignorando etapas y
  * tareas) — una etapa podía mostrarse vencida (roja) en el árbol, y en
@@ -427,9 +442,12 @@ async function contarNodosVencidos(proyectoId) {
     )
     SELECT
       COUNT(*) FILTER (WHERE
-        CASE WHEN semaforo_override THEN semaforo = 'rojo'
+        CASE WHEN semaforo_override AND semaforo IS NOT NULL THEN semaforo = 'rojo'
         ELSE estado NOT IN ('Completada', 'Cancelada')
-          AND COALESCE(fecha_limite, fecha_fin) < NOW()
+          AND (
+            COALESCE(fecha_limite, fecha_fin) < CURRENT_DATE
+            OR (estado = 'Bloqueada' AND COALESCE(fecha_limite, fecha_fin) < CURRENT_DATE + INTERVAL '3 days')
+          )
         END
       )::int AS vencidos,
       COUNT(*) FILTER (WHERE

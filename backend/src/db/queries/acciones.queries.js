@@ -192,7 +192,14 @@ async function crearAccionEnEtapa(etapaId, datos) {
   try {
     await client.query('BEGIN');
 
-    const etapa = await client.query('SELECT id_proyecto, id_subproyecto, cve_ent, id_zm FROM etapas WHERE id = $1', [etapaId]);
+    const etapa = await client.query('SELECT id_proyecto, id_subproyecto, cve_ent, id_zm, estado FROM etapas WHERE id = $1', [etapaId]);
+    // Decisión 6: una etapa Completada no recibe actividades nuevas en
+    // silencio — el avance ya no se movería (la etapa es hoja de esta
+    // acción nueva recién creada) pero el estado manual se quedaría
+    // diciendo "Completada" sin que nadie se entere de que ya no lo está.
+    if (etapa.rows[0]?.estado === 'Completada') {
+      throw new Error('Esta etapa está marcada como Completada. Para agregar actividades, primero cámbiala a En proceso.');
+    }
     const proyectoId = etapa.rows[0]?.id_proyecto;
     const subproyectoId = etapa.rows[0]?.id_subproyecto;
 
@@ -689,11 +696,16 @@ async function crearSubaccion(accionPadreId, datos) {
     await client.query('BEGIN');
 
     const padre = await client.query(
-      'SELECT id_etapa, id_proyecto, id_subproyecto, id_dg FROM acciones WHERE id = $1',
+      'SELECT id_etapa, id_proyecto, id_subproyecto, id_dg, estado, id_accion_padre FROM acciones WHERE id = $1',
       [accionPadreId]
     );
     if (!padre.rows[0]) throw new Error('Acción padre no encontrada');
     const p = padre.rows[0];
+    // Decisión 6: no se agregan actividades a una acción ya Completada.
+    if (p.estado === 'Completada') {
+      const sustantivo = p.id_accion_padre ? 'subacción' : 'acción';
+      throw new Error(`Esta ${sustantivo} está marcada como Completada. Para agregar actividades, primero cámbiala a En proceso.`);
+    }
 
     const resultado = await client.query(`
       INSERT INTO acciones (

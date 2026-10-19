@@ -80,6 +80,9 @@ async function crearEnEtapa(req, res, next) {
     const accion = await accionesQueries.crearAccionEnEtapa(req.params.id, req.body);
     res.status(201).json({ datos: accion, mensaje: 'Acción creada exitosamente' });
   } catch (err) {
+    if (err.message.includes('Completada')) {
+      return res.status(400).json({ error: true, mensaje: err.message, codigo: 'VALIDACION_NEGOCIO' });
+    }
     next(err);
   }
 }
@@ -212,6 +215,9 @@ async function crearSubaccion(req, res, next) {
     const subaccion = await accionesQueries.crearSubaccion(req.params.id, req.body);
     res.status(201).json({ datos: subaccion, mensaje: 'Subacción creada' });
   } catch (err) {
+    if (err.message.includes('Completada')) {
+      return res.status(400).json({ error: true, mensaje: err.message, codigo: 'VALIDACION_NEGOCIO' });
+    }
     next(err);
   }
 }

@@ -38,7 +38,12 @@ async function crearTarea(datos) {
   try {
     await client.query('BEGIN');
 
-    const { rows: accionRows } = await client.query('SELECT cve_ent FROM acciones WHERE id = $1', [datos.id_accion]);
+    const { rows: accionRows } = await client.query('SELECT cve_ent, estado, id_accion_padre FROM acciones WHERE id = $1', [datos.id_accion]);
+    // Decisión 6: no se agregan tareas a una acción/subacción ya Completada.
+    if (accionRows[0]?.estado === 'Completada') {
+      const sustantivo = accionRows[0].id_accion_padre ? 'subacción' : 'acción';
+      throw new Error(`Esta ${sustantivo} está marcada como Completada. Para agregar actividades, primero cámbiala a En proceso.`);
+    }
     const cveEnt = datos.cve_ent !== undefined ? (datos.cve_ent || null) : (accionRows[0]?.cve_ent || null);
 
     const resultado = await client.query(`

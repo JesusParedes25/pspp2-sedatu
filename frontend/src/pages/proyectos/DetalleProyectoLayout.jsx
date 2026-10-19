@@ -28,6 +28,7 @@ import { useParams, Link, useNavigate, useLocation, useSearchParams, Outlet } fr
 import { Star, Pencil, Trash2, Settings, LayoutDashboard, FileText, BookText, LayoutGrid, SlidersHorizontal, ShieldAlert } from 'lucide-react';
 import { useProyecto } from '../../hooks/useProyectos';
 import { useEtapas } from '../../hooks/useEtapas';
+import { formatearEstado } from '../../utils/estados';
 import { useUI } from '../../context/UIContext';
 import { usePermisosProyecto } from '../../hooks/usePermisos';
 import ChipFuncion from '../../components/proyectos/ChipFuncion';
@@ -211,7 +212,7 @@ export default function DetalleProyectoLayout() {
           style={{ left: sidebarAbierto ? '16rem' : '4rem' }}
         >
           <span className="text-sm font-semibold text-gray-900 truncate">{proyecto.nombre}</span>
-          <span className="text-xs text-gray-400 flex-shrink-0">{proyecto.estado?.replace(/_/g, ' ')}</span>
+          <span className="text-xs text-gray-400 flex-shrink-0">{formatearEstado(proyecto.estado)}</span>
         </div>
       )}
 
