@@ -4,7 +4,7 @@
  *            sustituye los controles sueltos que antes vivían repartidos por
  *            su lado (barra de solo porcentaje, "Marcar concluido",
  *            "Comentar" y "Adjuntar archivo"). Un solo botón "Guardar
- *            avance" dispara los cambios de Estatus/Avance (misma
+ *            avance" dispara los cambios de Estado/Avance (misma
  *            transacción del backend) más, si se llenaron, Detalle y
  *            Evidencia — quedan uno justo después del otro en el stream de
  *            actividad del nodo, con el mismo autor y casi el mismo
@@ -237,15 +237,19 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
         </div>
 
         <div className="px-5 py-4 space-y-4 overflow-y-auto">
-          {/* Estatus cualitativo — mismo nombre que usa el resto de la app
+          {/* Nota de avance — mismo nombre que usa el resto de la app
               (Tablero, Panorama del proyecto, Carteras: ver
-              TituloEstatusCualitativo) para esta nota corta. A secas
-              "Estatus" se prestaba a confundirse con el estatus real
-              (Pendiente/En_proceso/Bloqueada/Completada/Cancelada), que
-              vive en su propio control en Ficha, no aquí. */}
+              TituloEstatusCualitativo) para esta nota corta. Se llamaba
+              "Estatus cualitativo" y compartía la palabra "Estatus" con el
+              eje de estados real (Pendiente/En_proceso/Bloqueada/
+              Completada/Cancelada), que vive en su propio control en
+              Ficha, no aquí — de ahí la confusión y el cambio de nombre.
+              El campo de la API/base de datos sigue llamándose
+              estatus_cualitativo (ver `datos` más abajo); esto es solo la
+              etiqueta visible. */}
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
-              Estatus cualitativo <span className="text-red-500">*</span>
+              Nota de avance <span className="text-red-500">*</span>
             </label>
             <input
               type="text"

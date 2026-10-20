@@ -22,7 +22,7 @@ const PROPIEDADES_UNIVERSALES = [
   { value: 'fecha_inicio', label: 'Fecha de inicio', grupo: 'Fechas' },
   { value: 'fecha_fin', label: 'Fecha de entrega', grupo: 'Fechas' },
   { value: 'responsable', label: 'Responsable', grupo: 'Asignación' },
-  { value: 'estado', label: 'Estatus', grupo: 'Estado' },
+  { value: 'estado', label: 'Estado', grupo: 'Estado' },
   { value: '_extra:estado_original', label: 'Estado original (texto libre)', grupo: 'Estado' },
   { value: 'entidad_federativa', label: 'Entidad Federativa (nombre o clave)', grupo: 'Geografía' },
   { value: 'municipio', label: 'Municipio (nombre o clave)', grupo: 'Geografía' },

@@ -4,7 +4,17 @@
  *            listado de proyectos. Deliberadamente NO muestra un
  *            porcentaje de avance único (una cartera agrupa proyectos
  *            heterogéneos, promediarlos no dice nada útil) — solo
- *            conteos: total de proyectos y cuántos están en riesgo.
+ *            conteos: total de proyectos y cuántos requieren atención.
+ *
+ * "proyectos_en_riesgo" (carteras.queries.js::listarCarteras) es en
+ * realidad un OR de dos señales distintas: el proyecto está vencido por
+ * fecha, O tiene un riesgo de verdad (tabla `riesgos`) abierto — "Riesgo"
+ * es palabra reservada al módulo de Riesgos, así que esta tarjeta no
+ * puede llamarlo "en riesgo" (sugiere que son solo riesgos registrados,
+ * y tampoco sería exacto llamarlo solo "vencidos", porque a veces el
+ * motivo es un riesgo real sin que nada esté vencido). "Requieren
+ * atención" es la palabra honesta para la unión de ambos sin reclamar
+ * ninguno de los dos conceptos en exclusiva.
  */
 import { Link } from 'react-router-dom';
 import { Briefcase, AlertTriangle, Building2 } from 'lucide-react';
@@ -47,7 +57,7 @@ export default function TarjetaCartera({ cartera }) {
           {enRiesgo > 0 && (
             <span className="flex items-center text-orange-500">
               <AlertTriangle size={12} className="mr-1" />
-              {enRiesgo} en riesgo
+              {enRiesgo} requiere{enRiesgo !== 1 ? 'n' : ''} atención
             </span>
           )}
         </div>

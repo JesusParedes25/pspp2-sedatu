@@ -171,9 +171,9 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
       {/* Fila de resumen: Semáforo · Prioridad — se leen de un vistazo, como
           píldoras en línea. Estatus vive aparte, siempre visible arriba de
           este formulario (FichaNodo) — no se repite aquí. */}
-      <div className="flex items-center gap-1.5 flex-wrap mb-3">
+      <div className="flex items-center gap-1.5 flex-wrap mb-1">
         <CampoSemaforo
-          variante="chip"
+          label="Semáforo" variante="chip"
           valor={valores.semaforo} override={data.semaforo_override} efectivo={sem}
           onChange={v => set('semaforo', v)} soloLectura={permisos.esSoloLectura}
         />
@@ -183,6 +183,16 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
           onChange={v => set('prioridad', v)} soloLectura={permisos.esSoloLectura}
         />
       </div>
+      {/* Antes el punto de color + "Automático" no decían qué control era
+          ni qué hacía elegir un color a mano — un usuario podía apagar el
+          cálculo automático del semáforo sin enterarse. La prioridad "Muy
+          Alta" también amplía el margen de "Por vencer" (calcularSemaforo,
+          backend) antes de la fecha límite, así que se menciona aquí. */}
+      {!permisos.esSoloLectura && (
+        <p className="text-[10px] text-gray-400 leading-snug mb-3">
+          Automático: se calcula con la fecha límite (la prioridad "Muy Alta" amplía el margen de "Por vencer"). Elige un color solo si quieres fijarlo a mano.
+        </p>
+      )}
 
       {/* Fechas — mini-grid de 2 columnas (en nodo hoja; en contenedor la
           fecha de inicio se calcula sola, aquí solo va la fecha

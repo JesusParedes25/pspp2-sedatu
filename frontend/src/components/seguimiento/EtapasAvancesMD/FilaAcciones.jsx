@@ -5,7 +5,11 @@
  *            tarea" (secundaria, ausente en Tarea) y un menú "Más
  *            acciones". Toda acción abre un modal — nunca un panel de
  *            solo lectura que se queda a medias en la página — y sin
- *            permiso queda deshabilitada con tooltip, no oculta.
+ *            permiso queda deshabilitada con tooltip, no oculta. La
+ *            excepción es "Agregar X" sobre un nodo Completada: ahí la
+ *            explicación (y el atajo "Volver a En proceso") va en una
+ *            línea siempre visible junto al botón, no en un tooltip —
+ *            ver Bloque 3 más abajo, junto a `estaCompletada`.
  *
  * Fase 4 del rediseño: Adjuntar documento/Vincular indicador/Vincular
  * territorio/Reportar riesgo/Invitar participante salieron de este menú
@@ -35,9 +39,18 @@ import ModalNuevaTarea from '../ModalNuevaTarea';
 import * as etapasApi from '../../../api/etapas';
 import * as accionesApi from '../../../api/acciones';
 import * as tareasApi from '../../../api/tareas';
+import * as estadoApi from '../../../api/estado';
 import { NIVELES } from '../../../config/niveles';
 
 const TIPO_LABEL_MIN = { etapa: 'etapa', accion: 'acción', tarea: 'tarea' };
+
+// Mismo mapeo que EncabezadoDetalle.jsx (entidadTipoDeNodo) — PUT /estado
+// necesita distinguir Accion de Subaccion, cosa que `tipo` (nivel de
+// UI/NIVELES, solo 'etapa'|'accion'|'tarea') no sabe hacer solo.
+function entidadTipoParaEstado(tipo, nodo) {
+  if (tipo === 'etapa') return 'Etapa';
+  return nodo.id_accion_padre ? 'Subaccion' : 'Accion';
+}
 
 // Mismo criterio de conteo de descendientes que NodoCard — la confirmación
 // de "Eliminar" tiene que avisar cuántos elementos se van junto con este.
@@ -78,6 +91,7 @@ export default function FilaAcciones({
   const [duplicandoEtapa, setDuplicandoEtapa] = useState(false);
   const [confirmEliminar, setConfirmEliminar] = useState(false);
   const [eliminando, setEliminando] = useState(false);
+  const [volviendoAProceso, setVolviendoAProceso] = useState(false);
 
   async function confirmarDuplicarEtapa() {
     setDuplicandoEtapa(true);
@@ -117,12 +131,37 @@ export default function FilaAcciones({
   // silencio — la garantía real vive en el servidor (ver
   // acciones.queries.js/tareas.queries.js), esto es solo para no dejar
   // que el usuario abra el modal y se entere del rechazo hasta el final.
+  //
+  // Bloque 3 (ronda de vocabulario): el botón deshabilitado por sí solo
+  // dejaba al usuario sin salida salvo un rodeo (abrir "Registrar avance"
+  // de un hijo y bajarlo de 100%). Ahora, junto al botón, una línea
+  // visible SIN pasar el mouse explica por qué y ofrece "Volver a En
+  // proceso" como atajo de un clic — mismo PUT /estado que ya usa
+  // SelectorEstado, sin pasar por hijos ni tocar avance (cambiarEstado
+  // solo fija avance_actual cuando el destino es Completada o Pendiente,
+  // nunca En_proceso). El atajo solo aparece con permiso para cambiar el
+  // estado de este nodo — la validación real sigue viviendo en el
+  // servidor (validaciones-estado.js), esto solo evita ofrecer un botón
+  // que el servidor rechazaría.
   const estaCompletada = nodo.estado === 'Completada';
   const sustantivoNodo = tipo === 'etapa' ? 'etapa' : (nodo.id_accion_padre ? 'subacción' : 'acción');
-  const mensajeCompletada = `Esta ${sustantivoNodo} está marcada como Completada. Para agregar actividades, primero cámbiala a En proceso.`;
+  const mensajeCompletada = `Esta ${sustantivoNodo} está marcada como Completada. Para agregar actividades, vuelve a ponerla En proceso.`;
+
+  async function volverAProceso() {
+    setVolviendoAProceso(true);
+    try {
+      await estadoApi.cambiarEstado(entidadTipoParaEstado(tipo, nodo), id, 'En_proceso');
+      mostrarToast?.(`${sustantivoNodo.charAt(0).toUpperCase() + sustantivoNodo.slice(1)} vuelta a En proceso`, 'exito');
+      onCambiado?.();
+    } catch (err) {
+      mostrarToast?.(err.response?.data?.mensaje || 'Error al cambiar el estado', 'error');
+    } finally {
+      setVolviendoAProceso(false);
+    }
+  }
 
   return (
-    <div className="flex items-center gap-2 mb-4">
+    <div className="flex items-center gap-2 mb-4 flex-wrap">
       <button
         disabled={soloLectura}
         onClick={onAbrirAvance}
@@ -132,14 +171,33 @@ export default function FilaAcciones({
       </button>
 
       {!soloLectura && NIVELES[tipo]?.hijoTipo && (
-        <button
-          disabled={estaCompletada}
-          title={estaCompletada ? mensajeCompletada : undefined}
-          onClick={() => setMostrarModalNuevoHijo(true)}
-          className="flex items-center justify-center gap-1.5 text-[12px] font-medium px-3.5 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
-        >
-          <Plus size={14} /> Agregar {NIVELES[tipo].hijoLabel.toLowerCase()}
-        </button>
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          <button
+            disabled={estaCompletada}
+            onClick={() => setMostrarModalNuevoHijo(true)}
+            className="flex items-center justify-center gap-1.5 text-[12px] font-medium px-3.5 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+          >
+            <Plus size={14} /> Agregar {NIVELES[tipo].hijoLabel.toLowerCase()}
+          </button>
+          {estaCompletada && (
+            <span className="text-[11px] text-gray-500 leading-snug">
+              {mensajeCompletada}
+              {!!permisos?.puedeCambiarEstado && (
+                <>
+                  {' '}
+                  <button
+                    type="button"
+                    onClick={volverAProceso}
+                    disabled={volviendoAProceso}
+                    className="font-medium text-guinda-600 hover:text-guinda-800 hover:underline disabled:opacity-50 disabled:no-underline"
+                  >
+                    {volviendoAProceso ? 'Volviendo a En proceso…' : 'Volver a En proceso'}
+                  </button>
+                </>
+              )}
+            </span>
+          )}
+        </div>
       )}
 
       <MenuDesplegable

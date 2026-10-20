@@ -190,7 +190,7 @@ export default function CarteraDetalle() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <MetricaCard icono={FolderKanban} titulo="Proyectos" valor={resumen.total_proyectos} color="bg-guinda-50 text-guinda-600" />
             <MetricaCard icono={AlertTriangle} titulo="Acciones vencidas" valor={resumen.vencidos.length} color="bg-red-50 text-red-600" />
-            <MetricaCard icono={Clock} titulo="Por vencer (30d)" valor={resumen.por_vencer.length} color="bg-yellow-50 text-yellow-600" />
+            <MetricaCard icono={Clock} titulo="Vencen en 30 días" valor={resumen.por_vencer.length} color="bg-yellow-50 text-yellow-600" />
             <MetricaCard icono={Shield} titulo="Riesgos abiertos" valor={resumen.riesgos.length} color="bg-orange-50 text-orange-600" />
           </div>
 
@@ -248,7 +248,7 @@ export default function CarteraDetalle() {
                         <tr className="text-left text-[10px] uppercase tracking-wide text-gray-400 font-semibold border-b border-gray-200">
                           <th className="pb-2.5 pr-3">Proyecto</th>
                           <th className="pb-2.5 pr-3">Dependencia</th>
-                          <th className="pb-2.5 pr-3">Estatus</th>
+                          <th className="pb-2.5 pr-3">Estado</th>
                           <th className="pb-2.5 pr-3 w-40">Avance</th>
                           <th className="pb-2.5 pr-3">Responsable</th>
                           <th className="pb-2.5 pr-3">Fecha límite</th>
@@ -328,7 +328,7 @@ export default function CarteraDetalle() {
               {resumen.por_vencer.length > 0 && (
                 <div className="card p-5">
                   <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5 text-guinda-700">
-                    <Clock size={14} className="text-yellow-600" /> Por vencer (30 días)
+                    <Clock size={14} className="text-yellow-600" /> Vencen en 30 días
                   </h2>
                   <div className="space-y-2 max-h-64 overflow-y-auto">
                     {resumen.por_vencer.map(a => (
@@ -586,7 +586,7 @@ function VistaPorEtapa({ etapas, proyectos }) {
           <thead>
             <tr className="text-left text-[10px] uppercase tracking-wide text-gray-400 font-semibold border-b border-gray-200">
               <th className="pb-2.5 pr-3">Proyecto</th>
-              <th className="pb-2.5 pr-3">Estatus</th>
+              <th className="pb-2.5 pr-3">Estado</th>
               <th className="pb-2.5 pr-3 w-40">Avance</th>
               <th className="pb-2.5 pr-3">Responsable</th>
               <th className="pb-2.5 pr-3">Fecha límite</th>

@@ -12,7 +12,7 @@
  * `estado` (cada actividad cae en exactamente una categoría, por eso
  * suman el total exacto — ver agruparPorEstado). "Alertas" son
  * subconjuntos de lo no completado/cancelado por fecha límite: Vencidas
- * y Próximas pueden traslaparse con cualquier categoría de "Por estado"
+ * y Por vencer pueden traslaparse con cualquier categoría de "Por estado"
  * (una "En proceso" puede estar vencida) pero nunca entre sí, y no
  * forman parte de la suma del total — mezclar los dos ejes en una sola
  * fila de tarjetas es lo que hacía que 55+45+32 no sumara 180 y el
@@ -37,6 +37,7 @@ import ArbolActividadesProyecto from '../components/nodos/ArbolActividadesProyec
 import AvisoPartesDelegadas from '../components/common/AvisoPartesDelegadas';
 import EmptyState from '../components/common/EmptyState';
 import { formatearEstado } from '../utils/estados';
+import { DIAS_POR_VENCER } from '../components/common/SemaforoDot';
 import Agenda from './Agenda';
 
 const PERIODOS = [
@@ -66,7 +67,11 @@ const ESTADO_A_CATEGORIA = Object.fromEntries(CATEGORIAS_ESTADO.map(c => [c.esta
 // parte de la suma del total.
 const CATEGORIAS_ALERTA = [
   { id: 'vencidas', lbl: 'Vencidas', I: AlertTriangle, iconCls: 'text-red-400', activoCls: 'bg-red-600 text-white' },
-  { id: 'proximas', lbl: 'Próximas (≤7d)', I: Clock, iconCls: 'text-amber-400', activoCls: 'bg-amber-500 text-white' },
+  // "Por vencer" queda amarrada al umbral del semáforo (DIAS_POR_VENCER,
+  // SemaforoDot.jsx) en toda la plataforma — antes decía "Próximas (≤7d)"
+  // con su propio 7 suelto, que podía desalinearse del semáforo sin que
+  // nada lo notara.
+  { id: 'proximas', lbl: 'Por vencer', I: Clock, iconCls: 'text-amber-400', activoCls: 'bg-amber-500 text-white' },
 ];
 
 function diasRestantes(fecha) {
@@ -84,7 +89,7 @@ function categoriasAlerta(it) {
   const activo = it.estado !== 'Completada' && it.estado !== 'Cancelada';
   const d = diasRestantes(it.fecha_fin);
   if (activo && d !== null && d < 0) cats.add('vencidas');
-  if (activo && d !== null && d >= 0 && d <= 7) cats.add('proximas');
+  if (activo && d !== null && d >= 0 && d <= DIAS_POR_VENCER) cats.add('proximas');
   return cats;
 }
 

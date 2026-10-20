@@ -26,9 +26,13 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const XLSX = require('xlsx');
+const { formatearEstado } = require('../utils/estados');
 
-const ESTADO_LEGIBLE = e => (e || 'Pendiente').replace(/_/g, ' ');
-const SEMAFORO_LEGIBLE = { verde: 'Verde', ambar: 'Ámbar', rojo: 'Rojo', gris: 'Sin datos' };
+const ESTADO_LEGIBLE = e => formatearEstado(e || 'Pendiente');
+// Vocabulario de urgencia (mismas palabras que
+// frontend/common/SemaforoDot.jsx::URGENCIA_SEMAFORO) — antes decía el
+// nombre del color ("Ámbar"), no lo que significa.
+const SEMAFORO_LEGIBLE = { verde: 'En tiempo', ambar: 'Por vencer', rojo: 'Vencida', gris: 'Sin urgencia' };
 const semaforoLegible = s => SEMAFORO_LEGIBLE[s] || '—';
 // `pg` devuelve las columnas DATE como objetos Date de JS. String(date)
 // da "Thu Jan 01 2026 00:00:00 GMT..." — hay que pedir el ISO explícito

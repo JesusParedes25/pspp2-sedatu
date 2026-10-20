@@ -160,7 +160,7 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
             />
           </div>
 
-          {/* Estatus (Pendiente/En_proceso/Bloqueada/Completada/Cancelada) —
+          {/* Estado (Pendiente/En_proceso/Bloqueada/Completada/Cancelada) —
               fuera del toggle "Editar": es un control que guarda solo en
               cuanto se elige una opción, no una casilla más del formulario
               de PropiedadesElemento, así que no tiene sentido esconderlo
@@ -175,7 +175,7 @@ export default function FichaNodo({ nodo, proyectoId, permisos: permisosProyecto
               Mismo control en los tres niveles, un solo lugar predecible
               donde ir a cambiarlo. */}
           <div className="mb-2.5">
-            <span className="text-[10px] text-gray-400 block">Estatus</span>
+            <span className="text-[10px] text-gray-400 block">Estado</span>
             <SelectorEstado
               entidadTipo={entidadTipoDeNodo(tipo, data)}
               entidadId={id}

@@ -93,7 +93,7 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
           dice por qué. Aquí no se repite el nombre del proyecto en cada
           línea — ya se sabe cuál es. */}
       {estatus_cualitativo.length > 0 && (
-        <SeccionCard titulo="Estatus cualitativo" icono={MessageSquare}>
+        <SeccionCard titulo="Nota de avance" icono={MessageSquare}>
           <ListaEstatusCualitativo items={estatus_cualitativo} dentroDeProyecto maxAltura="max-h-72" />
         </SeccionCard>
       )}
@@ -142,7 +142,7 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
             </SeccionCard>
           )}
           {por_vencer.length > 0 && (
-            <SeccionCard titulo={`Por vencer (${por_vencer.length})`} icono={Clock}>
+            <SeccionCard titulo={`Vencen en 14 días (${por_vencer.length})`} icono={Clock}>
               <ul className="space-y-2">
                 {por_vencer.slice(0, 8).map(a => (
                   <li key={a.id}>
