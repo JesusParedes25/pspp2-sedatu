@@ -113,7 +113,7 @@ export default function ModalDuplicarNodo({ tipo, nodo, proyectoId, onCerrar, on
     if (exitos > 0) {
       mostrarToast?.(
         fallos > 0
-          ? `Duplicado en ${exitos} de ${exitos + fallos} destinos — ${fallos} fallaron`
+          ? `Duplicado en ${exitos} de ${exitos + fallos} destinos: ${fallos} fallaron`
           : `Duplicado en ${exitos} destino${exitos !== 1 ? 's' : ''}`,
         fallos > 0 ? 'info' : 'exito'
       );

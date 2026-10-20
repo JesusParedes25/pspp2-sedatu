@@ -15,7 +15,7 @@ import client from '../../api/client';
 
 // ─── Propiedades universales (hardcoded) ─────────────────────────
 const PROPIEDADES_UNIVERSALES = [
-  { value: '', label: '— No usar —', grupo: null },
+  { value: '', label: '(No usar)', grupo: null },
   { value: 'nombre', label: 'Nombre', grupo: 'Datos básicos' },
   { value: 'descripcion', label: 'Descripción', grupo: 'Datos básicos' },
   { value: '_extra:clave_folio', label: 'Clave, Folio o identificador', grupo: 'Datos básicos' },
@@ -226,11 +226,11 @@ export default function PasoMapeo({ headers, superHeaders, sampleRows, config, t
                       </td>
                       {superHeaders && (
                         <td className="px-3 py-2 text-purple-600 text-xs">
-                          {superHeaders[i] || '—'}
+                          {superHeaders[i] || '-'}
                         </td>
                       )}
                       <td className="px-3 py-2 text-gray-500 max-w-36 truncate" title={sampleRows[0]?.[i] || ''}>
-                        {sampleRows[0]?.[i] || '—'}
+                        {sampleRows[0]?.[i] || '-'}
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex gap-1.5 items-center">

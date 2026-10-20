@@ -10,7 +10,7 @@ import { ChevronDown, ChevronRight, Trash2, Plus } from 'lucide-react';
 import TarjetaSubaccion from './TarjetaSubaccion';
 
 const CAMPOS_ACCION = [
-  { value: '', label: '— No usar —' },
+  { value: '', label: '(No usar)' },
   { value: 'estado', label: 'Estado' },
   { value: 'fecha_inicio', label: 'Fecha inicio' },
   { value: 'fecha_fin', label: 'Fecha fin' },

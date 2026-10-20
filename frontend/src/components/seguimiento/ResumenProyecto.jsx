@@ -25,11 +25,11 @@ import { formatFecha, diasRestantes } from '../../utils/fecha';
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(f) {
-  return formatFecha(f) || '—';
+  return formatFecha(f) || '-';
 }
 
 function fmtCorto(f) {
-  return formatFecha(f, { day: '2-digit', month: 'short' }) || '—';
+  return formatFecha(f, { day: '2-digit', month: 'short' }) || '-';
 }
 
 function rel(fecha) {
@@ -115,7 +115,7 @@ function TooltipAccion({ accion }) {
       {/* Fechas */}
       <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
         <Calendar size={10} className="text-gray-400 flex-shrink-0" />
-        <span>{fmt(accion.fecha_inicio)} — {fmt(accion.fecha_fin)}</span>
+        <span>{fmt(accion.fecha_inicio)} a {fmt(accion.fecha_fin)}</span>
       </div>
 
       {/* Bloqueo */}
@@ -606,7 +606,7 @@ export default function ResumenProyecto({ proyecto, etapas = [], proyectoId, onI
               {(proyecto?.fecha_inicio || fechaFin) && (
                 <span className="flex items-center gap-1">
                   <Calendar size={10} />
-                  {fmt(proyecto?.fecha_inicio)} — {fmt(fechaFin)}
+                  {fmt(proyecto?.fecha_inicio)} a {fmt(fechaFin)}
                   {diasRest !== null && (
                     <span className={`ml-1.5 font-semibold ${
                       diasRest < 0 ? 'text-red-500' : diasRest <= 7 ? 'text-orange-500' : 'text-gray-500'

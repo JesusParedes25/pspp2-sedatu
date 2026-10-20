@@ -91,7 +91,7 @@ export default function CatalogSelector({ tipo, value, onChange, label, required
         required={required}
         disabled={cargando}
       >
-        <option value="">— Seleccionar —</option>
+        <option value="">(Seleccionar)</option>
         {opciones.map(op => (
           <option key={op.id} value={op.valor}>{op.valor}</option>
         ))}

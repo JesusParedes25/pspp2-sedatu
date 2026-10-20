@@ -59,7 +59,7 @@ function metaEfectiva(ind) {
 }
 
 export function formatoCorto(n) {
-  if (n == null || isNaN(n)) return '—';
+  if (n == null || isNaN(n)) return '-';
   const abs = Math.abs(n);
   if (abs >= 1e9) return `${(n / 1e9).toFixed(1).replace(/\.0$/, '')}MMM`;
   if (abs >= 1e6) return `${(n / 1e6).toFixed(1).replace(/\.0$/, '')}M`;
@@ -291,7 +291,7 @@ function TarjetaIndicadorGrupo({ grupo, variante = 'normal', permitirEditarValor
             </button>
           ) : (
             <span className="text-[10px] font-medium text-guinda-700 bg-guinda-50 border border-guinda-100 px-1.5 py-0.5 rounded-full">
-              {grupo.length} proyectos
+              {grupo.length} proyecto{grupo.length !== 1 ? 's' : ''}
             </span>
           )}
         </div>

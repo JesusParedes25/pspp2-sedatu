@@ -214,7 +214,7 @@ export default function NuevoProyecto() {
         // Toast solo soporta 'exito'|'error'|'info' (Toast.jsx) — esto es un
         // éxito parcial, pero 'error' es más honesto que 'info' aquí: algo
         // que el usuario capturó no se guardó y necesita revisarlo.
-        mostrarToast(`Proyecto creado, pero ${fallosEstructura} elemento(s) de la estructura no se guardaron — revísala desde el proyecto`, 'error');
+        mostrarToast(`Proyecto creado, pero ${fallosEstructura} elemento(s) de la estructura no se guardaron: revísala desde el proyecto`, 'error');
       } else {
         mostrarToast('Proyecto creado exitosamente', 'exito');
       }
@@ -339,7 +339,7 @@ export default function NuevoProyecto() {
                 onChange={e => setDatos(prev => ({ ...prev, id_dg_lider: e.target.value, id_direccion_area_lider: '' }))}
                 className="input-base">
                 <option value="">Seleccionar DG...</option>
-                {dgs.map(dg => <option key={dg.id} value={dg.id}>{dg.siglas} — {dg.nombre}</option>)}
+                {dgs.map(dg => <option key={dg.id} value={dg.id}>{dg.siglas} ({dg.nombre})</option>)}
               </select>
             </div>
             <div>
@@ -347,7 +347,7 @@ export default function NuevoProyecto() {
               <select value={datos.id_direccion_area_lider} onChange={e => actualizar('id_direccion_area_lider', e.target.value)} className="input-base">
                 <option value="">Seleccionar dirección de área...</option>
                 {direccionesArea.filter(da => !datos.id_dg_lider || da.dg_siglas === dgs.find(d => d.id === datos.id_dg_lider)?.siglas).map(da => (
-                  <option key={da.id} value={da.id}>{da.siglas} — {da.nombre}</option>
+                  <option key={da.id} value={da.id}>{da.siglas} ({da.nombre})</option>
                 ))}
               </select>
             </div>
@@ -391,13 +391,13 @@ export default function NuevoProyecto() {
                       {relacionados.length > 0 && (
                         <optgroup label={`Programas de ${siglasUsuario}`}>
                           {relacionados.map(p => (
-                            <option key={p.id} value={p.id}>{p.clave} — {p.nombre}</option>
+                            <option key={p.id} value={p.id}>{p.clave} ({p.nombre})</option>
                           ))}
                         </optgroup>
                       )}
                       <optgroup label={relacionados.length > 0 ? 'Otros programas' : 'Programas presupuestarios'}>
                         {otros.map(p => (
-                          <option key={p.id} value={p.id}>{p.clave} — {p.nombre}</option>
+                          <option key={p.id} value={p.id}>{p.clave} ({p.nombre})</option>
                         ))}
                       </optgroup>
                     </>
@@ -607,8 +607,8 @@ export default function NuevoProyecto() {
               <ResumenCampo titulo="Tipo" valor={datos.tipo?.replace(/_/g, ' ')} />
               <ResumenCampo titulo="DG Líder" valor={dgs.find(d => String(d.id) === String(datos.id_dg_lider))?.siglas || 'No seleccionada'} />
               <ResumenCampo titulo="Dirección de área" valor={direccionesArea.find(d => String(d.id) === String(datos.id_direccion_area_lider))?.siglas || 'No especificada'} />
-              <ResumenCampo titulo="Fechas" valor={`${datos.fecha_inicio || '—'} a ${datos.fecha_limite || '—'}`} />
-              <ResumenCampo titulo="Programa" valor={(() => { const p = programas.find(pr => String(pr.id) === String(datos.id_programa)); return p ? `${p.clave} — ${p.nombre}` : 'Sin programa específico'; })()} />
+              <ResumenCampo titulo="Fechas" valor={`${datos.fecha_inicio || '-'} a ${datos.fecha_limite || '-'}`} />
+              <ResumenCampo titulo="Programa" valor={(() => { const p = programas.find(pr => String(pr.id) === String(datos.id_programa)); return p ? `${p.clave} (${p.nombre})` : 'Sin programa específico'; })()} />
               <ResumenCampo titulo="Cartera" valor={carteras.find(c => String(c.id) === String(datos.cartera_id))?.nombre || 'Sin cartera'} />
               <ResumenCampo titulo="Meta" valor={datos.meta_descripcion || 'Sin descripción'} />
               <ResumenCampo titulo="Indicadores" valor={datos.indicadores.length > 0 ? `${datos.indicadores.length} indicador(es)` : 'Ninguno'} />
@@ -677,7 +677,7 @@ function FormIndicador({ indicador, indice, onCambio, onEliminar, onToggle }) {
             {indicador.nombre || 'Nuevo indicador'}
           </span>
           {indicador.meta_global && (
-            <span className="text-xs text-gray-400 flex-shrink-0">— meta: {indicador.meta_global} {etiquetaUnidad}</span>
+            <span className="text-xs text-gray-400 flex-shrink-0">Meta: {indicador.meta_global} {etiquetaUnidad}</span>
           )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">

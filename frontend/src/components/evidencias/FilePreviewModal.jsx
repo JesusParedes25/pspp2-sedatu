@@ -111,7 +111,7 @@ export default function FilePreviewModal({ evidencia, onClose, urlOverride }) {
           {esLink && (
             <div className="flex flex-col h-full min-h-[60vh]">
               <p className="text-[11px] text-gray-400 px-2 pb-1.5">
-                Vista previa incrustada del sitio de origen — algunos sitios (por ejemplo, Google Drive sin permisos públicos) no permiten mostrarse aquí. Si se ve en blanco, usa "Abrir enlace".
+                Vista previa incrustada del sitio de origen: algunos sitios (por ejemplo, Google Drive sin permisos públicos) no permiten mostrarse aquí. Si se ve en blanco, usa "Abrir enlace".
               </p>
               <iframe src={url} className="w-full flex-1 rounded border border-gray-100" title={nombre} />
             </div>

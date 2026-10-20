@@ -47,11 +47,20 @@
  * misma marca visual que "esto es mío" — justo lo que esta ronda corrige
  * también en el texto, no solo en el fondo).
  *
- * Sin tema oscuro: la plataforma no lo tiene y no está planeado — no
+ * Sin tema oscuro: la plataforma no lo tiene y no está planeado, no
  * agregar clases `dark:` aquí (se agregaron y se retiraron en una ronda
  * anterior; confirmado por `git grep` contra el commit previo a Fase 3
  * que no existían en ningún otro archivo, así que no hay nada que
  * reconciliar).
+ *
+ * Ronda 6 (navegación del árbol): la barra de acento sola resultó
+ * "demasiado sutil" para leer "aquí estoy". `esSeleccionado` ahora
+ * también cambia el fondo (antes se quedaba en blanco/gray-150 igual
+ * que sin seleccionar) y agrega un `ring-1 ring-inset`, pero sigue sin
+ * cruzarse con `esConsulta`: una fila bloqueada seleccionada sube a un
+ * fondo/anillo GRIS más marcado, nunca al guinda que lleva una
+ * asignada seleccionada. Ver el comentario junto a `fondoFila` para los
+ * valores exactos y los ratios medidos.
  */
 import { ChevronRight, ChevronDown, Lock, Pencil } from 'lucide-react';
 import SemaforoDot from '../../common/SemaforoDot';
@@ -97,21 +106,41 @@ export default function NodoArbol({ nodo, tipo, expandidos, seleccionadoId, onTo
 
   function activar() { onSelect(tipo, nodo.id, nodo); }
 
-  // Fondo = permiso, barra de acento = selección — dos señales, dos
+  // Fondo = permiso, barra de acento = selección: dos señales, dos
   // significados, sin cruce (ronda 5, ver cabecera del archivo). El
   // color decide primero por `esConsulta` (nunca por `esSeleccionado`);
-  // la selección solo agrega `border-l-guinda-600`. Una fila bloqueada
-  // seleccionada usa `bg-gray-200` (un escalón más oscuro que el
-  // `bg-gray-150` de una bloqueada normal) en vez del lavado rosado —
-  // nunca se pinta como si el usuario tuviera permiso. El lavado rosado
-  // (`bg-guinda-50/40`) se queda exclusivo de una fila asignada
-  // seleccionada, exactamente como ya estaba.
+  // la selección agrega `border-l-guinda-600` más un `ring-1 ring-inset`
+  // que cierra el renglón como celda (ronda 6, "selección demasiado
+  // sutil": la barra sola no bastaba para leer "aquí estoy").
+  //
+  // El tono del anillo es la misma señal que el fondo: guinda cuando SÍ
+  // se puede editar, gris cuando NO; nunca guinda en una fila bloqueada,
+  // que repetiría el error exacto de Fase 3 (una fila bloqueada
+  // seleccionada pintada como si fuera editable). `bg-guinda-50/40`
+  // (la ronda anterior) medía 1.035:1 contra blanco, prácticamente
+  // invisible, así que el fondo de una fila asignada seleccionada sube a
+  // `bg-guinda-100` sólido (1.375:1 contra blanco, más perceptible que el
+  // propio `bg-gray-150` de una fila bloqueada) y una bloqueada
+  // seleccionada se queda en `bg-gray-200`, sin cambios, un escalón más
+  // oscuro que el `bg-gray-150` de una bloqueada normal.
+  //
+  // Los 4 ratios de contraste del texto/ícono contra su fondo de
+  // selección (medidos, no a ojo):
+  //   1) Nombre (text-guinda-700) sobre bg-guinda-100: 10.79:1
+  //   2) Lápiz  (text-guinda-600) sobre bg-guinda-100:  9.31:1
+  //   3) Nombre (text-gray-700)   sobre bg-gray-200:     8.33:1 (sin cambio)
+  //   4) Candado (gray-900 @65%)  sobre bg-gray-200:     5.06:1 (sin cambio)
+  // Los anillos en sí (borde no-textual, WCAG 1.4.11, mínimo 3:1) contra
+  // su propio fondo: ring-guinda-500/bg-guinda-100 = 7.35:1,
+  // ring-gray-600/bg-gray-200 = 6.1:1; un guinda-200 o un gray-400 más
+  // tenues NO alcanzaban el mínimo (1.44:1 y 2.05:1), por eso el salto a
+  // guinda-500/gray-600.
   const fondoFila = esConsulta
     ? esSeleccionado
-      ? 'bg-gray-200 border-l-[3px] border-l-guinda-600'
+      ? 'bg-gray-200 border-l-[3px] border-l-guinda-600 ring-1 ring-inset ring-gray-600'
       : 'bg-gray-150 border-l-[3px] border-l-transparent hover:bg-gray-200/60'
     : esSeleccionado
-      ? 'bg-guinda-50/40 border-l-[3px] border-l-guinda-600'
+      ? 'bg-guinda-100 border-l-[3px] border-l-guinda-600 ring-1 ring-inset ring-guinda-500'
       : 'bg-white border-l-[3px] border-l-transparent hover:bg-gray-50';
 
   // Misma prioridad que el fondo: una fila bloqueada se queda en

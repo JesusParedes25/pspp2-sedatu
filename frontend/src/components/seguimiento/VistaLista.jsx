@@ -73,7 +73,7 @@ function CeldaEditable({ getValue, row, column, table, formatoDisplay }) {
         onClick={() => setEditing(true)}
         title={String(textoMostrado || '')}
       >
-        {textoMostrado || <span className="text-gray-300">—</span>}
+        {textoMostrado || <span className="text-gray-300">-</span>}
       </div>
     );
   }
@@ -133,7 +133,7 @@ function CeldaEstado({ row, table }) {
 // ─── Celda de campo extra: las tareas no tienen columna campos_extra ───
 function CeldaExtra(props) {
   if (props.row.original.tipo === 'tarea') {
-    return <div className="px-2 py-1 text-xs text-gray-300">—</div>;
+    return <div className="px-2 py-1 text-xs text-gray-300">-</div>;
   }
   return <CeldaEditable {...props} />;
 }
@@ -148,7 +148,7 @@ function CeldaFecha(props) {
     const valor = props.getValue();
     return (
       <div className="px-2 py-1 text-xs text-gray-400" title="Se calcula de sus acciones/tareas">
-        {valor ? formatFechaCorta(valor) : '—'}
+        {valor ? formatFechaCorta(valor) : '-'}
       </div>
     );
   }
@@ -342,7 +342,7 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
         size: 160,
         cell: ({ row }) => {
           const locs = row.original.ubicacion || [];
-          if (locs.length === 0) return <span className="text-gray-300 text-xs">—</span>;
+          if (locs.length === 0) return <span className="text-gray-300 text-xs">-</span>;
           return (
             <div className="flex flex-wrap gap-1">
               {locs.slice(0, 2).map((loc, i) => (
@@ -365,7 +365,7 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
         size: 60,
         cell: ({ getValue }) => {
           const v = getValue();
-          return v != null ? <span className="text-xs font-mono">{v}%</span> : <span className="text-gray-300">—</span>;
+          return v != null ? <span className="text-xs font-mono">{v}%</span> : <span className="text-gray-300">-</span>;
         },
       },
       {
@@ -502,7 +502,7 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
 
       {/* Footer */}
       <div className="flex justify-between items-center text-xs text-gray-500">
-        <span>{data.length} elementos</span>
+        <span>{data.length} elemento{data.length !== 1 ? 's' : ''}</span>
         <span className="text-gray-400">Click en celda para editar</span>
       </div>
 

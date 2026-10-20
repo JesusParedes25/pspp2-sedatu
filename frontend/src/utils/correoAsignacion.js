@@ -153,11 +153,11 @@ export async function enviarCorreoAsignacion({ nombreDestino, correoDestino, tit
     const tplId = cfg.emailjs_asignacion_template_id;
     const pubKey = cfg.emailjs_asignacion_public_key;
     if (!svcId || !tplId || !pubKey) {
-      console.warn('[correoAsignacion] Trío de credenciales incompleto para "Asignación de participación" (Service ID / Template ID / Public Key) — correo no enviado.');
+      console.warn('[correoAsignacion] Trío de credenciales incompleto para "Asignación de participación" (Service ID / Template ID / Public Key): correo no enviado.');
       return { enviado: false, motivo: 'sin_configuracion' };
     }
     if (!correoDestino) {
-      console.warn(`[correoAsignacion] "${nombreDestino || 'destinatario'}" no tiene correo registrado — correo no enviado.`);
+      console.warn(`[correoAsignacion] "${nombreDestino || 'destinatario'}" no tiene correo registrado: correo no enviado.`);
       return { enviado: false, motivo: 'sin_correo_destino' };
     }
     await emailjs.send(svcId, tplId, {

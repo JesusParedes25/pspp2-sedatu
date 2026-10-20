@@ -79,7 +79,7 @@ export default function ResolucionDuplicadosPadre({ grupos, resoluciones, onCamb
                   checked={marcadoDistintos}
                   onChange={() => marcarComoDistintos(grupo)}
                 />
-                <span className="flex-1 text-gray-600">Son {etiqueta.toLowerCase()}s distintos — crear ambos</span>
+                <span className="flex-1 text-gray-600">Son {etiqueta.toLowerCase()}s distintos: crear ambos</span>
               </label>
             </div>
 

@@ -150,7 +150,7 @@ export default function SelectorNodoArbol({ etapas, valor, onSeleccionar, puedeE
             !valor ? 'bg-guinda-50 text-guinda-700 font-semibold' : 'text-gray-500 hover:bg-gray-50'
           }`}
         >
-          — a nivel de todo el proyecto —
+          (a nivel de todo el proyecto)
         </button>
         {ramas.map(({ nodo, tipo, hijos }) => (
           <Fila

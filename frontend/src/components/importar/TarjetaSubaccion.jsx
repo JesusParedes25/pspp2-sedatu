@@ -9,7 +9,7 @@ import { useState } from 'react';
 import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 
 const CAMPOS_SUBACCION = [
-  { value: '', label: '— No usar —' },
+  { value: '', label: '(No usar)' },
   { value: 'estado', label: 'Estado' },
   { value: 'fecha_inicio', label: 'Fecha inicio' },
   { value: 'fecha_fin', label: 'Fecha fin' },

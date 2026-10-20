@@ -8,7 +8,7 @@
 import { Trash2 } from 'lucide-react';
 
 const CAMPOS_PIVOT = [
-  { value: '', label: '— No mapear —' },
+  { value: '', label: '(No mapear)' },
   { value: 'estado', label: 'Estado' },
   { value: 'fecha_inicio', label: 'Fecha inicio' },
   { value: 'fecha_fin', label: 'Fecha fin' },

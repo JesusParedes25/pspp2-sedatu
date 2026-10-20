@@ -352,7 +352,7 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCrea
         // caller que ya toastea en su propio onCreado (ej. NodoCard)
         // duplicaría el aviso en cada "Guardar y agregar otra".
         onCreadoParcial?.(accion);
-        mostrarToast('Acción creada — agrega la siguiente', 'exito');
+        mostrarToast('Acción creada: agrega la siguiente', 'exito');
         setDatos(datosIniciales());
         setDocumentos([]);
       } else {
@@ -425,7 +425,7 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCrea
               Responsable <span className="font-normal text-gray-400">(opcional)</span>
             </label>
             <p className="text-[11px] text-gray-400 mb-2">
-              DG y Dirección de área filtran la lista de abajo para encontrar más rápido a la persona — no son datos propios de la acción.
+              DG y Dirección de área filtran la lista de abajo para encontrar más rápido a la persona: no son datos propios de la acción.
             </p>
             <div className="grid grid-cols-2 gap-3 mb-2">
               <div>
@@ -446,7 +446,7 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCrea
             <select value={datos.id_responsable} onChange={e => actualizar('id_responsable', e.target.value)} className="input-base text-sm">
               <option value="">Sin asignar</option>
               {usuariosFiltrados.map(u => (
-                <option key={u.id} value={u.id}>{u.nombre_completo} — {u.cargo}</option>
+                <option key={u.id} value={u.id}>{u.nombre_completo} ({u.cargo})</option>
               ))}
             </select>
           </div>
@@ -470,6 +470,12 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCrea
               </label>
               <input type="date" value={datos.fecha_limite} onChange={e => actualizar('fecha_limite', e.target.value)}
                 className="input-base text-sm" />
+              {/* Bloque 3.1: explica la consecuencia de dejarla vacía, no
+                  solo que "es opcional" — nota informativa, no una
+                  alerta roja (el usuario no hizo nada mal). */}
+              <p className="text-[10px] text-gray-400 leading-snug mt-1">
+                Sin fecha límite, la acción no aparece en el Cronograma y su semáforo se queda en gris: la plataforma no puede avisarte cuándo está por vencer.
+              </p>
             </div>
           </div>
 
@@ -513,7 +519,7 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCrea
               {/* ─── Territorio ─── */}
               <div className="border-t border-gray-100 pt-4">
                 <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-                  <MapPin size={12} /> Territorio <span className="normal-case font-normal text-gray-400">(opcional — si no se elige, hereda el de la etapa)</span>
+                  <MapPin size={12} /> Territorio <span className="normal-case font-normal text-gray-400">(opcional: si no se elige, hereda el de la etapa)</span>
                 </label>
                 <TerritorioSelector
                   data={{ cve_ent: datos.cve_ent, municipios: datos.municipios, id_zm: datos.id_zm }}

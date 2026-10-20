@@ -112,7 +112,7 @@ export default function TabTransferenciaAdmin() {
       </div>
       <p className="text-xs text-gray-500">
         El destinatario queda como administrador(a) del proyecto. Quien administraba antes no se elimina
-        del proyecto: queda como responsable. Solo un superadministrador puede hacer esta transferencia —
+        del proyecto: queda como responsable. Solo un superadministrador puede hacer esta transferencia;
         la cesión por parte del propio administrador queda pendiente para una versión posterior.
       </p>
 
@@ -172,7 +172,7 @@ export default function TabTransferenciaAdmin() {
                 <div className="min-w-0">
                   <p className="text-xs text-gray-400">Administrador(a) actual</p>
                   <p className="text-sm font-medium text-gray-800 truncate">
-                    {administradorActual ? `${administradorActual.nombre_completo} — ${administradorActual.correo}` : 'Sin administrador asignado'}
+                    {administradorActual ? `${administradorActual.nombre_completo} (${administradorActual.correo})` : 'Sin administrador asignado'}
                   </p>
                 </div>
               </div>
@@ -196,7 +196,7 @@ export default function TabTransferenciaAdmin() {
                       <select value={destinatarioId} onChange={e => setDestinatarioId(e.target.value)} className="input-base text-sm flex-1">
                         <option value="">Selecciona una persona...</option>
                         {candidatos.map(c => (
-                          <option key={c.id_usuario} value={c.id_usuario}>{c.nombre_completo} — {c.correo} ({c.rol})</option>
+                          <option key={c.id_usuario} value={c.id_usuario}>{c.nombre_completo} ({c.correo}, {c.rol})</option>
                         ))}
                       </select>
                       <button

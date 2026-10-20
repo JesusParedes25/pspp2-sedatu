@@ -46,7 +46,7 @@ export default function ModalEliminarProyecto({ proyecto, onCerrar, onConfirmar,
 
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-1.5">
             <p className="text-xs text-amber-800">⚠ El proyecto <strong>desaparecerá de inmediato</strong> para todos los usuarios.</p>
-            <p className="text-xs text-amber-800">⏳ Quedará guardado en la papelera <strong>30 días</strong> — durante ese tiempo, puedes mandar correo a <strong>jesus.paredes@sedatu.gob.mx</strong> para restaurarlo desde Administración.</p>
+            <p className="text-xs text-amber-800">⏳ Quedará guardado en la papelera <strong>30 días</strong>: durante ese tiempo, puedes mandar correo a <strong>jesus.paredes@sedatu.gob.mx</strong> para restaurarlo desde Administración.</p>
             <p className="text-xs text-amber-800">🗑 Pasados los 30 días se <strong>borra de forma permanente e irreversible</strong></p>
           </div>
 

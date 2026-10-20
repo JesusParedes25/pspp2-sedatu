@@ -117,7 +117,8 @@ const EncabezadoDetalle = forwardRef(function EncabezadoDetalle({ nodo, ruta, pe
         )}
         {hijos.length > 0 && (
           <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-500">
-            {hijos.length} {(nivel.hijoLabelPlural || 'elementos').toLowerCase()}
+            {/* Bloque 4.2: singular con 1, nunca "1 acciones" */}
+            {hijos.length} {(hijos.length === 1 ? nivel.hijoLabel || 'elemento' : nivel.hijoLabelPlural || 'elementos').toLowerCase()}
           </span>
         )}
         {/* Fase 3 del modelo de permisos — mismo permisos.esSoloLectura por

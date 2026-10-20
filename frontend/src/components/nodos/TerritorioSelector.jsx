@@ -12,7 +12,7 @@ import client from '../../api/client';
 
 function Select({ label, valor, opciones, onChange, soloLectura }) {
   if (soloLectura) {
-    const actual = opciones.find(o => o.value === valor)?.label || valor || '—';
+    const actual = opciones.find(o => o.value === valor)?.label || valor || '-';
     return (
       <div>
         <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">{label}</span>
@@ -28,7 +28,7 @@ function Select({ label, valor, opciones, onChange, soloLectura }) {
         onChange={e => onChange(e.target.value)}
         className="text-xs border border-gray-200 rounded px-1.5 py-1 w-full bg-white focus:border-[#7B1C3E] outline-none"
       >
-        <option value="">—</option>
+        <option value="">-</option>
         {opciones.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </div>
@@ -69,7 +69,7 @@ function MultiSelectMunicipios({ municipios, opciones, onChange, soloLectura, es
               </span>
             ))}
           </div>
-        ) : <p className="text-xs text-gray-600">—</p>}
+        ) : <p className="text-xs text-gray-600">-</p>}
       </div>
     );
   }
@@ -212,7 +212,7 @@ export default function TerritorioSelector({ data, onGuardar, soloLectura, sopor
         </div>
         {modoTerritorio === 'estado' && (
           <div className="px-3 pb-3 space-y-2">
-            <p className="text-[10px] text-gray-400 leading-tight">Los municipios pueden ser de distintos estados — usa este selector solo para buscar y agregar, no borra lo ya elegido en otros estados.</p>
+            <p className="text-[10px] text-gray-400 leading-tight">Los municipios pueden ser de distintos estados: usa este selector solo para buscar y agregar, no borra lo ya elegido en otros estados.</p>
             <Select label="Buscar municipios de este estado" valor={data.cve_ent || ''}
               opciones={catalogs.estados_geo.map(e => ({ value: e.cve_ent, label: e.nombre }))}
               onChange={v => { setMuniFilter(v || null); onGuardar('cve_ent', v || null); }}

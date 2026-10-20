@@ -187,7 +187,7 @@ export default function ModalNuevaEtapa({ proyecto, etapas, onGuardar, onCerrar 
               Responsable <span className="font-normal text-gray-400">(opcional)</span>
             </label>
             <p className="text-[11px] text-gray-400 mb-2">
-              DG y Dirección de área filtran la lista de abajo para encontrar más rápido a la persona — no son datos propios de la etapa.
+              DG y Dirección de área filtran la lista de abajo para encontrar más rápido a la persona: no son datos propios de la etapa.
             </p>
             <div className="grid grid-cols-2 gap-3 mb-2">
               <div>
@@ -208,7 +208,7 @@ export default function ModalNuevaEtapa({ proyecto, etapas, onGuardar, onCerrar 
             <select value={datos.id_responsable} onChange={e => actualizar('id_responsable', e.target.value)} className="input-base text-sm">
               <option value="">Sin asignar</option>
               {usuariosFiltrados.map(u => (
-                <option key={u.id} value={u.id}>{u.nombre_completo} — {u.cargo}</option>
+                <option key={u.id} value={u.id}>{u.nombre_completo} ({u.cargo})</option>
               ))}
             </select>
           </div>
@@ -236,6 +236,9 @@ export default function ModalNuevaEtapa({ proyecto, etapas, onGuardar, onCerrar 
             </label>
             <input type="date" value={datos.fecha_limite} onChange={e => actualizar('fecha_limite', e.target.value)}
               className="input-base text-sm" />
+            <p className="text-[10px] text-gray-400 leading-snug mt-1">
+              Sin fecha límite, la etapa no aparece en el Cronograma y su semáforo se queda en gris: la plataforma no puede avisarte cuándo está por vencer.
+            </p>
           </div>
 
           {/* Más detalles — plegado por omisión (bloque 3.1/3.3). No se

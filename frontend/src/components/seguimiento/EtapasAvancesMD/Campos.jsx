@@ -42,7 +42,7 @@ export function CampoTextoInline({ valor, campo, onGuardar, soloLectura, placeho
         className={`${className} ${!soloLectura ? 'cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1' : ''} ${!valor && !soloLectura ? 'italic text-gray-300' : ''} ${iconoEditar ? 'inline-flex items-center gap-1.5' : ''}`}
         title={!soloLectura ? 'Clic para editar' : undefined}
       >
-        <span>{valor || placeholder || '—'}</span>
+        <span>{valor || placeholder || '-'}</span>
         {iconoEditar && !soloLectura && <Pencil size={12} className="text-gray-300 flex-shrink-0" />}
       </div>
     );
@@ -93,8 +93,8 @@ export function CampoEditable({ label, valor, soloLectura }) {
 // (Estatus · Prioridad) donde varios campos van uno al lado del otro.
 export function CampoSelect({ label, valor, opciones, onChange, soloLectura, formatLabel, useObjects, variante, autoFocus }) {
   const displayVal = useObjects
-    ? (opciones.find(o => o.value === valor)?.label || valor || '—')
-    : (formatLabel ? formatLabel(valor) : valor || '—');
+    ? (opciones.find(o => o.value === valor)?.label || valor || '-')
+    : (formatLabel ? formatLabel(valor) : valor || '-');
 
   if (variante === 'chip') {
     return (
@@ -109,7 +109,7 @@ export function CampoSelect({ label, valor, opciones, onChange, soloLectura, for
             autoFocus={autoFocus}
             className="text-xs font-medium text-gray-700 bg-transparent border-none outline-none cursor-pointer max-w-[110px]"
           >
-            <option value="">—</option>
+            <option value="">-</option>
             {useObjects
               ? opciones.map(o => <option key={o.value} value={o.value}>{o.label}</option>)
               : opciones.map(o => <option key={o} value={o}>{formatLabel ? formatLabel(o) : o}</option>)
@@ -129,7 +129,7 @@ export function CampoSelect({ label, valor, opciones, onChange, soloLectura, for
         onChange={e => onChange(e.target.value)}
         className="text-xs border border-gray-200 rounded px-1.5 py-0.5 w-full bg-white focus:border-[#7B1C3E] outline-none"
       >
-        <option value="">—</option>
+        <option value="">-</option>
         {useObjects
           ? opciones.map(o => <option key={o.value} value={o.value}>{o.label}</option>)
           : opciones.map(o => <option key={o} value={o}>{formatLabel ? formatLabel(o) : o}</option>)
@@ -164,7 +164,7 @@ export function SelectorMunicipiosMultiple({ municipios, opciones, onChange, sol
               </span>
             ))}
           </div>
-        ) : <p className="text-xs text-gray-600">—</p>}
+        ) : <p className="text-xs text-gray-600">-</p>}
       </div>
     );
   }
@@ -304,7 +304,7 @@ export function CampoSemaforo({ label = 'Semáforo', valor, override, efectivo, 
           </select>
         )}
         {override && (
-          <span className="text-[9px] font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full flex-shrink-0" title="Alguien forzó este color a mano — ya no sigue el cálculo automático">
+          <span className="text-[9px] font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full flex-shrink-0" title="Alguien forzó este color a mano: ya no sigue el cálculo automático">
             Manual
           </span>
         )}
@@ -320,7 +320,7 @@ export function CampoSemaforo({ label = 'Semáforo', valor, override, efectivo, 
           <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: COLORES_SEMAFORO[colorMostrado] }} />
           <span className="text-xs">{URGENCIA_SEMAFORO[colorMostrado]}</span>
           {override && (
-            <span className="text-[9px] font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded" title="Alguien forzó este color a mano — ya no sigue el cálculo automático">
+            <span className="text-[9px] font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded" title="Alguien forzó este color a mano: ya no sigue el cálculo automático">
               Manual
             </span>
           )}

@@ -219,7 +219,7 @@ export default function ModalRiesgo({ riesgo, entidadTipo, entidadId, onGuardar,
               <option value="">Sin asignar</option>
               {usuarios.map(u => (
                 <option key={u.id} value={u.id}>
-                  {u.nombre_completo}{u.dg_siglas ? ` — ${u.dg_siglas}` : ''}
+                  {u.nombre_completo}{u.dg_siglas ? ` (${u.dg_siglas})` : ''}
                 </option>
               ))}
             </select>

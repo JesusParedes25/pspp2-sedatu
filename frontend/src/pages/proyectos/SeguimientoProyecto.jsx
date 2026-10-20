@@ -145,6 +145,7 @@ export default function SeguimientoProyecto() {
 
       {subseccionActiva === 'cronograma' && (
         <GanttCronograma
+          proyectoId={id}
           etapas={etapas}
           fechaInicioProyecto={proyecto.fecha_inicio}
           fechaFinProyecto={proyecto.fecha_limite}

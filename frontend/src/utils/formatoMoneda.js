@@ -20,7 +20,7 @@ const formatterEntero = new Intl.NumberFormat('es-MX', {
 
 export function formatearMoneda(valor, { decimales = true } = {}) {
   const n = parseFloat(valor);
-  if (valor == null || isNaN(n)) return '—';
+  if (valor == null || isNaN(n)) return '-';
   return (decimales ? formatterCompleto : formatterEntero).format(n);
 }
 
@@ -29,7 +29,7 @@ export function formatearMoneda(valor, { decimales = true } = {}) {
 // del sufijo "MXN" suelto.
 export function formatearMonedaCorta(valor) {
   const n = parseFloat(valor);
-  if (valor == null || isNaN(n)) return '—';
+  if (valor == null || isNaN(n)) return '-';
   const abs = Math.abs(n);
   if (abs >= 1e9) return `$${(n / 1e9).toFixed(1).replace(/\.0$/, '')}MMM`;
   if (abs >= 1e6) return `$${(n / 1e6).toFixed(1).replace(/\.0$/, '')}M`;

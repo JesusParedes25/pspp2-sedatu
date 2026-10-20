@@ -215,7 +215,7 @@ const SelectorEstado = forwardRef(function SelectorEstado({
       <span className={`inline-flex items-center ${className}`} title="Solo lectura">
         <EstadoChip estado={estadoActual} />
         {estadoOverride && esContenedor && (
-          <span title="Estatus fijado a mano — normalmente se calcula de sus partes" className="ml-1 text-gray-400 text-xs align-top">✎</span>
+          <span title="Estatus fijado a mano: normalmente se calcula de sus partes" className="ml-1 text-gray-400 text-xs align-top">✎</span>
         )}
       </span>
     );
@@ -253,7 +253,7 @@ const SelectorEstado = forwardRef(function SelectorEstado({
       >
         <EstadoChip estado={estadoActual} />
         {estadoOverride && esContenedor && (
-          <span title="Estatus fijado a mano — normalmente se calcula de sus partes" className="text-gray-400 text-xs align-top">✎</span>
+          <span title="Estatus fijado a mano: normalmente se calcula de sus partes" className="text-gray-400 text-xs align-top">✎</span>
         )}
         {cargando && <span className="text-xs text-gray-400 animate-pulse">…</span>}
         <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600 flex-shrink-0" />

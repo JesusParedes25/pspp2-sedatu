@@ -158,12 +158,12 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
           <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs mt-2">
             <div><span className="text-gray-400">Categoría:</span> <span className="text-gray-700 font-medium">{detalleEv.categoria}</span></div>
             <div><span className="text-gray-400">Tipo:</span> <span className="text-gray-700 font-medium">{esLink ? 'Enlace externo' : 'Archivo'}</span></div>
-            <div><span className="text-gray-400">Subido por:</span> <span className="text-gray-700 font-medium">{detalleEv.autor_nombre || '—'}</span></div>
+            <div><span className="text-gray-400">Subido por:</span> <span className="text-gray-700 font-medium">{detalleEv.autor_nombre || '-'}</span></div>
             <div><span className="text-gray-400">Fecha:</span> <span className="text-gray-700 font-medium">
-              {detalleEv.created_at ? new Date(detalleEv.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+              {detalleEv.created_at ? new Date(detalleEv.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
             </span></div>
             <div><span className="text-gray-400">Hora:</span> <span className="text-gray-700 font-medium">
-              {detalleEv.created_at ? new Date(detalleEv.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '—'}
+              {detalleEv.created_at ? new Date(detalleEv.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '-'}
             </span></div>
             {!esLink && detalleEv.tamano_bytes && (
               <div><span className="text-gray-400">Tamaño:</span> <span className="text-gray-700 font-medium">

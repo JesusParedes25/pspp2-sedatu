@@ -111,7 +111,7 @@ export default function BotonSolicitarParticipar({ proyecto, permisos, nodo = nu
   // no afecta nada de lo anterior.
   function avisarDestinatarios(destinatarios) {
     if (!destinatarios || destinatarios.length === 0) {
-      console.info('[BotonSolicitarParticipar] Solicitud sin destinatarios a quien avisar por correo — se registra y se sigue.');
+      console.info('[BotonSolicitarParticipar] Solicitud sin destinatarios a quien avisar por correo: se registra y se sigue.');
       return;
     }
     const quien = usuario?.nombre_completo;
@@ -192,11 +192,11 @@ function ModalSolicitar({ queSePide, esDeNodo, nodo, nombreProyecto, funcion, se
                   onChange={e => setFuncion(e.target.value)}
                   className="input-base text-sm w-full"
                 >
-                  <option value="captura">Colaborador — capturar avances y evidencias</option>
+                  <option value="captura">Colaborador: capturar avances y evidencias</option>
                   <option value="responsable">
                     {esDeNodo
-                      ? 'Responsable — además, coordinar esta parte'
-                      : 'Responsable — además, coordinar el proyecto'}
+                      ? 'Responsable: además, coordinar esta parte'
+                      : 'Responsable: además, coordinar el proyecto'}
                   </option>
                 </select>
               </div>

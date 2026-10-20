@@ -74,9 +74,9 @@ function FilaUso({ indicador, onCerrar }) {
                     {u.proyecto_nombre} <ExternalLink size={10} />
                   </a>
                 </td>
-                <td className="py-1 text-gray-500">{u.dg_siglas || '—'}</td>
-                <td className="py-1 text-right text-gray-700">{u.meta_global ?? '—'}</td>
-                <td className="py-1 text-right text-gray-700">{u.valor_actual ?? '—'}</td>
+                <td className="py-1 text-gray-500">{u.dg_siglas || '-'}</td>
+                <td className="py-1 text-right text-gray-700">{u.meta_global ?? '-'}</td>
+                <td className="py-1 text-right text-gray-700">{u.valor_actual ?? '-'}</td>
               </tr>
             ))}
           </tbody>
@@ -160,7 +160,7 @@ export default function TabIndicadores() {
         <h2 className="text-sm font-semibold text-gray-800">Catálogo de indicadores</h2>
         <p className="text-xs text-gray-500 mt-0.5">
           La definición única de cada indicador. Los proyectos eligen de aquí, así que dos
-          proyectos que miden lo mismo quedan comparables — y consolidables para enviarlos
+          proyectos que miden lo mismo quedan comparables y consolidables para enviarlos
           a otra plataforma. Cualquier usuario puede dar de alta uno que falte; aquí se curan.
         </p>
       </div>
@@ -312,7 +312,7 @@ export default function TabIndicadores() {
                     <label className="block text-xs font-semibold text-gray-700 mb-1">Instrumento</label>
                     <select value={editando.instrumento || ''} onChange={e => setEditando(v => ({ ...v, instrumento: e.target.value || null }))}
                       className="w-full px-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400">
-                      <option value="">— ninguno —</option>
+                      <option value="">(ninguno)</option>
                       {INSTRUMENTOS.map(i => <option key={i} value={i}>{i}</option>)}
                     </select>
                   </div>

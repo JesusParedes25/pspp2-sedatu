@@ -17,12 +17,15 @@
  * día de hoy.
  * ─────────────────────────────────────────────────────────────────
  */
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { formatearEstado } from '../../utils/estados';
-import { ChevronDown, ChevronRight, Layers, CheckSquare } from 'lucide-react';
+import { ChevronDown, ChevronRight, Layers, CheckSquare, Info } from 'lucide-react';
 import * as accionesApi from '../../api/acciones';
 import * as tareasApi from '../../api/tareas';
+import { obtenerActividadesSinFecha } from '../../api/proyectos';
 import { parseFechaLocal, formatFecha } from '../../utils/fecha';
+
+const ETIQUETA_TIPO_SIN_FECHA = { etapa: 'Etapa', accion: 'Acción', tarea: 'Tarea' };
 import { COLORES_SEMAFORO, CHIP_BG, LEYENDA_SEMAFORO, TEXTO_AMBAR_SOBRE_CHIP } from '../common/SemaforoDot';
 
 const ANCHO_NOMBRES = 'w-72';
@@ -49,12 +52,24 @@ function ordenarPorFechaLimite(lista) {
   return [...conFecha, ...sinFecha];
 }
 
-export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fechaFinProyecto }) {
+export default function GanttCronograma({ proyectoId, etapas = [], fechaInicioProyecto, fechaFinProyecto }) {
   const [expandidas, setExpandidas] = useState({}); // { etapaId: true }
   const [accionesExpandidas, setAccionesExpandidas] = useState({}); // { accionId: true }
   const [accionesPorEtapa, setAccionesPorEtapa] = useState({}); // { etapaId: [] }
   const [subaccionesPorAccion, setSubaccionesPorAccion] = useState({}); // { accionId: [] }
   const [tooltip, setTooltip] = useState(null);
+
+  // Bloque 3.2: lo que el Cronograma no puede dibujar por falta de fecha:
+  // un hueco explicado, no omitido en silencio. Independiente de la carga
+  // bajo demanda de arriba: cuenta TODO el proyecto, no solo lo expandido.
+  const [sinFecha, setSinFecha] = useState({ total: 0, items: [] });
+  const [mostrarListaSinFecha, setMostrarListaSinFecha] = useState(false);
+  useEffect(() => {
+    if (!proyectoId) return;
+    obtenerActividadesSinFecha(proyectoId)
+      .then(datos => setSinFecha(datos || { total: 0, items: [] }))
+      .catch(() => setSinFecha({ total: 0, items: [] }));
+  }, [proyectoId]);
 
   // ─── Rango de tiempo ─────────────────────────────────────────
   // Se recalcula también cuando se cargan acciones/subacciones al expandir
@@ -158,7 +173,7 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
   }, [accionesExpandidas, subaccionesPorAccion]);
 
   // ─── Formatear fecha para tooltip ────────────────────────────
-  const fmtFecha = (f) => formatFecha(f) || '—';
+  const fmtFecha = (f) => formatFecha(f) || '-';
 
   // ─── Componente de fila de barra ─────────────────────────────
   function FilaGantt({ nombre, fechaInicio, fechaFin, estado, semaforo, porcentaje, nivel, tieneHijos, estaExpandida, onToggle, esTarea }) {
@@ -230,7 +245,7 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
               onMouseEnter={(e) => setTooltip({
                 x: e.clientX, y: e.clientY,
                 nombre, estado, pct,
-                fechas: `${fmtFecha(fechaInicio)} — ${fmtFecha(fechaFin)}`
+                fechas: `${fmtFecha(fechaInicio)} a ${fmtFecha(fechaFin)}`
               })}
               onMouseLeave={() => setTooltip(null)}
             >
@@ -256,16 +271,53 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
     );
   }
 
+  // Bloque 3.2: aviso informativo (no una alerta), con la lista de las
+  // actividades afectadas a un clic: el mismo principio del gris del
+  // semáforo, convertir el hueco en algo que se pueda ir a arreglar.
+  const avisoSinFecha = sinFecha.total > 0 && (
+    <div className="mb-3 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-600">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <span className="flex items-center gap-1.5">
+          <Info size={13} className="text-gray-400 flex-shrink-0" />
+          {sinFecha.total} actividad{sinFecha.total !== 1 ? 'es' : ''} no se muestra{sinFecha.total !== 1 ? 'n' : ''} aquí porque no tiene{sinFecha.total !== 1 ? 'n' : ''} fechas capturadas.
+        </span>
+        <button
+          type="button"
+          onClick={() => setMostrarListaSinFecha(v => !v)}
+          className="text-[11px] font-medium text-guinda-600 hover:text-guinda-800 flex-shrink-0"
+        >
+          {mostrarListaSinFecha ? 'Ocultar' : 'Ver cuáles'}
+        </button>
+      </div>
+      {mostrarListaSinFecha && (
+        <ul className="mt-2 pt-2 border-t border-gray-200 space-y-1">
+          {sinFecha.items.map(item => (
+            <li key={`${item.tipo}-${item.id}`} className="flex items-center gap-1.5 text-[11px] text-gray-500">
+              <span className="flex-shrink-0 font-medium text-gray-400">{ETIQUETA_TIPO_SIN_FECHA[item.tipo]}:</span>
+              <span className="truncate">{item.nombre}</span>
+              {item.contexto && <span className="text-gray-400 flex-shrink-0">(en {item.contexto})</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+
   if (etapas.length === 0) {
     return (
-      <div className="text-center py-12 text-sm text-gray-400">
-        Sin etapas para mostrar en el cronograma.
+      <div>
+        {avisoSinFecha}
+        <div className="text-center py-12 text-sm text-gray-400">
+          Sin etapas para mostrar en el cronograma.
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="card overflow-hidden relative">
+    <div>
+      {avisoSinFecha}
+      <div className="card overflow-hidden relative">
       {/* Header con meses */}
       <div className="flex border-b border-gray-200 sticky top-0 z-30 bg-white">
         <div className={`${ANCHO_NOMBRES} flex-shrink-0 px-3 py-2.5 bg-gray-50 border-r border-gray-200`}>
@@ -392,6 +444,7 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
           <p className="text-gray-300">{formatearEstado(tooltip.estado)} · {tooltip.pct?.toFixed(0)}%</p>
         </div>
       )}
+      </div>
     </div>
   );
 }

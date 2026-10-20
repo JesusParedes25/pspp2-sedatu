@@ -160,7 +160,7 @@ export default function ConfiguracionProyecto() {
                   <li key={ind.id} className="py-2.5 flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm text-gray-800 truncate">{ind.nombre}</p>
-                      <p className="text-xs text-gray-400">{ind.tipo} · Meta: {ind.meta_global ?? '—'} {ind.unidad}</p>
+                      <p className="text-xs text-gray-400">{ind.tipo} · Meta: {ind.meta_global ?? '-'} {ind.unidad}</p>
                     </div>
                   </li>
                 ))}
@@ -197,7 +197,7 @@ export default function ConfiguracionProyecto() {
               </li>
               <li>
                 <span className="font-medium">Lo que no puedes editar, igual lo puedes leer:</span>{' '}
-                una parte del proyecto donde no tienes permiso de captura se ve atenuada, con un candado — nunca
+                una parte del proyecto donde no tienes permiso de captura se ve atenuada, con un candado, nunca
                 oculta. Su contenido se puede leer completo; solo no se puede cambiar.
               </li>
               <li>
@@ -207,7 +207,7 @@ export default function ConfiguracionProyecto() {
               </li>
               <li>
                 Si tu perfil es de Dirección, tus listados personalizados (Tablero, mapas, indicadores) también
-                incluyen los proyectos que lidera tu Dirección General, aunque no participes en ellos — eso no
+                incluyen los proyectos que lidera tu Dirección General, aunque no participes en ellos; eso no
                 cambia nada sobre este proyecto en particular: ya lo puedes ver, por la primera regla de arriba.
               </li>
             </ul>

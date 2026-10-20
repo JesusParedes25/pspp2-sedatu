@@ -101,11 +101,11 @@ export default function ModalCartera({ cartera, onCerrar, onGuardada }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Periodo — inicio</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Periodo de inicio</label>
               <input type="date" value={datos.fecha_inicio} onChange={e => actualizar('fecha_inicio', e.target.value)} className="input-base" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Periodo — fin</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Periodo de fin</label>
               <input type="date" value={datos.fecha_fin} onChange={e => actualizar('fecha_fin', e.target.value)} className="input-base" />
             </div>
           </div>

@@ -58,7 +58,7 @@ const menuItems = [
   {
     id: 'actividades', base: '/mis-actividades', icono: ListChecks, etiqueta: 'Mis actividades',
     children: [
-      { to: '/mis-actividades?tab=pendientes', param: 'pendientes', etiqueta: 'Pendientes', icono: ListTodo, default: true },
+      { to: '/mis-actividades?tab=pendientes', param: 'pendientes', etiqueta: 'Lista', icono: ListTodo, default: true },
       { to: '/mis-actividades?tab=agenda', param: 'agenda', etiqueta: 'Agenda', icono: CalendarDays },
     ],
   },

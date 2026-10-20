@@ -263,7 +263,7 @@ function VistaDiagramaInterna({ proyectoId, permisos }) {
   if (arbol.length === 0) {
     return (
       <div className="flex items-center justify-center py-16 border border-gray-200 rounded-xl bg-white text-gray-400 text-sm" style={{ minHeight: '600px' }}>
-        Sin etapas todavía — créalas desde la vista Detalle.
+        Sin etapas todavía: créalas desde la vista Detalle.
       </div>
     );
   }
