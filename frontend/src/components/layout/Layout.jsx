@@ -21,7 +21,10 @@
  * cualquiera que resuelva algo llama a `recargarResumen` y la campanita
  * se pone al día al instante. Outlet context lo lleva hasta las páginas
  * (Notificaciones, por ejemplo) sin tener que pasarlo prop por prop a
- * través de rutas que no lo necesitan.
+ * través de rutas que no lo necesitan. `notificacionesSinLeer` es el
+ * mismo `total` ya calculado, expuesto con otro nombre para quien solo
+ * quiere leerlo (la tarjeta de Notificaciones en Inicio.jsx) sin pedirlo
+ * de nuevo con una segunda instancia de useCentroNotificaciones.
  * ─────────────────────────────────────────────────────────────────
  */
 import { Outlet } from 'react-router-dom';
@@ -41,7 +44,7 @@ export default function Layout() {
       <div className={`flex-1 min-w-0 flex flex-col transition-all duration-300 ${sidebarAbierto ? 'ml-64' : 'ml-16'}`}>
         <Header pendientes={total} />
         <main className="flex-1 min-w-0 p-6 overflow-auto">
-          <Outlet context={{ recargarResumen }} />
+          <Outlet context={{ recargarResumen, notificacionesSinLeer: total }} />
         </main>
       </div>
       <ModalPendientesInicioSesion onResuelto={recargarResumen} />

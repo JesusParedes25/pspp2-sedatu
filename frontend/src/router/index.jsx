@@ -16,6 +16,7 @@
 import { Routes, Route } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import Inicio from '../pages/Inicio';
+import Tablero from '../pages/Tablero';
 import ListadoProyectos from '../pages/proyectos/ListadoProyectos';
 import NuevoProyecto from '../pages/proyectos/NuevoProyecto';
 import DetalleProyectoLayout from '../pages/proyectos/DetalleProyectoLayout';
@@ -46,6 +47,7 @@ export default function AppRouter() {
       <Route path="activar-cuenta" element={<ActivarCuenta />} />
       <Route element={<Layout />}>
         <Route index element={<Inicio />} />
+        <Route path="tablero" element={<Tablero />} />
         <Route path="proyectos" element={<ListadoProyectos />} />
         <Route path="proyectos/nuevo" element={<NuevoProyecto />} />
         <Route path="proyectos/:id" element={<DetalleProyectoLayout />}>

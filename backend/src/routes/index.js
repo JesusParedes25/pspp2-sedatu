@@ -288,6 +288,7 @@ router.get('/dashboard', dashboardController.obtenerDashboard);
 
 // Dashboard personalizado del usuario
 router.get('/inicio', inicioController.obtenerInicio);
+router.get('/inicio/resumen-tarjetas', inicioController.obtenerResumenTarjetas);
 router.get('/inicio/mapa', geoController.obtenerMapaInicio);
 router.get('/inicio/mapa/zm', geoController.obtenerMapaZmInicio);
 router.get('/inicio/filtros/proyectos', inicioController.obtenerProyectosFiltro);

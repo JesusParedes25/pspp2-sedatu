@@ -1,0 +1,524 @@
+/**
+ * ARCHIVO: Tablero.jsx
+ * PROPÓSITO: Dashboard personalizado del usuario con sus proyectos,
+ *            acciones vencidas/por vencer, riesgos, indicadores y actividad.
+ *
+ * MINI-CLASE: por qué este archivo se separó de Inicio.jsx
+ * ─────────────────────────────────────────────────────────────────
+ * Hasta antes de "PSPP v2.0 · Pantalla de Inicio" este mismo componente
+ * vivía en Inicio.jsx y ocupaba la ruta raíz ("/"). Ese nombre quedó
+ * libre para un concentrador de navegación nuevo (saludo, tarjetas de
+ * acceso, explicación del modelo de seguimiento) que es lo primero que
+ * ve cualquiera al entrar — este dashboard (antes "el Tablero de la
+ * raíz") se movió completo, sin recortes, a su propia ruta ("/tablero")
+ * y su propia entrada en el sidebar, debajo de "Inicio". El contenido de
+ * abajo es exactamente el mismo que tenía Inicio.jsx; solo cambió dónde
+ * vive.
+ * ─────────────────────────────────────────────────────────────────
+ */
+import { useState, useEffect, useRef } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import {
+  FolderKanban, Activity, AlertTriangle, TrendingUp,
+  MapPin, ChevronRight, Clock, Target, Shield, Calendar, Layers, MessageSquare
+} from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { useAuth } from '../context/AuthContext';
+import { obtenerInicio, obtenerProyectosFiltroInicio, obtenerCarterasFiltroInicio } from '../api/inicio';
+import client from '../api/client';
+import MapaTerritorialInicio from '../components/inicio/MapaTerritorialInicio';
+import FiltroTablero from '../components/inicio/FiltroTablero';
+import { ETIQUETA_TIPO_INDICADOR, agruparPorCatalogo, TarjetaIndicadorOAgrupada } from '../components/indicadores/TarjetaIndicador';
+import ListaEstatusCualitativo, { TituloEstatusCualitativo } from '../components/indicadores/ListaEstatusCualitativo';
+import { breadcrumbInternoEstatusCualitativo } from '../utils/estatusCualitativo';
+import ArbolPorProyecto from '../components/common/ArbolPorProyecto';
+import { COLORES_SEMAFORO } from '../components/common/SemaforoDot';
+import { formatearEstado } from '../utils/estados';
+
+const GUINDA = '#7B1C3E';
+
+export default function Tablero() {
+  const { usuario } = useAuth();
+  const [data, setData] = useState(null);
+  const [cargando, setCargando] = useState(true);
+
+  // Filtro del Tablero (por proyecto(s) o por cartera) — respaldado en
+  // la URL para que se pueda compartir/recargar sin perderlo, mismo
+  // criterio que el resto de la app (?tab=, ?vista=).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const carteraIdUrl = searchParams.get('cartera_id');
+  const proyectoIdsUrl = searchParams.get('proyecto_ids');
+  const filtro = {
+    carteraId: carteraIdUrl || null,
+    proyectoIds: carteraIdUrl ? [] : (proyectoIdsUrl ? proyectoIdsUrl.split(',').filter(Boolean) : []),
+  };
+  function setFiltro(next) {
+    setSearchParams(prev => {
+      const params = new URLSearchParams(prev);
+      params.delete('cartera_id');
+      params.delete('proyecto_ids');
+      if (next.carteraId) params.set('cartera_id', next.carteraId);
+      else if (next.proyectoIds?.length) params.set('proyecto_ids', next.proyectoIds.join(','));
+      return params;
+    });
+  }
+
+  const [opcionesProyectos, setOpcionesProyectos] = useState([]);
+  const [opcionesCarteras, setOpcionesCarteras] = useState([]);
+  const [cargandoOpciones, setCargandoOpciones] = useState(true);
+
+  useEffect(() => {
+    Promise.all([obtenerProyectosFiltroInicio(), obtenerCarterasFiltroInicio()])
+      .then(([proys, carts]) => { setOpcionesProyectos(proys); setOpcionesCarteras(carts); })
+      .catch(console.error)
+      .finally(() => setCargandoOpciones(false));
+  }, []);
+
+  useEffect(() => {
+    setCargando(true);
+    obtenerInicio(filtro)
+      .then(setData)
+      .catch(console.error)
+      .finally(() => setCargando(false));
+  }, [filtro.carteraId, filtro.proyectoIds.join(',')]);
+
+  if (cargando) {
+    return (
+      <div className="space-y-6">
+        <div className="h-8 bg-gray-200 rounded w-1/3 animate-pulse" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map(i => <div key={i} className="card p-6 animate-pulse h-40" />)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="card p-6 animate-pulse h-64" />
+          <div className="card p-6 animate-pulse h-64" />
+        </div>
+      </div>
+    );
+  }
+
+  const { proyectos = [], vencidos = [], por_vencer = [], riesgos = [], mapa_incidencia = [], indicadores = [], actividad = [], estatus_cualitativo = [] } = data || {};
+
+  return (
+    <div className="space-y-6">
+      {/* ═══ HEADER ═══ */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Buen día, {usuario?.nombre_completo?.split(' ')[0]}
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <FiltroTablero
+            filtro={filtro}
+            onCambiar={setFiltro}
+            proyectos={opcionesProyectos}
+            carteras={opcionesCarteras}
+            cargando={cargandoOpciones}
+          />
+          <Link to="/mapa" className="btn-secondary text-xs flex items-center gap-1">
+            <MapPin size={14} /> Territorio
+          </Link>
+        </div>
+      </div>
+
+      {/* ═══ MIS PROYECTOS ═══ */}
+      {proyectos.length > 0 && (
+        <section>
+          <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
+            <FolderKanban size={14} /> Mis proyectos
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {proyectos.slice(0, 9).map(p => (
+              <ProyectoCard key={p.id} proyecto={p} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ═══ MAPA + INDICADORES (mitad de ancho cada uno; el que falte, el otro ocupa todo) ═══ */}
+      <div className={`grid grid-cols-1 gap-4 ${indicadores.length > 0 ? 'lg:grid-cols-2' : ''}`}>
+        <div className="space-y-4">
+          <div className="card p-5">
+            <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
+              <MapPin size={14} /> Incidencia territorial
+            </h2>
+            <MapaTerritorialInicio filtro={filtro} />
+          </div>
+
+          {/* ═══ ESTATUS CUALITATIVO ═══
+              La nota corta por etapa que responde "¿cómo va esto ahora
+              mismo?". Antes solo se veía pasando el mouse por la tarjeta
+              de un proyecto, o sea casi nunca: alguien se tomaba el
+              trabajo de escribirla y nadie la leía. Va debajo del mapa
+              porque esa columna suele quedar más corta que la de
+              Indicadores — llena el espacio que si no quedaría en
+              blanco, en vez de vivir como bloque aparte de ancho
+              completo. */}
+          {estatus_cualitativo.length > 0 && (
+            <div className="card p-5">
+              <TituloEstatusCualitativo />
+              <ListaEstatusCualitativo items={estatus_cualitativo} maxAltura="max-h-72" />
+            </div>
+          )}
+        </div>
+
+        {indicadores.length > 0 && (
+          <div className="card p-5">
+            <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
+              <Target size={14} className="text-blue-500" /> Indicadores
+            </h2>
+            <IndicadoresResumen indicadores={indicadores} />
+          </div>
+        )}
+      </div>
+
+      {/* ═══ ACCIONES VENCIDAS + RIESGOS ABIERTOS (misma fila, una columna
+          cada una) — son las dos listas que de verdad piden acción ya;
+          "Por vencer" es alerta temprana y va aparte, debajo. ═══ */}
+      {(vencidos.length > 0 || riesgos.length > 0) && (
+        <div className={`grid grid-cols-1 gap-6 ${vencidos.length > 0 && riesgos.length > 0 ? 'lg:grid-cols-2' : ''}`}>
+          {vencidos.length > 0 && (
+            <div className="card p-5">
+              <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
+                <AlertTriangle size={14} className="text-red-500" /> Acciones vencidas
+              </h2>
+              <div className="max-h-72 overflow-y-auto pr-1">
+                <ArbolPorProyecto
+                  items={vencidos}
+                  vacio="Sin acciones vencidas."
+                  renderItem={a => (
+                    <Link
+                      key={a.id}
+                      to={`/proyectos/${a.proyecto_id}?tab=seguimiento&nodo=${a.id}`}
+                      className="block py-1 px-1.5 -ml-1.5 rounded hover:bg-red-50 transition"
+                    >
+                      <p className="text-[10px] text-red-500 font-medium">-{a.dias_atraso}d de atraso</p>
+                    </Link>
+                  )}
+                />
+              </div>
+            </div>
+          )}
+          {riesgos.length > 0 && (
+            <div className="card p-5">
+              <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
+                <Shield size={14} className="text-orange-500" /> Riesgos abiertos
+              </h2>
+              <div className="max-h-72 overflow-y-auto pr-1">
+                <ArbolPorProyecto
+                  items={riesgos}
+                  vacio="Sin riesgos abiertos."
+                  renderItem={r => (
+                    <Link
+                      key={r.id}
+                      to={`/proyectos/${r.proyecto_id}?tab=seguimiento&nodo=${r.entidad_id}`}
+                      className="flex items-center gap-1.5 py-1 px-1.5 -ml-1.5 rounded hover:bg-orange-50 transition"
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                        r.nivel === 'Critico' ? 'bg-red-600' :
+                        r.nivel === 'Alto' ? 'bg-orange-500' :
+                        r.nivel === 'Medio' ? 'bg-yellow-500' : 'bg-gray-400'
+                      }`} />
+                      <p className="text-xs text-gray-800 truncate">{r.titulo}</p>
+                      <span className="text-[10px] text-gray-400 flex-shrink-0">· {r.nivel}</span>
+                    </Link>
+                  )}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══ VENCEN EN 14 DÍAS ═══ */}
+      {por_vencer.length > 0 && (
+        <div className="card p-5">
+          <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
+            <Clock size={14} className="text-yellow-600" /> Vencen en 14 días
+          </h2>
+          <div className="max-h-64 overflow-y-auto pr-1">
+            <ArbolPorProyecto
+              items={por_vencer}
+              vacio="Nada por vencer en los próximos 14 días."
+              renderItem={a => (
+                <Link
+                  key={a.id}
+                  to={`/proyectos/${a.proyecto_id}?tab=seguimiento&nodo=${a.id}`}
+                  className="block py-1 px-1.5 -ml-1.5 rounded hover:bg-yellow-50 transition"
+                >
+                  <p className="text-[10px] text-yellow-600 font-medium">{a.dias_restantes}d restantes</p>
+                </Link>
+              )}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ═══ ACTIVIDAD RECIENTE ═══ */}
+      {actividad.length > 0 && (
+        <div className="card p-5">
+          <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
+            <Activity size={14} className="text-purple-500" /> Actividad reciente
+          </h2>
+          <div className="max-h-96 overflow-y-auto pr-1">
+            <ArbolPorProyecto
+              items={actividad}
+              vacio="Sin actividad reciente."
+              renderItem={ev => {
+                const { bg, text, icon: IconComp } = actividadConfig(ev.tipo);
+                return (
+                  <Link
+                    key={ev.id}
+                    to={`/proyectos/${ev.proyecto_id}?tab=seguimiento&nodo=${ev.entidad_id}`}
+                    className="flex items-start gap-2.5 py-1 px-1.5 -ml-1.5 rounded hover:bg-gray-50 transition-colors"
+                  >
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${bg} ${text}`}>
+                      <IconComp size={11} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-gray-800 leading-relaxed">
+                        {ev.actor && <span className="font-medium">{ev.actor}: </span>}
+                        <span className="text-gray-700">{ev.titulo}</span>
+                      </p>
+                      {ev.descripcion && (
+                        <p className="text-[11px] text-gray-500 truncate">{ev.descripcion.slice(0, 80)}</p>
+                      )}
+                      <p className="text-[10px] text-gray-400 mt-0.5">{rel(ev.created_at)}</p>
+                    </div>
+                  </Link>
+                );
+              }}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Helpers ──────────────────────────────────────────────────
+const actividadConfig = (tipo) => {
+  const map = {
+    estado:     { bg: 'bg-blue-100',   text: 'text-blue-600',   icon: TrendingUp },
+    avance:     { bg: 'bg-green-100',  text: 'text-green-600',  icon: TrendingUp },
+    evidencia:  { bg: 'bg-yellow-100', text: 'text-yellow-600', icon: Shield },
+    comentario: { bg: 'bg-purple-100', text: 'text-purple-600', icon: Activity },
+    miembro:    { bg: 'bg-pink-100',   text: 'text-pink-600',   icon: Calendar },
+    creacion:   { bg: 'bg-teal-100',   text: 'text-teal-600',   icon: AlertTriangle },
+    indicador:  { bg: 'bg-orange-100', text: 'text-orange-600', icon: Target },
+    tarea:      { bg: 'bg-indigo-100', text: 'text-indigo-600', icon: Clock },
+  };
+  return map[tipo] || { bg: 'bg-gray-100', text: 'text-gray-500', icon: Activity };
+};
+
+function rel(fecha) {
+  if (!fecha) return '';
+  const diff = Date.now() - new Date(fecha).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'ahora';
+  if (m < 60) return `hace ${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `hace ${h}h`;
+  const d = Math.floor(h / 24);
+  return `hace ${d}d`;
+}
+
+function getColor(pct) {
+  if (pct >= 80) return '#22c55e';
+  if (pct >= 60) return '#84cc16';
+  if (pct >= 40) return '#eab308';
+  if (pct >= 20) return '#f97316';
+  return '#ef4444';
+}
+
+// ─── Proyecto Card ────────────────────────────────────────────
+function ProyectoCard({ proyecto }) {
+  const pct = parseFloat(proyecto.porcentaje_calculado) || 0;
+  const cacheRef = useRef(null);
+  const timeoutRef = useRef(null);
+  // Retraso antes de cerrar el popover — sin esto, el hueco entre la
+  // tarjeta y el popover (posicionado unos px abajo/arriba) queda fuera
+  // del área de la tarjeta, y bajar el mouse hacia el popover dispara
+  // mouseLeave antes de llegar. Cualquier mouseEnter (tarjeta o popover)
+  // cancela el cierre pendiente; solo se cierra si el mouse no vuelve a
+  // entrar a ninguno de los dos dentro del margen.
+  const cerrarTimeoutRef = useRef(null);
+  const [popover, setPopover] = useState(null); // { x, y, above, cargando, datos }
+
+  function mostrarPopover(e) {
+    clearTimeout(cerrarTimeoutRef.current);
+    const rect = e.currentTarget.getBoundingClientRect();
+    const arriba = rect.top > window.innerHeight / 2;
+    const pos = { x: rect.left, y: arriba ? rect.top - 8 : rect.bottom + 8, above: arriba };
+    if (cacheRef.current) { setPopover({ ...pos, cargando: false, datos: cacheRef.current }); return; }
+    setPopover({ ...pos, cargando: true, datos: null });
+    timeoutRef.current = setTimeout(() => {
+      client.get(`/proyectos/${proyecto.id}/panorama-rapido`)
+        .then(res => { cacheRef.current = res.data.datos; setPopover(p => p ? { ...p, cargando: false, datos: res.data.datos } : p); })
+        .catch(() => setPopover(p => p ? { ...p, cargando: false, datos: { etapas: [], estatus_cualitativo: [], actividad: [] } } : p));
+    }, 250);
+  }
+  function cancelarCierre() {
+    clearTimeout(cerrarTimeoutRef.current);
+  }
+  function programarCierre() {
+    clearTimeout(timeoutRef.current);
+    cerrarTimeoutRef.current = setTimeout(() => setPopover(null), 200);
+  }
+
+  return (
+    <Link
+      to={`/proyectos/${proyecto.id}`}
+      className="card overflow-hidden hover:shadow-md hover:border-guinda-200 transition group relative block"
+      onMouseEnter={mostrarPopover}
+      onMouseLeave={programarCierre}
+    >
+      {proyecto.imagen_url && (
+        <div className="h-20 -mx-px -mt-px mb-3">
+          <img src={proyecto.imagen_url} alt="" className="w-full h-full object-cover" />
+        </div>
+      )}
+      <div className={proyecto.imagen_url ? 'px-4 pb-4' : 'p-4'}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2 group-hover:text-guinda-700 transition">
+              {proyecto.nombre}
+            </p>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              {proyecto.dg_siglas || 'Sin DG'} · {formatearEstado(proyecto.estado)}
+            </p>
+          </div>
+          <ChevronRight size={14} className="text-gray-300 group-hover:text-guinda-400 transition mt-1 flex-shrink-0" />
+        </div>
+        <div className="mt-3">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] text-gray-500">Avance</span>
+            <span className="text-xs font-bold" style={{ color: getColor(pct) }}>{pct.toFixed(0)}%</span>
+          </div>
+          <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: getColor(pct) }} />
+          </div>
+        </div>
+        <div className="flex items-center gap-3 mt-2 text-[10px] text-gray-400">
+          {proyecto.acciones_pendientes > 0 && <span>{proyecto.acciones_pendientes} actividad{parseInt(proyecto.acciones_pendientes) !== 1 ? 'es' : ''} por completar</span>}
+          {proyecto.riesgos_activos > 0 && <span className="text-orange-500">{proyecto.riesgos_activos} riesgo{parseInt(proyecto.riesgos_activos) !== 1 ? 's' : ''}</span>}
+          {proyecto.es_prioritario && <span className="text-guinda-600 font-bold">★ Prioritario</span>}
+        </div>
+      </div>
+
+      {popover && (
+        <div
+          onMouseEnter={cancelarCierre}
+          onMouseLeave={programarCierre}
+          className="fixed z-[9999] bg-white border border-gray-200 rounded-lg shadow-xl p-3.5 w-[460px] max-w-[92vw]"
+          style={{ left: Math.min(popover.x, window.innerWidth - 476), top: popover.above ? undefined : popover.y, bottom: popover.above ? window.innerHeight - popover.y : undefined }}
+        >
+          {popover.cargando ? (
+            <div className="flex items-center gap-2 text-xs text-gray-400 py-2">
+              <div className="animate-spin w-3.5 h-3.5 border-2 border-[#7B1C3E] border-t-transparent rounded-full" /> Cargando panorama…
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-x-4">
+              {/* Columna izquierda: estructura (etapas) */}
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Layers size={11} className="text-indigo-500" />
+                  <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Estructura</p>
+                </div>
+                {popover.datos.etapas.length === 0 ? (
+                  <p className="text-[11px] text-gray-400 italic">Sin etapas registradas.</p>
+                ) : (
+                  <ul className="space-y-1 max-h-56 overflow-y-auto pr-1">
+                    {popover.datos.etapas.map(et => (
+                      <li key={et.id} className="text-[11px]">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO[et.semaforo_efectivo || et.semaforo || 'gris'] }} />
+                          <span className="truncate text-gray-700 flex-1">{et.nombre}</span>
+                          <span className="text-gray-400 flex-shrink-0">{et.acciones_completadas}/{et.total_acciones}</span>
+                          <span className="text-gray-400 tabular-nums flex-shrink-0 w-8 text-right">{Math.round(et.avance)}%</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {/* Columna derecha: estatus cualitativo + última actividad */}
+              <div className="min-w-0 border-l border-gray-100 pl-4">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <MessageSquare size={11} className="text-teal-600" />
+                  <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Nota de avance</p>
+                </div>
+                {popover.datos.estatus_cualitativo.length === 0 ? (
+                  <p className="text-[11px] text-gray-400 italic mb-2">Sin nota de avance capturada.</p>
+                ) : (
+                  <ul className="space-y-1.5 max-h-32 overflow-y-auto mb-2 pr-1">
+                    {popover.datos.estatus_cualitativo.slice(0, 4).map(item => (
+                      <li key={item.id} className="text-[11px] leading-snug">
+                        <p className="text-gray-400 truncate">{breadcrumbInternoEstatusCualitativo(item)}</p>
+                        <p className="text-gray-700 italic line-clamp-2">"{item.estatus_cualitativo}"</p>
+                      </li>
+                    ))}
+                    {popover.datos.estatus_cualitativo.length > 4 && (
+                      <li className="text-[10px] text-gray-400">+{popover.datos.estatus_cualitativo.length - 4} más…</li>
+                    )}
+                  </ul>
+                )}
+
+                <div className="flex items-center gap-1.5 mb-1.5 pt-1.5 border-t border-gray-100">
+                  <Activity size={11} className="text-purple-500" />
+                  <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Última actividad</p>
+                </div>
+                {popover.datos.actividad.length === 0 ? (
+                  <p className="text-[11px] text-gray-400 italic">Sin actividad reciente.</p>
+                ) : (
+                  <ul className="space-y-1 max-h-28 overflow-y-auto pr-1">
+                    {popover.datos.actividad.map(ev => (
+                      <li key={ev.id} className="text-[11px] text-gray-700 leading-snug">
+                        {ev.actor && <span className="font-medium">{ev.actor.split(' ')[0]}: </span>}
+                        <span className="text-gray-600">{ev.titulo}</span>
+                        <span className="text-gray-400"> · {rel(ev.created_at)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </Link>
+  );
+}
+
+// ─── Indicadores Resumen ──────────────────────────────────────
+function IndicadoresResumen({ indicadores }) {
+  // Agrupado por tipo, igual que antes. La tarjeta en sí vive en
+  // TarjetaIndicador y la comparten Tablero, Resumen de cartera y
+  // Panorama del proyecto — antes eran tres copias que ya habían
+  // divergido (solo una mostraba el valor junto al porcentaje).
+  const grupos = {};
+  for (const ind of indicadores) {
+    const tipo = ind.tipo || 'Otro';
+    (grupos[tipo] = grupos[tipo] || []).push(ind);
+  }
+
+  return (
+    <div className="space-y-4">
+      {Object.entries(grupos).map(([tipo, inds]) => (
+        <div key={tipo}>
+          <p className="text-xs font-medium text-gray-700 mb-2">{ETIQUETA_TIPO_INDICADOR[tipo] || tipo}</p>
+          <div className="space-y-2">
+            {agruparPorCatalogo(inds).slice(0, 6).map(grupo => (
+              <TarjetaIndicadorOAgrupada key={grupo[0].id_catalogo || grupo[0].id} grupo={grupo} variante="compacto" />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}

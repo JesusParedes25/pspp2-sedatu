@@ -1,511 +1,252 @@
 /**
  * ARCHIVO: Inicio.jsx
- * PROPÓSITO: Dashboard personalizado del usuario con sus proyectos,
- *            acciones vencidas/por vencer, riesgos, indicadores y actividad.
+ * PROPÓSITO: Concentrador de navegación — la ruta raíz ("/"), lo primero
+ *            que ve cualquiera al iniciar sesión. Saludo + tarjetas de
+ *            acceso a cada sección + una explicación breve de cómo
+ *            funciona el seguimiento. NO es el dashboard de datos
+ *            personalizado (eso es Tablero.jsx, en /tablero) — Inicio es
+ *            orientación, Tablero es información. Ver "PSPP v2.0 ·
+ *            Pantalla de Inicio" para el encargo completo.
  */
-import { useState, useEffect, useRef } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useOutletContext } from 'react-router-dom';
 import {
-  FolderKanban, Activity, AlertTriangle, TrendingUp,
-  MapPin, ChevronRight, Clock, Target, Shield, Calendar, Layers, MessageSquare
+  FolderKanban, ListChecks, LayoutDashboard, BarChart3, Map as MapIcon, Bell,
+  PlusCircle, ChevronDown,
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../context/AuthContext';
-import { obtenerInicio, obtenerProyectosFiltroInicio, obtenerCarterasFiltroInicio } from '../api/inicio';
-import client from '../api/client';
-import MapaTerritorialInicio from '../components/inicio/MapaTerritorialInicio';
-import FiltroTablero from '../components/inicio/FiltroTablero';
-import { ETIQUETA_TIPO_INDICADOR, agruparPorCatalogo, TarjetaIndicadorOAgrupada } from '../components/indicadores/TarjetaIndicador';
-import ListaEstatusCualitativo, { TituloEstatusCualitativo } from '../components/indicadores/ListaEstatusCualitativo';
-import { breadcrumbInternoEstatusCualitativo } from '../utils/estatusCualitativo';
-import ArbolPorProyecto from '../components/common/ArbolPorProyecto';
-import { COLORES_SEMAFORO } from '../components/common/SemaforoDot';
-import { formatearEstado } from '../utils/estados';
+import { usePermisosGlobales } from '../hooks/usePermisos';
+import { obtenerResumenTarjetasInicio } from '../api/inicio';
+import FichaSeccion from '../components/common/FichaSeccion';
+import LeyendaSemaforo from '../components/common/LeyendaSemaforo';
+import DiagramaJerarquia from '../components/inicio/DiagramaJerarquia';
 
-const GUINDA = '#7B1C3E';
+// Preferencia de "¿la sección Cómo funciona el seguimiento está
+// abierta?", guardada por usuario (ver SeccionComoFunciona más abajo).
+const CLAVE_COMO_FUNCIONA = 'pspp_inicio_como_funciona_abierto';
+
+// React.StrictMode llama DOS VECES, de forma sincrónica y seguida, al
+// inicializador de useState (a propósito, para detectar inicializadores
+// impuros) — sin este caché, la segunda llamada leería el '0' que la
+// primera acababa de escribir y la sección nunca se vería abierta, ni
+// siquiera en la primera visita real. Por eso se cachea la DECISIÓN
+// completa (no solo "ya se escribió"), y el caché se borra en un
+// microtask: sobrevive a esa doble llamada sincrónica de StrictMode,
+// pero no a un remontaje real más adelante (navegar a otra pantalla y
+// volver), que sí debe releer el valor actual de localStorage —
+// por ejemplo, si la persona cerró la sección a mano en esa primera
+// visita.
+const decisionesRecientes = new Map();
+
+function leerPreferenciaInicial(usuarioId) {
+  if (!usuarioId) return true;
+  const clave = `${CLAVE_COMO_FUNCIONA}_${usuarioId}`;
+  if (decisionesRecientes.has(clave)) return decisionesRecientes.get(clave);
+
+  let resultado = true;
+  try {
+    const guardado = localStorage.getItem(clave);
+    if (guardado !== null) {
+      resultado = guardado === '1';
+    } else {
+      localStorage.setItem(clave, '0');
+    }
+  } catch {
+    resultado = true;
+  }
+
+  decisionesRecientes.set(clave, resultado);
+  queueMicrotask(() => decisionesRecientes.delete(clave));
+  return resultado;
+}
 
 export default function Inicio() {
   const { usuario } = useAuth();
-  const [data, setData] = useState(null);
-  const [cargando, setCargando] = useState(true);
+  const { puedeCrearProyecto } = usePermisosGlobales();
+  const { notificacionesSinLeer = 0 } = useOutletContext() || {};
 
-  // Filtro del Tablero (por proyecto(s) o por cartera) — respaldado en
-  // la URL para que se pueda compartir/recargar sin perderlo, mismo
-  // criterio que el resto de la app (?tab=, ?vista=).
-  const [searchParams, setSearchParams] = useSearchParams();
-  const carteraIdUrl = searchParams.get('cartera_id');
-  const proyectoIdsUrl = searchParams.get('proyecto_ids');
-  const filtro = {
-    carteraId: carteraIdUrl || null,
-    proyectoIds: carteraIdUrl ? [] : (proyectoIdsUrl ? proyectoIdsUrl.split(',').filter(Boolean) : []),
-  };
-  function setFiltro(next) {
-    setSearchParams(prev => {
-      const params = new URLSearchParams(prev);
-      params.delete('cartera_id');
-      params.delete('proyecto_ids');
-      if (next.carteraId) params.set('cartera_id', next.carteraId);
-      else if (next.proyectoIds?.length) params.set('proyecto_ids', next.proyectoIds.join(','));
-      return params;
-    });
-  }
-
-  const [opcionesProyectos, setOpcionesProyectos] = useState([]);
-  const [opcionesCarteras, setOpcionesCarteras] = useState([]);
-  const [cargandoOpciones, setCargandoOpciones] = useState(true);
+  const [tarjetas, setTarjetas] = useState(null);
+  const [cargandoTarjetas, setCargandoTarjetas] = useState(true);
 
   useEffect(() => {
-    Promise.all([obtenerProyectosFiltroInicio(), obtenerCarterasFiltroInicio()])
-      .then(([proys, carts]) => { setOpcionesProyectos(proys); setOpcionesCarteras(carts); })
-      .catch(console.error)
-      .finally(() => setCargandoOpciones(false));
+    let vigente = true;
+    obtenerResumenTarjetasInicio()
+      .then(datos => { if (vigente) setTarjetas(datos); })
+      .catch(() => { if (vigente) setTarjetas(null); })
+      .finally(() => { if (vigente) setCargandoTarjetas(false); });
+    return () => { vigente = false; };
   }, []);
 
-  useEffect(() => {
-    setCargando(true);
-    obtenerInicio(filtro)
-      .then(setData)
-      .catch(console.error)
-      .finally(() => setCargando(false));
-  }, [filtro.carteraId, filtro.proyectoIds.join(',')]);
-
-  if (cargando) {
-    return (
-      <div className="space-y-6">
-        <div className="h-8 bg-gray-200 rounded w-1/3 animate-pulse" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3].map(i => <div key={i} className="card p-6 animate-pulse h-40" />)}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="card p-6 animate-pulse h-64" />
-          <div className="card p-6 animate-pulse h-64" />
-        </div>
-      </div>
-    );
-  }
-
-  const { proyectos = [], vencidos = [], por_vencer = [], riesgos = [], mapa_incidencia = [], indicadores = [], actividad = [], estatus_cualitativo = [] } = data || {};
+  const plural = (n, singular, pluralTxt) => `${n} ${n === 1 ? singular : pluralTxt}`;
 
   return (
-    <div className="space-y-6">
-      {/* ═══ HEADER ═══ */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Buen día, {usuario?.nombre_completo?.split(' ')[0]}
-          </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <FiltroTablero
-            filtro={filtro}
-            onCambiar={setFiltro}
-            proyectos={opcionesProyectos}
-            carteras={opcionesCarteras}
-            cargando={cargandoOpciones}
-          />
-          <Link to="/mapa" className="btn-secondary text-xs flex items-center gap-1">
-            <MapPin size={14} /> Territorio
-          </Link>
-        </div>
+    <div className="space-y-8">
+      {/* ═══ BLOQUE 2 · BIENVENIDA ═══ */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">
+          Buen día, {usuario?.nombre_completo?.split(' ')[0]}
+        </h1>
+        <p className="text-sm text-gray-500 mt-0.5">
+          {new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+        </p>
+        <p className="text-sm text-gray-600 mt-3 max-w-2xl leading-relaxed">
+          Aquí registras proyectos y su avance, delegas actividades, y concentras en un solo lugar
+          el seguimiento de los proyectos de tu Dirección de Área o Dirección General.
+        </p>
       </div>
 
-      {/* ═══ MIS PROYECTOS ═══ */}
-      {proyectos.length > 0 && (
-        <section>
-          <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
-            <FolderKanban size={14} /> Mis proyectos
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {proyectos.slice(0, 9).map(p => (
-              <ProyectoCard key={p.id} proyecto={p} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* ═══ MAPA + INDICADORES (mitad de ancho cada uno; el que falte, el otro ocupa todo) ═══ */}
-      <div className={`grid grid-cols-1 gap-4 ${indicadores.length > 0 ? 'lg:grid-cols-2' : ''}`}>
-        <div className="space-y-4">
-          <div className="card p-5">
-            <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
-              <MapPin size={14} /> Incidencia territorial
-            </h2>
-            <MapaTerritorialInicio filtro={filtro} />
-          </div>
-
-          {/* ═══ ESTATUS CUALITATIVO ═══
-              La nota corta por etapa que responde "¿cómo va esto ahora
-              mismo?". Antes solo se veía pasando el mouse por la tarjeta
-              de un proyecto, o sea casi nunca: alguien se tomaba el
-              trabajo de escribirla y nadie la leía. Va debajo del mapa
-              porque esa columna suele quedar más corta que la de
-              Indicadores — llena el espacio que si no quedaría en
-              blanco, en vez de vivir como bloque aparte de ancho
-              completo. */}
-          {estatus_cualitativo.length > 0 && (
-            <div className="card p-5">
-              <TituloEstatusCualitativo />
-              <ListaEstatusCualitativo items={estatus_cualitativo} maxAltura="max-h-72" />
-            </div>
-          )}
+      {/* ═══ BLOQUE 3 · TARJETAS DE ACCESO ═══ */}
+      <div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          <FichaSeccion
+            to="/proyectos"
+            icono={FolderKanban}
+            titulo="Seguimiento de proyectos"
+            descripcion="Consulta y actualiza los proyectos de la Secretaría."
+            cargandoContadores={cargandoTarjetas}
+            contadores={tarjetas && plural(tarjetas.proyectos_visibles, 'proyecto', 'proyectos')}
+            destacada
+          />
+          <FichaSeccion
+            to="/mis-actividades"
+            icono={ListChecks}
+            titulo="Mis actividades"
+            descripcion="Lo que te toca a ti: etapas, acciones y tareas asignadas."
+            cargandoContadores={cargandoTarjetas}
+            contadores={tarjetas && (
+              <>{plural(tarjetas.mis_actividades_total, 'actividad', 'actividades')} a tu cargo
+                {tarjetas.mis_actividades_vencidas > 0 && (
+                  <span className="text-red-500 font-medium"> · {plural(tarjetas.mis_actividades_vencidas, 'vencida', 'vencidas')}</span>
+                )}
+              </>
+            )}
+          />
+          <FichaSeccion
+            to="/tablero"
+            icono={LayoutDashboard}
+            titulo="Tablero"
+            descripcion="El avance de tus proyectos, su territorio y sus indicadores."
+            cargandoContadores={cargandoTarjetas}
+            contadores={tarjetas && plural(tarjetas.proyectos_sigue, 'proyecto', 'proyectos')}
+          />
+          <FichaSeccion
+            to="/indicadores"
+            icono={BarChart3}
+            titulo="Indicadores"
+            descripcion="Mide resultados con cifras comparables entre proyectos."
+            cargandoContadores={cargandoTarjetas}
+            contadores={tarjetas && plural(tarjetas.indicadores_visibles, 'indicador', 'indicadores')}
+          />
+          <FichaSeccion
+            to="/mapa"
+            icono={MapIcon}
+            titulo="Territorio"
+            descripcion="Ubica en el mapa dónde está ocurriendo cada proyecto."
+            cargandoContadores={cargandoTarjetas}
+            contadores={tarjetas && plural(tarjetas.estados_con_actividad, 'estado con actividad', 'estados con actividad')}
+          />
+          <FichaSeccion
+            to="/notificaciones"
+            icono={Bell}
+            titulo="Notificaciones"
+            descripcion="Avisos, solicitudes y cambios en lo que sigues."
+            cargandoContadores={false}
+            contadores={plural(notificacionesSinLeer, 'sin leer', 'sin leer')}
+          />
         </div>
 
-        {indicadores.length > 0 && (
-          <div className="card p-5">
-            <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
-              <Target size={14} className="text-blue-500" /> Indicadores
-            </h2>
-            <IndicadoresResumen indicadores={indicadores} />
-          </div>
+        {/* "Nuevo proyecto" es una acción, no una sección: tratamiento
+            visual distinto (borde punteado, sin "Dato:") y al final, para
+            que no se lea como una sexta tarjeta de la misma fila. Oculta
+            por completo si el rol no puede crear proyectos — una tarjeta
+            que lleva a "no tienes permiso" es peor que no tenerla. */}
+        {puedeCrearProyecto && (
+          <Link
+            to="/proyectos/nuevo"
+            className="mt-3.5 flex items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-xl p-3.5 text-sm font-medium text-gray-500 hover:border-guinda-300 hover:text-guinda-600 hover:bg-guinda-50/40 transition-colors"
+          >
+            <PlusCircle size={18} />
+            Da de alta un proyecto y define sus etapas
+          </Link>
         )}
       </div>
 
-      {/* ═══ ACCIONES VENCIDAS + RIESGOS ABIERTOS (misma fila, una columna
-          cada una) — son las dos listas que de verdad piden acción ya;
-          "Por vencer" es alerta temprana y va aparte, debajo. ═══ */}
-      {(vencidos.length > 0 || riesgos.length > 0) && (
-        <div className={`grid grid-cols-1 gap-6 ${vencidos.length > 0 && riesgos.length > 0 ? 'lg:grid-cols-2' : ''}`}>
-          {vencidos.length > 0 && (
-            <div className="card p-5">
-              <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
-                <AlertTriangle size={14} className="text-red-500" /> Acciones vencidas
-              </h2>
-              <div className="max-h-72 overflow-y-auto pr-1">
-                <ArbolPorProyecto
-                  items={vencidos}
-                  vacio="Sin acciones vencidas."
-                  renderItem={a => (
-                    <Link
-                      key={a.id}
-                      to={`/proyectos/${a.proyecto_id}?tab=seguimiento&nodo=${a.id}`}
-                      className="block py-1 px-1.5 -ml-1.5 rounded hover:bg-red-50 transition"
-                    >
-                      <p className="text-[10px] text-red-500 font-medium">-{a.dias_atraso}d de atraso</p>
-                    </Link>
-                  )}
-                />
-              </div>
-            </div>
-          )}
-          {riesgos.length > 0 && (
-            <div className="card p-5">
-              <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
-                <Shield size={14} className="text-orange-500" /> Riesgos abiertos
-              </h2>
-              <div className="max-h-72 overflow-y-auto pr-1">
-                <ArbolPorProyecto
-                  items={riesgos}
-                  vacio="Sin riesgos abiertos."
-                  renderItem={r => (
-                    <Link
-                      key={r.id}
-                      to={`/proyectos/${r.proyecto_id}?tab=seguimiento&nodo=${r.entidad_id}`}
-                      className="flex items-center gap-1.5 py-1 px-1.5 -ml-1.5 rounded hover:bg-orange-50 transition"
-                    >
-                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                        r.nivel === 'Critico' ? 'bg-red-600' :
-                        r.nivel === 'Alto' ? 'bg-orange-500' :
-                        r.nivel === 'Medio' ? 'bg-yellow-500' : 'bg-gray-400'
-                      }`} />
-                      <p className="text-xs text-gray-800 truncate">{r.titulo}</p>
-                      <span className="text-[10px] text-gray-400 flex-shrink-0">· {r.nivel}</span>
-                    </Link>
-                  )}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ═══ VENCEN EN 14 DÍAS ═══ */}
-      {por_vencer.length > 0 && (
-        <div className="card p-5">
-          <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
-            <Clock size={14} className="text-yellow-600" /> Vencen en 14 días
-          </h2>
-          <div className="max-h-64 overflow-y-auto pr-1">
-            <ArbolPorProyecto
-              items={por_vencer}
-              vacio="Nada por vencer en los próximos 14 días."
-              renderItem={a => (
-                <Link
-                  key={a.id}
-                  to={`/proyectos/${a.proyecto_id}?tab=seguimiento&nodo=${a.id}`}
-                  className="block py-1 px-1.5 -ml-1.5 rounded hover:bg-yellow-50 transition"
-                >
-                  <p className="text-[10px] text-yellow-600 font-medium">{a.dias_restantes}d restantes</p>
-                </Link>
-              )}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* ═══ ACTIVIDAD RECIENTE ═══ */}
-      {actividad.length > 0 && (
-        <div className="card p-5">
-          <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
-            <Activity size={14} className="text-purple-500" /> Actividad reciente
-          </h2>
-          <div className="max-h-96 overflow-y-auto pr-1">
-            <ArbolPorProyecto
-              items={actividad}
-              vacio="Sin actividad reciente."
-              renderItem={ev => {
-                const { bg, text, icon: IconComp } = actividadConfig(ev.tipo);
-                return (
-                  <Link
-                    key={ev.id}
-                    to={`/proyectos/${ev.proyecto_id}?tab=seguimiento&nodo=${ev.entidad_id}`}
-                    className="flex items-start gap-2.5 py-1 px-1.5 -ml-1.5 rounded hover:bg-gray-50 transition-colors"
-                  >
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${bg} ${text}`}>
-                      <IconComp size={11} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs text-gray-800 leading-relaxed">
-                        {ev.actor && <span className="font-medium">{ev.actor}: </span>}
-                        <span className="text-gray-700">{ev.titulo}</span>
-                      </p>
-                      {ev.descripcion && (
-                        <p className="text-[11px] text-gray-500 truncate">{ev.descripcion.slice(0, 80)}</p>
-                      )}
-                      <p className="text-[10px] text-gray-400 mt-0.5">{rel(ev.created_at)}</p>
-                    </div>
-                  </Link>
-                );
-              }}
-            />
-          </div>
-        </div>
-      )}
+      {/* ═══ BLOQUE 4 · CÓMO FUNCIONA EL SEGUIMIENTO ═══ */}
+      <SeccionComoFunciona usuarioId={usuario?.id} />
     </div>
   );
 }
 
-// ─── Helpers ──────────────────────────────────────────────────
-const actividadConfig = (tipo) => {
-  const map = {
-    estado:     { bg: 'bg-blue-100',   text: 'text-blue-600',   icon: TrendingUp },
-    avance:     { bg: 'bg-green-100',  text: 'text-green-600',  icon: TrendingUp },
-    evidencia:  { bg: 'bg-yellow-100', text: 'text-yellow-600', icon: Shield },
-    comentario: { bg: 'bg-purple-100', text: 'text-purple-600', icon: Activity },
-    miembro:    { bg: 'bg-pink-100',   text: 'text-pink-600',   icon: Calendar },
-    creacion:   { bg: 'bg-teal-100',   text: 'text-teal-600',   icon: AlertTriangle },
-    indicador:  { bg: 'bg-orange-100', text: 'text-orange-600', icon: Target },
-    tarea:      { bg: 'bg-indigo-100', text: 'text-indigo-600', icon: Clock },
-  };
-  return map[tipo] || { bg: 'bg-gray-100', text: 'text-gray-500', icon: Activity };
-};
+function SeccionComoFunciona({ usuarioId }) {
+  // Abierta la primera vez que esta persona entra, cerrada a partir de
+  // entonces — sin valor guardado todavía, se muestra abierta ESTA vez
+  // pero se guarda de inmediato "cerrada" como preferencia para las
+  // siguientes visitas. Si la persona la vuelve a abrir a mano, ese clic
+  // sí se recuerda (abierta la próxima vez) hasta que la cierre de nuevo:
+  // es la preferencia real de la persona, no un mensaje que se repite
+  // una sola vez y ya. Si la lectura de localStorage falla (modo
+  // privado, storage bloqueado), se queda abierta: mejor mostrar de más
+  // que esconder la explicación por un error técnico.
+  //
+  // El cálculo va en el inicializador de useState (lectura síncrona),
+  // NO en un useEffect: un efecto que lee el storage y luego escribe un
+  // valor por defecto dentro de sí mismo dejaba de verse "primera vez"
+  // bajo React.StrictMode (desarrollo), porque StrictMode desmonta y
+  // vuelve a montar el componente a propósito para detectar justo este
+  // tipo de efecto no-idempotente — el segundo montaje leía el '0' que
+  // el primero acababa de escribir, y la sección nunca se veía abierta
+  // ni siquiera en la primera visita real. `clavesYaInicializadas`
+  // (fuera del componente, sobrevive a ese remontaje simulado porque es
+  // una sola evaluación del módulo por carga de página) evita que ese
+  // remontaje repita la escritura y vuelva a leerla.
+  const [abierto, setAbierto] = useState(() => leerPreferenciaInicial(usuarioId));
 
-function rel(fecha) {
-  if (!fecha) return '';
-  const diff = Date.now() - new Date(fecha).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return 'ahora';
-  if (m < 60) return `hace ${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `hace ${h}h`;
-  const d = Math.floor(h / 24);
-  return `hace ${d}d`;
-}
-
-function getColor(pct) {
-  if (pct >= 80) return '#22c55e';
-  if (pct >= 60) return '#84cc16';
-  if (pct >= 40) return '#eab308';
-  if (pct >= 20) return '#f97316';
-  return '#ef4444';
-}
-
-// ─── Proyecto Card ────────────────────────────────────────────
-function ProyectoCard({ proyecto }) {
-  const pct = parseFloat(proyecto.porcentaje_calculado) || 0;
-  const cacheRef = useRef(null);
-  const timeoutRef = useRef(null);
-  // Retraso antes de cerrar el popover — sin esto, el hueco entre la
-  // tarjeta y el popover (posicionado unos px abajo/arriba) queda fuera
-  // del área de la tarjeta, y bajar el mouse hacia el popover dispara
-  // mouseLeave antes de llegar. Cualquier mouseEnter (tarjeta o popover)
-  // cancela el cierre pendiente; solo se cierra si el mouse no vuelve a
-  // entrar a ninguno de los dos dentro del margen.
-  const cerrarTimeoutRef = useRef(null);
-  const [popover, setPopover] = useState(null); // { x, y, above, cargando, datos }
-
-  function mostrarPopover(e) {
-    clearTimeout(cerrarTimeoutRef.current);
-    const rect = e.currentTarget.getBoundingClientRect();
-    const arriba = rect.top > window.innerHeight / 2;
-    const pos = { x: rect.left, y: arriba ? rect.top - 8 : rect.bottom + 8, above: arriba };
-    if (cacheRef.current) { setPopover({ ...pos, cargando: false, datos: cacheRef.current }); return; }
-    setPopover({ ...pos, cargando: true, datos: null });
-    timeoutRef.current = setTimeout(() => {
-      client.get(`/proyectos/${proyecto.id}/panorama-rapido`)
-        .then(res => { cacheRef.current = res.data.datos; setPopover(p => p ? { ...p, cargando: false, datos: res.data.datos } : p); })
-        .catch(() => setPopover(p => p ? { ...p, cargando: false, datos: { etapas: [], estatus_cualitativo: [], actividad: [] } } : p));
-    }, 250);
-  }
-  function cancelarCierre() {
-    clearTimeout(cerrarTimeoutRef.current);
-  }
-  function programarCierre() {
-    clearTimeout(timeoutRef.current);
-    cerrarTimeoutRef.current = setTimeout(() => setPopover(null), 200);
+  function alternar() {
+    setAbierto(prev => {
+      const siguiente = !prev;
+      if (usuarioId) {
+        try { localStorage.setItem(`${CLAVE_COMO_FUNCIONA}_${usuarioId}`, siguiente ? '1' : '0'); } catch { /* no-op: sin persistencia disponible */ }
+      }
+      return siguiente;
+    });
   }
 
   return (
-    <Link
-      to={`/proyectos/${proyecto.id}`}
-      className="card overflow-hidden hover:shadow-md hover:border-guinda-200 transition group relative block"
-      onMouseEnter={mostrarPopover}
-      onMouseLeave={programarCierre}
-    >
-      {proyecto.imagen_url && (
-        <div className="h-20 -mx-px -mt-px mb-3">
-          <img src={proyecto.imagen_url} alt="" className="w-full h-full object-cover" />
-        </div>
-      )}
-      <div className={proyecto.imagen_url ? 'px-4 pb-4' : 'p-4'}>
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2 group-hover:text-guinda-700 transition">
-              {proyecto.nombre}
-            </p>
-            <p className="text-[11px] text-gray-500 mt-0.5">
-              {proyecto.dg_siglas || 'Sin DG'} · {formatearEstado(proyecto.estado)}
-            </p>
-          </div>
-          <ChevronRight size={14} className="text-gray-300 group-hover:text-guinda-400 transition mt-1 flex-shrink-0" />
-        </div>
-        <div className="mt-3">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-gray-500">Avance</span>
-            <span className="text-xs font-bold" style={{ color: getColor(pct) }}>{pct.toFixed(0)}%</span>
-          </div>
-          <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-            <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: getColor(pct) }} />
-          </div>
-        </div>
-        <div className="flex items-center gap-3 mt-2 text-[10px] text-gray-400">
-          {proyecto.acciones_pendientes > 0 && <span>{proyecto.acciones_pendientes} actividad{parseInt(proyecto.acciones_pendientes) !== 1 ? 'es' : ''} por completar</span>}
-          {proyecto.riesgos_activos > 0 && <span className="text-orange-500">{proyecto.riesgos_activos} riesgo{parseInt(proyecto.riesgos_activos) !== 1 ? 's' : ''}</span>}
-          {proyecto.es_prioritario && <span className="text-guinda-600 font-bold">★ Prioritario</span>}
-        </div>
-      </div>
+    <div className="card overflow-hidden">
+      <button
+        onClick={alternar}
+        className="w-full flex items-center justify-between gap-2 px-5 py-3.5 text-left hover:bg-gray-50/70 transition-colors"
+        aria-expanded={abierto}
+      >
+        <h2 className="text-sm font-semibold text-gray-800">Cómo funciona el seguimiento</h2>
+        <ChevronDown size={16} className={`text-gray-400 flex-shrink-0 transition-transform ${abierto ? 'rotate-180' : ''}`} />
+      </button>
 
-      {popover && (
-        <div
-          onMouseEnter={cancelarCierre}
-          onMouseLeave={programarCierre}
-          className="fixed z-[9999] bg-white border border-gray-200 rounded-lg shadow-xl p-3.5 w-[460px] max-w-[92vw]"
-          style={{ left: Math.min(popover.x, window.innerWidth - 476), top: popover.above ? undefined : popover.y, bottom: popover.above ? window.innerHeight - popover.y : undefined }}
-        >
-          {popover.cargando ? (
-            <div className="flex items-center gap-2 text-xs text-gray-400 py-2">
-              <div className="animate-spin w-3.5 h-3.5 border-2 border-[#7B1C3E] border-t-transparent rounded-full" /> Cargando panorama…
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-x-4">
-              {/* Columna izquierda: estructura (etapas) */}
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <Layers size={11} className="text-indigo-500" />
-                  <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Estructura</p>
-                </div>
-                {popover.datos.etapas.length === 0 ? (
-                  <p className="text-[11px] text-gray-400 italic">Sin etapas registradas.</p>
-                ) : (
-                  <ul className="space-y-1 max-h-56 overflow-y-auto pr-1">
-                    {popover.datos.etapas.map(et => (
-                      <li key={et.id} className="text-[11px]">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO[et.semaforo_efectivo || et.semaforo || 'gris'] }} />
-                          <span className="truncate text-gray-700 flex-1">{et.nombre}</span>
-                          <span className="text-gray-400 flex-shrink-0">{et.acciones_completadas}/{et.total_acciones}</span>
-                          <span className="text-gray-400 tabular-nums flex-shrink-0 w-8 text-right">{Math.round(et.avance)}%</span>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+      {abierto && (
+        <div className="px-5 pb-6 pt-1 border-t border-gray-100">
+          <div className="w-full flex flex-col lg:flex-row gap-x-8 gap-y-6 lg:items-start">
+            <ol className="w-full lg:flex-1 min-w-0 space-y-3 text-sm text-gray-700 leading-relaxed list-decimal list-inside">
+              <li>Cada proyecto se divide en etapas, cada etapa en acciones, y cada acción en tareas.</li>
+              <li>Registras el avance en lo más pequeño que tengas asignado. El avance sube solo hasta el proyecto: no hay que actualizarlo en cada nivel.</li>
+              <li>Cada actividad tiene un estado que tú declaras: sin iniciar, en proceso, bloqueada, completada o cancelada.</li>
+              <li>Y un semáforo que la plataforma calcula sola a partir de la fecha límite: en tiempo, por vencer, vencida, o sin urgencia cuando falta capturar la fecha.</li>
+              <li>En Mis actividades ves únicamente lo que te toca a ti. En Seguimiento de proyectos ves todo lo de la Secretaría, aunque solo puedas editar aquello en lo que participas.</li>
+              <li>Puedes delegar una etapa, una acción o una tarea en otra persona. Lo que delegues aparece en las actividades de quien lo recibe.</li>
+            </ol>
+
+            <div className="w-full lg:w-[300px] lg:flex-shrink-0 flex flex-col gap-6">
+              <div>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2 text-center lg:text-left">La jerarquía</p>
+                <DiagramaJerarquia />
               </div>
-
-              {/* Columna derecha: estatus cualitativo + última actividad */}
-              <div className="min-w-0 border-l border-gray-100 pl-4">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <MessageSquare size={11} className="text-teal-600" />
-                  <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Nota de avance</p>
-                </div>
-                {popover.datos.estatus_cualitativo.length === 0 ? (
-                  <p className="text-[11px] text-gray-400 italic mb-2">Sin nota de avance capturada.</p>
-                ) : (
-                  <ul className="space-y-1.5 max-h-32 overflow-y-auto mb-2 pr-1">
-                    {popover.datos.estatus_cualitativo.slice(0, 4).map(item => (
-                      <li key={item.id} className="text-[11px] leading-snug">
-                        <p className="text-gray-400 truncate">{breadcrumbInternoEstatusCualitativo(item)}</p>
-                        <p className="text-gray-700 italic line-clamp-2">"{item.estatus_cualitativo}"</p>
-                      </li>
-                    ))}
-                    {popover.datos.estatus_cualitativo.length > 4 && (
-                      <li className="text-[10px] text-gray-400">+{popover.datos.estatus_cualitativo.length - 4} más…</li>
-                    )}
-                  </ul>
-                )}
-
-                <div className="flex items-center gap-1.5 mb-1.5 pt-1.5 border-t border-gray-100">
-                  <Activity size={11} className="text-purple-500" />
-                  <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Última actividad</p>
-                </div>
-                {popover.datos.actividad.length === 0 ? (
-                  <p className="text-[11px] text-gray-400 italic">Sin actividad reciente.</p>
-                ) : (
-                  <ul className="space-y-1 max-h-28 overflow-y-auto pr-1">
-                    {popover.datos.actividad.map(ev => (
-                      <li key={ev.id} className="text-[11px] text-gray-700 leading-snug">
-                        {ev.actor && <span className="font-medium">{ev.actor.split(' ')[0]}: </span>}
-                        <span className="text-gray-600">{ev.titulo}</span>
-                        <span className="text-gray-400"> · {rel(ev.created_at)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+              <div>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">El semáforo</p>
+                <LeyendaSemaforo />
               </div>
             </div>
-          )}
-        </div>
-      )}
-    </Link>
-  );
-}
-
-// ─── Indicadores Resumen ──────────────────────────────────────
-function IndicadoresResumen({ indicadores }) {
-  // Agrupado por tipo, igual que antes. La tarjeta en sí vive en
-  // TarjetaIndicador y la comparten Tablero, Resumen de cartera y
-  // Panorama del proyecto — antes eran tres copias que ya habían
-  // divergido (solo una mostraba el valor junto al porcentaje).
-  const grupos = {};
-  for (const ind of indicadores) {
-    const tipo = ind.tipo || 'Otro';
-    (grupos[tipo] = grupos[tipo] || []).push(ind);
-  }
-
-  return (
-    <div className="space-y-4">
-      {Object.entries(grupos).map(([tipo, inds]) => (
-        <div key={tipo}>
-          <p className="text-xs font-medium text-gray-700 mb-2">{ETIQUETA_TIPO_INDICADOR[tipo] || tipo}</p>
-          <div className="space-y-2">
-            {agruparPorCatalogo(inds).slice(0, 6).map(grupo => (
-              <TarjetaIndicadorOAgrupada key={grupo[0].id_catalogo || grupo[0].id} grupo={grupo} variante="compacto" />
-            ))}
           </div>
         </div>
-      ))}
+      )}
     </div>
   );
 }
