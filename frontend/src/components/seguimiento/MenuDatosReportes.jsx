@@ -23,7 +23,7 @@ import { generarReportePDF } from '../../utils/generarReportePDF';
 import { useUI } from '../../context/UIContext';
 
 function formatoFecha(iso) {
-  if (!iso) return '—';
+  if (!iso) return '-';
   return new Date(iso).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
 }
 

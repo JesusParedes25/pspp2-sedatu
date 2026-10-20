@@ -44,7 +44,7 @@ export default function SelectorDG({ dgs = [], dgSeleccionada, onSeleccionar }) 
       </button>
 
       {esSoloLectura && (
-        <span className="inline-flex items-center gap-1 ml-2 text-[11px] text-blue-600" title="Viendo el avance de otra DG — solo lectura">
+        <span className="inline-flex items-center gap-1 ml-2 text-[11px] text-blue-600" title="Viendo el avance de otra DG: solo lectura">
           <Eye size={11} /> Solo lectura
         </span>
       )}

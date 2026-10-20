@@ -145,7 +145,7 @@ export default function CarteraDetalle() {
               )}
               {cartera.responsable_nombre && <span>Responsable: {cartera.responsable_nombre}</span>}
               {(cartera.fecha_inicio || cartera.fecha_fin) && (
-                <span>{cartera.fecha_inicio?.slice(0, 10) || '—'} a {cartera.fecha_fin?.slice(0, 10) || '—'}</span>
+                <span>{cartera.fecha_inicio?.slice(0, 10) || '-'} a {cartera.fecha_fin?.slice(0, 10) || '-'}</span>
               )}
             </div>
           </div>
@@ -517,8 +517,8 @@ function FilaProyectoCartera({ proyecto, carteraId, onCambio }) {
           <span className="text-xs font-semibold text-gray-700 tabular-nums">{avance}%</span>
         </div>
       </td>
-      <td className="py-2.5 pr-3 text-xs text-gray-600 whitespace-nowrap">{proyecto.creador_nombre || '—'}</td>
-      <td className="py-2.5 pr-3 text-xs text-gray-600 whitespace-nowrap">{fechaMostrada?.slice(0, 10) || '—'}</td>
+      <td className="py-2.5 pr-3 text-xs text-gray-600 whitespace-nowrap">{proyecto.creador_nombre || '-'}</td>
+      <td className="py-2.5 pr-3 text-xs text-gray-600 whitespace-nowrap">{fechaMostrada?.slice(0, 10) || '-'}</td>
       <td className="py-2.5 text-right whitespace-nowrap">
         {!proyecto.es_principal && (
           <button onClick={marcarPrincipal} disabled={procesando} className="text-[11px] text-gray-400 hover:text-guinda-600 disabled:opacity-40 mr-2">
@@ -577,7 +577,7 @@ function VistaPorEtapa({ etapas, proyectos }) {
           ))}
         </select>
         <span className="text-[11px] text-gray-400">
-          {grupo.items.length} de {proyectos.length} proyectos de la cartera · avance promedio {promedio}%
+          {grupo.items.length} de {proyectos.length} proyecto{proyectos.length !== 1 ? 's' : ''} de la cartera · avance promedio {promedio}%
         </span>
       </div>
 
@@ -642,8 +642,8 @@ function FilaEtapaCartera({ etapa }) {
           <span className="text-xs font-semibold text-gray-700 tabular-nums">{avance}%</span>
         </div>
       </td>
-      <td className="py-2.5 pr-3 text-xs text-gray-600 whitespace-nowrap">{etapa.responsable_nombre || '—'}</td>
-      <td className="py-2.5 pr-3 text-xs text-gray-600 whitespace-nowrap">{fecha || '—'}</td>
+      <td className="py-2.5 pr-3 text-xs text-gray-600 whitespace-nowrap">{etapa.responsable_nombre || '-'}</td>
+      <td className="py-2.5 pr-3 text-xs text-gray-600 whitespace-nowrap">{fecha || '-'}</td>
     </tr>
   );
 }
@@ -716,7 +716,7 @@ function ModalEliminarCartera({ cartera, onCerrar, onEliminada }) {
           ) : afectados > 0 ? (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
               <p className="text-xs text-amber-800">
-                ⚠ <strong>{afectados}</strong> proyecto(s) tienen esta cartera como su cartera <strong>principal</strong> — al eliminarla, quedarán sin cartera principal (podrás asignarles otra después).
+                ⚠ <strong>{afectados}</strong> proyecto(s) tienen esta cartera como su cartera <strong>principal</strong>: al eliminarla, quedarán sin cartera principal (podrás asignarles otra después).
               </p>
             </div>
           ) : (

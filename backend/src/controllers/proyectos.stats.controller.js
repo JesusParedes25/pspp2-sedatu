@@ -53,4 +53,20 @@ async function obtenerStats(req, res, next) {
   }
 }
 
-module.exports = { obtenerStats };
+// GET /proyectos/:id/actividades-sin-fecha
+// Bloque 3.2 (navegación del árbol): lo que el Cronograma no puede
+// dibujar por falta de fecha, para avisarlo en vez de omitirlo en
+// silencio. Endpoint propio (no se agregó a /stats, que es del dashboard
+// de resumen y no lo consume ninguna pantalla de Seguimiento) porque
+// GanttCronograma.jsx es autosuficiente: ya hace su propia carga bajo
+// demanda, no depende del contexto de la página que lo monta.
+async function obtenerActividadesSinFecha(req, res, next) {
+  try {
+    const items = await statsQueries.obtenerActividadesSinFecha(req.params.id);
+    res.json({ datos: { total: items.length, items }, mensaje: 'Actividades sin fecha obtenidas' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { obtenerStats, obtenerActividadesSinFecha };

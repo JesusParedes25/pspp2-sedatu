@@ -248,6 +248,7 @@ router.get('/proyectos/:id/indicadores/resumen', exigirVisibilidadProyecto(), in
 
 // Estadísticas del proyecto (para el resumen/dashboard)
 router.get('/proyectos/:id/stats', proyectosStatsController.obtenerStats);
+router.get('/proyectos/:id/actividades-sin-fecha', proyectosStatsController.obtenerActividadesSinFecha);
 router.get('/proyectos/:id/actividad-reciente', proyectosController.actividadReciente);
 router.get('/proyectos/:id/bitacora', proyectosController.bitacora);
 router.get('/proyectos/:id/portada-resumen', proyectosController.portadaResumen);

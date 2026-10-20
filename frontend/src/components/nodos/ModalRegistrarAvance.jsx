@@ -284,7 +284,7 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
                 <Lock size={13} className="flex-shrink-0 mt-0.5" />
                 <span>
                   <strong className="text-gray-700">{esContenedor ? avanceActual : Math.round(nodo.avance_actual ?? 0)}%</strong>
-                  {' — '}
+                  {': '}
                   {esContenedor
                     ? 'se calcula automáticamente a partir de sus partes.'
                     : (congelado || '')}

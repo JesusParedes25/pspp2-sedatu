@@ -268,7 +268,7 @@ export default function Inicio() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs text-gray-800 leading-relaxed">
-                        {ev.actor && <span className="font-medium">{ev.actor} — </span>}
+                        {ev.actor && <span className="font-medium">{ev.actor}: </span>}
                         <span className="text-gray-700">{ev.titulo}</span>
                       </p>
                       {ev.descripcion && (
@@ -466,7 +466,7 @@ function ProyectoCard({ proyecto }) {
                   <ul className="space-y-1 max-h-28 overflow-y-auto pr-1">
                     {popover.datos.actividad.map(ev => (
                       <li key={ev.id} className="text-[11px] text-gray-700 leading-snug">
-                        {ev.actor && <span className="font-medium">{ev.actor.split(' ')[0]} — </span>}
+                        {ev.actor && <span className="font-medium">{ev.actor.split(' ')[0]}: </span>}
                         <span className="text-gray-600">{ev.titulo}</span>
                         <span className="text-gray-400"> · {rel(ev.created_at)}</span>
                       </li>

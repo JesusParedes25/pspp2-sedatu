@@ -173,14 +173,14 @@ export default function Evidencias() {
               <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1 block">Programa</label>
               <select value={filtros.programa_id} onChange={e => setFiltros(prev => ({ ...prev, programa_id: e.target.value }))} className="input-base text-sm truncate">
                 <option value="">Todos los programas</option>
-                {programas.map(p => <option key={p.id} value={p.id}>{p.clave} — {p.nombre}</option>)}
+                {programas.map(p => <option key={p.id} value={p.id}>{p.clave} ({p.nombre})</option>)}
               </select>
             </div>
             <div className="min-w-0">
               <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1 block">Dirección General</label>
               <select value={filtros.id_dg} onChange={e => setFiltros(prev => ({ ...prev, id_dg: e.target.value }))} className="input-base text-sm truncate">
                 <option value="">Todas las DGs</option>
-                {dgs.map(d => <option key={d.id} value={d.id}>{d.siglas} — {d.nombre}</option>)}
+                {dgs.map(d => <option key={d.id} value={d.id}>{d.siglas} ({d.nombre})</option>)}
               </select>
             </div>
             <div className="min-w-0">

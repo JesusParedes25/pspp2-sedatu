@@ -111,7 +111,7 @@ export default function ModalNuevaTarea({ accionId, onCreado, onCreadoParcial, o
         // onCreadoParcial (no onCreado) — ver mismo criterio en
         // ModalNuevaAccion.jsx: evita un doble toast con el del caller.
         onCreadoParcial?.(tarea);
-        mostrarToast('Tarea creada — agrega la siguiente', 'exito');
+        mostrarToast('Tarea creada: agrega la siguiente', 'exito');
         setDatos(datosIniciales());
         setDocumentos([]);
       } else {
@@ -163,7 +163,7 @@ export default function ModalNuevaTarea({ accionId, onCreado, onCreadoParcial, o
             <select value={datos.id_responsable} onChange={e => actualizar('id_responsable', e.target.value)} className="input-base text-sm">
               <option value="">Sin asignar</option>
               {usuarios.map(u => (
-                <option key={u.id} value={u.id}>{u.nombre_completo} — {u.cargo}</option>
+                <option key={u.id} value={u.id}>{u.nombre_completo} ({u.cargo})</option>
               ))}
             </select>
           </div>
@@ -183,6 +183,9 @@ export default function ModalNuevaTarea({ accionId, onCreado, onCreadoParcial, o
               </label>
               <input type="date" value={datos.fecha_limite} onChange={e => actualizar('fecha_limite', e.target.value)}
                 className="input-base text-sm" />
+              <p className="text-[10px] text-gray-400 leading-snug mt-1">
+                Sin fecha límite, la tarea no aparece en el Cronograma y su semáforo se queda en gris: la plataforma no puede avisarte cuándo está por vencer.
+              </p>
             </div>
           </div>
 
@@ -210,7 +213,7 @@ export default function ModalNuevaTarea({ accionId, onCreado, onCreadoParcial, o
               {/* ─── Territorio ─── */}
               <div className="border-t border-gray-100 pt-4">
                 <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-                  <MapPin size={12} /> Territorio <span className="normal-case font-normal text-gray-400">(opcional — si no se elige, hereda el de la acción)</span>
+                  <MapPin size={12} /> Territorio <span className="normal-case font-normal text-gray-400">(opcional: si no se elige, hereda el de la acción)</span>
                 </label>
                 <TerritorioSelector
                   data={{ cve_ent: datos.cve_ent, municipios: datos.municipios }}

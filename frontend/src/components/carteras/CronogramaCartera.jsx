@@ -92,7 +92,7 @@ export default function CronogramaCartera({ proyectos = [] }) {
                     <div
                       className="absolute top-0.5 h-4 rounded-full flex items-center px-2 text-white text-[9px] font-bold overflow-hidden whitespace-nowrap"
                       style={{ left: `${izq}%`, width: `${ancho}%`, backgroundColor: colorBarra(p) }}
-                      title={`${p.nombre}: ${p.fecha_inicio_efectiva?.slice(0, 10)} a ${p.fecha_fin_efectiva?.slice(0, 10)} — ${avance}%`}
+                      title={`${p.nombre}: ${p.fecha_inicio_efectiva?.slice(0, 10)} a ${p.fecha_fin_efectiva?.slice(0, 10)}, ${avance}%`}
                     >
                       {avance}%
                     </div>

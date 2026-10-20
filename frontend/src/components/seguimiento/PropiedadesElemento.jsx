@@ -146,6 +146,7 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
   // fecha de sus acciones; en acción/tarea es simplemente su vencimiento.
   const labelFechaLimite = tipo === 'etapa' ? 'Fecha compromiso de la etapa'
     : tipo === 'tarea' ? 'Fecha límite de la tarea' : 'Fecha límite de la acción';
+  const sustantivoNodo = tipo === 'etapa' ? 'la etapa' : tipo === 'tarea' ? 'la tarea' : 'la acción';
   const ayudaFechaLimite = tipo === 'etapa'
     ? 'Fecha objetivo de esta etapa; puede ser distinta a las fechas de sus acciones.' : null;
 
@@ -215,6 +216,12 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
         </div>
       </div>
       {ayudaFechaLimite && <p className="text-[10px] text-gray-400 leading-snug -mt-2 mb-2.5">{ayudaFechaLimite}</p>}
+      {/* Bloque 3.3: misma nota de consecuencia que los modales de
+          creación (3.1), siempre visible (no solo cuando está vacía)
+          para que la relación quede clara incluso después de capturar. */}
+      <p className="text-[10px] text-gray-400 leading-snug -mt-2 mb-2.5">
+        Sin fecha límite, {sustantivoNodo} no aparece en el Cronograma y su semáforo se queda en gris: la plataforma no puede avisarte cuándo está por vencer.
+      </p>
       {!valores.fecha_limite && fechaSugerida && (
         <div className="flex items-center gap-1 text-[10px] text-gray-500 -mt-2 mb-2.5">
           <span>Sugerido según {subItemLabel.toLowerCase()}: {formatFecha(fechaSugerida)}</span>
@@ -276,7 +283,7 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
       <div className="mb-3">
         <span className="text-[10px] text-gray-400 block mb-0.5">Observaciones</span>
         {permisos.esSoloLectura ? (
-          <p className="text-xs text-gray-700 whitespace-pre-wrap">{valores.observaciones || '—'}</p>
+          <p className="text-xs text-gray-700 whitespace-pre-wrap">{valores.observaciones || '-'}</p>
         ) : (
           <textarea
             value={valores.observaciones || ''}
@@ -292,7 +299,7 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
       <div className="mb-3">
         <span className="text-[10px] text-gray-400 block mb-0.5">Avance</span>
         <p className="text-xs text-gray-600">
-          {esContenedor ? 'Automático — se calcula a partir de sus partes.' : 'Manual — se registra con "Registrar avance".'}
+          {esContenedor ? 'Automático: se calcula a partir de sus partes.' : 'Manual: se registra con "Registrar avance".'}
         </p>
       </div>
 
@@ -301,11 +308,11 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
         <span className="text-xs text-gray-600">
           {(() => {
             const resp = catalogs.usuarios.find(u => u.id === data.id_responsable);
-            return resp ? `${resp.nombre_completo}${resp.dg_siglas ? ' — ' + resp.dg_siglas : ''}` : 'Sin responsable asignado';
+            return resp ? `${resp.nombre_completo}${resp.dg_siglas ? ' (' + resp.dg_siglas + ')' : ''}` : 'Sin responsable asignado';
           })()}
         </span>
         <span className="text-[10px] text-gray-400 flex-shrink-0" title="Última actualización">
-          {data.updated_at ? new Date(data.updated_at).toLocaleString('es-MX') : '—'}
+          {data.updated_at ? new Date(data.updated_at).toLocaleString('es-MX') : '-'}
         </span>
       </div>
 

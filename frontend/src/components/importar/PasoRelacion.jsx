@@ -116,7 +116,7 @@ export default function PasoRelacion({ headers, sampleRows, config, proyectoId, 
           onChange={e => setParentColumn(e.target.value)}
           className="w-full border rounded-md px-3 py-2 text-sm bg-white"
         >
-          <option value="">— Seleccionar columna —</option>
+          <option value="">(Seleccionar columna)</option>
           {headers.map((h, i) => (
             <option key={i} value={i}>
               {h || `Columna ${i + 1}`}

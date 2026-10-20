@@ -256,7 +256,7 @@ export default function PasoMultiHoja({ fileId, multiHoja, proyectoId, onImporta
                       onChange={e => actualizarMapeo(hojaIdx, prop.key, e.target.value)}
                       className={`input-base text-[11px] py-0.5 flex-1 ${hoja.mapeo[prop.key] !== undefined ? 'border-green-300 bg-green-50' : ''}`}
                     >
-                      <option value="-1">— sin asignar —</option>
+                      <option value="-1">(sin asignar)</option>
                       {hoja.headers.map((h, hi) => (
                         <option key={hi} value={hi}>{h || `Col ${hi + 1}`}</option>
                       ))}

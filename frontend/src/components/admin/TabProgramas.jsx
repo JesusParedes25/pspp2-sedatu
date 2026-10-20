@@ -30,15 +30,15 @@ import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGua
 // Modalidades presupuestarias de SHCP. La letra inicial de la clave es
 // justamente la modalidad, por eso se muestran juntas.
 const MODALIDADES = [
-  { valor: 'S_Subsidio', etiqueta: 'S — Subsidio' },
-  { valor: 'U_Subsidio_Especifico', etiqueta: 'U — Subsidio específico' },
-  { valor: 'E_Prestacion_Servicios', etiqueta: 'E — Prestación de servicios' },
-  { valor: 'P_Planeacion', etiqueta: 'P — Planeación y política' },
-  { valor: 'K_Inversion', etiqueta: 'K — Inversión' },
-  { valor: 'G_Regulacion', etiqueta: 'G — Regulación' },
-  { valor: 'L_Obligacion', etiqueta: 'L — Obligaciones' },
-  { valor: 'R_Gasto_Federalizado', etiqueta: 'R — Gasto federalizado' },
-  { valor: 'M_Gasto_Administrativo', etiqueta: 'M — Gasto administrativo' },
+  { valor: 'S_Subsidio', etiqueta: 'S: Subsidio' },
+  { valor: 'U_Subsidio_Especifico', etiqueta: 'U: Subsidio específico' },
+  { valor: 'E_Prestacion_Servicios', etiqueta: 'E: Prestación de servicios' },
+  { valor: 'P_Planeacion', etiqueta: 'P: Planeación y política' },
+  { valor: 'K_Inversion', etiqueta: 'K: Inversión' },
+  { valor: 'G_Regulacion', etiqueta: 'G: Regulación' },
+  { valor: 'L_Obligacion', etiqueta: 'L: Obligaciones' },
+  { valor: 'R_Gasto_Federalizado', etiqueta: 'R: Gasto federalizado' },
+  { valor: 'M_Gasto_Administrativo', etiqueta: 'M: Gasto administrativo' },
   { valor: 'Prioritario_Nacional', etiqueta: 'Prioritario nacional' },
   { valor: 'Ramo_15', etiqueta: 'Ramo 15' },
   { valor: 'Otro', etiqueta: 'Otro' },
@@ -311,7 +311,7 @@ export default function TabProgramas() {
         abierto={!!porEliminar}
         titulo="Eliminar programa"
         mensaje={porEliminar
-          ? `Se quitará «${porEliminar.clave} — ${porEliminar.nombre}» del catálogo. Ningún proyecto lo usa, así que no se pierde ningún vínculo.`
+          ? `Se quitará «${porEliminar.clave}: ${porEliminar.nombre}» del catálogo. Ningún proyecto lo usa, así que no se pierde ningún vínculo.`
           : ''}
         textoConfirmar="Sí, eliminar"
         variante="danger"

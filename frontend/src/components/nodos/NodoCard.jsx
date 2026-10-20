@@ -437,7 +437,7 @@ export default function NodoCard({
               <div className="flex items-center gap-1.5 text-[11px] text-gray-400 bg-gray-100 px-3 py-2 rounded-lg">
                 <Lock size={12} className="flex-shrink-0" />
                 <span className="flex-1">
-                  {estadoCongelado === 'Bloqueada' ? 'Bloqueada — el avance queda congelado hasta desbloquearla.' : 'Cancelada — no se registra avance en un elemento cancelado.'}
+                  {estadoCongelado === 'Bloqueada' ? 'Bloqueada: el avance queda congelado hasta desbloquearla.' : 'Cancelada: no se registra avance en un elemento cancelado.'}
                 </span>
                 {onIrAFicha && (
                   <button onClick={onIrAFicha} className="text-guinda-600 hover:text-guinda-700 font-medium flex-shrink-0">

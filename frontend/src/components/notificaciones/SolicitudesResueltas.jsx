@@ -48,7 +48,7 @@ export default function SolicitudResueltaCard({ solicitud: sol }) {
       <div className="min-w-0 flex-1">
         <p className="text-xs text-gray-700">
           <span className="font-medium">{sol.nombre_completo}</span>
-          {aceptada ? ' — aceptada como ' : ' — declinada '}
+          {aceptada ? ', aceptada como ' : ', declinada '}
           {aceptada && <span className="font-medium">{sol.funcion}</span>}
           {' en '}
           {sol.id_nodo

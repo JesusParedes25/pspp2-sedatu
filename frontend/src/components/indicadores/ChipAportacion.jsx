@@ -106,7 +106,7 @@ export default function ChipAportacion({ ap, etiquetaPrincipal, subtitulo, soloL
               disabled={soloLectura}
               className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:border-guinda-500 focus:ring-1 focus:ring-guinda-500/20 outline-none disabled:opacity-60"
             >
-              <option value="">— sin categoría —</option>
+              <option value="">(sin categoría)</option>
               {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
             </select>
           )}

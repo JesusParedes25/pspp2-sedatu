@@ -219,7 +219,7 @@ export default function MisActividades() {
       </div>
 
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
-        {[{ id: 'pendientes', lbl: 'Pendientes', I: ListChecks }, { id: 'agenda', lbl: 'Agenda', I: CalendarDays }].map(({ id, lbl, I }) => (
+        {[{ id: 'pendientes', lbl: 'Lista', I: ListChecks }, { id: 'agenda', lbl: 'Agenda', I: CalendarDays }].map(({ id, lbl, I }) => (
           <button key={id} onClick={() => setTab(id)}
             className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-md transition-all ${tab === id ? 'bg-white text-guinda-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
             <I size={13} />{lbl}
@@ -233,7 +233,7 @@ export default function MisActividades() {
             <EmptyState
               icono={AlertTriangle}
               titulo="No se pudieron cargar las actividades"
-              subtitulo="Hubo un problema al conectar con el servidor. Esto no significa que tus actividades se hayan perdido — intenta de nuevo."
+              subtitulo="Hubo un problema al conectar con el servidor. Esto no significa que tus actividades se hayan perdido, intenta de nuevo."
               accion="Reintentar"
               onAccion={cargar}
             />

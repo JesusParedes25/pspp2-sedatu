@@ -81,7 +81,7 @@ export default function EtiquetasChipInput({ value, onChange }) {
         <div className="absolute z-[1100] top-full mt-1 left-0 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
           {buscando && <div className="px-3 py-2 text-[11px] text-gray-400">Buscando…</div>}
           {!buscando && sugerencias.length === 0 && (
-            <div className="px-3 py-2 text-[11px] text-gray-400">Sin coincidencias — se agregará como nueva</div>
+            <div className="px-3 py-2 text-[11px] text-gray-400">Sin coincidencias: se agregará como nueva</div>
           )}
           {sugerencias.map(s => (
             <button key={s} type="button" onMouseDown={() => agregar(s)}

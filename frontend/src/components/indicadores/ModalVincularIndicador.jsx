@@ -337,7 +337,7 @@ export default function ModalVincularIndicador({
                     }}
                     className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400"
                   >
-                    <option value="">— elige un proyecto —</option>
+                    <option value="">(elige un proyecto)</option>
                     {proyectosDisponibles.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                   </select>
                 </div>
@@ -418,7 +418,7 @@ export default function ModalVincularIndicador({
                         onChange={e => setCategoriaAportacion(e.target.value)}
                         className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400"
                       >
-                        <option value="">— elige una categoría —</option>
+                        <option value="">(elige una categoría)</option>
                         {(indicadorDestino.categorias || []).map(c => (
                           <option key={c.id} value={c.id}>{c.nombre}</option>
                         ))}

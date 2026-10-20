@@ -164,7 +164,7 @@ export default function SeccionAportaciones({ tipo, nodoId, proyectoId, avanceEf
                     disabled={soloLectura}
                     className="text-xs border border-gray-300 rounded px-1 py-0.5 focus:border-[#7B1C3E] focus:ring-1 focus:ring-[#7B1C3E]/20 outline-none bg-white"
                   >
-                    <option value="">— elige —</option>
+                    <option value="">(elige)</option>
                     {(ind.categorias || []).map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                   </select>
                 </div>
@@ -213,7 +213,7 @@ export default function SeccionAportaciones({ tipo, nodoId, proyectoId, avanceEf
                     onChange={e => setCategoriaElegida(prev => ({ ...prev, [ind.id]: e.target.value }))}
                     className="text-[10px] border border-gray-300 rounded px-1 py-0.5 focus:border-[#7B1C3E] focus:ring-1 focus:ring-[#7B1C3E]/20 outline-none bg-white"
                   >
-                    <option value="">— categoría —</option>
+                    <option value="">(categoría)</option>
                     {(ind.categorias || []).map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                   </select>
                 )}

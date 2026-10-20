@@ -503,6 +503,54 @@ async function contarParticipantesProyecto(proyectoId) {
   return resultado.rows[0]?.total || 0;
 }
 
+/**
+ * Etapas/acciones/tareas del proyecto que el Cronograma (GanttCronograma.jsx)
+ * no puede dibujar como barra por falta de fecha — bloque 3.2 ("que la
+ * fecha se vea como lo que es"): el hueco se convierte en un aviso
+ * accionable en vez de desaparecer en silencio.
+ *
+ * Mismo criterio de "fecha efectiva" que ya usa el Cronograma (ver
+ * acciones.queries.js::obtenerAccionesPorEtapa) para que el número
+ * coincida exactamente con lo que de verdad queda fuera de la gráfica:
+ *   - Etapa: sus columnas fecha_inicio/fecha_fin (derivadas de sus
+ *     acciones, ver etapas.queries.js) — el Cronograma las lee crudas.
+ *   - Acción (incluye subacción, misma tabla): fecha_inicio_efectiva
+ *     (propia o heredada de sus tareas) y fecha_fin_efectiva (fecha_limite
+ *     → fecha_fin → heredada de tareas).
+ *   - Tarea: su propia fecha_inicio y fecha_limite — no tiene de dónde
+ *     heredar.
+ */
+async function obtenerActividadesSinFecha(proyectoId) {
+  const resultado = await pool.query(`
+    SELECT e.id, e.nombre, 'etapa' AS tipo, NULL::text AS contexto
+    FROM etapas e
+    WHERE e.id_proyecto = $1 AND (e.fecha_inicio IS NULL OR e.fecha_fin IS NULL)
+
+    UNION ALL
+
+    SELECT a.id, a.nombre, 'accion' AS tipo, COALESCE(et.nombre, ap.nombre) AS contexto
+    FROM acciones a
+    LEFT JOIN etapas et ON et.id = a.id_etapa
+    LEFT JOIN acciones ap ON ap.id = a.id_accion_padre
+    WHERE a.id_proyecto = $1
+      AND (
+        COALESCE(a.fecha_inicio, (SELECT MIN(t.fecha_inicio) FROM tareas t WHERE t.id_accion = a.id AND t.estado != 'Cancelada')) IS NULL
+        OR COALESCE(a.fecha_limite, a.fecha_fin, (SELECT MAX(t.fecha_limite) FROM tareas t WHERE t.id_accion = a.id AND t.estado != 'Cancelada')) IS NULL
+      )
+
+    UNION ALL
+
+    SELECT t.id, t.nombre, 'tarea' AS tipo, a2.nombre AS contexto
+    FROM tareas t
+    JOIN acciones a2 ON a2.id = t.id_accion
+    WHERE a2.id_proyecto = $1
+      AND (t.fecha_inicio IS NULL OR t.fecha_limite IS NULL)
+
+    ORDER BY tipo, nombre
+  `, [proyectoId]);
+  return resultado.rows;
+}
+
 module.exports = {
   contarAccionesPorEstado,
   contarEvidenciasProyecto,
@@ -517,4 +565,5 @@ module.exports = {
   contarNodosVencidos,
   contarIndicadoresProyecto,
   contarParticipantesProyecto,
+  obtenerActividadesSinFecha,
 };

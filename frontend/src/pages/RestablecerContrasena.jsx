@@ -97,7 +97,7 @@ export default function RestablecerContrasena() {
         <div className="relative" style={{ borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: '1.5rem' }}>
           <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>
             Secretaría de Desarrollo Agrario,<br />
-            Territorial y Urbano — SEDATU<br />
+            Territorial y Urbano (SEDATU)<br />
             Sistema de uso interno exclusivo.
           </p>
         </div>

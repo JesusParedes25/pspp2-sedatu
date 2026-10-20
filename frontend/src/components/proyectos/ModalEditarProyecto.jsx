@@ -402,14 +402,14 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
                   onChange={e => setDatos(prev => ({ ...prev, id_dg_lider: e.target.value, id_direccion_area_lider: '' }))}
                   className="input-base">
                   <option value="">Seleccionar DG…</option>
-                  {dgs.map(dg => <option key={dg.id} value={dg.id}>{dg.siglas} — {dg.nombre}</option>)}
+                  {dgs.map(dg => <option key={dg.id} value={dg.id}>{dg.siglas} ({dg.nombre})</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Dirección de área líder</label>
                 <select value={datos.id_direccion_area_lider} onChange={e => actualizar('id_direccion_area_lider', e.target.value)} className="input-base">
                   <option value="">Sin especificar</option>
-                  {dasFiltradas.map(da => <option key={da.id} value={da.id}>{da.siglas} — {da.nombre}</option>)}
+                  {dasFiltradas.map(da => <option key={da.id} value={da.id}>{da.siglas} ({da.nombre})</option>)}
                 </select>
               </div>
               <div>
@@ -425,11 +425,11 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
                       <>
                         {relacionados.length > 0 && (
                           <optgroup label={`Programas de ${siglas}`}>
-                            {relacionados.map(p => <option key={p.id} value={p.id}>{p.clave} — {p.nombre}</option>)}
+                            {relacionados.map(p => <option key={p.id} value={p.id}>{p.clave} ({p.nombre})</option>)}
                           </optgroup>
                         )}
                         <optgroup label={relacionados.length > 0 ? 'Otros programas' : 'Programas presupuestarios'}>
-                          {otros.map(p => <option key={p.id} value={p.id}>{p.clave} — {p.nombre}</option>)}
+                          {otros.map(p => <option key={p.id} value={p.id}>{p.clave} ({p.nombre})</option>)}
                         </optgroup>
                         {/* El programa del proyecto puede haberse desactivado
                             desde el panel: ya no viene en la lista, pero el
@@ -438,7 +438,7 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
                         {datos.id_programa && !programas.some(p => String(p.id) === String(datos.id_programa)) && (
                           <optgroup label="Programa actual (ya no se ofrece)">
                             <option value={datos.id_programa}>
-                              {proyecto?.programa_clave ? `${proyecto.programa_clave} — ` : ''}
+                              {proyecto?.programa_clave ? `${proyecto.programa_clave}: ` : ''}
                               {proyecto?.programa_nombre || 'Programa retirado del catálogo'}
                             </option>
                           </optgroup>
@@ -635,7 +635,7 @@ function FilaIndicador({ indicador, onCambio, onToggle, onEliminar }) {
           </span>
           {indicador.meta_global && (
             <span className="text-xs text-gray-400 flex-shrink-0">
-              — meta: {Number(indicador.meta_global).toLocaleString()} {etiquetaUnidad}
+              Meta: {Number(indicador.meta_global).toLocaleString()} {etiquetaUnidad}
             </span>
           )}
         </div>

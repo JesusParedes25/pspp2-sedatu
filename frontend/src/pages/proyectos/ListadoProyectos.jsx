@@ -74,7 +74,7 @@ export default function ListadoProyectos() {
         <div className="flex items-center gap-3">
           {usuario && (
             <span className="text-xs px-2 py-1 rounded-full bg-guinda-50 text-guinda-600 font-medium">
-              {usuario.rol}{usuario.dg_siglas ? ` — ${usuario.dg_siglas}` : ''}
+              {usuario.rol}{usuario.dg_siglas ? ` (${usuario.dg_siglas})` : ''}
             </span>
           )}
           {puedeCrearProyecto && (

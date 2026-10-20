@@ -294,7 +294,7 @@ export default function CamposIndicadorProyecto({ indicador, onCambio, mostrarDe
                     onChange={e => cambiarRangoAnual(Number(e.target.value), indicador.anio_fin)}
                     className="input-base text-sm w-24" min="2020" max="2040" />
                 </div>
-                <span className="text-gray-400 pb-2">—</span>
+                <span className="text-gray-400 pb-2">a</span>
                 <div>
                   <label className="block text-xs text-gray-500 mb-0.5">Año fin</label>
                   <input type="number" value={indicador.anio_fin}

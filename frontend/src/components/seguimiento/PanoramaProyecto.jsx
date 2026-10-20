@@ -19,7 +19,7 @@ const GUINDA = '#7B1C3E';
 
 // ─── Helpers ──────────────────────────────────────────────────
 function fmt(f) {
-  if (!f) return '—';
+  if (!f) return '-';
   return new Date(f).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 

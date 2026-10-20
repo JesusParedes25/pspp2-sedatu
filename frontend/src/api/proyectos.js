@@ -101,6 +101,13 @@ export async function obtenerActividadRecienteProyecto(id) {
   return data.datos;
 }
 
+// Bloque 3.2 (navegación del árbol): etapas/acciones/tareas que el
+// Cronograma no puede dibujar como barra por falta de fecha.
+export async function obtenerActividadesSinFecha(id) {
+  const { data } = await client.get(`/proyectos/${id}/actividades-sin-fecha`);
+  return data.datos;
+}
+
 // Pestaña "Bitácora" — TODO lo que pasa en el proyecto (comentarios,
 // archivos, riesgos, avance/estatus, miembros, indicadores), paginado y
 // filtrable. A diferencia de obtenerActividadRecienteProyecto (widget

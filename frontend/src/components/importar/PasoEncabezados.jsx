@@ -156,7 +156,7 @@ export default function PasoEncabezados({
           <div className="flex flex-wrap gap-1">
             {superHeaders.map((h, i) => (
               <span key={i} className="px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-xs">
-                {h || '—'}
+                {h || '-'}
               </span>
             ))}
           </div>

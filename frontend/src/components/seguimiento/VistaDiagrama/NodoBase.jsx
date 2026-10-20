@@ -70,8 +70,14 @@ export default function NodoBase({ id, data, selected, tipo }) {
       aria-label={`${etiqueta}: ${data.nombre}. ${Math.round(avance)} por ciento de avance. Estado: ${formatearEstado(estado)}.`}
       aria-expanded={tieneHijos ? !colapsado : undefined}
       style={{ width: w, height: h, opacity: data.atenuado ? 0.25 : 1 }}
-      className={`rounded-lg border bg-white shadow-sm flex overflow-hidden relative transition-opacity focus:outline-none focus:ring-2 focus:ring-[#7B1C3E] focus:ring-offset-1 ${
-        selected ? 'border-[#7B1C3E] ring-1 ring-[#7B1C3E]' : 'border-gray-200'
+      // Mismo "estás aquí" que el árbol de Detalle (NodoArbol.jsx, ronda
+      // 6): borde+anillo guinda (ya los tenía) más un fondo tenue
+      // distinto (bg-guinda-50) en vez de blanco liso; el Diagrama no
+      // tiene un tratamiento de "bloqueado" propio (sin permiso solo
+      // oculta los botones de la toolbar, nunca cambia el fondo), así que
+      // no hay el riesgo de confusión del árbol/bloque 2.2.
+      className={`rounded-lg border shadow-sm flex overflow-hidden relative transition-opacity focus:outline-none focus:ring-2 focus:ring-[#7B1C3E] focus:ring-offset-1 ${
+        selected ? 'border-[#7B1C3E] ring-1 ring-[#7B1C3E] bg-guinda-50' : 'border-gray-200 bg-white'
       }`}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}

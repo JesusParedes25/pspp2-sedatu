@@ -78,7 +78,7 @@ export default function EvidenciaDetallePanel({ evidencia: ev, onPreview, onElim
       {/* Metadatos */}
       <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
         <div className="flex items-center gap-1.5 text-gray-500"><User size={12} /> Subido por</div>
-        <div className="text-gray-800 font-medium truncate">{ev.autor_nombre || '—'}</div>
+        <div className="text-gray-800 font-medium truncate">{ev.autor_nombre || '-'}</div>
 
         <div className="flex items-center gap-1.5 text-gray-500"><Calendar size={12} /> Fecha</div>
         <div className="text-gray-800 font-medium">

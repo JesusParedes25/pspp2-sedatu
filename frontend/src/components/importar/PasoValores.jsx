@@ -97,7 +97,7 @@ export default function PasoValores({ config, headers, sampleRows, onCambiar, on
                     onChange={e => actualizarMapeoEstado(val, e.target.value)}
                     className="border rounded px-2 py-1 text-sm flex-1"
                   >
-                    <option value="">— Sin mapeo (usar tal cual) —</option>
+                    <option value="">(Sin mapeo, usar tal cual)</option>
                     {ESTADOS_PSPP.map(e => (
                       <option key={e} value={e}>{e}</option>
                     ))}

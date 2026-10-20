@@ -12,7 +12,7 @@ export default function CampoFecha({ label, valor, onChange, soloLectura }) {
     return (
       <div>
         {label && <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">{label}</span>}
-        <span className="text-xs text-gray-700">{formatFecha(valor) || '—'}</span>
+        <span className="text-xs text-gray-700">{formatFecha(valor) || '-'}</span>
       </div>
     );
   }

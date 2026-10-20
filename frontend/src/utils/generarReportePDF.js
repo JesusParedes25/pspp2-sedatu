@@ -30,11 +30,11 @@ const C = {
 };
 
 // ─── Helpers ───────────────────────────────────────────────────
-const fmtDate  = d => formatFecha(d) || '—';
+const fmtDate  = d => formatFecha(d) || '-';
 const fmtPct   = v => `${Math.round(parseFloat(v) || 0)}%`;
-const limita   = (s, n) => s ? (s.length > n ? s.slice(0, n) + '…' : s) : '—';
+const limita   = (s, n) => s ? (s.length > n ? s.slice(0, n) + '…' : s) : '-';
 const estadoStr = e => formatearEstado(e || 'Pendiente');
-const semStr    = s => URGENCIA_SEMAFORO[s] || s || '—';
+const semStr    = s => URGENCIA_SEMAFORO[s] || s || '-';
 const semColor  = s => ({ verde:C.verde, ambar:C.ambar, rojo:C.rojo, gris:C.grisNeutro }[s] || C.grisNeutro);
 
 function nivelStr(tipo) {
@@ -78,7 +78,7 @@ function encabezadoPagina(doc, titulo, proyecto, paginaNum, totalPaginas) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(...C.blanco);
-  doc.text('SEDATU — PSPP · Reporte de Seguimiento', 20, 10);
+  doc.text('SEDATU: PSPP · Reporte de Seguimiento', 20, 10);
   doc.setFont('helvetica', 'normal');
   doc.text(limita(proyecto.nombre, 60), 20, 14);
 
@@ -103,7 +103,7 @@ function piePagina(doc, proyecto) {
   doc.setFont('helvetica', 'normal');
   const fechaGen = new Date().toLocaleDateString('es-MX', { day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
   doc.text(`Generado el ${fechaGen}`, 20, PH - 3.5);
-  doc.text('PSPP — Plataforma de Seguimiento de Proyectos Prioritarios · SEDATU', PW - 20, PH - 3.5, { align:'right' });
+  doc.text('PSPP: Plataforma de Seguimiento de Proyectos Prioritarios · SEDATU', PW - 20, PH - 3.5, { align:'right' });
   doc.setTextColor(...C.grisTexto);
 }
 
@@ -154,9 +154,11 @@ async function portada(doc, proyecto, logoDataURL) {
   const yStart = 112;
   const items = [
     ['Estado',        estadoStr(proyecto.estado)],
-    ['DG Líder',      [proyecto.dg_lider_siglas, proyecto.dg_lider_nombre].filter(Boolean).join(' — ')],
-    ['Tipo',          proyecto.tipo?.replace(/_/g,' ') || '—'],
-    ['Programa',      proyecto.programa_clave || '—'],
+    ['DG Líder',      proyecto.dg_lider_siglas && proyecto.dg_lider_nombre
+                        ? `${proyecto.dg_lider_siglas} (${proyecto.dg_lider_nombre})`
+                        : (proyecto.dg_lider_siglas || proyecto.dg_lider_nombre || '-')],
+    ['Tipo',          proyecto.tipo?.replace(/_/g,' ') || '-'],
+    ['Programa',      proyecto.programa_clave || '-'],
     ['Inicio progr.', fmtDate(proyecto.fecha_inicio)],
     ['Fin progr.',    fmtDate(proyecto.fecha_limite)],
     ['Avance global', fmtPct(proyecto.porcentaje_calculado)],
@@ -178,7 +180,7 @@ async function portada(doc, proyecto, logoDataURL) {
       doc.text(label + ':', xBase, y);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(...C.grisTexto);
-      doc.text(limita(String(valor || '—'), 38), xBase + 28, y);
+      doc.text(limita(String(valor || '-'), 38), xBase + 28, y);
       y += 8;
     });
   });
@@ -333,11 +335,11 @@ function paginaEquipo(doc, proyecto, miembros, paginaNum, totalPaginas) {
       margin: { left: 20, right: 20 },
       head: [['Nombre', 'Correo', 'Rol en proyecto', 'DG', 'Cargo']],
       body: miembros.map(m => [
-        m.nombre_completo || '—',
-        m.correo || '—',
-        m.rol || '—',
-        m.dg_siglas || '—',
-        limita(m.cargo || '—', 35),
+        m.nombre_completo || '-',
+        m.correo || '-',
+        m.rol || '-',
+        m.dg_siglas || '-',
+        limita(m.cargo || '-', 35),
       ]),
       headStyles: { fillColor: C.guinda, textColor: C.blanco, fontStyle: 'bold', fontSize: 8 },
       bodyStyles: { fontSize: 8, textColor: C.grisTexto },
@@ -365,11 +367,11 @@ function paginaEstructura(doc, proyecto, etapas, paginaNum, totalPaginas) {
       const pct = Math.round(parseFloat(n.avance_actual ?? n.porcentaje_calculado) || 0);
       return [
         `${indent}${nivelStr(n.tipo)}`,
-        limita(n.nombre || '—', 50),
+        limita(n.nombre || '-', 50),
         estadoStr(n.estado),
         semStr(n.semaforo),
         `${pct}%`,
-        limita(n.responsable_nombre || '—', 25),
+        limita(n.responsable_nombre || '-', 25),
         fmtDate(n.fecha_inicio),
         fmtDate(n.fecha_limite),
       ];
@@ -443,11 +445,11 @@ function paginaPendientes(doc, proyecto, etapas, paginaNum, totalPaginas) {
         const vencida = estaVencida(n.fecha_limite);
         return [
           nivelStr(n.tipo),
-          limita(n.nombre || '—', 55),
+          limita(n.nombre || '-', 55),
           estadoStr(n.estado),
           semStr(n.semaforo),
           `${pct}%`,
-          limita(n.responsable_nombre || '—', 22),
+          limita(n.responsable_nombre || '-', 22),
           fmtDate(n.fecha_limite),
           vencida ? '⚠ Vencida' : '',
         ];
@@ -506,11 +508,11 @@ function paginaBloqueados(doc, proyecto, etapas, paginaNum, totalPaginas) {
       const pct = Math.round(parseFloat(n.avance_actual ?? n.porcentaje_calculado) || 0);
       return [
         nivelStr(n.tipo),
-        limita(n.nombre || '—', 55),
+        limita(n.nombre || '-', 55),
         estadoStr(n.estado),
         semStr(n.semaforo),
         `${pct}%`,
-        limita(n.responsable_nombre || '—', 22),
+        limita(n.responsable_nombre || '-', 22),
         fmtDate(n.fecha_limite),
       ];
     });
@@ -557,7 +559,7 @@ function paginaTerminados(doc, proyecto, etapas, paginaNum, totalPaginas) {
       head: [['Tipo','Nombre','Avance','Responsable','Fecha inicio','Fecha fin']],
       body: terminados.map(n => {
         const pct = Math.round(parseFloat(n.avance_actual ?? n.porcentaje_calculado) || 0);
-        return [nivelStr(n.tipo), limita(n.nombre,'—'), `${pct}%`, limita(n.responsable_nombre||'—',28), fmtDate(n.fecha_inicio), fmtDate(n.fecha_limite)];
+        return [nivelStr(n.tipo), limita(n.nombre,'-'), `${pct}%`, limita(n.responsable_nombre||'-',28), fmtDate(n.fecha_inicio), fmtDate(n.fecha_limite)];
       }),
       headStyles: { fillColor: [34,120,60], textColor: C.blanco, fontStyle: 'bold', fontSize: 8 },
       bodyStyles: { fontSize: 8, textColor: C.grisTexto },
@@ -584,13 +586,13 @@ function paginaRiesgos(doc, proyecto, riesgos, paginaNum, totalPaginas) {
       margin: { left: 20, right: 20 },
       head: [['Título','Nivel','Estado','Prob.','Impacto','Responsable','Etapa / Acción']],
       body: riesgos.map(r => [
-        limita(r.titulo||'—', 38),
-        r.nivel || '—',
-        r.estado || '—',
-        r.probabilidad || '—',
-        r.impacto || '—',
-        limita(r.responsable_nombre || '—', 22),
-        limita(r.etapa_nombre || r.accion_nombre || '—', 28),
+        limita(r.titulo||'-', 38),
+        r.nivel || '-',
+        r.estado || '-',
+        r.probabilidad || '-',
+        r.impacto || '-',
+        limita(r.responsable_nombre || '-', 22),
+        limita(r.etapa_nombre || r.accion_nombre || '-', 28),
       ]),
       headStyles: { fillColor: [180, 80, 20], textColor: C.blanco, fontStyle: 'bold', fontSize: 7.5 },
       bodyStyles: { fontSize: 7.5, textColor: C.grisTexto },
@@ -634,11 +636,11 @@ function paginaEvidencias(doc, proyecto, evidencias, paginaNum, totalPaginas) {
       body: Object.entries(porCategoria).flatMap(([cat, items]) =>
         items.map((e, i) => [
           i === 0 ? cat : '',
-          limita(e.nombre_original || e.nombre || '—', 40),
-          limita(e.notas || '—', 30),
-          limita(e.autor_nombre || '—', 22),
+          limita(e.nombre_original || e.nombre || '-', 40),
+          limita(e.notas || '-', 30),
+          limita(e.autor_nombre || '-', 22),
           fmtDate(e.created_at),
-          limita(e.etapa_nombre || '—', 25),
+          limita(e.etapa_nombre || '-', 25),
         ])
       ),
       headStyles: { fillColor: C.guinda, textColor: C.blanco, fontStyle: 'bold', fontSize: 7.5 },
@@ -668,13 +670,13 @@ function paginaIndicadores(doc, proyecto, indicadores, paginaNum, totalPaginas) 
       const val  = parseFloat(ind.valor_actual) || 0;
       const pct  = meta > 0 ? Math.min(100, Math.round((val/meta)*100)) : null;
       return [
-        limita(ind.nombre||'—',40),
-        ind.tipo||'—',
-        meta > 0 ? meta.toLocaleString() : '—',
-        val > 0 ? val.toLocaleString() : '—',
-        pct !== null ? `${pct}%` : '—',
-        ind.etiqueta_unidad || ind.unidad || '—',
-        limita(ind.etapa_nombre||'—',30),
+        limita(ind.nombre||'-',40),
+        ind.tipo||'-',
+        meta > 0 ? meta.toLocaleString() : '-',
+        val > 0 ? val.toLocaleString() : '-',
+        pct !== null ? `${pct}%` : '-',
+        ind.etiqueta_unidad || ind.unidad || '-',
+        limita(ind.etapa_nombre||'-',30),
       ];
     }),
     headStyles: { fillColor: [30, 80, 150], textColor: C.blanco, fontStyle: 'bold', fontSize: 7.5 },

@@ -274,7 +274,7 @@ function iniciales(nombre) {
 function alcanceLabel(alcance, nodo_tipo, nodo_nombre) {
   if (!alcance || alcance === 'proyecto') return null;
   const tipoEs = ETIQUETA_ALCANCE[nodo_tipo || alcance] || 'parte';
-  return `Asignado a: ${tipoEs}${nodo_nombre ? ` — ${nodo_nombre}` : ''}`;
+  return `Asignado a: ${tipoEs}${nodo_nombre ? ` (${nodo_nombre})` : ''}`;
 }
 
 function ParticipanteCard({ miembro: m, puedeGestionar, puedeSalir, onEliminar, onCambiarRol, onAmpliarATodoElProyecto, mostrarAlcance = true }) {
@@ -551,14 +551,14 @@ function ModalInvitar({ proyectoId, proyectoNombre, nombreQuienAsigna, onClose, 
             <div>
               <label className="text-xs font-medium text-gray-600 block mb-1">Dirección General</label>
               <select value={filtros.id_dg} onChange={e => setFiltros(f => ({ ...f, id_dg: e.target.value, id_da: '' }))} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs">
-                <option value="">— Todas —</option>
+                <option value="">(Todas)</option>
                 {dgs.map(d => <option key={d.id} value={d.id}>{d.siglas}</option>)}
               </select>
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 block mb-1">Dirección de Área</label>
               <select value={filtros.id_da} onChange={e => setFiltros(f => ({ ...f, id_da: e.target.value }))} disabled={!filtros.id_dg} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs disabled:opacity-40">
-                <option value="">— Todas —</option>
+                <option value="">(Todas)</option>
                 {dasFiltradas.map(d => <option key={d.id} value={d.id}>{d.siglas}</option>)}
               </select>
             </div>

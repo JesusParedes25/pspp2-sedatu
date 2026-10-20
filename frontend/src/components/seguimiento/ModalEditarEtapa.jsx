@@ -232,7 +232,7 @@ export default function ModalEditarEtapa({ etapa, proyecto, etapas = [], onGuard
               <select value={datos.id_responsable} onChange={e => actualizar('id_responsable', e.target.value)} className="input-base text-sm">
                 <option value="">Sin asignar</option>
                 {usuariosFiltrados.map(u => (
-                  <option key={u.id} value={u.id}>{u.nombre_completo} — {u.cargo}</option>
+                  <option key={u.id} value={u.id}>{u.nombre_completo} ({u.cargo})</option>
                 ))}
               </select>
             </div>

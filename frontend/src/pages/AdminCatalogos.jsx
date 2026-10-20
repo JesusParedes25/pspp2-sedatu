@@ -259,7 +259,7 @@ function TabUsuarios({ dgs, das }) {
                 : <p className="text-sm font-medium text-amber-800">⚠️ Usuario creado, pero el correo no pudo enviarse
                     {inviteLink.motivoFallo === 'correo_deshabilitado' && ' (envío deshabilitado en Configuración)'}
                     {inviteLink.motivoFallo === 'sin_configuracion' && ' (configura EmailJS en Configuración)'}
-                    {inviteLink.motivoFallo === 'error_envio' && ' (error de EmailJS — revisa las credenciales)'}
+                    {inviteLink.motivoFallo === 'error_envio' && ' (error de EmailJS: revisa las credenciales)'}
                   </p>
               }
               <p className="text-xs text-gray-500 mt-0.5">Enlace válido por 30 días. Cópialo si necesitas enviarlo manualmente.</p>
@@ -347,9 +347,9 @@ function TabUsuarios({ dgs, das }) {
                     <p className="font-medium text-gray-800 truncate max-w-[240px]">{u.nombre_completo}</p>
                     <p className="text-xs text-gray-500 truncate max-w-[240px]">{u.correo}</p>
                   </td>
-                  <td className="px-4 py-2.5 text-gray-600 text-xs max-w-[200px] truncate">{u.cargo || '—'}</td>
+                  <td className="px-4 py-2.5 text-gray-600 text-xs max-w-[200px] truncate">{u.cargo || '-'}</td>
                   <td className="px-4 py-2.5 text-gray-500 text-xs whitespace-nowrap">
-                    {u.dg_siglas || '—'}{u.da_siglas ? ` / ${u.da_siglas}` : ''}
+                    {u.dg_siglas || '-'}{u.da_siglas ? ` / ${u.da_siglas}` : ''}
                   </td>
                   <td className="px-4 py-2.5">
                     <span title={DESCRIPCION_ROL[u.rol] || ''}
@@ -412,15 +412,15 @@ function TabUsuarios({ dgs, das }) {
               </Field>
               <Field label="Dirección General">
                 <select value={modal.datos.id_dg || ''} onChange={e => setModal(m => ({ ...m, datos: { ...m.datos, id_dg: e.target.value, id_direccion_area: '' } }))} className="input-base text-sm">
-                  <option value="">— Sin DG —</option>
-                  {dgs.map(d => <option key={d.id} value={d.id}>{d.siglas} — {d.nombre}</option>)}
+                  <option value="">(Sin DG)</option>
+                  {dgs.map(d => <option key={d.id} value={d.id}>{d.siglas} ({d.nombre})</option>)}
                 </select>
               </Field>
               {dasDgActual.length > 0 && (
                 <Field label="Dirección de Área">
                   <select value={modal.datos.id_direccion_area || ''} onChange={e => setModal(m => ({ ...m, datos: { ...m.datos, id_direccion_area: e.target.value } }))} className="input-base text-sm">
-                    <option value="">— Sin DA —</option>
-                    {dasDgActual.map(d => <option key={d.id} value={d.id}>{d.siglas} — {d.nombre}</option>)}
+                    <option value="">(Sin DA)</option>
+                    {dasDgActual.map(d => <option key={d.id} value={d.id}>{d.siglas} ({d.nombre})</option>)}
                   </select>
                 </Field>
               )}
@@ -562,7 +562,7 @@ function TabAreas({ dgs, das, recargar }) {
         abierto={!!porEliminar}
         titulo={tab === 'dg' ? 'Eliminar dirección general' : 'Eliminar dirección de área'}
         mensaje={porEliminar
-          ? `Se quitará "${porEliminar.siglas} — ${porEliminar.nombre}" del catálogo. Si tiene usuarios, proyectos o áreas colgando, la operación se rechaza y te decimos qué falta reasignar.`
+          ? `Se quitará "${porEliminar.siglas}: ${porEliminar.nombre}" del catálogo. Si tiene usuarios, proyectos o áreas colgando, la operación se rechaza y te decimos qué falta reasignar.`
           : ''}
         textoConfirmar="Sí, eliminar"
         variante="danger"
@@ -603,8 +603,8 @@ function TabAreas({ dgs, das, recargar }) {
               {tab === 'da' && (
                 <Field label="Dirección General" required>
                   <select value={modal.datos.id_dg || ''} onChange={e => setModal(m => ({ ...m, datos: { ...m.datos, id_dg: e.target.value } }))} className="input-base text-sm">
-                    <option value="">— Selecciona DG —</option>
-                    {dgs.map(d => <option key={d.id} value={d.id}>{d.siglas} — {d.nombre}</option>)}
+                    <option value="">(Selecciona DG)</option>
+                    {dgs.map(d => <option key={d.id} value={d.id}>{d.siglas} ({d.nombre})</option>)}
                   </select>
                 </Field>
               )}
@@ -867,7 +867,7 @@ function TabPapelera() {
             <p className="text-sm font-medium text-gray-800 truncate">{p.nombre}</p>
             <p className="text-xs text-gray-400">
               {p.dg_lider_siglas && `${p.dg_lider_siglas} · `}
-              Eliminado por {p.creador_nombre || '—'} el {new Date(p.deleted_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
+              Eliminado por {p.creador_nombre || '-'} el {new Date(p.deleted_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
             </p>
           </div>
           <span className={`text-[10px] font-medium px-2 py-1 rounded-full flex-shrink-0 ${p.dias_restantes <= 5 ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>

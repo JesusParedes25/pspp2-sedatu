@@ -274,7 +274,7 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto
                 {soloLecturaAqui ? (
                   <span
                     className={`flex items-center gap-0.5 text-[10px] font-medium px-2 py-0.5 rounded-full ${rc.color}`}
-                    title={esProyecto ? 'Ya tiene acceso a todo el proyecto — se gestiona desde ahí, no desde este nodo' : undefined}
+                    title={esProyecto ? 'Ya tiene acceso a todo el proyecto: se gestiona desde ahí, no desde este nodo' : undefined}
                   >
                     {esPrincipal ? <Lock size={9} /> : <Building2 size={9} />}{rc.label}
                   </span>
