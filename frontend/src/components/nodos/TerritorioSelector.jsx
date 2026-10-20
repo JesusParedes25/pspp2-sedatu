@@ -208,7 +208,7 @@ export default function TerritorioSelector({ data, onGuardar, soloLectura, sopor
             </div>
             <span className="text-[11px] font-semibold text-gray-700">{soportarZM ? 'Modo A · Estado' : 'Estado'}</span>
           </div>
-          {soportarZM && modoTerritorio !== 'estado' && <span className="text-[9px] text-gray-400">🔒 Bloqueado — elegiste el otro modo</span>}
+          {soportarZM && modoTerritorio !== 'estado' && <span className="text-[9px] text-gray-400">🔒 Bloqueado mientras el otro modo esté activo</span>}
         </div>
         {modoTerritorio === 'estado' && (
           <div className="px-3 pb-3 space-y-2">
@@ -241,7 +241,7 @@ export default function TerritorioSelector({ data, onGuardar, soloLectura, sopor
               </div>
               <span className="text-[11px] font-semibold text-gray-700">Modo B · Zona Metropolitana</span>
             </div>
-            {modoTerritorio !== 'zm' && <span className="text-[9px] text-gray-400">🔒 Bloqueado — elegiste el otro modo</span>}
+            {modoTerritorio !== 'zm' && <span className="text-[9px] text-gray-400">🔒 Bloqueado mientras el otro modo esté activo</span>}
           </div>
           {modoTerritorio === 'zm' && (
             <div className="px-3 pb-3 space-y-2">

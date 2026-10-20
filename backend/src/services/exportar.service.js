@@ -68,7 +68,6 @@ function filaAccion(accion, etapaNombre, accionPadreNombre) {
     'Etapa': etapaNombre,
     'Acción padre': accionPadreNombre || '',
     'Nombre': accion.nombre,
-    'Tipo': accion.tipo === 'Hito' ? 'Hito' : 'Acción programada',
     'Descripción': accion.descripcion || '',
     'Estado': ESTADO_LEGIBLE(accion.estado),
     'Prioridad': accion.prioridad || '',

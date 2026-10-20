@@ -208,6 +208,13 @@ async function crearAccionEnEtapa(etapaId, datos) {
     const cveEnt = datos.cve_ent !== undefined ? emptyToNull(datos.cve_ent) : (etapa.rows[0]?.cve_ent || null);
     const idZm   = datos.id_zm   !== undefined ? emptyToNull(datos.id_zm)   : (etapa.rows[0]?.id_zm   || null);
 
+    // Bloque 2.3 (modal de nueva acción): quien captura ve una sola
+    // "Fecha límite" — este valor se espeja también a fecha_fin para no
+    // romper a quien hoy la lee directo (Cronograma, Agenda, exportaciones).
+    // El fallback a datos.fecha_fin es solo por compatibilidad con algún
+    // llamador que todavía mande esa clave en vez de fecha_limite (ninguno
+    // de los que hoy llaman esta función lo hace).
+    const fechaLimite = emptyToNull(datos.fecha_limite) ?? emptyToNull(datos.fecha_fin);
     const resultado = await client.query(`
       INSERT INTO acciones (
         nombre, descripcion, tipo, fecha_inicio, fecha_fin,
@@ -218,10 +225,10 @@ async function crearAccionEnEtapa(etapaId, datos) {
       RETURNING *
     `, [
       datos.nombre, emptyToNull(datos.descripcion), datos.tipo || 'Accion_programada',
-      datos.fecha_inicio, datos.fecha_fin,
+      emptyToNull(datos.fecha_inicio), fechaLimite,
       etapaId, proyectoId, emptyToNull(subproyectoId),
       emptyToNull(datos.id_dg), emptyToNull(datos.id_direccion_area), emptyToNull(datos.id_responsable),
-      emptyToNull(datos.prioridad), emptyToNull(datos.fecha_limite),
+      emptyToNull(datos.prioridad), fechaLimite,
       emptyToNull(datos.instancia_responsable), emptyToNull(datos.enlace_responsable),
       emptyToNull(datos.observaciones),
       cveEnt, idZm
@@ -277,6 +284,9 @@ async function crearAccionEnProyecto(proyectoId, datos) {
   try {
     await client.query('BEGIN');
 
+    // Ver mismo comentario en crearAccionEnEtapa: una sola fecha límite
+    // capturada, espejada a fecha_fin para no romper a quien hoy la lee.
+    const fechaLimite = emptyToNull(datos.fecha_limite) ?? emptyToNull(datos.fecha_fin);
     const resultado = await client.query(`
       INSERT INTO acciones (
         nombre, descripcion, tipo, fecha_inicio, fecha_fin,
@@ -286,9 +296,9 @@ async function crearAccionEnProyecto(proyectoId, datos) {
       RETURNING *
     `, [
       datos.nombre, emptyToNull(datos.descripcion), datos.tipo || 'Accion_programada',
-      datos.fecha_inicio, datos.fecha_fin,
+      emptyToNull(datos.fecha_inicio), fechaLimite,
       proyectoId, emptyToNull(datos.id_dg), emptyToNull(datos.id_direccion_area), emptyToNull(datos.id_responsable),
-      emptyToNull(datos.prioridad), emptyToNull(datos.fecha_limite),
+      emptyToNull(datos.prioridad), fechaLimite,
       emptyToNull(datos.instancia_responsable), emptyToNull(datos.enlace_responsable),
       emptyToNull(datos.observaciones)
     ]);
