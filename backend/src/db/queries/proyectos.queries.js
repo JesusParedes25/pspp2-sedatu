@@ -14,6 +14,7 @@
 const pool = require('../pool');
 const indicadoresQueries = require('./indicadores.queries');
 const { condicionRiesgoDeProyecto } = require('../../utils/condicion-riesgo');
+const { condicionAccionesPorCompletar } = require('../../utils/condicion-actividades-por-completar');
 
 // Lista proyectos con filtros opcionales, paginación y datos del líder
 async function listarProyectos({ estado, tipo, idDg, busqueda, etiquetas, carteraId, sinCartera, participacion, usuarioId, pagina = 1, limite = 12 }) {
@@ -148,7 +149,7 @@ async function listarProyectos({ estado, tipo, idDg, busqueda, etiquetas, carter
       cp.cartera_id,
       c.nombre AS cartera_nombre,
       (SELECT COUNT(*) FROM etapas e WHERE e.id_proyecto = p.id) AS total_etapas,
-      (SELECT COUNT(*) FROM acciones a WHERE a.id_proyecto = p.id AND a.estado NOT IN ('Completada','Cancelada')) AS acciones_pendientes,
+      ${condicionAccionesPorCompletar('p.id')} AS acciones_pendientes,
       (SELECT COUNT(*) FROM riesgos r WHERE ${condicionRiesgoDeProyecto('p.id')} AND r.estado IN ('Abierto','En_mitigacion')) AS riesgos_activos,
       -- Para chips en la tarjeta (ListadoProyectos) y para filtrar la
       -- lista de proyectos por etiqueta del lado del cliente en Territorio

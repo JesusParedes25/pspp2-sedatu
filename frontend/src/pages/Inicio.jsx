@@ -391,7 +391,7 @@ function ProyectoCard({ proyecto }) {
           </div>
         </div>
         <div className="flex items-center gap-3 mt-2 text-[10px] text-gray-400">
-          {proyecto.acciones_pendientes > 0 && <span>{proyecto.acciones_pendientes} pendiente{parseInt(proyecto.acciones_pendientes) !== 1 ? 's' : ''}</span>}
+          {proyecto.acciones_pendientes > 0 && <span>{proyecto.acciones_pendientes} actividad{parseInt(proyecto.acciones_pendientes) !== 1 ? 'es' : ''} por completar</span>}
           {proyecto.riesgos_activos > 0 && <span className="text-orange-500">{proyecto.riesgos_activos} riesgo{parseInt(proyecto.riesgos_activos) !== 1 ? 's' : ''}</span>}
           {proyecto.es_prioritario && <span className="text-guinda-600 font-bold">★ Prioritario</span>}
         </div>

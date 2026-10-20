@@ -23,6 +23,16 @@
  * esta prueba solo detecta cuando una de las dos deja de coincidir con
  * semaforoEfectivo(), que es la fuente de verdad real.
  *
+ * "Cierre del modelo de urgencia": calcularSemaforo ya no trata a
+ * 'Bloqueada' distinto de cualquier otro estado no terminal (antes
+ * mandaba a rojo con <3 días de margen) — se quitó esa misma rama del
+ * CASE real y de `vencidoPorSqlDeContarNodosVencidos` abajo. El caso
+ * `bloqueada_2dias` es exactamente el que cambia de resultado (antes
+ * contaba como vencido, ahora no) — como la comparación de este archivo
+ * es siempre relativa (sql === semaforoEfectivo(...)==='rojo', nunca un
+ * booleano fijo a mano), los 20 casos pasan sin tocar sus datos, solo
+ * actualizando ambas transcripciones igual.
+ *
  * Ejecutar: npm test
  */
 const { semaforoEfectivo } = require('../utils/avance-semaforo');
@@ -37,10 +47,11 @@ function vencidoPorSqlDeContarNodosVencidos(nodo) {
   if (nodo.estado === 'Completada' || nodo.estado === 'Cancelada') return false;
   if (!fechaEfectiva) return false;
 
+  // 'Bloqueada' ya no tiene una regla propia (ver Bloque 1, "Cierre del
+  // modelo de urgencia") — vencido es, para cualquier estado no terminal,
+  // exactamente "la fecha ya pasó".
   const diasRestantes = Math.ceil((fechaEfectiva - hoy) / 86400000);
-  if (diasRestantes < 0) return true;
-  if (nodo.estado === 'Bloqueada' && diasRestantes < 3) return true;
-  return false;
+  return diasRestantes < 0;
 }
 
 function fecha(offsetDias) {

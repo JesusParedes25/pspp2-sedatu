@@ -514,10 +514,12 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
             redactado aparte, para que nunca pueda desincronizarse de la
             regla real. */}
         <div className="flex items-center flex-wrap gap-x-2.5 gap-y-1 px-3 py-1.5 border-t border-gray-200 bg-gray-50/60 text-[9px] text-gray-500 flex-shrink-0">
+          <span className="font-semibold text-gray-400">Urgencia:</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO.verde }} />{LEYENDA_SEMAFORO.verde}</span>
-          <span className="flex items-center gap-1"><CheckCircle2 size={9} className="text-emerald-600 flex-shrink-0" />Completada</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO.ambar }} />{LEYENDA_SEMAFORO.ambar}</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO.rojo }} />{LEYENDA_SEMAFORO.rojo}</span>
+          <span className="font-semibold text-gray-400 ml-1">Sin urgencia:</span>
+          <span className="flex items-center gap-1"><CheckCircle2 size={9} className="text-emerald-600 flex-shrink-0" />Completada</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0 border border-gray-300" style={{ backgroundColor: COLORES_SEMAFORO.gris }} />{LEYENDA_SEMAFORO.gris}</span>
         </div>
       </div>

@@ -59,13 +59,23 @@ async function listarCarteras({ busqueda } = {}) {
       dg.siglas AS dg_lider_siglas, dg.nombre AS dg_lider_nombre,
       u.nombre_completo AS responsable_nombre,
       (SELECT COUNT(*) FROM cartera_proyecto cp WHERE cp.cartera_id = c.id) AS total_proyectos,
+      -- Bloque 7 ("Cierre del modelo de urgencia"): antes un solo OR
+      -- ("proyectos_en_riesgo") mezclaba dos modelos distintos —vencido
+      -- por fecha, riesgo real registrado— en un único número que no le
+      -- decía nada al usuario sobre CUÁL de los dos. Ahora cada modelo
+      -- tiene su propia cuenta, igual que ya pasa en el resto de la
+      -- plataforma (Riesgo reservado al módulo de Riesgos).
       (
         SELECT COUNT(DISTINCT p.id) FROM cartera_proyecto cp
         JOIN proyectos p ON p.id = cp.proyecto_id AND p.deleted_at IS NULL
-        LEFT JOIN riesgos r ON ${COND_RIESGO_DE_PROYECTO} AND r.estado IN ('Abierto','En_mitigacion')
+        WHERE cp.cartera_id = c.id AND ${COND_PROYECTO_VENCIDO}
+      ) AS proyectos_con_vencidas,
+      (
+        SELECT COUNT(DISTINCT p.id) FROM cartera_proyecto cp
+        JOIN proyectos p ON p.id = cp.proyecto_id AND p.deleted_at IS NULL
+        JOIN riesgos r ON ${COND_RIESGO_DE_PROYECTO} AND r.estado IN ('Abierto','En_mitigacion')
         WHERE cp.cartera_id = c.id
-          AND (${COND_PROYECTO_VENCIDO} OR r.id IS NOT NULL)
-      ) AS proyectos_en_riesgo
+      ) AS proyectos_con_riesgos
     FROM carteras c
     LEFT JOIN direcciones_generales dg ON dg.id = c.id_dg_lider
     LEFT JOIN usuarios u ON u.id = c.id_responsable

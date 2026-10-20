@@ -52,11 +52,6 @@ export async function obtenerSubacciones(accionId) {
   return data;
 }
 
-export async function crearSubaccion(accionPadreId, datos) {
-  const { data } = await client.post(`/acciones/${accionPadreId}/subacciones`, datos);
-  return data;
-}
-
 export async function importarCSV(proyectoId, filas) {
   const { data } = await client.post(`/proyectos/${proyectoId}/importar-csv`, { filas });
   return data;

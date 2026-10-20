@@ -4,40 +4,76 @@
  */
 const pool = require('../db/pool');
 
+// Ventana de aviso de "Por vencer", por prioridad — escala monótona: más
+// prioridad avisa antes o igual, nunca menos (antes solo 'Muy Alta' hacía
+// algo y 'Crítica', el nivel más alto del catálogo, no tenía efecto).
+// Única fuente de estos números: calcularSemaforo la usa aquí, y el
+// frontend la espeja en SemaforoDot.jsx (sin forma de compartir el módulo
+// entre procesos) para poder escribir sus propios textos de ayuda sin
+// repetir los días a mano.
+const VENTANA_POR_VENCER = Object.freeze({
+  'Crítica': 21,
+  'Muy Alta': 14,
+  'Alta': 7,
+  'Media': 7,
+  'Baja': 7,
+});
+const VENTANA_POR_DEFECTO = 7; // prioridad sin definir
+
+function ventanaAvisoPorVencer(prioridad) {
+  return VENTANA_POR_VENCER[prioridad] ?? VENTANA_POR_DEFECTO;
+}
+
 /**
- * Calcula el semáforo automático desde estatus + fecha_limite + prioridad.
+ * Calcula el semáforo automático desde estado + fecha_limite + prioridad.
  * fecha_fin es un fallback cuando fecha_limite está vacía (mismo criterio
  * de "fecha efectiva" que ya usa el resto de la app — fechaFinEfectiva()
  * en el frontend, la lista de "Vencidas" del dashboard, etc.) — sin este
  * fallback, un nodo sin fecha_limite capturada nunca podía caer en rojo/
  * ámbar por atraso aunque su fecha_fin estuviera vencida hace semanas.
+ *
+ * Orden de evaluación (no es intercambiable):
+ *   1. Completada           → verde (SIEMPRE, antes que cualquier otra
+ *      cosa — incluida la ausencia de fecha: una Completada sin fecha
+ *      sigue en verde, no en gris).
+ *   2. Cancelada             → gris.
+ *   3. sin fecha efectiva    → gris, para CUALQUIER otro estado (antes
+ *      solo aplicaba junto con Pendiente; "sin fecha" es ahora siempre
+ *      "falta capturar la fecha", nunca "todo bien" por default — una
+ *      actividad En proceso o Bloqueada sin fecha ya no se pinta verde).
+ *   4. dias < 0              → rojo (vencida).
+ *   5. dias <= ventana(prioridad), INCLUSIVE → ámbar (por vencer). El
+ *      caso general y el de alta prioridad usaban bordes distintos
+ *      (<=7 y <14): ahora los dos usan <=, así que el día exacto del
+ *      borde (p.ej. 14 días con 'Muy Alta') cae en ámbar un día más que
+ *      antes.
+ *   6. resto                 → verde.
+ *
+ * 'Bloqueada' YA NO tiene un caso propio: antes mandaba a rojo con <3
+ * días de margen y a ámbar en cualquier otro caso (incluso con 60 días
+ * de margen) — eso era estado contaminando urgencia; el chip de estado
+ * ya dice que está bloqueada. Ahora calcula su color exactamente igual
+ * que cualquier otro estado no terminal.
  */
 function calcularSemaforo(estado, fecha_limite, prioridad, fecha_fin) {
-  const fechaEfectiva = fecha_limite || fecha_fin || null;
-
-  // gris → Cancelada O (Pendiente sin ninguna fecha)
+  if (estado === 'Completada') return 'verde';
   if (estado === 'Cancelada') return 'gris';
-  if (estado === 'Pendiente' && !fechaEfectiva) return 'gris';
 
+  const fechaEfectiva = fecha_limite ?? fecha_fin ?? null;
+  if (!fechaEfectiva) return 'gris';
+
+  // Mismo patrón que tiempoDeOrden() en acciones.queries.js (post PR
+  // #158): new Date(x) acepta tanto el objeto Date que devuelve `pg`
+  // para una columna DATE/TIMESTAMP como una cadena ISO, sin que importe
+  // cuál de los dos llegue aquí — no hace falta una comparación nueva.
   const ahora = new Date();
   ahora.setHours(0, 0, 0, 0);
-  const limite = fechaEfectiva ? new Date(fechaEfectiva) : null;
-  if (limite) limite.setHours(0, 0, 0, 0);
-  const diasRestantes = limite ? Math.ceil((limite - ahora) / (1000 * 60 * 60 * 24)) : null;
+  const limite = new Date(fechaEfectiva);
+  limite.setHours(0, 0, 0, 0);
+  const dias = Math.ceil((limite - ahora) / (1000 * 60 * 60 * 24));
 
-  // verde → Completada siempre
-  if (estado === 'Completada') return 'verde';
-
-  // rojo → fecha vencida y no completada, O Bloqueada con <3 días
-  if (diasRestantes !== null && diasRestantes < 0) return 'rojo';
-  if (estado === 'Bloqueada' && diasRestantes !== null && diasRestantes < 3) return 'rojo';
-
-  // ambar → Bloqueada con margen, O faltan 1-7 días, O (Muy Alta y <14 días)
-  if (estado === 'Bloqueada') return 'ambar';
-  if (diasRestantes !== null && diasRestantes >= 0 && diasRestantes <= 7) return 'ambar';
-  if (prioridad === 'Muy Alta' && diasRestantes !== null && diasRestantes < 14) return 'ambar';
-
-  // verde → resto
+  if (dias < 0) return 'rojo';
+  if (dias <= ventanaAvisoPorVencer(prioridad)) return 'ambar';
   return 'verde';
 }
 
@@ -414,6 +450,9 @@ async function tareasDe(idAccion, conn) {
 
 module.exports = {
   calcularSemaforo,
+  VENTANA_POR_VENCER,
+  VENTANA_POR_DEFECTO,
+  ventanaAvisoPorVencer,
   esNodoHoja,
   esEtapaHoja,
   calcularAvanceEfectivo,

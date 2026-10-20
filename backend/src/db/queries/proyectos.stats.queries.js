@@ -443,11 +443,11 @@ async function contarNodosVencidos(proyectoId) {
     SELECT
       COUNT(*) FILTER (WHERE
         CASE WHEN semaforo_override AND semaforo IS NOT NULL THEN semaforo = 'rojo'
+        -- 'Bloqueada' ya no tiene una regla propia en calcularSemaforo
+        -- (avance-semaforo.js) — vencido es, para cualquier estado no
+        -- terminal, exactamente "la fecha ya pasó", nada más.
         ELSE estado NOT IN ('Completada', 'Cancelada')
-          AND (
-            COALESCE(fecha_limite, fecha_fin) < CURRENT_DATE
-            OR (estado = 'Bloqueada' AND COALESCE(fecha_limite, fecha_fin) < CURRENT_DATE + INTERVAL '3 days')
-          )
+          AND COALESCE(fecha_limite, fecha_fin) < CURRENT_DATE
         END
       )::int AS vencidos,
       COUNT(*) FILTER (WHERE

@@ -11,6 +11,7 @@ import client from '../api/client';
 import * as evidenciasApi from '../api/evidencias';
 import { formatFecha, estaVencida } from './fecha';
 import { formatearEstado } from './estados';
+import { URGENCIA_SEMAFORO } from '../components/common/SemaforoDot';
 
 // ─── Paleta institucional ──────────────────────────────────────
 const C = {
@@ -23,7 +24,7 @@ const C = {
   fondoClaro:  [251,243, 246],
   fondoNeutro: [245,245, 240],
   verde:       [ 34,197,  94],
-  ambar:       [245,158,  11],
+  ambar:       [176,135,   0], // = #b08700, el mismo ámbar medido de SemaforoDot.jsx
   rojo:        [239, 68,  68],
   grisNeutro:  [156,163, 175],
 };
@@ -33,7 +34,7 @@ const fmtDate  = d => formatFecha(d) || '—';
 const fmtPct   = v => `${Math.round(parseFloat(v) || 0)}%`;
 const limita   = (s, n) => s ? (s.length > n ? s.slice(0, n) + '…' : s) : '—';
 const estadoStr = e => formatearEstado(e || 'Pendiente');
-const semStr    = s => ({ verde:'Verde', ambar:'Ámbar', rojo:'Rojo', gris:'Sin datos' }[s] || s || '—');
+const semStr    = s => URGENCIA_SEMAFORO[s] || s || '—';
 const semColor  = s => ({ verde:C.verde, ambar:C.ambar, rojo:C.rojo, gris:C.grisNeutro }[s] || C.grisNeutro);
 
 function nivelStr(tipo) {
@@ -299,7 +300,7 @@ function paginaResumen(doc, proyecto, etapas, stats, totalPaginas) {
   autoTable(doc, {
     startY: y,
     margin: { left: 20, right: 20 },
-    head: [['Estado', 'Cantidad', 'Semáforo Verde', 'Ámbar', 'Rojo']],
+    head: [['Estado', 'Cantidad', URGENCIA_SEMAFORO.verde, URGENCIA_SEMAFORO.ambar, URGENCIA_SEMAFORO.rojo]],
     body: [
       ['Pendiente',  counts.pendientes, '', '', ''],
       ['En proceso', counts.en_proceso, '', '', ''],
@@ -487,7 +488,7 @@ function paginaBloqueados(doc, proyecto, etapas, paginaNum, totalPaginas) {
 
   if (!enRiesgo.length) {
     doc.setFontSize(9); doc.setTextColor(...C.verde);
-    doc.text('¡Sin actividades en rojo o ámbar!', 20, y); y += 12;
+    doc.text('¡Sin actividades vencidas o por vencer!', 20, y); y += 12;
   } else {
     if (rojos.length) {
       doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.rojo);
