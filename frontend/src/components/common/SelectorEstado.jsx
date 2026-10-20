@@ -10,10 +10,21 @@
  * Si elige 'Cancelada', consulta conteo de descendientes y pide
  * confirmación antes de proceder. Delega la llamada al endpoint
  * PUT /estado (api/estado.js).
+ *
+ * Es el eje más usado de la plataforma y, hasta esta ronda, el peor
+ * señalizado: un chip sin chevron, sin foco visible y rodeado de otros
+ * chips que NO son controles. Con permiso para cambiarlo se ve y se
+ * comporta como el control que es (chevron, hover/foco visibles,
+ * `role="button"`/`aria-haspopup="listbox"`, Enter/Espacio lo abren por
+ * un manejador explícito — ver el comentario junto al botón). SIN
+ * permiso, es justo lo contrario: un <span> — nunca un <button> — sin
+ * chevron, sin cursor, sin ningún atributo de control: el badge
+ * estático que de verdad es.
  * ─────────────────────────────────────────────────────────────────
  */
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { createPortal } from 'react-dom';
+import { ChevronDown } from 'lucide-react';
 import EstadoChip from './EstadoChip';
 import ModalBloqueo from './ModalBloqueo';
 import * as estadoApi from '../../api/estado';
@@ -53,7 +64,7 @@ const ICONOS_ESTADO = {
  * @param {boolean}  soloLectura   - Deshabilita interacción
  * @param {string}   className     - Clases CSS adicionales
  */
-export default function SelectorEstado({
+const SelectorEstado = forwardRef(function SelectorEstado({
   entidadTipo,
   entidadId,
   estadoActual,
@@ -62,7 +73,7 @@ export default function SelectorEstado({
   onCambio,
   soloLectura = false,
   className = ''
-}) {
+}, ref) {
   const { mostrarToast } = useUI();
   const [abierto, setAbierto] = useState(false);
   const [posicion, setPosicion] = useState({ top: 0, left: 0 });
@@ -95,7 +106,16 @@ export default function SelectorEstado({
     setAbierto(v => !v);
   }
 
-  // Cerrar popover al clicar fuera (el botón O el menú del portal)
+  // Segundo camino para llegar a este mismo selector (2.3): "Cambiar
+  // estado" en el menú "Más acciones" (FilaAcciones.jsx) no construye un
+  // selector nuevo — abre este, por ref, vía EncabezadoDetalle. Sin
+  // permiso no expone nada que abrir (mismo criterio que el <span>
+  // estático de más arriba).
+  useImperativeHandle(ref, () => ({
+    abrir: () => { if (!soloLectura) alAbrir(); },
+  }), [soloLectura]);
+
+  // Cerrar popover al clicar fuera (el botón O el menú del portal), o con Escape.
   useEffect(() => {
     function handleClickFuera(e) {
       if (
@@ -105,8 +125,17 @@ export default function SelectorEstado({
         setAbierto(false);
       }
     }
-    if (abierto) document.addEventListener('mousedown', handleClickFuera);
-    return () => document.removeEventListener('mousedown', handleClickFuera);
+    function handleTecla(e) {
+      if (e.key === 'Escape') setAbierto(false);
+    }
+    if (abierto) {
+      document.addEventListener('mousedown', handleClickFuera);
+      document.addEventListener('keydown', handleTecla);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickFuera);
+      document.removeEventListener('keydown', handleTecla);
+    };
   }, [abierto]);
 
   const ejecutarCambio = useCallback(async (nuevoEstado, opciones = {}) => {
@@ -178,21 +207,56 @@ export default function SelectorEstado({
     }
   }, [entidadTipo, entidadId, onCambio]);
 
-  return (
-    <div className={`relative inline-block ${className}`} ref={refPopover}>
-      {/* Botón: EstadoChip clicable */}
-      <button
-        type="button"
-        onClick={() => !soloLectura && !cargando && alAbrir()}
-        disabled={soloLectura || cargando}
-        className={`cursor-pointer transition-opacity ${soloLectura ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-80'}`}
-        title={soloLectura ? 'Solo lectura' : 'Cambiar estado'}
-      >
+  // Sin permiso: badge estático de verdad — nunca un <button>, nunca
+  // chevron ni cursor ni ningún atributo de control (2.1, explícito: "se
+  // ve como el badge estático que es").
+  if (soloLectura) {
+    return (
+      <span className={`inline-flex items-center ${className}`} title="Solo lectura">
         <EstadoChip estado={estadoActual} />
         {estadoOverride && esContenedor && (
           <span title="Estatus fijado a mano — normalmente se calcula de sus partes" className="ml-1 text-gray-400 text-xs align-top">✎</span>
         )}
-        {cargando && <span className="ml-1 text-xs text-gray-400 animate-pulse">…</span>}
+      </span>
+    );
+  }
+
+  return (
+    <div className={`relative inline-block ${className}`} ref={refPopover}>
+      {/* Botón: EstadoChip clicable — chevron + foco/hover visibles +
+          semántica de control (role/aria-haspopup). Enter/Espacio abren
+          el popover por un manejador EXPLÍCITO, no porque "ya pase solo"
+          por ser un <button> nativo: el default del navegador dispara el
+          click en el keyup de Espacio (o el keydown de Enter), así que
+          sin preventDefault aquí un futuro cambio de este botón a otro
+          elemento (o un navegador que no siga el default al pie de la
+          letra) podría dejar de abrir con teclado sin que nada lo avise
+          — y es lo que de verdad hace falta probar (jsdom no simula ese
+          default action de "Enter en un botón" al disparar un keydown
+          sintético, así que una prueba de teclado necesita este
+          manejador para poder existir). */}
+      <button
+        type="button"
+        role="button"
+        aria-haspopup="listbox"
+        aria-expanded={abierto}
+        onClick={() => !cargando && alAbrir()}
+        onKeyDown={e => {
+          if ((e.key === 'Enter' || e.key === ' ') && !cargando) {
+            e.preventDefault();
+            alAbrir();
+          }
+        }}
+        disabled={cargando}
+        className="group inline-flex items-center gap-0.5 rounded-full cursor-pointer transition-opacity hover:opacity-80 outline-none focus-visible:ring-2 focus-visible:ring-guinda-500 focus-visible:ring-offset-1"
+        title="Cambiar estado"
+      >
+        <EstadoChip estado={estadoActual} />
+        {estadoOverride && esContenedor && (
+          <span title="Estatus fijado a mano — normalmente se calcula de sus partes" className="text-gray-400 text-xs align-top">✎</span>
+        )}
+        {cargando && <span className="text-xs text-gray-400 animate-pulse">…</span>}
+        <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600 flex-shrink-0" />
       </button>
 
       {/* Popover de opciones — portal a document.body, posición fija
@@ -201,6 +265,8 @@ export default function SelectorEstado({
       {abierto && createPortal(
         <div
           ref={refMenu}
+          role="listbox"
+          aria-label="Cambiar estado"
           className="fixed z-[9999] w-52 bg-white border border-gray-200 rounded-lg shadow-lg py-1"
           style={{ top: posicion.top, bottom: posicion.bottom, left: posicion.left }}
         >
@@ -208,6 +274,8 @@ export default function SelectorEstado({
             <button
               key={est}
               type="button"
+              role="option"
+              aria-selected={est === estadoActual}
               onClick={() => handleSeleccionar(est)}
               disabled={est === estadoActual}
               className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 transition-colors
@@ -287,4 +355,6 @@ export default function SelectorEstado({
       )}
     </div>
   );
-}
+});
+
+export default SelectorEstado;

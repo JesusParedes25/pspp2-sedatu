@@ -17,7 +17,7 @@ import { X } from 'lucide-react';
 import PropiedadesElemento from '../PropiedadesElemento';
 import { useCierreConDatosSinGuardar } from '../../../hooks/useCierreConDatosSinGuardar';
 
-export default function ModalEditarFicha({ nodo, permisos, onActualizado, mostrarToast, onCerrar }) {
+export default function ModalEditarFicha({ nodo, permisos, onActualizado, mostrarToast, onCerrar, campoFoco }) {
   const [sucio, setSucio] = useState(false);
   const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(sucio, onCerrar);
 
@@ -39,6 +39,7 @@ export default function ModalEditarFicha({ nodo, permisos, onActualizado, mostra
             onDirtyChange={setSucio}
             onGuardado={onCerrar}
             onCancelar={onCerrar}
+            campoFoco={campoFoco}
           />
         </div>
       </div>
