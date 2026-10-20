@@ -161,29 +161,34 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCrea
   const [direccionesArea, setDireccionesArea] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
   const [error, setError] = useState('');
-
-  const hoy = new Date().toISOString().split('T')[0];
-  const enUnMes = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+  // Bloque 3.1: todo lo que no sea esencial para capturar rápido queda
+  // plegado por omisión — Descripción/Prioridad/Observaciones/Territorio/
+  // Documentos/Aporte a indicadores. Lo esencial (Nombre, Responsable con
+  // sus filtros, las dos fechas) siempre visible.
+  const [mostrarMasDetalles, setMostrarMasDetalles] = useState(false);
 
   // Extraído a función (no solo el valor inicial de useState) para poder
-  // reconstruirlo tal cual al usar "Guardar y agregar otra" — mismos
-  // defaults (fechas, responsable propio) que al abrir el modal por
-  // primera vez, no un formulario vacío a secas.
+  // reconstruirlo tal cual al usar "Guardar y agregar otra" — mismo
+  // responsable propio por defecto que al abrir el modal por primera vez,
+  // no un formulario vacío a secas. Las fechas YA NO tienen valor por
+  // defecto (bloque 2.2): "hoy" y "hoy + 30 días" eran fechas que nadie
+  // eligió y contra las que medía el semáforo de toda la plataforma.
   function datosIniciales() {
     return {
       nombre: '',
       descripcion: '',
-      tipo: 'Accion_programada',
-      fecha_inicio: hoy,
-      fecha_fin: enUnMes,
+      fecha_inicio: '',
+      // Bloque 2.3: el usuario ve una sola "Fecha límite" (no también
+      // "Fecha fin") — el backend espeja este valor a la columna
+      // fecha_fin al guardar, para no romper a quien hoy la lee
+      // (Cronograma, Agenda, exportaciones). Ver crearAccionEnEtapa/
+      // crearAccionEnProyecto en acciones.queries.js.
+      fecha_limite: '',
       id_dg: usuario?.id_dg || '',
       id_direccion_area: usuario?.id_direccion_area || '',
       id_responsable: usuario?.id || '',
       indicadores_asociados: [],
       prioridad: '',
-      fecha_limite: '',
-      instancia_responsable: '',
-      enlace_responsable: '',
       observaciones: '',
       // Territorio — mismos campos que TerritorioSelector edita en un nodo
       // ya existente, aquí solo viven en el estado local hasta el submit.
@@ -313,7 +318,11 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCrea
   // normal, donde el toast es responsabilidad de quien lo abrió vía
   // onCreado) porque aquí no hay nadie más viendo el resultado todavía.
   const [guardar, enviando] = useEnvioUnico(async (continuar = false) => {
-    if (!datos.nombre.trim() || !datos.fecha_inicio || !datos.fecha_fin) return;
+    // Bloque 2.1: solo Nombre es obligatorio — el resto, incluidas las
+    // fechas, queda a discreción de quien captura. Un campo vacío hoy es
+    // lo que hace aparecer el semáforo gris "sin fecha" en vez de una
+    // fecha inventada solo para pasar la validación.
+    if (!datos.nombre.trim()) return;
     setError('');
     try {
       const payload = {
@@ -400,61 +409,40 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCrea
         </div>
 
         <form onSubmit={manejarSubmit} className="p-5 space-y-4">
-          {/* Nombre */}
+          {/* Nombre — el único campo obligatorio (bloque 2.1) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de la acción *</label>
             <input type="text" value={datos.nombre} onChange={e => actualizar('nombre', e.target.value)}
               className="input-base" placeholder="Ej: Procesar datos INEGI de la ZM Guadalajara" required />
           </div>
 
-          {/* Descripción */}
+          {/* Responsable — DG y Dirección de área se presentan explícitamente
+              como lo que son: filtros en cascada para encontrarlo en la
+              lista, no datos propios de la acción (bloque 2.4). Se guardan
+              exactamente igual que antes. */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
-            <textarea value={datos.descripcion} onChange={e => actualizar('descripcion', e.target.value)}
-              rows={2} className="input-base resize-none" placeholder="Detalle de la acción..." />
-          </div>
-
-          {/* Tipo y Fechas */}
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Tipo</label>
-              <select value={datos.tipo} onChange={e => actualizar('tipo', e.target.value)} className="input-base text-sm">
-                <option value="Accion_programada">Acción programada</option>
-                <option value="Hito">Hito</option>
-              </select>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Responsable <span className="font-normal text-gray-400">(opcional)</span>
+            </label>
+            <p className="text-[11px] text-gray-400 mb-2">
+              DG y Dirección de área filtran la lista de abajo para encontrar más rápido a la persona — no son datos propios de la acción.
+            </p>
+            <div className="grid grid-cols-2 gap-3 mb-2">
+              <div>
+                <label className="block text-[10px] font-medium text-gray-500 mb-1">Filtrar por DG</label>
+                <select value={datos.id_dg} onChange={e => actualizar('id_dg', e.target.value)} className="input-base text-sm">
+                  <option value="">Misma del proyecto</option>
+                  {dgs.map(dg => <option key={dg.id} value={dg.id}>{dg.siglas}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-medium text-gray-500 mb-1">Filtrar por Dirección de área</label>
+                <select value={datos.id_direccion_area} onChange={e => actualizar('id_direccion_area', e.target.value)} className="input-base text-sm">
+                  <option value="">Sin especificar</option>
+                  {dasFiltradas.map(da => <option key={da.id} value={da.id}>{da.siglas}</option>)}
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Fecha inicio *</label>
-              <input type="date" value={datos.fecha_inicio} onChange={e => actualizar('fecha_inicio', e.target.value)}
-                className="input-base text-sm" required />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Fecha fin *</label>
-              <input type="date" value={datos.fecha_fin} onChange={e => actualizar('fecha_fin', e.target.value)}
-                className="input-base text-sm" required />
-            </div>
-          </div>
-
-          {/* DG, DA, Responsable */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">DG</label>
-              <select value={datos.id_dg} onChange={e => actualizar('id_dg', e.target.value)} className="input-base text-sm">
-                <option value="">Misma del proyecto</option>
-                {dgs.map(dg => <option key={dg.id} value={dg.id}>{dg.siglas}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Dirección de área</label>
-              <select value={datos.id_direccion_area} onChange={e => actualizar('id_direccion_area', e.target.value)} className="input-base text-sm">
-                <option value="">Sin especificar</option>
-                {dasFiltradas.map(da => <option key={da.id} value={da.id}>{da.siglas}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Responsable</label>
             <select value={datos.id_responsable} onChange={e => actualizar('id_responsable', e.target.value)} className="input-base text-sm">
               <option value="">Sin asignar</option>
               {usuariosFiltrados.map(u => (
@@ -463,94 +451,133 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCrea
             </select>
           </div>
 
-          {/* ─── Clasificación y seguimiento ─── */}
-          <div className="border-t border-gray-100 pt-4 mt-2">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Clasificación</p>
-            <div className="grid grid-cols-2 gap-3">
-              <CatalogSelector tipo="prioridad" value={datos.prioridad} onChange={v => actualizar('prioridad', v)} label="Prioridad" />
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Fecha límite</label>
-                <input type="date" value={datos.fecha_limite} onChange={e => actualizar('fecha_limite', e.target.value)}
-                  className="input-base text-sm" />
-              </div>
-              <CatalogSelector tipo="unidad_responsable" value={datos.instancia_responsable} onChange={v => actualizar('instancia_responsable', v)} label="Instancia responsable" />
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Enlace responsable</label>
-                <input type="text" value={datos.enlace_responsable} onChange={e => actualizar('enlace_responsable', e.target.value)}
-                  className="input-base text-sm" placeholder="Nombre del enlace" />
-              </div>
-            </div>
-            <div className="mt-3">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Observaciones</label>
-              <textarea value={datos.observaciones} onChange={e => actualizar('observaciones', e.target.value)}
-                rows={2} className="input-base text-sm resize-none" placeholder="Observaciones de esta acción…" />
-            </div>
-          </div>
-
-          {/* ─── Territorio ─── */}
-          <div className="border-t border-gray-100 pt-4">
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-              <MapPin size={12} /> Territorio <span className="normal-case font-normal text-gray-400">(opcional — si no se elige, hereda el de la etapa)</span>
-            </label>
-            <TerritorioSelector
-              data={{ cve_ent: datos.cve_ent, municipios: datos.municipios, id_zm: datos.id_zm }}
-              onGuardar={(campo, valor) => actualizar(campo, valor)}
-              soportarZM
-            />
-          </div>
-
-          {/* ─── Adjuntar documentos ─── */}
-          <div className="border-t border-gray-100 pt-4">
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-              <Paperclip size={12} /> Documentos <span className="normal-case font-normal text-gray-400">(opcional)</span>
-            </label>
-
-            {documentos.length > 0 && (
-              <div className="space-y-1.5 mb-2">
-                {documentos.map(doc => (
-                  <FilaDocumentoPendiente
-                    key={doc.id}
-                    item={doc}
-                    onCambiar={(campo, valor) => actualizarDocumento(doc.id, campo, valor)}
-                    onQuitar={() => quitarDocumento(doc.id)}
-                  />
-                ))}
-              </div>
-            )}
-
-            <div className="flex items-center gap-1.5">
-              <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
-                <Plus size={13} /> Archivo
-                <input type="file" multiple className="hidden" onChange={e => { agregarArchivos(e.target.files); e.target.value = ''; }} />
+          {/* Fechas — exactamente dos, ninguna obligatoria (bloques 2.1-2.3).
+              "Fecha límite" es la única fecha de vencimiento que ve quien
+              captura; el backend la espeja también a fecha_fin para no
+              romper a quien hoy lee esa columna (Cronograma, Agenda,
+              exportaciones) — ver acciones.queries.js. */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Fecha de inicio <span className="font-normal text-gray-400">(opcional)</span>
               </label>
-              <button type="button" onClick={agregarLiga}
-                className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
-                <Plus size={13} /> Liga
-              </button>
+              <input type="date" value={datos.fecha_inicio} onChange={e => actualizar('fecha_inicio', e.target.value)}
+                className="input-base text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Fecha límite <span className="font-normal text-gray-400">(opcional)</span>
+              </label>
+              <input type="date" value={datos.fecha_limite} onChange={e => actualizar('fecha_limite', e.target.value)}
+                className="input-base text-sm" />
             </div>
           </div>
 
-          {/* ── Aporte a indicadores en cascada ── */}
-          {todosIndicadores.length > 0 && (
-            <div className="border-t border-gray-100 pt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-0.5">Aporte a indicadores</label>
-              <p className="text-[11px] text-gray-400 mb-2">
-                Marca los indicadores a los que esta acción contribuye. Si no marcas ninguno, la acción no aporta a ningún indicador.
-              </p>
-              <div className="space-y-2">
-                {todosIndicadores.map(ind => (
-                  <TarjetaIndicadorCascada
-                    key={ind.id}
-                    ind={ind}
-                    asociado={datos.indicadores_asociados.find(ia => ia.id_indicador === ind.id)}
-                    resumen={resumenes[ind.id]}
-                    color={ind.id_etapa ? 'amber' : 'guinda'}
-                    onToggle={() => toggleIndicador(ind.id)}
-                    onCambioModo={cambiarModo}
-                    onCambioValor={actualizarAportacion}
-                  />
-                ))}
+          {/* Más detalles — plegado por omisión (bloque 3.1): lo que sigue
+              no hace falta para capturar rápido. No se quita ningún campo,
+              solo se deja de pedir todo de golpe. */}
+          <div className="border-t border-gray-100 pt-3">
+            <button
+              type="button"
+              onClick={() => setMostrarMasDetalles(v => !v)}
+              className="text-xs font-medium text-guinda-600 hover:text-guinda-800 flex items-center gap-1"
+            >
+              {mostrarMasDetalles ? 'Ocultar más detalles' : 'Más detalles (opcional)'}
+            </button>
+          </div>
+
+          {mostrarMasDetalles && (
+            <div className="space-y-4">
+              {/* Descripción */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Descripción <span className="font-normal text-gray-400">(opcional)</span>
+                </label>
+                <textarea value={datos.descripcion} onChange={e => actualizar('descripcion', e.target.value)}
+                  rows={2} className="input-base resize-none" placeholder="Detalle de la acción..." />
               </div>
+
+              {/* ─── Clasificación y seguimiento ─── */}
+              <div className="border-t border-gray-100 pt-4">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                  Clasificación <span className="normal-case font-normal text-gray-400">(opcional)</span>
+                </p>
+                <CatalogSelector tipo="prioridad" value={datos.prioridad} onChange={v => actualizar('prioridad', v)} label="Prioridad (opcional)" />
+                <div className="mt-3">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Observaciones (opcional)</label>
+                  <textarea value={datos.observaciones} onChange={e => actualizar('observaciones', e.target.value)}
+                    rows={2} className="input-base text-sm resize-none" placeholder="Observaciones de esta acción…" />
+                </div>
+              </div>
+
+              {/* ─── Territorio ─── */}
+              <div className="border-t border-gray-100 pt-4">
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                  <MapPin size={12} /> Territorio <span className="normal-case font-normal text-gray-400">(opcional — si no se elige, hereda el de la etapa)</span>
+                </label>
+                <TerritorioSelector
+                  data={{ cve_ent: datos.cve_ent, municipios: datos.municipios, id_zm: datos.id_zm }}
+                  onGuardar={(campo, valor) => actualizar(campo, valor)}
+                  soportarZM
+                />
+              </div>
+
+              {/* ─── Adjuntar documentos ─── */}
+              <div className="border-t border-gray-100 pt-4">
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                  <Paperclip size={12} /> Documentos <span className="normal-case font-normal text-gray-400">(opcional)</span>
+                </label>
+
+                {documentos.length > 0 && (
+                  <div className="space-y-1.5 mb-2">
+                    {documentos.map(doc => (
+                      <FilaDocumentoPendiente
+                        key={doc.id}
+                        item={doc}
+                        onCambiar={(campo, valor) => actualizarDocumento(doc.id, campo, valor)}
+                        onQuitar={() => quitarDocumento(doc.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-1.5">
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+                    <Plus size={13} /> Archivo
+                    <input type="file" multiple className="hidden" onChange={e => { agregarArchivos(e.target.files); e.target.value = ''; }} />
+                  </label>
+                  <button type="button" onClick={agregarLiga}
+                    className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
+                    <Plus size={13} /> Liga
+                  </button>
+                </div>
+              </div>
+
+              {/* ── Aporte a indicadores en cascada ── */}
+              {todosIndicadores.length > 0 && (
+                <div className="border-t border-gray-100 pt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-0.5">
+                    Aporte a indicadores <span className="font-normal text-gray-400">(opcional)</span>
+                  </label>
+                  <p className="text-[11px] text-gray-400 mb-2">
+                    Marca los indicadores a los que esta acción contribuye. Si no marcas ninguno, la acción no aporta a ningún indicador.
+                  </p>
+                  <div className="space-y-2">
+                    {todosIndicadores.map(ind => (
+                      <TarjetaIndicadorCascada
+                        key={ind.id}
+                        ind={ind}
+                        asociado={datos.indicadores_asociados.find(ia => ia.id_indicador === ind.id)}
+                        resumen={resumenes[ind.id]}
+                        color={ind.id_etapa ? 'amber' : 'guinda'}
+                        onToggle={() => toggleIndicador(ind.id)}
+                        onCambioModo={cambiarModo}
+                        onCambioValor={actualizarAportacion}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -40,6 +40,9 @@ export default function ModalNuevaTarea({ accionId, onCreado, onCreadoParcial, o
   const { mostrarToast } = useUI();
   const [usuarios, setUsuarios] = useState([]);
   const [error, setError] = useState('');
+  // Bloque 3.3 (misma forma que el modal de nueva acción): lo esencial
+  // visible (Nombre, Responsable, las dos fechas), el resto plegado.
+  const [mostrarMasDetalles, setMostrarMasDetalles] = useState(false);
 
   // Extraído a función — ver mismo criterio en ModalNuevaAccion.jsx: se
   // reusa tal cual al reiniciar el formulario con "Guardar y agregar otra".
@@ -152,22 +155,11 @@ export default function ModalNuevaTarea({ accionId, onCreado, onCreadoParcial, o
               className="input-base" placeholder="Ej: Revisar capa de restricción con DGPV" required autoFocus />
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <CatalogSelector tipo="prioridad" value={datos.prioridad} onChange={v => actualizar('prioridad', v)} label="Prioridad" />
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Fecha inicio</label>
-              <input type="date" value={datos.fecha_inicio} onChange={e => actualizar('fecha_inicio', e.target.value)}
-                className="input-base text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Fecha límite</label>
-              <input type="date" value={datos.fecha_limite} onChange={e => actualizar('fecha_limite', e.target.value)}
-                className="input-base text-sm" />
-            </div>
-          </div>
-
+          {/* Responsable */}
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Responsable</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Responsable <span className="font-normal text-gray-400">(opcional)</span>
+            </label>
             <select value={datos.id_responsable} onChange={e => actualizar('id_responsable', e.target.value)} className="input-base text-sm">
               <option value="">Sin asignar</option>
               {usuarios.map(u => (
@@ -176,54 +168,89 @@ export default function ModalNuevaTarea({ accionId, onCreado, onCreadoParcial, o
             </select>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Observaciones</label>
-            <textarea value={datos.observaciones} onChange={e => actualizar('observaciones', e.target.value)}
-              rows={2} className="input-base text-sm resize-none" placeholder="Observaciones de esta tarea…" />
-          </div>
-
-          {/* ─── Territorio ─── */}
-          <div className="border-t border-gray-100 pt-4">
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-              <MapPin size={12} /> Territorio <span className="normal-case font-normal text-gray-400">(opcional — si no se elige, hereda el de la acción)</span>
-            </label>
-            <TerritorioSelector
-              data={{ cve_ent: datos.cve_ent, municipios: datos.municipios }}
-              onGuardar={(campo, valor) => actualizar(campo, valor)}
-              soportarZM={false}
-            />
-          </div>
-
-          {/* ─── Adjuntar documentos ─── */}
-          <div className="border-t border-gray-100 pt-4">
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-              <Paperclip size={12} /> Documentos <span className="normal-case font-normal text-gray-400">(opcional)</span>
-            </label>
-
-            {documentos.length > 0 && (
-              <div className="space-y-1.5 mb-2">
-                {documentos.map(doc => (
-                  <FilaDocumentoPendiente
-                    key={doc.id}
-                    item={doc}
-                    onCambiar={(campo, valor) => actualizarDocumento(doc.id, campo, valor)}
-                    onQuitar={() => quitarDocumento(doc.id)}
-                  />
-                ))}
-              </div>
-            )}
-
-            <div className="flex items-center gap-1.5">
-              <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
-                <Plus size={13} /> Archivo
-                <input type="file" multiple className="hidden" onChange={e => { agregarArchivos(e.target.files); e.target.value = ''; }} />
+          {/* Fechas — exactamente dos, ninguna obligatoria (bloques 2.1-2.3) */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Fecha de inicio <span className="font-normal text-gray-400">(opcional)</span>
               </label>
-              <button type="button" onClick={agregarLiga}
-                className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
-                <Plus size={13} /> Liga
-              </button>
+              <input type="date" value={datos.fecha_inicio} onChange={e => actualizar('fecha_inicio', e.target.value)}
+                className="input-base text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Fecha límite <span className="font-normal text-gray-400">(opcional)</span>
+              </label>
+              <input type="date" value={datos.fecha_limite} onChange={e => actualizar('fecha_limite', e.target.value)}
+                className="input-base text-sm" />
             </div>
           </div>
+
+          {/* Más detalles — plegado por omisión (bloque 3.1/3.3) */}
+          <div className="border-t border-gray-100 pt-3">
+            <button
+              type="button"
+              onClick={() => setMostrarMasDetalles(v => !v)}
+              className="text-xs font-medium text-guinda-600 hover:text-guinda-800 flex items-center gap-1"
+            >
+              {mostrarMasDetalles ? 'Ocultar más detalles' : 'Más detalles (opcional)'}
+            </button>
+          </div>
+
+          {mostrarMasDetalles && (
+            <div className="space-y-4">
+              <CatalogSelector tipo="prioridad" value={datos.prioridad} onChange={v => actualizar('prioridad', v)} label="Prioridad (opcional)" />
+
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Observaciones</label>
+                <textarea value={datos.observaciones} onChange={e => actualizar('observaciones', e.target.value)}
+                  rows={2} className="input-base text-sm resize-none" placeholder="Observaciones de esta tarea…" />
+              </div>
+
+              {/* ─── Territorio ─── */}
+              <div className="border-t border-gray-100 pt-4">
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                  <MapPin size={12} /> Territorio <span className="normal-case font-normal text-gray-400">(opcional — si no se elige, hereda el de la acción)</span>
+                </label>
+                <TerritorioSelector
+                  data={{ cve_ent: datos.cve_ent, municipios: datos.municipios }}
+                  onGuardar={(campo, valor) => actualizar(campo, valor)}
+                  soportarZM={false}
+                />
+              </div>
+
+              {/* ─── Adjuntar documentos ─── */}
+              <div className="border-t border-gray-100 pt-4">
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                  <Paperclip size={12} /> Documentos <span className="normal-case font-normal text-gray-400">(opcional)</span>
+                </label>
+
+                {documentos.length > 0 && (
+                  <div className="space-y-1.5 mb-2">
+                    {documentos.map(doc => (
+                      <FilaDocumentoPendiente
+                        key={doc.id}
+                        item={doc}
+                        onCambiar={(campo, valor) => actualizarDocumento(doc.id, campo, valor)}
+                        onQuitar={() => quitarDocumento(doc.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-1.5">
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+                    <Plus size={13} /> Archivo
+                    <input type="file" multiple className="hidden" onChange={e => { agregarArchivos(e.target.files); e.target.value = ''; }} />
+                  </label>
+                  <button type="button" onClick={agregarLiga}
+                    className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
+                    <Plus size={13} /> Liga
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded p-2 leading-snug">{error}</p>}
 

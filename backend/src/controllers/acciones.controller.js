@@ -443,9 +443,12 @@ async function patchAvanceSemaforo(req, res, next) {
       params.push(prioridad); idx++;
     }
 
-    // Fecha límite
+    // Fecha límite — espejada también a fecha_fin (ver mismo criterio en
+    // acciones.queries.js::crearAccionEnEtapa/EnProyecto): si esto solo
+    // tocara fecha_limite, Cronograma/Agenda/exportaciones seguirían
+    // mostrando la fecha_fin vieja después de editar la ficha.
     if (fecha_limite !== undefined) {
-      sets.push(`fecha_limite = $${idx}`);
+      sets.push(`fecha_limite = $${idx}, fecha_fin = $${idx}`);
       params.push(fecha_limite || null); idx++;
     }
     if (fecha_inicio !== undefined) {

@@ -43,7 +43,13 @@ const AYUDA_PRIORIDAD = `La prioridad adelanta el aviso de Por vencer: Crítica 
 // Campos que vive este formulario (fuera de Nombre/Estatus, que se
 // guardan solos en FichaNodo) — de aquí sale tanto el valor inicial como
 // el diff contra lo que el usuario va cambiando.
-const CAMPOS_FORM = ['semaforo', 'prioridad', 'fecha_inicio', 'fecha_limite', 'instrumento', 'escala_territorial', 'instancia_responsable', 'enlace_responsable', 'observaciones'];
+//
+// instancia_responsable/enlace_responsable NO están aquí (bloque 2.5): se
+// quitaron del formulario, tanto al crear como al editar. Un nodo que ya
+// tenga valor en alguno de los dos sigue mostrándolo, pero como texto de
+// solo lectura más abajo (leído directo de `data`, no de este estado
+// editable) — para no perder de vista lo que ya se había capturado.
+const CAMPOS_FORM = ['semaforo', 'prioridad', 'fecha_inicio', 'fecha_limite', 'instrumento', 'escala_territorial', 'observaciones'];
 function valoresDe(data) {
   const v = {};
   for (const c of CAMPOS_FORM) v[c] = data[c] ?? null;
@@ -99,44 +105,25 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
     onCancelar?.();
   }
 
-  const [catalogs, setCatalogs] = useState({ escalas: [], instrumentos: [], unidadesResponsables: [], usuarios: [] });
+  const [catalogs, setCatalogs] = useState({ escalas: [], instrumentos: [], usuarios: [] });
 
   // Cargar catálogos una vez
   useEffect(() => {
     (async () => {
       try {
-        const [escRes, instRes, urRes, usrRes] = await Promise.all([
+        const [escRes, instRes, usrRes] = await Promise.all([
           client.get('/catalogos/valores', { params: { tipo: 'escala_territorial' } }),
           client.get('/catalogos/valores', { params: { tipo: 'instrumento' } }),
-          client.get('/catalogos/valores', { params: { tipo: 'unidad_responsable' } }),
           client.get('/catalogos/usuarios'),
         ]);
         setCatalogs({
           escalas: (escRes.data.datos || []).map(c => c.valor),
           instrumentos: (instRes.data.datos || []).map(c => c.valor),
-          unidadesResponsables: (urRes.data.datos || []).map(c => c.valor),
           usuarios: usrRes.data.datos || [],
         });
       } catch (e) { console.error('Error cargando catálogos:', e); }
     })();
   }, [])
-
-  // Nombres de usuarios activos para el selector de "Enlace responsable" —
-  // más el valor ya guardado, si no está entre ellos (ver comentario del
-  // campo más abajo). `enlace_responsable` es texto libre sin FK a
-  // usuarios (migración 021) — dos personas activas distintas pueden
-  // compartir el mismo nombre_completo (pasa en datos reales, no solo en
-  // la siembra de prueba), así que se dedupe por nombre: el <select>
-  // sigue siendo ambiguo entre esas dos personas exactamente igual que ya
-  // lo era el campo de texto libre que reemplaza, pero sin repetir la
-  // misma opción dos veces.
-  const opcionesEnlaceResponsable = (() => {
-    const nombres = [...new Set(catalogs.usuarios.map(u => u.nombre_completo))];
-    if (valores.enlace_responsable && !nombres.includes(valores.enlace_responsable)) {
-      return [valores.enlace_responsable, ...nombres];
-    }
-    return nombres;
-  })();
 
   const sem = data.semaforo_efectivo || 'gris';
   const avance = data.avance_efectivo ?? (tipo === 'etapa' ? parseFloat(data.porcentaje_calculado || 0) : parseFloat(data.porcentaje_avance || 0));
@@ -260,30 +247,27 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
         </div>
       )}
 
-      {/* Instancia/enlace responsable — capturados al crear (ModalNuevaAccion),
-          no aplican a tarea (misma lógica que Instrumento/Escala). "Enlace
-          responsable" guarda el NOMBRE en texto plano (columna TEXT, sin
-          FK a usuarios — igual que Instancia responsable con su catálogo
-          de valores) pero se elige de la lista de usuarios activos de la
-          PSPP, como en el resto de la app, en vez de tecleo libre. Si el
-          valor ya guardado no coincide con ningún usuario activo actual
-          (capturado antes de que esa persona se diera de baja, o importado
-          de Excel con un nombre que no está en PSPP), se agrega como
-          opción aparte para no perderlo de vista ni borrarlo en silencio. */}
-      {tipo !== 'tarea' && (
+      {/* Instancia/enlace responsable — bloque 2.5: se quitaron del
+          formulario (ni se piden al crear ni se editan aquí), porque
+          duplicaban a "Responsable" sin distinguirse con claridad. Un
+          nodo que ya tenga valor guardado en alguno de los dos lo sigue
+          mostrando, pero como texto fijo — para no perder de vista lo que
+          ya se había capturado — nunca como un control editable. No
+          aplica a tarea (esa tabla no tiene estas columnas). */}
+      {tipo !== 'tarea' && (data.instancia_responsable || data.enlace_responsable) && (
         <div className="grid grid-cols-2 gap-2.5 mb-3">
-          <CampoSelect
-            label="Instancia responsable" valor={valores.instancia_responsable || ''}
-            opciones={catalogs.unidadesResponsables}
-            onChange={v => set('instancia_responsable', v || null)}
-            soloLectura={permisos.esSoloLectura}
-          />
-          <CampoSelect
-            label="Enlace responsable" valor={valores.enlace_responsable || ''}
-            opciones={opcionesEnlaceResponsable}
-            onChange={v => set('enlace_responsable', v || null)}
-            soloLectura={permisos.esSoloLectura}
-          />
+          {data.instancia_responsable && (
+            <div>
+              <span className="text-[10px] text-gray-400 block mb-0.5">Instancia responsable</span>
+              <p className="text-xs text-gray-700">{data.instancia_responsable}</p>
+            </div>
+          )}
+          {data.enlace_responsable && (
+            <div>
+              <span className="text-[10px] text-gray-400 block mb-0.5">Enlace responsable</span>
+              <p className="text-xs text-gray-700">{data.enlace_responsable}</p>
+            </div>
+          )}
         </div>
       )}
 

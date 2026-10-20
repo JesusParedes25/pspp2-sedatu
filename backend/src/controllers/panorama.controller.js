@@ -209,6 +209,42 @@ async function obtenerTodosParticipantes(proyectoId) {
       JOIN tareas t ON nm.tipo_nodo = 'tarea' AND nm.id_nodo = t.id
       JOIN acciones a2 ON t.id_accion = a2.id
       WHERE a2.id_proyecto = $1 AND nm.estado <> 'rechazada'
+      -- Responsable directo (columna id_responsable de etapas/acciones/
+      -- tareas) sin invitación explícita en nodo_miembros para ese mismo
+      -- nodo: es el mismo hecho que funcion-efectiva.js ya usa para dar
+      -- el peldaño 'responsable' (vía 'responsable_de_nodo'), que antes
+      -- no se reflejaba aquí — alguien podía ser responsable efectivo de
+      -- una acción y no aparecer nunca en "Equipo y permisos". Si además
+      -- existe una fila nodo_miembros explícita para ese nodo, esa fila
+      -- manda (NOT EXISTS la excluye) en vez de competir con ella.
+      UNION ALL
+      SELECT e.id_responsable AS id_usuario, 'responsable' AS rol, 'etapa' AS alcance,
+             e.nombre AS nodo_nombre, 'etapa' AS nodo_tipo, e.id AS nodo_id, 'aceptada' AS estado
+      FROM etapas e
+      WHERE e.id_proyecto = $1 AND e.id_responsable IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM nodo_miembros nm2
+          WHERE nm2.tipo_nodo = 'etapa' AND nm2.id_nodo = e.id AND nm2.id_usuario = e.id_responsable
+        )
+      UNION ALL
+      SELECT a.id_responsable AS id_usuario, 'responsable' AS rol, 'accion' AS alcance,
+             a.nombre AS nodo_nombre, 'accion' AS nodo_tipo, a.id AS nodo_id, 'aceptada' AS estado
+      FROM acciones a
+      WHERE a.id_proyecto = $1 AND a.id_responsable IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM nodo_miembros nm2
+          WHERE nm2.tipo_nodo = 'accion' AND nm2.id_nodo = a.id AND nm2.id_usuario = a.id_responsable
+        )
+      UNION ALL
+      SELECT t.id_responsable AS id_usuario, 'responsable' AS rol, 'tarea' AS alcance,
+             t.nombre AS nodo_nombre, 'tarea' AS nodo_tipo, t.id AS nodo_id, 'aceptada' AS estado
+      FROM tareas t
+      JOIN acciones a3 ON t.id_accion = a3.id
+      WHERE a3.id_proyecto = $1 AND t.id_responsable IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM nodo_miembros nm2
+          WHERE nm2.tipo_nodo = 'tarea' AND nm2.id_nodo = t.id AND nm2.id_usuario = t.id_responsable
+        )
     )
     SELECT DISTINCT ON (u.id)
       u.id AS id_usuario, u.nombre_completo, u.correo, u.cargo, u.activo AS usuario_activo,
@@ -265,4 +301,4 @@ async function obtenerPanoramaRapido(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { obtenerPanorama, obtenerPanoramaRapido };
+module.exports = { obtenerPanorama, obtenerPanoramaRapido, obtenerTodosParticipantes };

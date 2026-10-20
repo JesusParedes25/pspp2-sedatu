@@ -19,7 +19,7 @@
  */
 import { useState, useMemo, useCallback } from 'react';
 import { formatearEstado } from '../../utils/estados';
-import { ChevronDown, ChevronRight, Milestone, Layers, CheckSquare } from 'lucide-react';
+import { ChevronDown, ChevronRight, Layers, CheckSquare } from 'lucide-react';
 import * as accionesApi from '../../api/acciones';
 import * as tareasApi from '../../api/tareas';
 import { parseFechaLocal, formatFecha } from '../../utils/fecha';
@@ -161,7 +161,7 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
   const fmtFecha = (f) => formatFecha(f) || '—';
 
   // ─── Componente de fila de barra ─────────────────────────────
-  function FilaGantt({ nombre, fechaInicio, fechaFin, estado, semaforo, porcentaje, nivel, tieneHijos, estaExpandida, onToggle, esHito, esTarea }) {
+  function FilaGantt({ nombre, fechaInicio, fechaFin, estado, semaforo, porcentaje, nivel, tieneHijos, estaExpandida, onToggle, esTarea }) {
     const barra = calcularBarra(fechaInicio, fechaFin);
     const sem = semaforo || 'gris';
     const colorBarra = COLORES_SEMAFORO[sem];
@@ -193,7 +193,6 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
               <Layers size={11} />
             </span>
           )}
-          {esHito && <Milestone size={12} className="text-purple-500 flex-shrink-0" />}
           {esTarea && <CheckSquare size={11} className="text-amber-700 flex-shrink-0" />}
 
           <span className={`truncate ${nivel === 0 ? 'text-xs font-semibold text-gray-800' : nivel === 1 ? 'text-[11px] font-medium text-gray-700' : 'text-[11px] text-gray-500'}`} title={nombre}>
@@ -334,7 +333,6 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
                       tieneHijos={tieneHijosAccion}
                       estaExpandida={subsExpandidas}
                       onToggle={() => toggleAccion(accion.id)}
-                      esHito={accion.tipo === 'Hito'}
                     />
 
                     {/* Subacciones + tareas, mezcladas y ordenadas por fecha
