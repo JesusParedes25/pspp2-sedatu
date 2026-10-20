@@ -23,7 +23,7 @@ import { ChevronDown, ChevronRight, Milestone, Layers, CheckSquare } from 'lucid
 import * as accionesApi from '../../api/acciones';
 import * as tareasApi from '../../api/tareas';
 import { parseFechaLocal, formatFecha } from '../../utils/fecha';
-import { COLORES_SEMAFORO, CHIP_BG, LEYENDA_SEMAFORO } from '../common/SemaforoDot';
+import { COLORES_SEMAFORO, CHIP_BG, LEYENDA_SEMAFORO, TEXTO_AMBAR_SOBRE_CHIP } from '../common/SemaforoDot';
 
 const ANCHO_NOMBRES = 'w-72';
 
@@ -166,6 +166,10 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
     const sem = semaforo || 'gris';
     const colorBarra = COLORES_SEMAFORO[sem];
     const colorFondo = CHIP_BG[sem];
+    // El chip de % (abajo) pinta TEXTO sobre colorFondo — distinto del uso
+    // gráfico de colorBarra (relleno de la barra). El ámbar de texto
+    // necesita un tono más oscuro para llegar a 4.5:1 (ver SemaforoDot.jsx).
+    const colorTextoChip = sem === 'ambar' ? TEXTO_AMBAR_SOBRE_CHIP : colorBarra;
     const pct = parseFloat(porcentaje || 0);
 
     const paddingLeft = nivel === 0 ? 'pl-3' : nivel === 1 ? 'pl-9' : 'pl-14';
@@ -199,7 +203,7 @@ export default function GanttCronograma({ etapas = [], fechaInicioProyecto, fech
           {/* Chip porcentaje pequeño */}
           <span
             className="ml-auto text-[10px] font-bold flex-shrink-0 px-1.5 py-0.5 rounded-full"
-            style={{ backgroundColor: colorFondo, color: colorBarra }}
+            style={{ backgroundColor: colorFondo, color: colorTextoChip }}
           >
             {pct.toFixed(0)}%
           </span>

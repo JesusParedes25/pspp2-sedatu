@@ -33,6 +33,12 @@ import { formatFecha } from '../../utils/fecha';
 import { CampoSelect, CampoSemaforo } from './EtapasAvancesMD/Campos';
 import { PRIORIDADES } from './EtapasAvancesMD/utils';
 import { permisosDeNodo } from '../../hooks/usePermisos';
+import { VENTANA_POR_VENCER, VENTANA_POR_DEFECTO } from '../common/SemaforoDot';
+
+// Construida desde la constante (avance-semaforo.js en el backend,
+// espejada en SemaforoDot.jsx) — nunca un número suelto a mano, para que
+// si la escala cambia, este texto cambie con ella.
+const AYUDA_PRIORIDAD = `La prioridad adelanta el aviso de Por vencer: Crítica ${VENTANA_POR_VENCER['Crítica']} días, Muy Alta ${VENTANA_POR_VENCER['Muy Alta']}, el resto ${VENTANA_POR_DEFECTO}.`;
 
 // Campos que vive este formulario (fuera de Nombre/Estatus, que se
 // guardan solos en FichaNodo) — de aquí sale tanto el valor inicial como
@@ -185,13 +191,18 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
       </div>
       {/* Antes el punto de color + "Automático" no decían qué control era
           ni qué hacía elegir un color a mano — un usuario podía apagar el
-          cálculo automático del semáforo sin enterarse. La prioridad "Muy
-          Alta" también amplía el margen de "Por vencer" (calcularSemaforo,
-          backend) antes de la fecha límite, así que se menciona aquí. */}
+          cálculo automático del semáforo sin enterarse. La prioridad SÍ
+          entra en el cálculo (calcularSemaforo, backend) adelantando el
+          aviso de "Por vencer" — el detalle exacto (cuántos días por
+          prioridad) vive en AYUDA_PRIORIDAD, junto al selector de
+          Prioridad, para no repetir los números en dos lugares. */}
       {!permisos.esSoloLectura && (
-        <p className="text-[10px] text-gray-400 leading-snug mb-3">
-          Automático: se calcula con la fecha límite (la prioridad "Muy Alta" amplía el margen de "Por vencer"). Elige un color solo si quieres fijarlo a mano.
+        <p className="text-[10px] text-gray-400 leading-snug mb-1">
+          Automático: se calcula con la fecha límite; la prioridad adelanta el aviso (ver abajo). Elige un color solo si quieres fijarlo a mano.
         </p>
+      )}
+      {!permisos.esSoloLectura && (
+        <p className="text-[10px] text-gray-400 leading-snug mb-3">{AYUDA_PRIORIDAD}</p>
       )}
 
       {/* Fechas — mini-grid de 2 columnas (en nodo hoja; en contenedor la

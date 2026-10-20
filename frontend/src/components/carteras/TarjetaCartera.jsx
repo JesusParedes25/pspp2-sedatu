@@ -6,21 +6,21 @@
  *            heterogéneos, promediarlos no dice nada útil) — solo
  *            conteos: total de proyectos y cuántos requieren atención.
  *
- * "proyectos_en_riesgo" (carteras.queries.js::listarCarteras) es en
- * realidad un OR de dos señales distintas: el proyecto está vencido por
- * fecha, O tiene un riesgo de verdad (tabla `riesgos`) abierto — "Riesgo"
- * es palabra reservada al módulo de Riesgos, así que esta tarjeta no
- * puede llamarlo "en riesgo" (sugiere que son solo riesgos registrados,
- * y tampoco sería exacto llamarlo solo "vencidos", porque a veces el
- * motivo es un riesgo real sin que nada esté vencido). "Requieren
- * atención" es la palabra honesta para la unión de ambos sin reclamar
- * ninguno de los dos conceptos en exclusiva.
+ * Antes un solo "proyectos_en_riesgo" (carteras.queries.js::listarCarteras)
+ * mezclaba dos señales distintas en un número — vencido por fecha, O con
+ * un riesgo de verdad (tabla `riesgos`) abierto — y la tarjeta lo llamaba
+ * "N requiere(n) atención": honesto sobre la unión, pero no decía CUÁL
+ * de los dos modelos estaba detrás del número. "Riesgo" es palabra
+ * reservada al módulo de Riesgos, así que ahora son dos cifras propias,
+ * cada una con su nombre exacto — y se oculta la que esté en cero, para
+ * no llenar de ruido una cartera sana.
  */
 import { Link } from 'react-router-dom';
-import { Briefcase, AlertTriangle, Building2 } from 'lucide-react';
+import { Briefcase, AlertTriangle, ShieldAlert, Building2 } from 'lucide-react';
 
 export default function TarjetaCartera({ cartera }) {
-  const enRiesgo = parseInt(cartera.proyectos_en_riesgo) || 0;
+  const conVencidas = parseInt(cartera.proyectos_con_vencidas) || 0;
+  const conRiesgos = parseInt(cartera.proyectos_con_riesgos) || 0;
   const total = parseInt(cartera.total_proyectos) || 0;
 
   return (
@@ -52,14 +52,22 @@ export default function TarjetaCartera({ cartera }) {
           )}
         </div>
 
-        <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-100">
+        <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-100 gap-2 flex-wrap">
           <span>{total} proyecto{total !== 1 ? 's' : ''}</span>
-          {enRiesgo > 0 && (
-            <span className="flex items-center text-orange-500">
-              <AlertTriangle size={12} className="mr-1" />
-              {enRiesgo} requiere{enRiesgo !== 1 ? 'n' : ''} atención
-            </span>
-          )}
+          <span className="flex items-center gap-2.5">
+            {conVencidas > 0 && (
+              <span className="flex items-center text-red-500">
+                <AlertTriangle size={12} className="mr-1" />
+                {conVencidas} con vencida{conVencidas !== 1 ? 's' : ''}
+              </span>
+            )}
+            {conRiesgos > 0 && (
+              <span className="flex items-center text-orange-500">
+                <ShieldAlert size={12} className="mr-1" />
+                {conRiesgos} con riesgo{conRiesgos !== 1 ? 's' : ''}
+              </span>
+            )}
+          </span>
         </div>
       </div>
     </Link>

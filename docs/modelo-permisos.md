@@ -108,6 +108,14 @@ Cada peldaño incluye las facultades del anterior (`PELDANOS` + `indice()` +
 | `invitacion` | `nodo_miembros`/`proyecto_usuarios`, fila `estado='aceptada'` del elemento exacto | el `rol` aceptado de esa fila |
 | `responsable_de_nodo` | `etapas\|acciones\|tareas.id_responsable === usuario.id` | `responsable` directo sobre ese nodo |
 | `herencia` | resultado de un ascendiente (etapa > acción > subacción > tarea), re-etiquetado | lo que haya resuelto el ascendiente |
+<!-- "Cierre del modelo de urgencia": la jerarquía que la interfaz OFRECE
+     son cuatro niveles (Proyecto > Etapa > Acción > Tarea) — Subacción
+     existe en el esquema de `acciones` (columna `id_accion_padre`) y en
+     esta cadena de herencia por defensa (datos importados, por ejemplo),
+     pero ningún botón "Agregar X" la crea hoy; producción tiene 0 filas.
+     No confundir "existe en el modelo de datos" con "se ofrece en la
+     UI" al leer esta fila. -->
+
 | `proyecto` | `proyecto_usuarios`, fila aceptada a nivel de TODO el proyecto | el `rol` aceptado, aplicado al proyecto completo y a todos sus nodos |
 | `ejecutivo_dg` | `usuario.rol==='ejecutivo'` + mismo `id_dg` que `proyectos.id_dg_lider` | `responsable` (nunca más alto) |
 

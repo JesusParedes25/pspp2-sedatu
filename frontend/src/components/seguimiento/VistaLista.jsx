@@ -230,6 +230,7 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
         // edición) trate a los cuatro niveles por igual.
         fecha_fin: esTarea ? nodo.fecha_limite : (nodo.fecha_fin_efectiva ?? nodo.fecha_fin),
         porcentaje_avance: nodo.avance_efectivo ?? nodo.porcentaje_avance,
+        prioridad: nodo.prioridad,
         campos_extra: esTarea ? {} : (nodo.campos_extra || {}),
         ubicacion: coberturaMap[nodo.id] || [],
         _raw: nodo,
@@ -303,7 +304,7 @@ export default function VistaLista({ etapas, proyectoId, onRefresh }) {
         header: '',
         size: 40,
         accessorFn: row => row.semaforo,
-        cell: ({ row }) => <SemaforoDot semaforo={row.original.semaforo} estado={row.original.estado} size={8} />,
+        cell: ({ row }) => <SemaforoDot semaforo={row.original.semaforo} estado={row.original.estado} fechaFin={row.original.fecha_fin} prioridad={row.original.prioridad} size={8} />,
         enableSorting: false,
       },
       {

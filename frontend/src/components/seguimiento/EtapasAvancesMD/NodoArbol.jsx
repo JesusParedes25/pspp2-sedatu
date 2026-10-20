@@ -162,7 +162,7 @@ export default function NodoArbol({ nodo, tipo, expandidos, seleccionadoId, onTo
           )}
         </button>
 
-        <SemaforoDot semaforo={sem} estado={nodo.estado} avance={avance} size={7} className={esConsulta ? OPACIDAD_LEVE : ''} />
+        <SemaforoDot semaforo={sem} estado={nodo.estado} avance={avance} fechaLimite={nodo.fecha_limite} fechaFin={nodo.fecha_fin} prioridad={nodo.prioridad} size={7} className={esConsulta ? OPACIDAD_LEVE : ''} />
 
         <span className={`flex-1 min-w-0 truncate text-[13px] ${colorNombre}`} title={nodo.nombre}>
           {nodo.nombre}

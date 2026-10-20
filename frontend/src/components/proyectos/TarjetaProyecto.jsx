@@ -109,7 +109,7 @@ export default function TarjetaProyecto({ proyecto }) {
         {/* Métricas rápidas */}
         <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-100">
           <span>{proyecto.total_etapas || 0} etapa{parseInt(proyecto.total_etapas) !== 1 ? 's' : ''}</span>
-          <span>{proyecto.acciones_pendientes || 0} pendiente{parseInt(proyecto.acciones_pendientes) !== 1 ? 's' : ''}</span>
+          <span>{proyecto.acciones_pendientes || 0} actividad{parseInt(proyecto.acciones_pendientes) !== 1 ? 'es' : ''} por completar</span>
           {parseInt(proyecto.riesgos_activos) > 0 && (
             <span className="flex items-center text-orange-500">
               <AlertTriangle size={12} className="mr-1" />

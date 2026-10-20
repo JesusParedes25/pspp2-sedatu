@@ -49,7 +49,7 @@ function FilaNodoResumen({ it }) {
   const fecha = it.fecha_limite || it.fecha_fin;
   return (
     <div className="flex items-center gap-3 py-1 text-[11px] text-gray-400">
-      <SemaforoDot semaforo={it.semaforo_efectivo || it.semaforo} estado={it.estado} size={7} className="flex-shrink-0" />
+      <SemaforoDot semaforo={it.semaforo_efectivo || it.semaforo} estado={it.estado} fechaLimite={it.fecha_limite} fechaFin={it.fecha_fin} prioridad={it.prioridad} size={7} className="flex-shrink-0" />
       {fecha && <span className="flex-shrink-0">Vence: <strong className="text-gray-500">{formatFecha(fecha)}</strong></span>}
       {it.responsable_nombre && <span className="truncate">Responsable: <strong className="text-gray-500">{it.responsable_nombre}</strong></span>}
       <Link

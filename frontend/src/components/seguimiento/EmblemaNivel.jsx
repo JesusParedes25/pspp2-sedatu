@@ -9,12 +9,17 @@
  */
 import { Lock } from 'lucide-react';
 import { NIVELES, rolTexto } from '../../config/niveles';
-import { COLORES_SEMAFORO, CHIP_BG } from '../common/SemaforoDot';
+import { COLORES_SEMAFORO, CHIP_BG, TEXTO_AMBAR_SOBRE_CHIP } from '../common/SemaforoDot';
 import { formatearEstado } from '../../utils/estados';
 
 export default function EmblemaNivel({ tipo, esContenedor, estado, sem }) {
   const nivel = NIVELES[tipo];
   const Icono = nivel.icono;
+  // El punto/relleno (COLORES_SEMAFORO.ambar) es el amarillo más claro que
+  // aún cumple 3:1 de uso gráfico — como TEXTO sobre su propio CHIP_BG no
+  // llega a 4.5:1, aquí (texto, no un punto) usa el tono más oscuro
+  // reservado para eso. Ver SemaforoDot.jsx para los números medidos.
+  const colorTexto = sem === 'ambar' ? TEXTO_AMBAR_SOBRE_CHIP : COLORES_SEMAFORO[sem];
 
   return (
     <div className="flex items-start gap-2.5">
@@ -35,7 +40,7 @@ export default function EmblemaNivel({ tipo, esContenedor, estado, sem }) {
           </span>
           <span
             className="text-[10px] font-semibold px-2 py-0.5 rounded"
-            style={{ backgroundColor: CHIP_BG[sem], color: COLORES_SEMAFORO[sem] }}
+            style={{ backgroundColor: CHIP_BG[sem], color: colorTexto }}
           >
             {formatearEstado(estado || 'Pendiente')}
           </span>

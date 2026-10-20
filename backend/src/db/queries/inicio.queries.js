@@ -5,6 +5,7 @@
  */
 const pool = require('../pool');
 const { condicionRiesgoDeProyecto } = require('../../utils/condicion-riesgo');
+const { condicionAccionesPorCompletar } = require('../../utils/condicion-actividades-por-completar');
 const { calcularAvancePorcentaje } = require('../../utils/indicador-calculo');
 
 /**
@@ -22,7 +23,7 @@ async function obtenerProyectosUsuario(proyectoIds) {
       p.id, p.nombre, p.estado, p.tipo, p.porcentaje_calculado, p.imagen_url,
       p.fecha_inicio, p.fecha_limite, p.es_prioritario,
       dg.siglas AS dg_siglas, dg.nombre AS dg_nombre,
-      (SELECT COUNT(*) FROM acciones a WHERE a.id_proyecto = p.id AND a.id_accion_padre IS NULL AND a.estado NOT IN ('Completada','Cancelada'))::int AS acciones_pendientes,
+      ${condicionAccionesPorCompletar('p.id')} AS acciones_pendientes,
       (SELECT COUNT(*) FROM riesgos r WHERE ${condicionRiesgoDeProyecto('p.id')} AND r.estado IN ('Abierto','En_mitigacion'))::int AS riesgos_activos
     FROM proyectos p
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider

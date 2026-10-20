@@ -365,10 +365,12 @@ function VistaDiagramaInterna({ proyectoId, permisos }) {
 
         {/* ── Leyenda (abajo a la izquierda) — idéntica a la de Detalle ── */}
         <Panel position="bottom-left" className="flex items-center flex-wrap gap-x-2.5 gap-y-1 bg-white border border-gray-200 rounded-lg shadow-sm px-3 py-1.5 text-[9px] text-gray-500 max-w-xs">
+          <span className="font-semibold text-gray-400">Urgencia:</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO.verde }} />{LEYENDA_SEMAFORO.verde}</span>
-          <span className="flex items-center gap-1"><CheckCircle2 size={9} className="text-emerald-600 flex-shrink-0" />Completada</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO.ambar }} />{LEYENDA_SEMAFORO.ambar}</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO.rojo }} />{LEYENDA_SEMAFORO.rojo}</span>
+          <span className="font-semibold text-gray-400 ml-1">Sin urgencia:</span>
+          <span className="flex items-center gap-1"><CheckCircle2 size={9} className="text-emerald-600 flex-shrink-0" />Completada</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0 border border-gray-300" style={{ backgroundColor: COLORES_SEMAFORO.gris }} />{LEYENDA_SEMAFORO.gris}</span>
         </Panel>
 
