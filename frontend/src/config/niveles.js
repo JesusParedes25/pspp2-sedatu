@@ -11,10 +11,11 @@
  * MINI-CLASE: dos codificaciones de color, dos lugares distintos
  * ─────────────────────────────────────────────────────────────────
  * El color de NIVEL (aquí) responde "¿qué tipo de cosa es esto?" y vive
- * solo en el ícono/chip de tipo. El color de ESTATUS (semáforo, ver
- * SemaforoDot.jsx) responde "¿cómo va?" y vive solo en el punto/badge de
- * estatus. Nunca se combinan en el mismo elemento — mezclarlos rompería
- * la regla que hace que ambas señales se puedan leer de un vistazo.
+ * solo en el ícono/chip de tipo. El color de URGENCIA (semáforo, ver
+ * SemaforoDot.jsx) responde "¿qué tan apremiante es?" y vive solo en el
+ * punto/badge de semáforo. Nunca se combinan en el mismo elemento —
+ * mezclarlos rompería la regla que hace que ambas señales se puedan leer
+ * de un vistazo.
  * ─────────────────────────────────────────────────────────────────
  */
 import { Layers, Target, CheckSquare } from 'lucide-react';

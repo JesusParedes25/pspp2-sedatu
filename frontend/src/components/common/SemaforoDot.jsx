@@ -31,6 +31,31 @@ export const LEYENDA_SEMAFORO = {
   gris: 'Sin iniciar / cancelada',
 };
 
+// Vocabulario de urgencia, una palabra por color — para el selector de
+// semáforo de la Ficha (CampoSemaforo) y cualquier otro lugar que
+// necesite SOLO el nombre del color, no la explicación larga de arriba.
+// Antes el selector decía "Verde"/"Ámbar"/"Rojo"/"Gris" (el nombre del
+// color) mientras la leyenda decía "En tiempo"/"Por vencer"/"Vencida" (lo
+// que el color significa) — misma pastilla de color, dos vocabularios en
+// dos controles del mismo módulo. No se toca LEYENDA_SEMAFORO (depende de
+// la redacción que defina el bloque 1.1 de otra ronda).
+export const URGENCIA_SEMAFORO = {
+  verde: 'En tiempo',
+  ambar: 'Por vencer',
+  rojo: 'Vencida',
+  gris: 'Sin urgencia',
+};
+
+// Umbral único del semáforo automático para "ambar por fecha próxima"
+// (avance-semaforo.js::calcularSemaforo, backend) — en días. Mis
+// actividades usaba su propio 7 literal para la tarjeta "Por vencer";
+// ahora importa de aquí, así que si el umbral del semáforo cambia algún
+// día, esa tarjeta cambia con él en vez de quedarse desincronizada. No
+// hay forma de compartir el módulo con el backend (procesos separados),
+// así que este valor debe mantenerse igual al de calcularSemaforo() a
+// mano si alguna vez cambia.
+export const DIAS_POR_VENCER = 7;
+
 // estado='Completada' se muestra con un ícono de check en vez del punto
 // verde plano — si no, "completado" y "en proceso sano" se ven idénticos.
 //

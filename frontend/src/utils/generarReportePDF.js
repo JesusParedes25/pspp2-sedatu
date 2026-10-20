@@ -475,7 +475,7 @@ function paginaPendientes(doc, proyecto, etapas, paginaNum, totalPaginas) {
 // ─── BLOQUEADOS / SEMÁFORO ROJO ────────────────────────────────
 function paginaBloqueados(doc, proyecto, etapas, paginaNum, totalPaginas) {
   doc.addPage();
-  encabezadoPagina(doc, 'Actividades bloqueadas / en riesgo', proyecto, paginaNum, totalPaginas);
+  encabezadoPagina(doc, 'Actividades bloqueadas o con alerta', proyecto, paginaNum, totalPaginas);
   let y = 26;
 
   const todos = aplanarArbol(etapas);
@@ -483,7 +483,7 @@ function paginaBloqueados(doc, proyecto, etapas, paginaNum, totalPaginas) {
   const rojos    = enRiesgo.filter(n => n.semaforo === 'rojo');
   const ambares  = enRiesgo.filter(n => n.semaforo === 'ambar');
 
-  y = seccionTitulo(doc, `En riesgo o bloqueados (${enRiesgo.length} nodos)`, y);
+  y = seccionTitulo(doc, `Bloqueadas o con alerta (${enRiesgo.length} nodos)`, y);
 
   if (!enRiesgo.length) {
     doc.setFontSize(9); doc.setTextColor(...C.verde);
@@ -491,12 +491,12 @@ function paginaBloqueados(doc, proyecto, etapas, paginaNum, totalPaginas) {
   } else {
     if (rojos.length) {
       doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.rojo);
-      doc.text(`🔴 ${rojos.length} en semáforo ROJO (bloqueado / crítico)`, 20, y); y += 5;
+      doc.text(`🔴 ${rojos.length} Vencida${rojos.length !== 1 ? 's' : ''} (bloqueado / crítico)`, 20, y); y += 5;
       doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.grisTexto);
     }
     if (ambares.length) {
       doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.ambar);
-      doc.text(`🟡 ${ambares.length} en semáforo ÁMBAR (en seguimiento)`, 20, y); y += 5;
+      doc.text(`🟡 ${ambares.length} Por vencer (en seguimiento)`, 20, y); y += 5;
       doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.grisTexto);
     }
     y += 3;

@@ -114,7 +114,7 @@ export default function RiesgosProyecto() {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-4 flex-wrap">
           <div>
-            <label className="text-[10px] text-gray-400 font-medium uppercase tracking-wide block mb-0.5">Estatus</label>
+            <label className="text-[10px] text-gray-400 font-medium uppercase tracking-wide block mb-0.5">Estado</label>
             <select
               value={filtroEstatus}
               onChange={e => setFiltroEstatus(e.target.value)}

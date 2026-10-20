@@ -34,6 +34,7 @@ import NodoArbol from './NodoArbol';
 import PanelDetalle from './PanelDetalle';
 import CrearInline from './CrearInline';
 import { ESTADOS, filtrarArbol, buscarNodoEnArbol, encontrarPath, recorrerArbol } from './utils';
+import { formatearEstado } from '../../../utils/estados';
 
 export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSeleccionada, onStatsChange }) {
   const { mostrarToast } = useUI();
@@ -426,15 +427,15 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
             )}
 
             <div>
-              <label className="text-[10px] text-gray-400 font-medium uppercase tracking-wide block mb-0.5">Estatus</label>
+              <label className="text-[10px] text-gray-400 font-medium uppercase tracking-wide block mb-0.5">Estado</label>
               <select
                 value={filtroEstado}
                 onChange={e => setFiltroEstado(e.target.value)}
                 className="w-full text-xs border border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:border-guinda-300"
               >
-                <option value="">Todos los estatus</option>
+                <option value="">Todos los estados</option>
                 {ESTADOS.map(e => (
-                  <option key={e} value={e}>{e.replace('_', ' ')}</option>
+                  <option key={e} value={e}>{formatearEstado(e)}</option>
                 ))}
               </select>
             </div>

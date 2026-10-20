@@ -144,7 +144,7 @@ export default function ModalDuplicarNodo({ tipo, nodo, proyectoId, onCerrar, on
         <div className="px-4 py-3 flex-1 overflow-y-auto">
           <p className="text-xs text-gray-500 mb-3">
             Se crearán copias independientes de "<strong>{nodo.nombre}</strong>"
-            {tipo === 'accion' && (nodo.tareas || []).length > 0 && ` (con sus ${nodo.tareas.length} tareas)`} en
+            {tipo === 'accion' && (nodo.tareas || []).length > 0 && ` (con su${nodo.tareas.length !== 1 ? 's' : ''} ${nodo.tareas.length} tarea${nodo.tareas.length !== 1 ? 's' : ''})`} en
             cada destino que elijas. Cada copia empieza en Pendiente, 0%, sin fechas ni territorio propios.
           </p>
 

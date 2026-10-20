@@ -20,6 +20,7 @@ import ListaEstatusCualitativo, { TituloEstatusCualitativo } from '../components
 import { breadcrumbInternoEstatusCualitativo } from '../utils/estatusCualitativo';
 import ArbolPorProyecto from '../components/common/ArbolPorProyecto';
 import { COLORES_SEMAFORO } from '../components/common/SemaforoDot';
+import { formatearEstado } from '../utils/estados';
 
 const GUINDA = '#7B1C3E';
 
@@ -220,11 +221,11 @@ export default function Inicio() {
         </div>
       )}
 
-      {/* ═══ POR VENCER ═══ */}
+      {/* ═══ VENCEN EN 14 DÍAS ═══ */}
       {por_vencer.length > 0 && (
         <div className="card p-5">
           <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#7B1C3E' }}>
-            <Clock size={14} className="text-yellow-600" /> Por vencer (14 días)
+            <Clock size={14} className="text-yellow-600" /> Vencen en 14 días
           </h2>
           <div className="max-h-64 overflow-y-auto pr-1">
             <ArbolPorProyecto
@@ -375,7 +376,7 @@ function ProyectoCard({ proyecto }) {
               {proyecto.nombre}
             </p>
             <p className="text-[11px] text-gray-500 mt-0.5">
-              {proyecto.dg_siglas || 'Sin DG'} · {proyecto.estado?.replace('_', ' ')}
+              {proyecto.dg_siglas || 'Sin DG'} · {formatearEstado(proyecto.estado)}
             </p>
           </div>
           <ChevronRight size={14} className="text-gray-300 group-hover:text-guinda-400 transition mt-1 flex-shrink-0" />
@@ -390,8 +391,8 @@ function ProyectoCard({ proyecto }) {
           </div>
         </div>
         <div className="flex items-center gap-3 mt-2 text-[10px] text-gray-400">
-          {proyecto.acciones_pendientes > 0 && <span>{proyecto.acciones_pendientes} pendientes</span>}
-          {proyecto.riesgos_activos > 0 && <span className="text-orange-500">{proyecto.riesgos_activos} riesgos</span>}
+          {proyecto.acciones_pendientes > 0 && <span>{proyecto.acciones_pendientes} pendiente{parseInt(proyecto.acciones_pendientes) !== 1 ? 's' : ''}</span>}
+          {proyecto.riesgos_activos > 0 && <span className="text-orange-500">{proyecto.riesgos_activos} riesgo{parseInt(proyecto.riesgos_activos) !== 1 ? 's' : ''}</span>}
           {proyecto.es_prioritario && <span className="text-guinda-600 font-bold">★ Prioritario</span>}
         </div>
       </div>
@@ -437,10 +438,10 @@ function ProyectoCard({ proyecto }) {
               <div className="min-w-0 border-l border-gray-100 pl-4">
                 <div className="flex items-center gap-1.5 mb-1.5">
                   <MessageSquare size={11} className="text-teal-600" />
-                  <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Estatus cualitativo</p>
+                  <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Nota de avance</p>
                 </div>
                 {popover.datos.estatus_cualitativo.length === 0 ? (
-                  <p className="text-[11px] text-gray-400 italic mb-2">Sin estatus cualitativo capturado.</p>
+                  <p className="text-[11px] text-gray-400 italic mb-2">Sin nota de avance capturada.</p>
                 ) : (
                   <ul className="space-y-1.5 max-h-32 overflow-y-auto mb-2 pr-1">
                     {popover.datos.estatus_cualitativo.slice(0, 4).map(item => (

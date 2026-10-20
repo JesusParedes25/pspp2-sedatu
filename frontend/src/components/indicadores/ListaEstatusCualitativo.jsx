@@ -101,7 +101,7 @@ export default function ListaEstatusCualitativo({
 
 // Encabezado con el mismo ícono y color en las tres vistas, para que se
 // reconozca como la misma sección al cambiar de pantalla.
-export function TituloEstatusCualitativo({ children = 'Estatus cualitativo' }) {
+export function TituloEstatusCualitativo({ children = 'Nota de avance' }) {
   return (
     <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5 text-guinda-700">
       <MessageSquare size={14} className="text-teal-600" /> {children}

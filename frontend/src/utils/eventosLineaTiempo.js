@@ -27,6 +27,7 @@
  *           compartido necesite saber nada de esos modales.
  */
 import { diasEntre } from './marcadoresTiempo';
+import { formatearEstado } from './estados';
 
 // ─── Normalizadores (la única pieza que difiere entre pantallas) ───
 
@@ -47,11 +48,11 @@ export function normalizarEventoNodo(item) {
       if (item.metadata?.estado === 'Completada') avance = 100;
       else if (item.metadata?.estado === 'Pendiente') avance = 0;
       carril = avance != null ? 'avance' : 'comentario';
-      titulo = item.metadata?.estado ? `Estatus: ${item.metadata.estado}` : (item.contenido || 'Estatus actualizado');
+      titulo = item.metadata?.estado ? `Estado: ${formatearEstado(item.metadata.estado)}` : (item.contenido || 'Estado actualizado');
       break;
     case 'estatus_cualitativo':
       carril = 'comentario';
-      titulo = item.contenido || 'Estatus cualitativo';
+      titulo = item.contenido || 'Nota de avance';
       break;
     case 'archivo':
       carril = 'documento';

@@ -6,7 +6,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { Lock, Pencil } from 'lucide-react';
-import { COLORES_SEMAFORO, CHIP_BG } from '../../common/SemaforoDot';
+import { COLORES_SEMAFORO, CHIP_BG, URGENCIA_SEMAFORO } from '../../common/SemaforoDot';
 
 // ─── Campo texto inline (click-to-edit) ──────────────────────
 // iconoEditar: lápiz visible junto al valor — sin esto, la única señal de
@@ -269,7 +269,13 @@ export function CampoAvance({ valor, avanceEfectivo, esContenedor, estado, onCha
   );
 }
 
-export function CampoSemaforo({ valor, override, efectivo, onChange, soloLectura, variante }) {
+// Gris no está en las opciones manuales (abajo, variante chip y variante
+// completa): gris significa "falta información para calcular" (Cancelada,
+// o Pendiente sin fecha — ver calcularSemaforo en el backend), no es un
+// color que alguien pueda declarar a mano. Un nodo puede seguir
+// MOSTRÁNDOSE gris automáticamente; solo se quitó de la lista de colores
+// que el override permite fijar.
+export function CampoSemaforo({ label = 'Semáforo', valor, override, efectivo, onChange, soloLectura, variante }) {
   const colorMostrado = override && valor ? valor : efectivo;
 
   if (variante === 'chip') {
@@ -280,8 +286,9 @@ export function CampoSemaforo({ valor, override, efectivo, onChange, soloLectura
         style={{ backgroundColor: CHIP_BG[colorMostrado], borderColor: `${color}40` }}
       >
         <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+        <span className="text-[10px] text-gray-400 font-medium flex-shrink-0">{label}</span>
         {soloLectura ? (
-          <span className="text-xs font-medium capitalize" style={{ color }}>{colorMostrado}</span>
+          <span className="text-xs font-medium" style={{ color }}>{URGENCIA_SEMAFORO[colorMostrado]}</span>
         ) : (
           <select
             value={override ? valor : ''}
@@ -290,10 +297,9 @@ export function CampoSemaforo({ valor, override, efectivo, onChange, soloLectura
             style={{ color }}
           >
             <option value="">Automático</option>
-            <option value="verde">Verde</option>
-            <option value="ambar">Ámbar</option>
-            <option value="rojo">Rojo</option>
-            <option value="gris">Gris</option>
+            <option value="verde">{URGENCIA_SEMAFORO.verde}</option>
+            <option value="ambar">{URGENCIA_SEMAFORO.ambar}</option>
+            <option value="rojo">{URGENCIA_SEMAFORO.rojo}</option>
           </select>
         )}
         {override && (
@@ -308,10 +314,10 @@ export function CampoSemaforo({ valor, override, efectivo, onChange, soloLectura
   if (soloLectura) {
     return (
       <div>
-        <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">Semáforo</span>
+        <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">{label}</span>
         <div className="flex items-center gap-1.5">
           <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: COLORES_SEMAFORO[colorMostrado] }} />
-          <span className="text-xs capitalize">{colorMostrado}</span>
+          <span className="text-xs">{URGENCIA_SEMAFORO[colorMostrado]}</span>
           {override && (
             <span className="text-[9px] font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded" title="Alguien forzó este color a mano — ya no sigue el cálculo automático">
               Manual
@@ -323,7 +329,7 @@ export function CampoSemaforo({ valor, override, efectivo, onChange, soloLectura
   }
   return (
     <div>
-      <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">Semáforo</span>
+      <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">{label}</span>
       <div className="flex items-center gap-1.5">
         <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: COLORES_SEMAFORO[colorMostrado] }} />
         <select
@@ -332,10 +338,9 @@ export function CampoSemaforo({ valor, override, efectivo, onChange, soloLectura
           className="text-xs border border-gray-200 rounded px-1 py-0.5 bg-white focus:border-[#7B1C3E] outline-none"
         >
           <option value="">Automático</option>
-          <option value="verde">🟢 Verde</option>
-          <option value="ambar">🟡 Ámbar</option>
-          <option value="rojo">🔴 Rojo</option>
-          <option value="gris">⚪ Gris</option>
+          <option value="verde">🟢 {URGENCIA_SEMAFORO.verde}</option>
+          <option value="ambar">🟡 {URGENCIA_SEMAFORO.ambar}</option>
+          <option value="rojo">🔴 {URGENCIA_SEMAFORO.rojo}</option>
         </select>
         {override && <span className="text-[8px] bg-gray-200 text-gray-600 px-1 rounded font-bold">M</span>}
       </div>

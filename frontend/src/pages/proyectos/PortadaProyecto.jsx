@@ -88,7 +88,7 @@ export default function PortadaProyecto() {
               {resumen.nodos_vencidos} vencida{resumen.nodos_vencidos !== 1 ? 's' : ''} (etapas, acciones y tareas)
             </span>
             <span className="text-gray-300">·</span>
-            <span>{resumen.nodos_por_vencer} por vencer en 30 días</span>
+            <span>{resumen.nodos_por_vencer} vencen en 30 días</span>
             <span className="text-gray-300">·</span>
             <span className={resumen.riesgos_abiertos > 0 ? 'text-amber-600 font-medium' : ''}>
               {resumen.riesgos_abiertos} riesgo{resumen.riesgos_abiertos !== 1 ? 's' : ''} abierto{resumen.riesgos_abiertos !== 1 ? 's' : ''}
