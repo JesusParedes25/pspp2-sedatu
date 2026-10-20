@@ -69,7 +69,7 @@ export default function ListadoProyectos() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Proyectos</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Seguimiento de proyectos</h1>
         </div>
         <div className="flex items-center gap-3">
           {usuario && (

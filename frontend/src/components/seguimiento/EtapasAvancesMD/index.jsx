@@ -21,15 +21,15 @@
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Loader2, X, SlidersHorizontal, CheckCircle2, Filter, Layers, Search, ChevronsDown, ChevronsUp } from 'lucide-react';
+import { Loader2, X, SlidersHorizontal, Filter, Layers, Search, ChevronsDown, ChevronsUp } from 'lucide-react';
 import * as etapasApi from '../../../api/etapas';
 import * as miembrosApi from '../../../api/miembros';
 import { useUI } from '../../../context/UIContext';
 import { useAuth } from '../../../context/AuthContext';
 import { usePanelWidth } from '../../../hooks/usePanelWidth';
 import { NIVELES } from '../../../config/niveles';
-import { COLORES_SEMAFORO, LEYENDA_SEMAFORO } from '../../common/SemaforoDot';
 import ResizeHandle from '../../common/ResizeHandle';
+import LeyendaSemaforo from '../../common/LeyendaSemaforo';
 import NodoArbol from './NodoArbol';
 import PanelDetalle from './PanelDetalle';
 import CrearInline from './CrearInline';
@@ -509,19 +509,11 @@ export default function EtapasAvancesMD({ proyectoId, proyecto, permisos, dgSele
           )}
         </div>
 
-        {/* Pie: leyenda del semáforo — texto importado de la misma fuente
-            que usa el cálculo real (SemaforoDot/LEYENDA_SEMAFORO), no
-            redactado aparte, para que nunca pueda desincronizarse de la
-            regla real. */}
-        <div className="flex items-center flex-wrap gap-x-2.5 gap-y-1 px-3 py-1.5 border-t border-gray-200 bg-gray-50/60 text-[9px] text-gray-500 flex-shrink-0">
-          <span className="font-semibold text-gray-400">Urgencia:</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO.verde }} />{LEYENDA_SEMAFORO.verde}</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO.ambar }} />{LEYENDA_SEMAFORO.ambar}</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO.rojo }} />{LEYENDA_SEMAFORO.rojo}</span>
-          <span className="font-semibold text-gray-400 ml-1">Sin urgencia:</span>
-          <span className="flex items-center gap-1"><CheckCircle2 size={9} className="text-emerald-600 flex-shrink-0" />Completada</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full flex-shrink-0 border border-gray-300" style={{ backgroundColor: COLORES_SEMAFORO.gris }} />{LEYENDA_SEMAFORO.gris}</span>
-        </div>
+        {/* Pie: leyenda del semáforo — componente compartido
+            (components/common/LeyendaSemaforo.jsx), también usado en la
+            pantalla de Inicio, para que nunca pueda desincronizarse de
+            la regla real. */}
+        <LeyendaSemaforo className="px-3 py-1.5 border-t border-gray-200 bg-gray-50/60 flex-shrink-0" />
       </div>
 
       <ResizeHandle lado="derecho" label="Redimensionar árbol" onResize={ajustarAnchoArbol} />

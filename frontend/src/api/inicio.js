@@ -19,3 +19,10 @@ export async function obtenerCarterasFiltroInicio() {
   const { data } = await client.get('/inicio/filtros/carteras');
   return data.datos;
 }
+
+// Conteos para las tarjetas de acceso de la pantalla de Inicio (el
+// concentrador, no el Tablero) — ver inicio.controller.js::obtenerResumenTarjetas.
+export async function obtenerResumenTarjetasInicio() {
+  const { data } = await client.get('/inicio/resumen-tarjetas');
+  return data.datos;
+}

@@ -116,4 +116,36 @@ async function obtenerCarterasFiltro(req, res, next) {
   }
 }
 
-module.exports = { obtenerInicio, obtenerProyectosFiltro, obtenerCarterasFiltro };
+// GET /inicio/resumen-tarjetas — los conteos que necesita la pantalla
+// de Inicio (el concentrador, distinto del Tablero) para sus tarjetas
+// de acceso. Son puros COUNT, nunca las listas completas que ya sirve
+// GET /inicio — así la pantalla de aterrizaje de toda la plataforma
+// carga rápido incluso para un ejecutivo con decenas de proyectos.
+async function obtenerResumenTarjetas(req, res, next) {
+  try {
+    const usuario = req.usuario;
+    const proyectoIds = await alcanceProyectosUsuario(usuario);
+
+    const [proyectosVisibles, indicadoresVisibles, estadosConActividad, misActividades] = await Promise.all([
+      inicioQueries.contarProyectosVisibles(),
+      inicioQueries.contarIndicadoresVisibles(proyectoIds),
+      inicioQueries.contarEstadosConActividad(proyectoIds),
+      inicioQueries.obtenerResumenMisActividades(usuario.id),
+    ]);
+
+    res.json({
+      datos: {
+        proyectos_visibles: proyectosVisibles,
+        proyectos_sigue: proyectoIds.length,
+        indicadores_visibles: indicadoresVisibles,
+        estados_con_actividad: estadosConActividad,
+        mis_actividades_total: misActividades.total,
+        mis_actividades_vencidas: misActividades.vencidas,
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { obtenerInicio, obtenerProyectosFiltro, obtenerCarterasFiltro, obtenerResumenTarjetas };

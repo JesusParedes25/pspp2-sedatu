@@ -37,7 +37,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useMisPendientes } from '../../hooks/useMisPendientes';
 import { usePermisosGlobales } from '../../hooks/usePermisos';
 import {
-  LayoutDashboard, FolderKanban, Bell, PlusCircle, ChevronLeft, ChevronRight,
+  Home, LayoutDashboard, FolderKanban, Bell, PlusCircle, ChevronLeft, ChevronRight,
   ChevronDown, LogOut, FileText, Map, Shield, ListChecks, ListTodo, CalendarDays,
   List, Briefcase, Inbox, History, Users, Building2, Landmark, BarChart3, KeyRound,
   Trash2, Settings,
@@ -54,7 +54,8 @@ import {
 // default interno) — Notificaciones no lo usa porque su default es
 // dinámico (depende de si hay pendientes), no fijo.
 const menuItems = [
-  { to: '/', icono: LayoutDashboard, etiqueta: 'Tablero', end: true },
+  { to: '/', icono: Home, etiqueta: 'Inicio', end: true },
+  { to: '/tablero', icono: LayoutDashboard, etiqueta: 'Tablero' },
   {
     id: 'actividades', base: '/mis-actividades', icono: ListChecks, etiqueta: 'Mis actividades',
     children: [
@@ -63,7 +64,7 @@ const menuItems = [
     ],
   },
   {
-    id: 'proyectos', base: '/proyectos', icono: FolderKanban, etiqueta: 'Proyectos',
+    id: 'proyectos', base: '/proyectos', icono: FolderKanban, etiqueta: 'Seguimiento de proyectos',
     children: [
       { to: '/proyectos?vista=todos', param: 'todos', paramKey: 'vista', etiqueta: 'Todos los proyectos', icono: List },
       { to: '/proyectos?vista=agrupado', param: 'agrupado', paramKey: 'vista', etiqueta: 'Carteras de proyectos', icono: Briefcase, default: true },
