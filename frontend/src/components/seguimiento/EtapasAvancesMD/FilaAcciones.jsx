@@ -30,7 +30,7 @@
  * comentario de cabecera de PanelDetalle.jsx).
  */
 import { useState } from 'react';
-import { TrendingUp, Plus, MoreHorizontal, Pencil, Copy, Trash2, ChevronDown, Paperclip, BarChart3, MapPin, AlertTriangle, UserPlus } from 'lucide-react';
+import { TrendingUp, Plus, MoreHorizontal, Pencil, Copy, Trash2, ChevronDown, Paperclip, BarChart3, MapPin, AlertTriangle, UserPlus, RefreshCw } from 'lucide-react';
 import MenuDesplegable from '../../common/MenuDesplegable';
 import ConfirmDialog from '../../common/ConfirmDialog';
 import ModalDuplicarNodo from '../../nodos/ModalDuplicarNodo';
@@ -39,7 +39,7 @@ import ModalNuevaTarea from '../ModalNuevaTarea';
 import * as etapasApi from '../../../api/etapas';
 import * as accionesApi from '../../../api/acciones';
 import * as tareasApi from '../../../api/tareas';
-import * as estadoApi from '../../../api/estado';
+import { useVolverAProceso } from '../../../hooks/useVolverAProceso';
 import { NIVELES } from '../../../config/niveles';
 
 const TIPO_LABEL_MIN = { etapa: 'etapa', accion: 'acción', tarea: 'tarea' };
@@ -79,7 +79,7 @@ function ItemMenu({ icono: Icono, label, onClick, disabled, title, destructivo }
 
 export default function FilaAcciones({
   tipo, nodo, id, proyectoId, permisos, permisosProyecto, esContenedor,
-  onCambiado, mostrarToast, onEditarFicha, onEliminado, onAbrirAvance, onAccionRapida,
+  onCambiado, mostrarToast, onEditarFicha, onEliminado, onAbrirAvance, onAccionRapida, onCambiarEstado,
 }) {
   const soloLectura = permisos?.esSoloLectura ?? true;
   const puedeDuplicar = tipo === 'etapa' ? !!permisos?.puedeCrearEtapa : !!permisos?.puedeCrearAccion;
@@ -91,7 +91,6 @@ export default function FilaAcciones({
   const [duplicandoEtapa, setDuplicandoEtapa] = useState(false);
   const [confirmEliminar, setConfirmEliminar] = useState(false);
   const [eliminando, setEliminando] = useState(false);
-  const [volviendoAProceso, setVolviendoAProceso] = useState(false);
 
   async function confirmarDuplicarEtapa() {
     setDuplicandoEtapa(true);
@@ -147,18 +146,13 @@ export default function FilaAcciones({
   const sustantivoNodo = tipo === 'etapa' ? 'etapa' : (nodo.id_accion_padre ? 'subacción' : 'acción');
   const mensajeCompletada = `Esta ${sustantivoNodo} está marcada como Completada. Para agregar actividades, vuelve a ponerla En proceso.`;
 
-  async function volverAProceso() {
-    setVolviendoAProceso(true);
-    try {
-      await estadoApi.cambiarEstado(entidadTipoParaEstado(tipo, nodo), id, 'En_proceso');
-      mostrarToast?.(`${sustantivoNodo.charAt(0).toUpperCase() + sustantivoNodo.slice(1)} vuelta a En proceso`, 'exito');
-      onCambiado?.();
-    } catch (err) {
-      mostrarToast?.(err.response?.data?.mensaje || 'Error al cambiar el estado', 'error');
-    } finally {
-      setVolviendoAProceso(false);
-    }
-  }
+  const { volverAProceso, volviendo: volviendoAProceso } = useVolverAProceso({
+    entidadTipo: entidadTipoParaEstado(tipo, nodo),
+    entidadId: id,
+    sustantivo: sustantivoNodo,
+    mostrarToast,
+    onCambiado,
+  });
 
   return (
     <div className="flex items-center gap-2 mb-4 flex-wrap">
@@ -216,6 +210,15 @@ export default function FilaAcciones({
       >
         {({ cerrar }) => (
           <div className="py-1">
+            {/* 2.3: segundo camino a la acción más frecuente de la
+                plataforma — abre el MISMO SelectorEstado del encabezado
+                (por ref, vía PanelDetalle.jsx), no uno nuevo. Primero en
+                la lista a propósito: hoy el menú tenía ocho opciones y
+                ninguna era cambiar estado. */}
+            <ItemMenu icono={RefreshCw} label="Cambiar estado"
+              disabled={!permisos?.puedeCambiarEstado} title="Sin permiso para cambiar el estado de este elemento"
+              onClick={() => { onCambiarEstado?.(); cerrar(); }} />
+            <div className="my-1 border-t border-gray-100" />
             <ItemMenu icono={Paperclip} label="Adjuntar documento"
               disabled={soloLectura} title="Sin permiso para adjuntar documentos en este elemento"
               onClick={() => { onAccionRapida?.('documentos'); cerrar(); }} />

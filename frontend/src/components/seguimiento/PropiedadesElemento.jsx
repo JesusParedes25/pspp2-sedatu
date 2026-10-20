@@ -56,7 +56,7 @@ function valoresDe(data) {
 // necesita para funcionar — `onGuardado`/`onCancelar` son opcionales,
 // para que quien lo monte con un toggle "Editar/Cerrar" (FichaNodo) pueda
 // cerrarlo también desde aquí tras guardar o cancelar.
-export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, onActualizado, mostrarToast, onGuardado, onCancelar, onDirtyChange }) {
+export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, onActualizado, mostrarToast, onGuardado, onCancelar, onDirtyChange, campoFoco }) {
   const { tipo, id, data } = nodo;
   // Quien fue invitado solo a una etapa captura en ella y en lo que cuelga
   // de ella, no en el resto del proyecto.
@@ -187,6 +187,7 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
           label="Prioridad" variante="chip"
           valor={valores.prioridad || ''} opciones={PRIORIDADES}
           onChange={v => set('prioridad', v)} soloLectura={permisos.esSoloLectura}
+          autoFocus={campoFoco === 'prioridad'}
         />
       </div>
       {/* Antes el punto de color + "Automático" no decían qué control era

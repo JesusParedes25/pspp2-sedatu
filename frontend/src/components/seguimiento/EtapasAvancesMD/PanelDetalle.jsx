@@ -26,7 +26,7 @@
  * atajo "Marcar como completada" del encabezado — un solo modal montado
  * una vez, no dos copias con estado separado.
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import PestanasDetalle from './PestanasDetalle';
 import ModalRegistrarAvance from '../../nodos/ModalRegistrarAvance';
 import FilaAcciones from './FilaAcciones';
@@ -49,6 +49,22 @@ export default function PanelDetalle({
   const ruta = resolverRutaConIds(arbol, id) || [{ tipo, id, nombre: data.nombre }];
   const { actualizar } = useJerarquiaProyecto(proyectoId);
   const [editandoFicha, setEditandoFicha] = useState(false);
+  // Bloque 2.5 (UX del eje de estado/prioridad): el chip de Prioridad del
+  // encabezado abre este mismo modal, pero además necesita dejar el foco
+  // puesto en el campo de Prioridad — campoFocoFicha viaja hasta
+  // PropiedadesElemento (vía ModalEditarFicha) para eso. "Editar ficha"
+  // desde el menú o desde TiraDatos no pide ningún campo en particular
+  // (abrirEditarFicha() sin argumento), así que no cambia su comportamiento.
+  const [campoFocoFicha, setCampoFocoFicha] = useState(null);
+  function abrirEditarFicha(campo) {
+    setCampoFocoFicha(campo || null);
+    setEditandoFicha(true);
+  }
+
+  // 2.3: "Cambiar estado" del menú "Más acciones" (FilaAcciones.jsx) abre
+  // el SelectorEstado que ya vive en el encabezado, por ref — segundo
+  // camino al mismo control, no un selector nuevo.
+  const refEncabezado = useRef(null);
   // Atajos de "Más acciones" (Adjuntar documento/Vincular indicador/
   // Vincular territorio/Reportar riesgo/Invitar participante) — viven de
   // nuevo en el menú (a pedido del usuario, además de sus propias
@@ -121,6 +137,7 @@ export default function PanelDetalle({
           fila bloqueada Y seleccionada a la vez. */}
       <div className={`flex-1 overflow-y-auto px-5 py-4 max-w-5xl ${permisos.esSoloLectura ? 'bg-gray-150' : ''}`}>
         <EncabezadoDetalle
+          ref={refEncabezado}
           nodo={seleccion}
           ruta={ruta}
           permisos={permisos}
@@ -129,6 +146,7 @@ export default function PanelDetalle({
           mostrarToast={mostrarToast}
           onGuardarCampo={guardarCampo}
           onMarcarCompletada={!esContenedor ? () => abrirAvance({ completar: true }) : undefined}
+          onEditarFicha={abrirEditarFicha}
         />
 
         {/* Fase 3 del modelo de permisos — mismo permisos.esSoloLectura por
@@ -150,7 +168,8 @@ export default function PanelDetalle({
             esContenedor={esContenedor}
             onCambiado={onActualizado}
             mostrarToast={mostrarToast}
-            onEditarFicha={() => setEditandoFicha(true)}
+            onEditarFicha={() => abrirEditarFicha()}
+            onCambiarEstado={() => refEncabezado.current?.abrirSelectorEstado()}
             onAbrirAvance={() => abrirAvance()}
             onAccionRapida={setAccionRapida}
             onEliminado={() => {
@@ -161,7 +180,7 @@ export default function PanelDetalle({
           />
         )}
 
-        <TiraDatos nodo={seleccion} permisos={permisos} onEditar={() => setEditandoFicha(true)} />
+        <TiraDatos nodo={seleccion} permisos={permisos} onEditar={() => abrirEditarFicha()} />
 
         <PestanasDetalle
           tipo={tipo}
@@ -197,7 +216,8 @@ export default function PanelDetalle({
           permisos={permisosProyecto}
           onActualizado={onActualizado}
           mostrarToast={mostrarToast}
-          onCerrar={() => setEditandoFicha(false)}
+          campoFoco={campoFocoFicha}
+          onCerrar={() => { setEditandoFicha(false); setCampoFocoFicha(null); }}
         />
       )}
     </div>

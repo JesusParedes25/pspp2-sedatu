@@ -17,14 +17,15 @@
  * encabezado, así que no hace falta un chip aparte solo para mostrar el
  * valor y otro control distinto para cambiarlo.
  */
-import { useState } from 'react';
-import { CheckCircle2, Lock } from 'lucide-react';
+import { useState, useRef, forwardRef, useImperativeHandle } from 'react';
+import { CheckCircle2, Lock, RotateCcw, ChevronDown } from 'lucide-react';
 import { hijosDe } from './utils';
 import { NIVELES } from '../../../config/niveles';
 import { COLORES_SEMAFORO } from '../../common/SemaforoDot';
 import LineageClicable from '../LineageClicable';
 import SelectorEstado from '../../common/SelectorEstado';
 import { CampoTextoInline } from './Campos';
+import { useVolverAProceso } from '../../../hooks/useVolverAProceso';
 
 function entidadTipoDeNodo(tipo, data) {
   if (tipo === 'etapa') return 'Etapa';
@@ -38,7 +39,7 @@ function leyendaAvance(tipo, esContenedor) {
   return 'Calculado desde sus tareas.';
 }
 
-export default function EncabezadoDetalle({ nodo, ruta, permisos, onNavegarLineage, onActualizado, mostrarToast, onGuardarCampo, onMarcarCompletada }) {
+const EncabezadoDetalle = forwardRef(function EncabezadoDetalle({ nodo, ruta, permisos, onNavegarLineage, onActualizado, mostrarToast, onGuardarCampo, onMarcarCompletada, onEditarFicha }, ref) {
   const { tipo, id, data } = nodo;
   const [descExpandida, setDescExpandida] = useState(false);
   const nivel = NIVELES[tipo];
@@ -46,6 +47,21 @@ export default function EncabezadoDetalle({ nodo, ruta, permisos, onNavegarLinea
   const sem = data.semaforo_efectivo || 'gris';
   const avance = data.avance_efectivo ?? (tipo === 'etapa' ? parseFloat(data.porcentaje_calculado || 0) : parseFloat(data.porcentaje_avance || 0));
   const hijos = hijosDe(tipo, data);
+  // 2.3: "Cambiar estado" en el menú "Más acciones" de FilaAcciones.jsx
+  // abre este MISMO SelectorEstado por ref, en vez de construir un
+  // selector nuevo — PanelDetalle.jsx conecta este ref con ese menú.
+  const refSelectorEstado = useRef(null);
+  useImperativeHandle(ref, () => ({
+    abrirSelectorEstado: () => refSelectorEstado.current?.abrir(),
+  }), []);
+  const sustantivoNodo = tipo === 'etapa' ? 'etapa' : tipo === 'tarea' ? 'tarea' : (data.id_accion_padre ? 'subacción' : 'acción');
+  const { volverAProceso, volviendo } = useVolverAProceso({
+    entidadTipo: entidadTipoDeNodo(tipo, data),
+    entidadId: id,
+    sustantivo: sustantivoNodo,
+    mostrarToast,
+    onCambiado: onActualizado,
+  });
 
   return (
     <div className="pb-4 mb-4 border-b border-gray-100">
@@ -68,19 +84,36 @@ export default function EncabezadoDetalle({ nodo, ruta, permisos, onNavegarLinea
         >
           {nivel.label}
         </span>
-        <SelectorEstado
-          entidadTipo={entidadTipoDeNodo(tipo, data)}
-          entidadId={id}
-          estadoActual={data.estado || 'Pendiente'}
-          estadoOverride={data.estado_override}
-          esContenedor={esContenedor}
-          onCambio={onActualizado}
-          soloLectura={permisos.esSoloLectura}
-        />
+        <span className="inline-flex items-center gap-1">
+          <span className="text-[10px] text-gray-400 uppercase tracking-wide">Estado</span>
+          <SelectorEstado
+            ref={refSelectorEstado}
+            entidadTipo={entidadTipoDeNodo(tipo, data)}
+            entidadId={id}
+            estadoActual={data.estado || 'Pendiente'}
+            estadoOverride={data.estado_override}
+            esContenedor={esContenedor}
+            onCambio={onActualizado}
+            soloLectura={permisos.esSoloLectura}
+          />
+        </span>
         {data.prioridad && (
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-gray-100 text-gray-600">
-            Prioridad {data.prioridad}
-          </span>
+          permisos.esSoloLectura ? (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-gray-100 text-gray-600">
+              Prioridad {data.prioridad}
+            </span>
+          ) : (
+            <button
+              type="button"
+              aria-haspopup="dialog"
+              onClick={() => onEditarFicha?.('prioridad')}
+              className="group inline-flex items-center gap-0.5 text-[10px] font-semibold px-2 py-0.5 rounded bg-gray-100 text-gray-600 cursor-pointer hover:bg-gray-200 outline-none focus-visible:ring-2 focus-visible:ring-guinda-500 focus-visible:ring-offset-1"
+              title="Cambiar prioridad en Editar ficha"
+            >
+              Prioridad {data.prioridad}
+              <ChevronDown size={11} className="text-gray-400 group-hover:text-gray-600 flex-shrink-0" />
+            </button>
+          )
         )}
         {hijos.length > 0 && (
           <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-500">
@@ -114,14 +147,34 @@ export default function EncabezadoDetalle({ nodo, ruta, permisos, onNavegarLinea
         {/* Atajo directo para el caso más común al cerrar un pendiente —
             sin esto, marcar como completada exige abrir "Registrar
             avance" y tocar la casilla ahí. Solo en hojas (el avance de un
-            contenedor no se captura) y solo si falta por completar. */}
-        {onMarcarCompletada && !permisos.esSoloLectura && data.estado !== 'Completada' && (
-          <button
-            onClick={onMarcarCompletada}
-            className="flex-shrink-0 flex items-center gap-1 text-[11px] font-medium text-green-700 hover:text-green-800"
-          >
-            <CheckCircle2 size={12} /> Marcar como completada
-          </button>
+            contenedor no se captura) y solo si falta por completar.
+            Simétrico en el otro sentido: si el nodo YA está Completada
+            (hoja o contenedor — a diferencia de "Marcar como completada",
+            aquí sí aplica a un contenedor, porque es solo un cambio de
+            estado, no una captura de avance), el mismo lugar ofrece
+            "Volver a En proceso" en un clic — mismo hook
+            (useVolverAProceso) que usa FilaAcciones.jsx para el atajo
+            junto a "Agregar X" en un nodo completado, no una
+            implementación nueva. */}
+        {data.estado === 'Completada' ? (
+          !permisos.esSoloLectura && (
+            <button
+              onClick={volverAProceso}
+              disabled={volviendo}
+              className="flex-shrink-0 flex items-center gap-1 text-[11px] font-medium text-guinda-600 hover:text-guinda-800 disabled:opacity-50"
+            >
+              <RotateCcw size={12} /> {volviendo ? 'Volviendo a En proceso…' : 'Volver a En proceso'}
+            </button>
+          )
+        ) : (
+          onMarcarCompletada && !permisos.esSoloLectura && (
+            <button
+              onClick={onMarcarCompletada}
+              className="flex-shrink-0 flex items-center gap-1 text-[11px] font-medium text-green-700 hover:text-green-800"
+            >
+              <CheckCircle2 size={12} /> Marcar como completada
+            </button>
+          )
         )}
       </div>
 
@@ -151,4 +204,6 @@ export default function EncabezadoDetalle({ nodo, ruta, permisos, onNavegarLinea
       </div>
     </div>
   );
-}
+});
+
+export default EncabezadoDetalle;

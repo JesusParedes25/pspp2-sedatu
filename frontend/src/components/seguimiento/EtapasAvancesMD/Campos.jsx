@@ -91,7 +91,7 @@ export function CampoEditable({ label, valor, soloLectura }) {
 // se pinta como una píldora compacta (etiqueta + valor en una línea) en
 // vez de etiqueta arriba + caja abajo. Pensado para la fila de resumen
 // (Estatus · Prioridad) donde varios campos van uno al lado del otro.
-export function CampoSelect({ label, valor, opciones, onChange, soloLectura, formatLabel, useObjects, variante }) {
+export function CampoSelect({ label, valor, opciones, onChange, soloLectura, formatLabel, useObjects, variante, autoFocus }) {
   const displayVal = useObjects
     ? (opciones.find(o => o.value === valor)?.label || valor || '—')
     : (formatLabel ? formatLabel(valor) : valor || '—');
@@ -106,6 +106,7 @@ export function CampoSelect({ label, valor, opciones, onChange, soloLectura, for
           <select
             value={valor}
             onChange={e => onChange(e.target.value)}
+            autoFocus={autoFocus}
             className="text-xs font-medium text-gray-700 bg-transparent border-none outline-none cursor-pointer max-w-[110px]"
           >
             <option value="">—</option>
