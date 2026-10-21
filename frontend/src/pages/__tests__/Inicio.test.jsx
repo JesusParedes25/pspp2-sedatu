@@ -86,17 +86,18 @@ afterEach(() => {
 });
 
 describe('Inicio — bloque 3/1 (tarjetas de acceso: gateo por permiso, datos reales)', () => {
-  it('con permiso de crear proyectos, la tarjeta "Nuevo proyecto" sí se renderiza', async () => {
+  it('con permiso de crear proyectos, el botón "Nuevo proyecto" sí se renderiza, enlazando a /proyectos/nuevo', async () => {
     puedeCrearProyectoMock.mockReturnValue(true);
     renderInicio();
-    expect(await screen.findByText('Da de alta un proyecto y define sus etapas')).toBeInTheDocument();
+    const boton = await screen.findByText('Nuevo proyecto');
+    expect(boton.closest('a')).toHaveAttribute('href', '/proyectos/nuevo');
   });
 
-  it('sin permiso de crear proyectos, la tarjeta "Nuevo proyecto" NO se renderiza en absoluto', async () => {
+  it('sin permiso de crear proyectos, el botón "Nuevo proyecto" NO se renderiza en absoluto', async () => {
     puedeCrearProyectoMock.mockReturnValue(false);
     renderInicio();
     await screen.findByText('Seguimiento de proyectos');
-    expect(screen.queryByText('Da de alta un proyecto y define sus etapas')).not.toBeInTheDocument();
+    expect(screen.queryByText('Nuevo proyecto')).not.toBeInTheDocument();
   });
 
   it('las 4 tarjetas que vienen de GET /inicio/resumen-tarjetas muestran exactamente esos 4 valores', async () => {
@@ -107,7 +108,7 @@ describe('Inicio — bloque 3/1 (tarjetas de acceso: gateo por permiso, datos re
     expect(seguimiento.getByText('12', { selector: 'span' })).toBeInTheDocument();
     expect(seguimiento.getByText(/proyectos que puedes consultar/)).toBeInTheDocument();
 
-    const tablero = within(contenedorDeTarjeta('Tablero'));
+    const tablero = within(contenedorDeTarjeta('Tablero General'));
     expect(tablero.getByText('5', { selector: 'span' })).toBeInTheDocument();
     expect(tablero.getByText(/proyectos que sigues/)).toBeInTheDocument();
 
@@ -184,11 +185,12 @@ describe('Inicio — bloque 2 (color de navegación: nunca verde/amarillo/rojo)'
   });
 });
 
-describe('Inicio — bloque 3 (franja a la Guía de uso, reemplaza la sección desplegable)', () => {
-  it('muestra la franja "¿Primera vez aquí?" enlazando a /guia-de-uso, y ya no la sección "Cómo funciona"', async () => {
+describe('Inicio — bloque 3 (atajo discreto a la Guía de uso, ya no una franja ancha)', () => {
+  it('muestra un link "Guía de uso" enlazando a /guia-de-uso, y ya no la franja ni la sección "Cómo funciona"', async () => {
     renderInicio();
-    const franja = await screen.findByText('¿Primera vez aquí? Conoce cómo funciona el seguimiento');
-    expect(franja.closest('a')).toHaveAttribute('href', '/guia-de-uso');
+    const link = await screen.findByText('Guía de uso');
+    expect(link.closest('a')).toHaveAttribute('href', '/guia-de-uso');
+    expect(screen.queryByText('¿Primera vez aquí? Conoce cómo funciona el seguimiento')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /cómo funciona el seguimiento/i })).not.toBeInTheDocument();
   });
 });

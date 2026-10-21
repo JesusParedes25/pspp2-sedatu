@@ -54,7 +54,7 @@ import {
 // dinámico (depende de si hay pendientes), no fijo.
 const menuItems = [
   { to: '/', icono: Home, etiqueta: 'Inicio', end: true },
-  { to: '/tablero', icono: LayoutDashboard, etiqueta: 'Tablero' },
+  { to: '/tablero', icono: LayoutDashboard, etiqueta: 'Tablero General' },
   {
     id: 'actividades', base: '/mis-actividades', icono: ListChecks, etiqueta: 'Mis actividades',
     children: [
