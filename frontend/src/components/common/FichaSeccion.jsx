@@ -15,6 +15,13 @@
  * PortadaProyecto.jsx) sigue controlando el borde izquierdo y, si no se
  * pasa `color` explícito, el tinte por omisión — así ninguna de las dos
  * pantallas que ya usan este componente cambia de aspecto sin pedirlo.
+ *
+ * `puntos` (opcional): 2-3 frases cortas de qué se puede HACER en esa
+ * sección, en vez de dejar que la descripción sola cargue con eso — una
+ * ronda de seguimiento pidió que cada tarjeta dijera explícitamente qué
+ * acciones hay ahí (Registrar avance, Subir documentos...), no solo una
+ * frase general. Lista compacta (texto chico, interlineado ajustado)
+ * para no disparar la altura de la tarjeta.
  */
 import { Link } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
@@ -24,7 +31,7 @@ const TINTES_ICONO = {
   dorado: 'bg-dorado/10 text-dorado',
 };
 
-export default function FichaSeccion({ to, icono: Icono, titulo, descripcion, contadores, atajos, destacada, color, cargandoContadores }) {
+export default function FichaSeccion({ to, icono: Icono, titulo, descripcion, puntos, contadores, atajos, destacada, color, cargandoContadores }) {
   const tinteIcono = TINTES_ICONO[color] || (destacada ? TINTES_ICONO.guinda : 'bg-gray-50 text-gray-500');
   return (
     <div className={`relative bg-white border rounded-xl p-4 flex flex-col gap-2.5 min-w-0 transition-shadow hover:shadow-md ${
@@ -38,6 +45,16 @@ export default function FichaSeccion({ to, icono: Icono, titulo, descripcion, co
         <h3 className="text-sm font-semibold text-gray-900 min-w-0">{titulo}</h3>
       </div>
       <p className="text-xs text-gray-500 leading-relaxed">{descripcion}</p>
+      {puntos && puntos.length > 0 && (
+        <ul className="text-[11px] text-gray-500 leading-snug space-y-0.5">
+          {puntos.map((punto, i) => (
+            <li key={i} className="flex items-start gap-1.5">
+              <span className="text-gray-300 flex-shrink-0">•</span>
+              <span>{punto}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="text-xs text-gray-400 min-h-[16px]">
         {cargandoContadores ? (
           <span className="inline-flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> Cargando…</span>

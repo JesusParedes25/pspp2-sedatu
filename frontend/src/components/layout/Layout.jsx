@@ -25,6 +25,14 @@
  * mismo `total` ya calculado, expuesto con otro nombre para quien solo
  * quiere leerlo (la tarjeta de Notificaciones en Inicio.jsx) sin pedirlo
  * de nuevo con una segunda instancia de useCentroNotificaciones.
+ *
+ * El mismo criterio aplica a useMisPendientes (GET /agenda): antes vivía
+ * dentro de Sidebar, e Inicio.jsx pedía /agenda otra vez por su cuenta
+ * para la tarjeta "Mis actividades" — dos peticiones a la vez, cada
+ * carga del Inicio. Se pide UNA vez aquí, el badge del sidebar recibe
+ * `pendientesActividades` por prop (igual que `pendientesNotificaciones`)
+ * y la tarjeta de Inicio recibe `misActividadesResumen`/
+ * `cargandoMisActividades` por Outlet context.
  * ─────────────────────────────────────────────────────────────────
  */
 import { Outlet } from 'react-router-dom';
@@ -32,19 +40,21 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import { useUI } from '../../context/UIContext';
 import { useCentroNotificaciones } from '../../hooks/useCentroNotificaciones';
+import { useMisPendientes } from '../../hooks/useMisPendientes';
 import ModalPendientesInicioSesion from '../notificaciones/ModalPendientesInicioSesion';
 
 export default function Layout() {
   const { sidebarAbierto } = useUI();
   const { total, recargar: recargarResumen } = useCentroNotificaciones();
+  const { vencidas, resumen: misActividadesResumen, cargando: cargandoMisActividades } = useMisPendientes();
 
   return (
     <div className="min-h-screen flex" style={{ backgroundColor: '#F5F5F0' }}>
-      <Sidebar pendientesNotificaciones={total} />
+      <Sidebar pendientesNotificaciones={total} pendientesActividades={vencidas} />
       <div className={`flex-1 min-w-0 flex flex-col transition-all duration-300 ${sidebarAbierto ? 'ml-64' : 'ml-16'}`}>
         <Header pendientes={total} />
         <main className="flex-1 min-w-0 p-6 overflow-auto">
-          <Outlet context={{ recargarResumen, notificacionesSinLeer: total }} />
+          <Outlet context={{ recargarResumen, notificacionesSinLeer: total, misActividadesResumen, cargandoMisActividades }} />
         </main>
       </div>
       <ModalPendientesInicioSesion onResuelto={recargarResumen} />

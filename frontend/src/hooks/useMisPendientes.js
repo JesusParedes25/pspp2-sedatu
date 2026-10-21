@@ -1,30 +1,33 @@
 /**
  * ARCHIVO: useMisPendientes.js
- * PROPÓSITO: Hook ligero para el badge de "Mis actividades" en el sidebar —
- *            reutiliza el mismo endpoint /agenda que ya usa la Agenda y la
- *            pestaña Pendientes, solo para contar vencidas.
+ * PROPÓSITO: Una sola llamada a GET /agenda, compartida por el badge de
+ *            "Mis actividades" del sidebar y por la tarjeta "Mis
+ *            actividades" de Inicio.jsx — mismo criterio que
+ *            useCentroNotificaciones (ver Layout.jsx): si cada quien la
+ *            pidiera por su cuenta, dos componentes montados a la vez
+ *            (Sidebar + Inicio) disparaban DOS peticiones a /agenda en
+ *            cada carga del Inicio, y encima con dos cálculos de
+ *            "vencidas" distintos (este hook tenía el suyo, a mano, en
+ *            vez de usar calcularResumenMisActividades). Se pide UNA
+ *            vez aquí (Layout.jsx), y tanto el conteo del badge como el
+ *            de la tarjeta salen del mismo `resumen`.
  */
 import { useState, useEffect, useCallback } from 'react';
 import * as accionesApi from '../api/acciones';
+import { calcularResumenMisActividades } from '../utils/resumenMisActividades';
 
 export function useMisPendientes(intervaloMs = 60000) {
-  const [vencidas, setVencidas] = useState(0);
+  const [resumen, setResumen] = useState(null);
+  const [cargando, setCargando] = useState(true);
 
   const cargar = useCallback(async () => {
     try {
       const res = await accionesApi.obtenerAgenda();
-      const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
-      const items = res.datos || [];
-      const count = items.filter(it => {
-        if (it.estado === 'Completada' || it.estado === 'Cancelada') return false;
-        if (!it.fecha_fin) return false;
-        const [y, m, d] = String(it.fecha_fin).slice(0, 10).split('-').map(Number);
-        if (!y) return false;
-        return new Date(y, m - 1, d) < hoy;
-      }).length;
-      setVencidas(count);
+      setResumen(calcularResumenMisActividades(res.datos || []));
     } catch {
-      setVencidas(0);
+      setResumen(null);
+    } finally {
+      setCargando(false);
     }
   }, []);
 
@@ -34,5 +37,5 @@ export function useMisPendientes(intervaloMs = 60000) {
     return () => clearInterval(intervalo);
   }, [cargar, intervaloMs]);
 
-  return { vencidas, recargar: cargar };
+  return { vencidas: resumen?.vencidas ?? 0, resumen, cargando, recargar: cargar };
 }
