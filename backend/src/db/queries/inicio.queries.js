@@ -362,70 +362,25 @@ async function contarIndicadoresVisibles(proyectoIds) {
 }
 
 /**
- * En cuántos estados hay cobertura geográfica de algún proyecto del
- * alcance del usuario — mismo criterio que obtenerMapaIncidencia
- * (y por tanto que /inicio/mapa, que ya usa MapaTerritorial.jsx),
- * pero reducido a un conteo.
+ * Cuántos proyectos del alcance del usuario entrarían en la lista "Mis
+ * proyectos" del Tablero — MISMO WHERE que obtenerProyectosUsuario de
+ * aquí arriba (deleted_at IS NULL, estado != 'Cancelada'), para que la
+ * tarjeta de Inicio nunca cuente un proyecto Cancelado que
+ * obtenerProyectosUsuario ya excluye (alcanceProyectosUsuario, para
+ * roles sin el bono de DG, no filtra por estado — ver
+ * utils/alcanceProyectos.js). A propósito SIN el LIMIT 50 de esa
+ * función: ese límite es para la grilla de tarjetas, no para el
+ * conteo real de a cuántos proyectos sigue la persona.
  */
-async function contarEstadosConActividad(proyectoIds) {
+async function contarProyectosUsuario(proyectoIds) {
   if (!proyectoIds || proyectoIds.length === 0) return 0;
   const { rows } = await pool.query(
-    `SELECT COUNT(DISTINCT cg.id_estado)::int AS total
-       FROM cobertura_geografica cg
-       JOIN proyectos p ON p.id = cg.id_entidad AND cg.tipo_entidad = 'proyecto'
-      WHERE p.id = ANY($1) AND p.deleted_at IS NULL`,
+    `SELECT COUNT(*)::int AS total
+       FROM proyectos p
+      WHERE p.deleted_at IS NULL AND p.estado != 'Cancelada' AND p.id = ANY($1)`,
     [proyectoIds]
   );
   return rows[0].total;
-}
-
-/**
- * Cuántas etapas/acciones/tareas abiertas tiene asignadas el usuario
- * (como responsable directo o como nodo_miembro aceptado), y cuántas
- * de esas ya están vencidas. A propósito NO reutiliza
- * obtenerAccionesAgenda: esa función carga el árbol COMPLETO de cada
- * proyecto donde el usuario participa (para resolver fechas heredadas
- * fila por fila), que es lo que pide la Agenda pero es más de lo que
- * esta tarjeta necesita — aquí basta un conteo, así que se calcula con
- * tres COUNT con filtro, sin traer una sola fila de más.
- */
-async function obtenerResumenMisActividades(usuarioId) {
-  const { rows } = await pool.query(
-    `WITH mis_nodos AS (
-       SELECT e.id, COALESCE(e.fecha_limite, e.fecha_fin) AS fecha_fin
-         FROM etapas e
-         JOIN proyectos p ON p.id = e.id_proyecto AND p.deleted_at IS NULL AND p.estado != 'Cancelada'
-        WHERE e.estado NOT IN ('Completada', 'Cancelada')
-          AND (e.id_responsable = $1 OR EXISTS (
-                SELECT 1 FROM nodo_miembros nm
-                 WHERE nm.tipo_nodo = 'etapa' AND nm.id_nodo = e.id AND nm.id_usuario = $1 AND nm.estado = 'aceptada'
-              ))
-       UNION ALL
-       SELECT a.id, COALESCE(a.fecha_limite, a.fecha_fin) AS fecha_fin
-         FROM acciones a
-         JOIN proyectos p ON p.id = a.id_proyecto AND p.deleted_at IS NULL AND p.estado != 'Cancelada'
-        WHERE a.estado NOT IN ('Completada', 'Cancelada')
-          AND (a.id_responsable = $1 OR EXISTS (
-                SELECT 1 FROM nodo_miembros nm
-                 WHERE nm.tipo_nodo = 'accion' AND nm.id_nodo = a.id AND nm.id_usuario = $1 AND nm.estado = 'aceptada'
-              ))
-       UNION ALL
-       SELECT t.id, t.fecha_limite AS fecha_fin
-         FROM tareas t
-         JOIN acciones a2 ON a2.id = t.id_accion
-         JOIN proyectos p ON p.id = a2.id_proyecto AND p.deleted_at IS NULL AND p.estado != 'Cancelada'
-        WHERE t.estado NOT IN ('Completada', 'Cancelada')
-          AND (t.id_responsable = $1 OR EXISTS (
-                SELECT 1 FROM nodo_miembros nm
-                 WHERE nm.tipo_nodo = 'tarea' AND nm.id_nodo = t.id AND nm.id_usuario = $1 AND nm.estado = 'aceptada'
-              ))
-     )
-     SELECT COUNT(*)::int AS total,
-            COUNT(*) FILTER (WHERE fecha_fin IS NOT NULL AND fecha_fin < NOW())::int AS vencidas
-       FROM mis_nodos`,
-    [usuarioId]
-  );
-  return rows[0];
 }
 
 module.exports = {
@@ -438,7 +393,6 @@ module.exports = {
   obtenerActividadReciente,
   obtenerEstatusCualitativo,
   contarProyectosVisibles,
+  contarProyectosUsuario,
   contarIndicadoresVisibles,
-  contarEstadosConActividad,
-  obtenerResumenMisActividades
 };

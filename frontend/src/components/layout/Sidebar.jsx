@@ -40,7 +40,7 @@ import {
   Home, LayoutDashboard, FolderKanban, Bell, PlusCircle, ChevronLeft, ChevronRight,
   ChevronDown, LogOut, FileText, Map, Shield, ListChecks, ListTodo, CalendarDays,
   List, Briefcase, Inbox, History, Users, Building2, Landmark, BarChart3, KeyRound,
-  Trash2, Settings,
+  Trash2, Settings, BookOpen,
 } from 'lucide-react';
 
 // Definición de items del menú principal.
@@ -289,6 +289,27 @@ export default function Sidebar({ pendientesNotificaciones = 0 }) {
           );
         })}
       </nav>
+
+      {/* "Guía de uso" — bloque 3.2 de "PSPP v2.0 · Inicio, color y la
+          guía de uso": separada de las secciones de trabajo de arriba
+          (su propio borde, su propia franja), para que se encuentre
+          siempre en el mismo lugar en vez de perderse entre Tablero,
+          Proyectos, etc. */}
+      <div className="border-t border-guinda-600 px-2 py-2">
+        <NavLink
+          to="/guia-de-uso"
+          className={({ isActive }) =>
+            `flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${
+              isActive
+                ? 'bg-white/15 text-white border-l-2 border-white'
+                : 'text-white/70 hover:bg-white/10 hover:text-white'
+            }`
+          }
+        >
+          <BookOpen size={20} className="flex-shrink-0" />
+          {sidebarAbierto && <span className="ml-3">Guía de uso</span>}
+        </NavLink>
+      </div>
 
       {/* Info del usuario y logout */}
       <div className="border-t border-guinda-600 p-3">

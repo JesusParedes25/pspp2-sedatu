@@ -37,6 +37,7 @@ import Indicadores from '../pages/Indicadores';
 import DetalleIndicador from '../pages/indicadores/DetalleIndicador';
 import DetalleCatalogo from '../pages/indicadores/DetalleCatalogo';
 import AdminCatalogos from '../pages/AdminCatalogos';
+import GuiaDeUso from '../pages/GuiaDeUso';
 import ActivarCuenta from '../pages/ActivarCuenta';
 import NotFound from '../pages/NotFound';
 
@@ -69,6 +70,7 @@ export default function AppRouter() {
         <Route path="evidencias" element={<Evidencias />} />
         <Route path="notificaciones" element={<Notificaciones />} />
         <Route path="admin/catalogos" element={<AdminCatalogos />} />
+        <Route path="guia-de-uso" element={<GuiaDeUso />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
