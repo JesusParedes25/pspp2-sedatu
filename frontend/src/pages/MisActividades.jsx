@@ -37,15 +37,8 @@ import ArbolActividadesProyecto from '../components/nodos/ArbolActividadesProyec
 import AvisoPartesDelegadas from '../components/common/AvisoPartesDelegadas';
 import EmptyState from '../components/common/EmptyState';
 import { formatearEstado } from '../utils/estados';
-import { DIAS_POR_VENCER } from '../components/common/SemaforoDot';
 import Agenda from './Agenda';
-
-const PERIODOS = [
-  { id: 'semana', label: 'Semana', dias: 7 },
-  { id: 'mes', label: 'Mes', dias: 30 },
-  { id: 'trimestre', label: 'Trimestre', dias: 90 },
-  { id: 'anio', label: 'Año', dias: 365 },
-];
+import { PERIODOS, diasRestantes, disponiblesPorPeriodo, categoriasAlerta } from '../utils/resumenMisActividades';
 
 // Grupo "Por estado": partición exacta de `estado` — cada actividad cae
 // en EXACTAMENTE una de estas 5 categorías (igualdad directa, nunca un
@@ -73,25 +66,6 @@ const CATEGORIAS_ALERTA = [
   // nada lo notara.
   { id: 'proximas', lbl: 'Por vencer', I: Clock, iconCls: 'text-amber-400', activoCls: 'bg-amber-500 text-white' },
 ];
-
-function diasRestantes(fecha) {
-  if (!fecha) return null;
-  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
-  const [y, m, d] = String(fecha).slice(0, 10).split('-').map(Number);
-  if (!y) return null;
-  return Math.ceil((new Date(y, m - 1, d) - hoy) / 86400000);
-}
-
-// A qué categorías de ALERTA pertenece un ítem (puede ser varias a la
-// vez, o ninguna) — eje de urgencia por fecha, nunca de estado.
-function categoriasAlerta(it) {
-  const cats = new Set();
-  const activo = it.estado !== 'Completada' && it.estado !== 'Cancelada';
-  const d = diasRestantes(it.fecha_fin);
-  if (activo && d !== null && d < 0) cats.add('vencidas');
-  if (activo && d !== null && d >= 0 && d <= DIAS_POR_VENCER) cats.add('proximas');
-  return cats;
-}
 
 // Grupo "Por estado": partición exacta — recorre la lista una vez y cada
 // ítem incrementa EXACTAMENTE un contador (ESTADO_A_CATEGORIA cubre los
@@ -163,13 +137,7 @@ export default function MisActividades() {
   // conteos se calculaban sobre `disponibles` sin recortar, y la lista
   // sí lo recortaba — una tarjeta podía marcar "30" con la lista
   // mostrando 3, o vacía).
-  const disponiblesPeriodo = useMemo(() => {
-    const dias = PERIODOS.find(p => p.id === periodo)?.dias ?? 30;
-    return items.filter(it => {
-      const d = diasRestantes(it.fecha_fin);
-      return d === null || d < 0 || d <= dias;
-    });
-  }, [items, periodo]);
+  const disponiblesPeriodo = useMemo(() => disponiblesPorPeriodo(items, periodo), [items, periodo]);
 
   // Filtro de estado/alerta. Sin selección ("Todas") = comportamiento de
   // siempre: oculta Completadas y Canceladas (ninguna de las dos necesita

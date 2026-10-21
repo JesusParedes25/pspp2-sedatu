@@ -3,6 +3,7 @@
  * PROPÓSITO: Endpoint GET /inicio — dashboard personalizado del usuario.
  */
 const inicioQueries = require('../db/queries/inicio.queries');
+const geografiaQueries = require('../db/queries/geografia.queries');
 const pool = require('../db/pool');
 const { alcanceProyectosUsuario, resolverProyectoIdsFiltro } = require('../utils/alcanceProyectos');
 
@@ -118,29 +119,40 @@ async function obtenerCarterasFiltro(req, res, next) {
 
 // GET /inicio/resumen-tarjetas — los conteos que necesita la pantalla
 // de Inicio (el concentrador, distinto del Tablero) para sus tarjetas
-// de acceso. Son puros COUNT, nunca las listas completas que ya sirve
-// GET /inicio — así la pantalla de aterrizaje de toda la plataforma
-// carga rápido incluso para un ejecutivo con decenas de proyectos.
+// de acceso. Son puros COUNT (o el conteo de filas de la MISMA consulta
+// que ya alimenta la pantalla destino de cada tarjeta — nunca una
+// consulta nueva que recalcule "lo mismo" con otro criterio: así fue
+// como una ronda anterior terminó con cifras que no coincidían con sus
+// pantallas, ver "PSPP v2.0 · Inicio, color y la guía de uso", bloque 1).
+// "Mis actividades" NO vive aquí: su cifra depende de la ventana de
+// periodo (igual que MisActividades.jsx) y se calcula en el frontend,
+// sobre los mismos datos de GET /agenda, con
+// utils/resumenMisActividades.js — ver Inicio.jsx.
 async function obtenerResumenTarjetas(req, res, next) {
   try {
     const usuario = req.usuario;
     const proyectoIds = await alcanceProyectosUsuario(usuario);
 
-    const [proyectosVisibles, indicadoresVisibles, estadosConActividad, misActividades] = await Promise.all([
+    const [proyectosVisibles, proyectosSigue, indicadoresVisibles, estadosConActividad] = await Promise.all([
       inicioQueries.contarProyectosVisibles(),
+      inicioQueries.contarProyectosUsuario(proyectoIds),
       inicioQueries.contarIndicadoresVisibles(proyectoIds),
-      inicioQueries.contarEstadosConActividad(proyectoIds),
-      inicioQueries.obtenerResumenMisActividades(usuario.id),
+      // Mismo cálculo que /inicio/mapa (MapaTerritorial.jsx): cve_ent
+      // directo en etapas/acciones + etapa_municipios/accion_municipios,
+      // NO la tabla cobertura_geografica (que una ronda anterior usaba
+      // por error — nunca estuvo poblada con lo mismo, por eso la
+      // tarjeta decía "0" con el mapa mostrando "4"). Se llama la MISMA
+      // función en vez de reescribir su CTE: una fila por estado con
+      // actividad, así que el conteo es su .length.
+      geografiaQueries.obtenerMapaIncidenciaGeo(proyectoIds),
     ]);
 
     res.json({
       datos: {
         proyectos_visibles: proyectosVisibles,
-        proyectos_sigue: proyectoIds.length,
+        proyectos_sigue: proyectosSigue,
         indicadores_visibles: indicadoresVisibles,
-        estados_con_actividad: estadosConActividad,
-        mis_actividades_total: misActividades.total,
-        mis_actividades_vencidas: misActividades.vencidas,
+        estados_con_actividad: estadosConActividad.length,
       }
     });
   } catch (err) {
