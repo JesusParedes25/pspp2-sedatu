@@ -22,10 +22,15 @@
  *     Indicadores y Territorio respectivamente.
  *   - "Mis actividades" NO viene de ese endpoint: su cifra depende de la
  *     ventana de periodo (igual que MisActividades.jsx, que abre en
- *     "Mes" por omisión), así que se calcula aquí mismo, en el frontend,
- *     sobre los MISMOS datos que trae GET /agenda, con la MISMA función
- *     pura (utils/resumenMisActividades.js) que usa esa pantalla — ver
- *     ese archivo para el porqué de la extracción.
+ *     "Mes" por omisión), así que se calcula sobre los MISMOS datos que
+ *     trae GET /agenda, con la MISMA función pura
+ *     (utils/resumenMisActividades.js) que usa esa pantalla. La petición
+ *     a /agenda y el cálculo viven en Layout.jsx (useMisPendientes),
+ *     NO aquí: el badge de "Mis actividades" del sidebar necesita lo
+ *     mismo, y pedirlo por separado en cada componente duplicaba la
+ *     llamada a /agenda cada vez que se cargaba el Inicio. Esta pantalla
+ *     solo LEE `misActividadesResumen` del Outlet context — mismo patrón
+ *     que `notificacionesSinLeer` un poco más abajo.
  *   - "Notificaciones" tampoco viene de ese endpoint: usa el mismo
  *     `total` combinado (no leídas + invitaciones + solicitudes +
  *     asignaciones de riesgo) que ya expone la campanita del Header/
@@ -48,19 +53,19 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { usePermisosGlobales } from '../hooks/usePermisos';
 import { obtenerResumenTarjetasInicio } from '../api/inicio';
-import { obtenerAgenda } from '../api/acciones';
-import { calcularResumenMisActividades } from '../utils/resumenMisActividades';
 import FichaSeccion from '../components/common/FichaSeccion';
 
 export default function Inicio() {
   const { usuario } = useAuth();
   const { puedeCrearProyecto } = usePermisosGlobales();
-  const { notificacionesSinLeer = 0 } = useOutletContext() || {};
+  const {
+    notificacionesSinLeer = 0,
+    misActividadesResumen: resumenActividades = null,
+    cargandoMisActividades: cargandoActividades = true,
+  } = useOutletContext() || {};
 
   const [tarjetas, setTarjetas] = useState(null);
   const [cargandoTarjetas, setCargandoTarjetas] = useState(true);
-  const [resumenActividades, setResumenActividades] = useState(null);
-  const [cargandoActividades, setCargandoActividades] = useState(true);
 
   useEffect(() => {
     let vigente = true;
@@ -68,15 +73,6 @@ export default function Inicio() {
       .then(datos => { if (vigente) setTarjetas(datos); })
       .catch(() => { if (vigente) setTarjetas(null); })
       .finally(() => { if (vigente) setCargandoTarjetas(false); });
-    return () => { vigente = false; };
-  }, []);
-
-  useEffect(() => {
-    let vigente = true;
-    obtenerAgenda()
-      .then(items => { if (vigente) setResumenActividades(calcularResumenMisActividades(items)); })
-      .catch(() => { if (vigente) setResumenActividades(null); })
-      .finally(() => { if (vigente) setCargandoActividades(false); });
     return () => { vigente = false; };
   }, []);
 
@@ -106,7 +102,8 @@ export default function Inicio() {
             icono={FolderKanban}
             color="guinda"
             titulo="Seguimiento de proyectos"
-            descripcion="Consulta y actualiza los proyectos de la Secretaría."
+            descripcion="Actualiza el avance de tus proyectos."
+            puntos={['Registrar avance', 'Subir documentos', 'Vincular actividades a un territorio']}
             cargandoContadores={cargandoTarjetas}
             contadores={tarjetas && <Cifra n={tarjetas.proyectos_visibles} unidad={tarjetas.proyectos_visibles === 1 ? 'proyecto' : 'proyectos'} resto="que puedes consultar" />}
           />
@@ -115,7 +112,8 @@ export default function Inicio() {
             icono={ListChecks}
             color="guinda"
             titulo="Mis actividades"
-            descripcion="Lo que te toca a ti: etapas, acciones y tareas asignadas."
+            descripcion="Lo que tienes pendiente, con fecha y semáforo."
+            puntos={['Marcar tu avance', 'Ver qué vence pronto', 'Filtrar por estado']}
             cargandoContadores={cargandoActividades}
             contadores={resumenActividades && (
               <>
@@ -131,7 +129,8 @@ export default function Inicio() {
             icono={LayoutDashboard}
             color="dorado"
             titulo="Tablero"
-            descripcion="El avance de tus proyectos, su territorio y sus indicadores."
+            descripcion="El avance de tus proyectos, de un vistazo."
+            puntos={['Ver tu avance general', 'Revisar riesgos abiertos', 'Ver tus indicadores']}
             cargandoContadores={cargandoTarjetas}
             contadores={tarjetas && <Cifra n={tarjetas.proyectos_sigue} unidad={tarjetas.proyectos_sigue === 1 ? 'proyecto' : 'proyectos'} resto="que sigues" />}
           />
@@ -140,7 +139,8 @@ export default function Inicio() {
             icono={BarChart3}
             color="dorado"
             titulo="Indicadores"
-            descripcion="Mide resultados con cifras comparables entre proyectos."
+            descripcion="Mide los resultados de tus proyectos."
+            puntos={['Capturar metas', 'Registrar resultados', 'Comparar entre tus proyectos']}
             cargandoContadores={cargandoTarjetas}
             contadores={tarjetas && <Cifra n={tarjetas.indicadores_visibles} unidad={tarjetas.indicadores_visibles === 1 ? 'indicador' : 'indicadores'} />}
           />
@@ -149,7 +149,8 @@ export default function Inicio() {
             icono={MapIcon}
             color="dorado"
             titulo="Territorio"
-            descripcion="Ubica en el mapa dónde está ocurriendo cada proyecto."
+            descripcion="Ubica en el mapa dónde están tus proyectos."
+            puntos={['Ver cobertura por estado', 'Filtrar por proyecto', 'Ver avance en el mapa']}
             cargandoContadores={cargandoTarjetas}
             contadores={tarjetas && <Cifra n={tarjetas.estados_con_actividad} unidad={tarjetas.estados_con_actividad === 1 ? 'estado con actividad' : 'estados con actividad'} />}
           />
@@ -159,6 +160,7 @@ export default function Inicio() {
             color="guinda"
             titulo="Notificaciones"
             descripcion="Avisos, solicitudes y cambios en lo que sigues."
+            puntos={['Responder invitaciones', 'Ver solicitudes pendientes', 'Revisar avisos']}
             cargandoContadores={false}
             contadores={<Cifra n={notificacionesSinLeer} unidad={notificacionesSinLeer === 1 ? 'pendiente' : 'pendientes'} />}
           />

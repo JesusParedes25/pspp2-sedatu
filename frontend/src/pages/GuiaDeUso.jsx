@@ -50,26 +50,30 @@ function Parte({ numero, titulo, icono: Icono, children }) {
 
 export default function GuiaDeUso() {
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Guía de uso</h1>
         <p className="text-sm text-gray-500 mt-0.5">Cómo se organiza el trabajo, quién puede hacer qué, y qué puedes hacer en cada actividad.</p>
       </div>
 
+      {/* Texto arriba, diagrama abajo, a lo ANCHO COMPLETO de la sección
+          — no en una columna lateral de 340px. Esa columna era más
+          angosta que el propio diagrama (576-800px), así que el SVG
+          (ancho fijo, nunca se encoge — ver DiagramaJerarquia.jsx)
+          quedaba recortado con scroll horizontal dentro de ese espacio
+          estrecho, incluso en pantallas donde sobraba ancho de sección. */}
       <Parte numero={1} titulo="Cómo se organiza el trabajo" icono={GitBranch}>
-        <div className="flex flex-col lg:flex-row gap-x-8 gap-y-6">
-          <ol className="lg:flex-1 min-w-0 space-y-3 text-sm text-gray-700 leading-relaxed list-decimal list-inside">
-            <li>Cada proyecto se divide en etapas, cada etapa en acciones, y cada acción en tareas.</li>
-            <li>Registras el avance en lo más pequeño que tengas asignado. El avance sube solo hasta el proyecto: no hay que actualizarlo en cada nivel.</li>
-            <li>Cada actividad tiene un estado que tú declaras: sin iniciar, en proceso, bloqueada, completada o cancelada.</li>
-            <li>Y un semáforo que la plataforma calcula sola a partir de la fecha límite: en tiempo, por vencer, vencida, o sin urgencia cuando falta capturar la fecha.</li>
-            <li>En Mis actividades ves únicamente lo que te toca a ti. En Seguimiento de proyectos ves todo lo de la Secretaría, aunque solo puedas editar aquello en lo que participas.</li>
-            <li>Puedes delegar una etapa, una acción o una tarea en otra persona. Lo que delegues aparece en las actividades de quien lo recibe.</li>
-          </ol>
-          <div className="lg:w-[340px] lg:flex-shrink-0">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Ejemplo: PTO de Manzanillo</p>
-            <DiagramaJerarquia />
-          </div>
+        <ol className="max-w-2xl space-y-3 text-sm text-gray-700 leading-relaxed list-decimal list-inside">
+          <li>Cada proyecto se divide en etapas, cada etapa en acciones, y cada acción en tareas.</li>
+          <li>Registras el avance en lo más pequeño que tengas asignado. El avance sube solo hasta el proyecto: no hay que actualizarlo en cada nivel.</li>
+          <li>Cada actividad tiene un estado que tú declaras: sin iniciar, en proceso, bloqueada, completada o cancelada.</li>
+          <li>Y un semáforo que la plataforma calcula sola a partir de la fecha límite: en tiempo, por vencer, vencida, o sin urgencia cuando falta capturar la fecha.</li>
+          <li>En Mis actividades ves únicamente lo que te toca a ti. En Seguimiento de proyectos ves todo lo de la Secretaría, aunque solo puedas editar aquello en lo que participas.</li>
+          <li>Puedes delegar una etapa, una acción o una tarea en otra persona. Lo que delegues aparece en las actividades de quien lo recibe.</li>
+        </ol>
+        <div className="mt-6">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Ejemplo: PTO de Manzanillo</p>
+          <DiagramaJerarquia />
         </div>
         <div className="mt-5 pt-4 border-t border-gray-100">
           <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">El semáforo</p>
@@ -78,14 +82,12 @@ export default function GuiaDeUso() {
       </Parte>
 
       <Parte numero={2} titulo="Quién puede hacer qué" icono={ShieldCheck}>
-        <div className="flex flex-col lg:flex-row gap-x-8 gap-y-6">
-          <div className="lg:flex-1 min-w-0">
-            <TextoVisibilidadAcceso />
-          </div>
-          <div className="lg:w-[340px] lg:flex-shrink-0">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">La herencia de permisos</p>
-            <DiagramaHerenciaPermisos />
-          </div>
+        <div className="max-w-2xl">
+          <TextoVisibilidadAcceso />
+        </div>
+        <div className="mt-6">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">La herencia de permisos</p>
+          <DiagramaHerenciaPermisos />
         </div>
       </Parte>
 

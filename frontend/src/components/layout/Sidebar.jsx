@@ -34,7 +34,6 @@ import { useState, useEffect } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
 import { useUI } from '../../context/UIContext';
 import { useAuth } from '../../context/AuthContext';
-import { useMisPendientes } from '../../hooks/useMisPendientes';
 import { usePermisosGlobales } from '../../hooks/usePermisos';
 import {
   Home, LayoutDashboard, FolderKanban, Bell, PlusCircle, ChevronLeft, ChevronRight,
@@ -135,14 +134,13 @@ function childActivo(child, pathname, searchParams, base) {
   return pathname === base && !!child.default;
 }
 
-export default function Sidebar({ pendientesNotificaciones = 0 }) {
+export default function Sidebar({ pendientesNotificaciones = 0, pendientesActividades = 0 }) {
   const { sidebarAbierto, toggleSidebar } = useUI();
   const { usuario, logout } = useAuth();
   const { puedeCrearProyecto } = usePermisosGlobales();
-  const { vencidas } = useMisPendientes();
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
-  const BADGES = { actividades: vencidas, notificaciones: pendientesNotificaciones };
+  const BADGES = { actividades: pendientesActividades, notificaciones: pendientesNotificaciones };
 
   const itemsVisibles = menuItems
     .filter(item => {

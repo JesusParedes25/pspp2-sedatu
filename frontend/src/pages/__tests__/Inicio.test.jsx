@@ -6,13 +6,15 @@
  *
  *   - Bloque 1: CADA tarjeta muestra el dato que trae su propia fuente —
  *     las 4 de GET /inicio/resumen-tarjetas tal cual, "Mis actividades"
- *     calculado aquí sobre GET /agenda con la misma función pura que usa
- *     MisActividades.jsx (resumenMisActividades.js), y "Notificaciones"
- *     desde el Outlet context (la misma cifra combinada de la campanita).
- *     Es justo el punto que falló la ronda anterior (7/5 en la tarjeta,
- *     25/22 en la pantalla; "0" contra "4" en Territorio) — estas pruebas
- *     fijan que el dato de la tarjeta es el que devuelve su fuente, sin
- *     reinventar un cálculo nuevo.
+ *     y "Notificaciones" desde el Outlet context (ver Layout.jsx:
+ *     useMisPendientes/useCentroNotificaciones se piden UNA vez ahí y se
+ *     comparten, en vez de que Inicio.jsx pida /agenda por su cuenta —
+ *     antes duplicaba la llamada que ya hacía el sidebar Y, al no
+ *     desenvolver bien la respuesta, dejaba la tarjeta en blanco; ver
+ *     useMisPendientes.test.js para la prueba de esa forma real de
+ *     respuesta). Incluye una prueba explícita de que el número SÍ se
+ *     pinta (no solo que la fuente es la correcta) — es justo lo que se
+ *     rompió y ninguna prueba anterior lo atrapaba.
  *   - Bloque 2: gateo de "Nuevo proyecto" por permiso; sin borde/color
  *     reservado (verde/amarillo/rojo) en ninguna tarjeta de navegación.
  *   - Bloque 3: la franja a la Guía de uso reemplaza la sección
@@ -34,11 +36,13 @@ vi.mock('../../hooks/usePermisos', () => ({
   usePermisosGlobales: () => ({ puedeCrearProyecto: puedeCrearProyectoMock() }),
 }));
 
-// Deliberadamente distinto del total de "Mis actividades" (4, ver
-// ITEMS_AGENDA) para que las aserciones por número no choquen entre sí.
+// El Outlet context es la ÚNICA fuente de "Mis actividades" y
+// "Notificaciones" para esta pantalla (ver Layout.jsx) — se mockea
+// directo, sin pasar por accionesApi.obtenerAgenda, que ya no vive aquí.
+let outletContextMock;
 vi.mock('react-router-dom', async (importOriginal) => {
   const real = await importOriginal();
-  return { ...real, useOutletContext: () => ({ notificacionesSinLeer: 6 }) };
+  return { ...real, useOutletContext: () => outletContextMock };
 });
 
 const RESUMEN = {
@@ -50,26 +54,6 @@ const RESUMEN = {
 const obtenerResumenTarjetasInicioMock = vi.fn();
 vi.mock('../../api/inicio', () => ({
   obtenerResumenTarjetasInicio: (...args) => obtenerResumenTarjetasInicioMock(...args),
-}));
-
-// Dos pendientes (fecha_fin dentro del mes, sin completar) + una vencida
-// (fecha_fin ya pasada) + una completada (cuenta en el total, no en
-// vencidas) — calcularResumenMisActividades(items) con el periodo por
-// omisión ('mes') debe dar total=4, vencidas=1.
-function fechaOffset(dias) {
-  const d = new Date();
-  d.setDate(d.getDate() + dias);
-  return d.toISOString().slice(0, 10);
-}
-const ITEMS_AGENDA = [
-  { id: 'a1', estado: 'Pendiente', fecha_fin: fechaOffset(5) },
-  { id: 'a2', estado: 'En_proceso', fecha_fin: fechaOffset(10) },
-  { id: 'a3', estado: 'Pendiente', fecha_fin: fechaOffset(-3) },
-  { id: 'a4', estado: 'Completada', fecha_fin: fechaOffset(-1) },
-];
-const obtenerAgendaMock = vi.fn();
-vi.mock('../../api/acciones', () => ({
-  obtenerAgenda: (...args) => obtenerAgendaMock(...args),
 }));
 
 function renderInicio() {
@@ -86,8 +70,14 @@ function contenedorDeTarjeta(tituloExacto) {
 
 beforeEach(() => {
   obtenerResumenTarjetasInicioMock.mockResolvedValue(RESUMEN);
-  obtenerAgendaMock.mockResolvedValue(ITEMS_AGENDA);
   puedeCrearProyectoMock.mockReturnValue(true);
+  // Deliberadamente distinto del total de "Mis actividades" (4) para que
+  // las aserciones por número no choquen entre sí.
+  outletContextMock = {
+    notificacionesSinLeer: 6,
+    misActividadesResumen: { total: 4, vencidas: 1, proximas: 0 },
+    cargandoMisActividades: false,
+  };
 });
 
 afterEach(() => {
@@ -130,28 +120,53 @@ describe('Inicio — bloque 3/1 (tarjetas de acceso: gateo por permiso, datos re
     expect(territorio.getByText(/estados con actividad/)).toBeInTheDocument();
   });
 
-  it('"Mis actividades" sale de GET /agenda calculado con la misma función que usa esa pantalla, no de resumen-tarjetas', async () => {
+  it('"Mis actividades" pinta el número que trae el Outlet context (misma fuente que el badge del sidebar)', async () => {
     renderInicio();
     await screen.findByText('Seguimiento de proyectos');
-    expect(obtenerAgendaMock).toHaveBeenCalled();
-    // calcularResumenMisActividades(ITEMS_AGENDA) con periodo 'mes': las 4
-    // caen dentro de la ventana (2 pendientes en el futuro, 1 vencida, 1
-    // completada ya vencida pero completada) -> total=4; vencidas: solo
-    // a3 (Pendiente y fecha pasada) -> 1 ("Completada" no cuenta como
-    // vencida aunque su fecha ya pasó).
     const actividades = within(contenedorDeTarjeta('Mis actividades'));
     expect(actividades.getByText('4', { selector: 'span' })).toBeInTheDocument();
     expect(actividades.getByText(/actividades a tu cargo/)).toBeInTheDocument();
     expect(actividades.getByText(/1 vencida/)).toBeInTheDocument();
   });
 
+  // Regresión directa del bug reportado: la tarjeta se quedaba en blanco
+  // (sin número, sin "Cargando…", nada) porque el cálculo tronaba antes
+  // de llegar aquí y el estado se quedaba en null silenciosamente. Esta
+  // prueba falla si "Mis actividades" no pinta NINGÚN texto de datos —
+  // a diferencia de la prueba de arriba, que solo compara el número
+  // correcto, esta comprueba que haya ALGO (dato real o "Cargando…")
+  // donde antes había un div vacío.
+  it('"Mis actividades" nunca se queda sin ningún contenido en su línea de datos — ni en blanco mientras carga, ni en blanco con dato ya resuelto', async () => {
+    // Caso 1: todavía cargando — debe mostrar el indicador de carga, no un div vacío.
+    outletContextMock = { ...outletContextMock, misActividadesResumen: null, cargandoMisActividades: true };
+    const { unmount } = renderInicio();
+    await screen.findByText('Seguimiento de proyectos');
+    const actividadesCargando = within(contenedorDeTarjeta('Mis actividades'));
+    expect(actividadesCargando.getByText(/Cargando/)).toBeInTheDocument();
+    unmount();
+
+    // Caso 2: ya resuelto — debe mostrar el número, no quedarse vacío.
+    outletContextMock = { ...outletContextMock, misActividadesResumen: { total: 4, vencidas: 1, proximas: 0 }, cargandoMisActividades: false };
+    renderInicio();
+    await screen.findByText('Seguimiento de proyectos');
+    const actividadesListo = within(contenedorDeTarjeta('Mis actividades'));
+    const lineaDatos = actividadesListo.getByText(/actividades a tu cargo/).closest('div');
+    expect(lineaDatos.textContent.trim()).not.toBe('');
+    expect(lineaDatos.textContent).toMatch(/\d/);
+  });
+
   it('"Notificaciones" sale del Outlet context (misma cifra que la campanita), rotulada "pendientes" y no "sin leer"', async () => {
     renderInicio();
     await screen.findByText('Seguimiento de proyectos');
     const notificaciones = within(contenedorDeTarjeta('Notificaciones'));
-    expect(notificaciones.getByText('6', { selector: 'span' })).toBeInTheDocument();
-    expect(notificaciones.getByText(/pendientes/)).toBeInTheDocument();
-    expect(notificaciones.queryByText(/sin leer/)).not.toBeInTheDocument();
+    const numero = notificaciones.getByText('6', { selector: 'span' });
+    expect(numero).toBeInTheDocument();
+    // "pendientes" también aparece en uno de los puntos de la tarjeta
+    // ("Ver solicitudes pendientes") — se acota a la línea de datos (el
+    // contenedor directo del número) para no chocar con esa coincidencia.
+    const lineaDatos = numero.closest('div');
+    expect(lineaDatos.textContent).toMatch(/pendientes/);
+    expect(lineaDatos.textContent).not.toMatch(/sin leer/);
   });
 });
 

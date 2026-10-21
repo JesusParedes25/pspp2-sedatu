@@ -31,6 +31,7 @@ const nombresRutas = {
   'indicadores': 'Indicadores',
   'admin': 'Administración',
   'catalogos': 'Catálogos',
+  'guia-de-uso': 'Guía de uso',
 };
 
 export default function Header({ pendientes = 0 }) {
