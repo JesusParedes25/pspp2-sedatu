@@ -1,10 +1,11 @@
 /**
  * ARCHIVO: Inicio.jsx
  * PROPÓSITO: Concentrador de navegación — la ruta raíz ("/"), lo primero
- *            que ve cualquiera al iniciar sesión. Saludo + tarjetas de
- *            acceso a cada sección + una franja a la Guía de uso. NO es el
- *            dashboard de datos personalizado (eso es Tablero.jsx, en
- *            /tablero) — Inicio es orientación, Tablero es información.
+ *            que ve cualquiera al iniciar sesión. Saludo + acción de
+ *            crear proyecto + tarjetas de acceso a cada sección + un
+ *            atajo discreto a la Guía de uso. NO es el dashboard de
+ *            datos personalizado (eso es Tablero.jsx, en /tablero) —
+ *            Inicio es orientación, Tablero es información.
  *
  * MINI-CLASE: "reusar la fuente", no reescribirla
  * ─────────────────────────────────────────────────────────────────
@@ -18,8 +19,8 @@
  *   - proyectos_visibles/proyectos_sigue/indicadores_visibles/
  *     estados_con_actividad vienen de GET /inicio/resumen-tarjetas, cuyas
  *     4 consultas (inicio.controller.js) son la MISMA consulta (o un
- *     COUNT de ella) que ya usan Seguimiento de proyectos, Tablero,
- *     Indicadores y Territorio respectivamente.
+ *     COUNT de ella) que ya usan Seguimiento de proyectos, Tablero
+ *     General, Indicadores y Territorio respectivamente.
  *   - "Mis actividades" NO viene de ese endpoint: su cifra depende de la
  *     ventana de periodo (igual que MisActividades.jsx, que abre en
  *     "Mes" por omisión), así que se calcula sobre los MISMOS datos que
@@ -42,13 +43,25 @@
  *     (otro hook, otro endpoint), y llamarle igual a dos números
  *     distintos es el mismo problema de fondo que el bloque 1 vino a
  *     corregir en los otros cinco.
+ *
+ * MINI-CLASE: equilibrio visual — una acción arriba, un atajo abajo
+ * ─────────────────────────────────────────────────────────────────
+ * Antes "Da de alta un proyecto" y "Guía de uso" eran dos franjas
+ * punteadas del mismo tamaño, una debajo de otra, al fondo de la
+ * pantalla — se leían como dos tarjetas más, pesadas y redundantes
+ * entre sí. Ahora cada una vive donde la convención del resto de la
+ * plataforma ya la pone: "Nuevo proyecto" es un btn-primary en la
+ * esquina superior derecha, igual que en ListadoProyectos.jsx; "Guía de
+ * uso" es un link chico en la esquina inferior derecha, eco del mismo
+ * rótulo que ya vive al pie de la barra lateral — no necesita repetir
+ * la explicación completa, solo ser reconocible.
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import {
   FolderKanban, ListChecks, LayoutDashboard, BarChart3, Map as MapIcon, Bell,
-  PlusCircle, BookOpen,
+  Plus, BookOpen,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { usePermisosGlobales } from '../hooks/usePermisos';
@@ -79,121 +92,112 @@ export default function Inicio() {
   const plural = (n, singular, pluralTxt) => `${n} ${n === 1 ? singular : pluralTxt}`;
 
   return (
-    <div className="space-y-8">
-      {/* ═══ BIENVENIDA ═══ */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">
-          Buen día, {usuario?.nombre_completo?.split(' ')[0]}
-        </h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          {new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-        </p>
-        <p className="text-sm text-gray-600 mt-3 max-w-2xl leading-relaxed">
-          Aquí registras proyectos y su avance, delegas actividades, y concentras en un solo lugar
-          el seguimiento de los proyectos de tu Dirección de Área o Dirección General.
-        </p>
+    <div className="space-y-6">
+      {/* ═══ BIENVENIDA + ACCIÓN PRINCIPAL ═══ */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-gray-900">
+            Buen día, {usuario?.nombre_completo?.split(' ')[0]}
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          </p>
+          <p className="text-sm text-gray-600 mt-3 max-w-xl leading-relaxed">
+            Aquí registras tus Proyectos Prioritarios y del Ramo 15, das seguimiento a su avance
+            y mantienes su información al día.
+          </p>
+        </div>
+        {/* Mismo botón (clase, ícono, texto) que ya usa ListadoProyectos.jsx
+            para la misma acción — una sola convención de "crear proyecto"
+            en toda la plataforma. Oculto por completo si el rol no puede
+            crear proyectos, no solo deshabilitado. */}
+        {puedeCrearProyecto && (
+          <Link to="/proyectos/nuevo" className="btn-primary flex items-center gap-2 flex-shrink-0 rounded-md">
+            <Plus size={16} />
+            Nuevo proyecto
+          </Link>
+        )}
       </div>
 
       {/* ═══ TARJETAS DE ACCESO ═══ */}
-      <div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-          <FichaSeccion
-            to="/proyectos"
-            icono={FolderKanban}
-            color="guinda"
-            titulo="Seguimiento de proyectos"
-            descripcion="Actualiza el avance de tus proyectos."
-            puntos={['Registrar avance', 'Subir documentos', 'Vincular actividades a un territorio']}
-            cargandoContadores={cargandoTarjetas}
-            contadores={tarjetas && <Cifra n={tarjetas.proyectos_visibles} unidad={tarjetas.proyectos_visibles === 1 ? 'proyecto' : 'proyectos'} resto="que puedes consultar" />}
-          />
-          <FichaSeccion
-            to="/mis-actividades"
-            icono={ListChecks}
-            color="guinda"
-            titulo="Mis actividades"
-            descripcion="Lo que tienes pendiente, con fecha y semáforo."
-            puntos={['Marcar tu avance', 'Ver qué vence pronto', 'Filtrar por estado']}
-            cargandoContadores={cargandoActividades}
-            contadores={resumenActividades && (
-              <>
-                <Cifra n={resumenActividades.total} unidad={resumenActividades.total === 1 ? 'actividad' : 'actividades'} resto="a tu cargo" />
-                {resumenActividades.vencidas > 0 && (
-                  <span className="text-red-600 font-semibold"> · {plural(resumenActividades.vencidas, 'vencida', 'vencidas')}</span>
-                )}
-              </>
-            )}
-          />
-          <FichaSeccion
-            to="/tablero"
-            icono={LayoutDashboard}
-            color="dorado"
-            titulo="Tablero"
-            descripcion="El avance de tus proyectos, de un vistazo."
-            puntos={['Ver tu avance general', 'Revisar riesgos abiertos', 'Ver tus indicadores']}
-            cargandoContadores={cargandoTarjetas}
-            contadores={tarjetas && <Cifra n={tarjetas.proyectos_sigue} unidad={tarjetas.proyectos_sigue === 1 ? 'proyecto' : 'proyectos'} resto="que sigues" />}
-          />
-          <FichaSeccion
-            to="/indicadores"
-            icono={BarChart3}
-            color="dorado"
-            titulo="Indicadores"
-            descripcion="Mide los resultados de tus proyectos."
-            puntos={['Capturar metas', 'Registrar resultados', 'Comparar entre tus proyectos']}
-            cargandoContadores={cargandoTarjetas}
-            contadores={tarjetas && <Cifra n={tarjetas.indicadores_visibles} unidad={tarjetas.indicadores_visibles === 1 ? 'indicador' : 'indicadores'} />}
-          />
-          <FichaSeccion
-            to="/mapa"
-            icono={MapIcon}
-            color="dorado"
-            titulo="Territorio"
-            descripcion="Ubica en el mapa dónde están tus proyectos."
-            puntos={['Ver cobertura por estado', 'Filtrar por proyecto', 'Ver avance en el mapa']}
-            cargandoContadores={cargandoTarjetas}
-            contadores={tarjetas && <Cifra n={tarjetas.estados_con_actividad} unidad={tarjetas.estados_con_actividad === 1 ? 'estado con actividad' : 'estados con actividad'} />}
-          />
-          <FichaSeccion
-            to="/notificaciones"
-            icono={Bell}
-            color="guinda"
-            titulo="Notificaciones"
-            descripcion="Avisos, solicitudes y cambios en lo que sigues."
-            puntos={['Responder invitaciones', 'Ver solicitudes pendientes', 'Revisar avisos']}
-            cargandoContadores={false}
-            contadores={<Cifra n={notificacionesSinLeer} unidad={notificacionesSinLeer === 1 ? 'pendiente' : 'pendientes'} />}
-          />
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+        <FichaSeccion
+          to="/proyectos"
+          icono={FolderKanban}
+          color="guinda"
+          titulo="Seguimiento de proyectos"
+          descripcion="Actualiza el avance de tus proyectos."
+          puntos={['Registra avance', 'Sube documentos', 'Vincula territorio', 'Vincula indicadores', 'Reporta riesgos']}
+          cargandoContadores={cargandoTarjetas}
+          contadores={tarjetas && <Cifra n={tarjetas.proyectos_visibles} unidad={tarjetas.proyectos_visibles === 1 ? 'proyecto' : 'proyectos'} resto="que puedes consultar" />}
+        />
+        <FichaSeccion
+          to="/mis-actividades"
+          icono={ListChecks}
+          color="guinda"
+          titulo="Mis actividades"
+          descripcion="Lo que tienes pendiente, con fecha y semáforo."
+          puntos={['Marca tu avance', 'Revisa qué vence pronto', 'Filtra por estado', 'Filtra por periodo']}
+          cargandoContadores={cargandoActividades}
+          contadores={resumenActividades && (
+            <>
+              <Cifra n={resumenActividades.total} unidad={resumenActividades.total === 1 ? 'actividad' : 'actividades'} resto="a tu cargo" />
+              {resumenActividades.vencidas > 0 && (
+                <span className="text-red-600 font-semibold"> · {plural(resumenActividades.vencidas, 'vencida', 'vencidas')}</span>
+              )}
+            </>
+          )}
+        />
+        <FichaSeccion
+          to="/tablero"
+          icono={LayoutDashboard}
+          color="dorado"
+          titulo="Tablero General"
+          descripcion="El avance de tus proyectos, de un vistazo."
+          puntos={['Revisa tu avance general', 'Consulta riesgos abiertos', 'Revisa tus indicadores', 'Ubica tus proyectos en el mapa']}
+          cargandoContadores={cargandoTarjetas}
+          contadores={tarjetas && <Cifra n={tarjetas.proyectos_sigue} unidad={tarjetas.proyectos_sigue === 1 ? 'proyecto' : 'proyectos'} resto="que sigues" />}
+        />
+        <FichaSeccion
+          to="/indicadores"
+          icono={BarChart3}
+          color="dorado"
+          titulo="Indicadores"
+          descripcion="Mide los resultados de tus proyectos."
+          puntos={['Captura metas', 'Registra resultados', 'Compara entre tus proyectos', 'Consulta el catálogo']}
+          cargandoContadores={cargandoTarjetas}
+          contadores={tarjetas && <Cifra n={tarjetas.indicadores_visibles} unidad={tarjetas.indicadores_visibles === 1 ? 'indicador' : 'indicadores'} />}
+        />
+        <FichaSeccion
+          to="/mapa"
+          icono={MapIcon}
+          color="dorado"
+          titulo="Territorio"
+          descripcion="Ubica en el mapa dónde están tus proyectos."
+          puntos={['Consulta cobertura por estado', 'Explora por municipio', 'Filtra por proyecto', 'Revisa avance en el mapa']}
+          cargandoContadores={cargandoTarjetas}
+          contadores={tarjetas && <Cifra n={tarjetas.estados_con_actividad} unidad={tarjetas.estados_con_actividad === 1 ? 'estado con actividad' : 'estados con actividad'} />}
+        />
+        <FichaSeccion
+          to="/notificaciones"
+          icono={Bell}
+          color="guinda"
+          titulo="Notificaciones"
+          descripcion="Avisos, solicitudes y cambios en lo que sigues."
+          puntos={['Responde invitaciones', 'Revisa solicitudes pendientes', 'Consulta avisos', 'Revisa tu historial']}
+          cargandoContadores={false}
+          contadores={<Cifra n={notificacionesSinLeer} unidad={notificacionesSinLeer === 1 ? 'pendiente' : 'pendientes'} />}
+        />
+      </div>
 
-        {/* "Nuevo proyecto" es una acción, no una sección: tratamiento
-            visual distinto (borde punteado, sin "Dato:") y al final, para
-            que no se lea como una sexta tarjeta de la misma fila. Oculta
-            por completo si el rol no puede crear proyectos — una tarjeta
-            que lleva a "no tienes permiso" es peor que no tenerla. */}
-        {puedeCrearProyecto && (
-          <Link
-            to="/proyectos/nuevo"
-            className="mt-3.5 flex items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-xl p-3.5 text-sm font-medium text-gray-500 hover:border-guinda-300 hover:text-guinda-600 hover:bg-guinda-50/40 transition-colors"
-          >
-            <PlusCircle size={18} />
-            Da de alta un proyecto y define sus etapas
-          </Link>
-        )}
-
-        {/* Franja a la Guía de uso — mismo tratamiento visual que la
-            franja de "Nuevo proyecto" de arriba, para que ambas se lean
-            como el mismo tipo de atajo discreto (no una sección más).
-            Reemplaza la sección desplegable "Cómo funciona el
-            seguimiento" que vivía aquí: su contenido crece (dos
-            diagramas, permisos, y qué se puede hacer en cada actividad) y
-            ya no cabe en el Inicio ni en un modal — ver Guia­DeUso.jsx. */}
+      {/* ═══ ATAJO A LA GUÍA DE USO ═══ */}
+      <div className="flex justify-end">
         <Link
           to="/guia-de-uso"
-          className="mt-3 flex items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-xl p-3.5 text-sm font-medium text-gray-500 hover:border-guinda-300 hover:text-guinda-600 hover:bg-guinda-50/40 transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-guinda-600 transition-colors"
         >
-          <BookOpen size={18} />
-          ¿Primera vez aquí? Conoce cómo funciona el seguimiento
+          <BookOpen size={14} />
+          Guía de uso
         </Link>
       </div>
     </div>

@@ -19,7 +19,7 @@ import * as proyectosApi from '../../api/proyectos';
 // Mapeo de segmentos de URL a nombres legibles
 const nombresRutas = {
   '': 'Inicio',
-  'tablero': 'Tablero',
+  'tablero': 'Tablero General',
   'proyectos': 'Proyectos',
   'carteras': 'Carteras',
   'nuevo': 'Nuevo proyecto',
