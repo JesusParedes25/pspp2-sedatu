@@ -83,7 +83,7 @@ export function agruparParaLinea(items) {
 // Quien no fue invitado lee el stream pero no escribe en él; el servidor
 // aplica la misma regla en POST /comentarios y en las evidencias, así que
 // sin esto el compositor existía y la petición fallaba con 403.
-export default function ActividadStream({ tipo, id, titulo, soloLectura = false, onCambiado, riesgoIdInicial, onRiesgoConsumido }) {
+export default function ActividadStream({ tipo, id, titulo, proyectoId, soloLectura = false, onCambiado, riesgoIdInicial, onRiesgoConsumido }) {
   const { mostrarToast } = useUI();
   const [items, setItems] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -234,7 +234,7 @@ export default function ActividadStream({ tipo, id, titulo, soloLectura = false,
         const categoria = detalleItem.metadata?.categoria;
         const notas = detalleItem.metadata?.notas;
         return (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40" onClick={() => setDetalleItem(null)}>
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40">
             <div className="bg-white rounded-xl shadow-2xl w-[90vw] max-w-md" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                 <span className="text-sm font-semibold text-gray-800">Detalle del archivo</span>
@@ -316,6 +316,7 @@ export default function ActividadStream({ tipo, id, titulo, soloLectura = false,
           riesgo={riesgoAbierto}
           entidadTipo={riesgoAbierto.entidad_tipo}
           entidadId={riesgoAbierto.entidad_id}
+          proyectoId={proyectoId}
           onGuardar={guardarRiesgo}
           onCerrar={() => setRiesgoAbierto(null)}
         />

@@ -32,7 +32,7 @@ const CARGADORES = {
  * @param {boolean} soloLectura  - Deshabilita crear/editar/eliminar
  * @param {boolean} compacto     - Usa RiesgoCard en modo compacto
  */
-export default function PanelRiesgos({ entidadTipo, entidadId, soloLectura = false, compacto = false, onStatsChange }) {
+export default function PanelRiesgos({ entidadTipo, entidadId, proyectoId, soloLectura = false, compacto = false, onStatsChange }) {
   const { mostrarToast } = useUI();
   const [riesgos, setRiesgos] = useState([]);
   const [cargando, setCargando] = useState(false);
@@ -156,6 +156,7 @@ export default function PanelRiesgos({ entidadTipo, entidadId, soloLectura = fal
           riesgo={modal !== 'crear' ? modal : null}
           entidadTipo={entidadTipo}
           entidadId={entidadId}
+          proyectoId={proyectoId}
           onGuardar={handleGuardar}
           onCerrar={() => setModal(null)}
         />

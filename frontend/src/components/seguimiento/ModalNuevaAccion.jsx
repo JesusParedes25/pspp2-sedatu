@@ -387,7 +387,7 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCrea
   // dolería perder con un clic fuera sin querer; las fechas/responsable
   // precargados por defecto no cuentan (el usuario no los eligió).
   const hayCambiosSinGuardar = !!datos.nombre.trim() || documentos.length > 0;
-  const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(hayCambiosSinGuardar, onCerrar);
+  const { cerrarConConfirmacion } = useCierreConDatosSinGuardar(hayCambiosSinGuardar, onCerrar);
 
   // createPortal a document.body: este modal se abre desde el panel
   // derecho (NodoCard), que en Detalle/Diagrama vive dentro de un rail
@@ -396,7 +396,7 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCrea
   // encajonado dentro de ese panel angosto en vez de cubrir toda la
   // pantalla (mismo problema ya resuelto así en ModalRegistrarAvance).
   return createPortal((
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={cerrarPorFondo}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">

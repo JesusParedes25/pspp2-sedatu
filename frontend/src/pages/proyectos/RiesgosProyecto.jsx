@@ -18,9 +18,10 @@
  * fecha de cierre cuando aplica (`fecha_cierre`, columna nueva — no
  * existía, se agregó en la migración 078 porque `updated_at` no sirve:
  * un riesgo ya cerrado se puede seguir editando por otras razones sin que
- * eso signifique que se cerró de nuevo). Medida de mitigación: el modelo
- * SÍ la guarda (`medida_mitigacion`, un campo de texto libre, no una
- * lista de acciones discretas) y ya se muestra en RiesgoCard.
+ * eso signifique que se cerró de nuevo). Medida de atención (etiqueta de
+ * usuario; el campo en BD sigue llamándose `medida_mitigacion`): el
+ * modelo SÍ la guarda (texto libre, no una lista de acciones discretas)
+ * y ya se muestra en RiesgoCard.
  *
  * "Probabilidad" NO existe en el modelo — no se agregó un campo nuevo sin
  * confirmar primero con el usuario (se le avisó explícitamente).
@@ -31,6 +32,7 @@ import { Plus, ShieldAlert, Loader2 } from 'lucide-react';
 import RiesgoCard from '../../components/riesgos/RiesgoCard';
 import ModalRiesgo from '../../components/riesgos/ModalRiesgo';
 import * as riesgosApi from '../../api/riesgos';
+import * as etapasApi from '../../api/etapas';
 import { useUI } from '../../context/UIContext';
 
 const ESTATUS = ['Abierto', 'En_mitigacion', 'Resuelto', 'Cerrado'];
@@ -46,8 +48,19 @@ export default function RiesgosProyecto() {
   const [modal, setModal] = useState(null); // null | 'crear' | riesgoObj
   const [filtroEstatus, setFiltroEstatus] = useState('');
   const [filtroNivel, setFiltroNivel] = useState('');
+  // Árbol completo del proyecto (sin filtro de DG) para el selector "¿A qué
+  // nivel aplica?" de ModalRiesgo — se carga una sola vez; no se necesita
+  // recargarlo cada vez que se guarda un riesgo.
+  const [arbol, setArbol] = useState([]);
 
   const soloLectura = permisos?.esSoloLectura;
+
+  useEffect(() => {
+    if (!proyectoId) return;
+    etapasApi.obtenerArbol(proyectoId)
+      .then(res => setArbol(res.datos || res || []))
+      .catch(() => setArbol([]));
+  }, [proyectoId]);
 
   const cargar = useCallback(async () => {
     if (!proyectoId) return;
@@ -214,6 +227,8 @@ export default function RiesgosProyecto() {
           riesgo={modal !== 'crear' ? modal : null}
           entidadTipo={modal !== 'crear' ? modal.entidad_tipo : 'Proyecto'}
           entidadId={modal !== 'crear' ? modal.entidad_id : proyectoId}
+          proyectoId={proyectoId}
+          etapas={modal === 'crear' ? arbol : undefined}
           onGuardar={handleGuardar}
           onCerrar={() => setModal(null)}
         />

@@ -19,10 +19,10 @@ import { useCierreConDatosSinGuardar } from '../../../hooks/useCierreConDatosSin
 
 export default function ModalEditarFicha({ nodo, permisos, onActualizado, mostrarToast, onCerrar, campoFoco }) {
   const [sucio, setSucio] = useState(false);
-  const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(sucio, onCerrar);
+  const { cerrarConConfirmacion } = useCierreConDatosSinGuardar(sucio, onCerrar);
 
   return createPortal((
-    <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4" onClick={cerrarPorFondo}>
+    <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <h3 className="text-base font-semibold text-gray-900">Editar ficha</h3>

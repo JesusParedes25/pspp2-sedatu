@@ -162,10 +162,10 @@ export default function BotonSolicitarParticipar({ proyecto, permisos, nodo = nu
 function ModalSolicitar({ queSePide, esDeNodo, nodo, nombreProyecto, funcion, setFuncion, motivo, setMotivo, error, enviando, enviar, onCerrar }) {
   // El motivo es lo único que de verdad se perdería (la función solo es un
   // selector de dos opciones, barato de volver a elegir).
-  const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(motivo.trim().length > 0, onCerrar);
+  const { cerrarConConfirmacion } = useCierreConDatosSinGuardar(motivo.trim().length > 0, onCerrar);
 
   return (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4" onClick={cerrarPorFondo}>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3 border-b">
               <h3 className="text-base font-semibold text-gray-900">

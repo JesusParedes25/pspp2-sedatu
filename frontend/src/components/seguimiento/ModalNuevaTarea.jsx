@@ -133,13 +133,13 @@ export default function ModalNuevaTarea({ accionId, onCreado, onCreadoParcial, o
   // Mismo criterio que ModalNuevaAccion: un nombre capturado o un
   // documento ya agregado es lo que dolería perder con un clic fuera.
   const hayCambiosSinGuardar = !!datos.nombre.trim() || documentos.length > 0;
-  const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(hayCambiosSinGuardar, onCerrar);
+  const { cerrarConConfirmacion } = useCierreConDatosSinGuardar(hayCambiosSinGuardar, onCerrar);
 
   // createPortal a document.body — mismo motivo que ModalNuevaAccion: el
   // panel derecho vive dentro de un rail con translate-x, que vuelve fixed
   // relativo a él en vez de a la pantalla completa sin esto.
   return createPortal((
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={cerrarPorFondo}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">Nueva tarea</h2>

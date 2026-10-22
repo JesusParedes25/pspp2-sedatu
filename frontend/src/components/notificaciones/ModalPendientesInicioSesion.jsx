@@ -86,7 +86,7 @@ export default function ModalPendientesInicioSesion({ onResuelto }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4" onClick={cerrar}>
+    <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4">
       <div
         className="bg-white rounded-xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col"
         onClick={e => e.stopPropagation()}

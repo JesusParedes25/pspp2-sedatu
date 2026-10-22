@@ -117,10 +117,10 @@ export default function ModalDuplicarProyecto({ proyectoOrigen = null, onCerrar,
   // "Hay algo que perder" en cuanto se elige un origen — la búsqueda y
   // selección entre candidatos (y el nombre/opciones que se ajustan
   // después) es el esfuerzo real, no solo texto en un campo.
-  const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(origen !== null, onCerrar);
+  const { cerrarConConfirmacion } = useCierreConDatosSinGuardar(origen !== null, onCerrar);
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={cerrarPorFondo}>
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-2">

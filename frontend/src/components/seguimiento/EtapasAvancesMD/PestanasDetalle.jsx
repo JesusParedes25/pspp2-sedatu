@@ -1,13 +1,17 @@
 /**
  * ARCHIVO: PestanasDetalle.jsx
  * PROPÓSITO: Subpestañas del panel de Detalle (Fase 4 del rediseño), debajo
- *            de la ficha del elemento — Actividad · Documentos(n) ·
- *            Indicadores(n) · Territorio · Riesgos(n) · Equipo y permisos(n).
+ *            de la ficha del elemento — Actividad · Comentarios(n) ·
+ *            Documentos(n) · Indicadores(n) · Territorio · Riesgos(n) ·
+ *            Equipo y permisos(n).
  *            Documentos/Indicadores/Riesgos son tablas de consulta con su
  *            propio botón de alta; Territorio es un valor único con botón
  *            "Editar territorio"; Equipo y permisos reusa SeccionMiembrosNodo
  *            tal cual. Esas mismas altas también son accesibles desde "Más
  *            acciones" (FilaAcciones.jsx) — ver `accionRapida` más abajo.
+ *            Comentarios NO es una fuente nueva: filtra los mismos datos
+ *            que ya trae Actividad (GET /actividad/:tipo/:id) a solo
+ *            tipo_evento==='comentario' — ver PestanaComentarios.jsx.
  *
  * Todas las pestañas con contador se montan siempre (ocultas con CSS, no
  * desmontadas) para que el número en la pestaña esté listo sin tener que
@@ -44,6 +48,7 @@
  */
 import { useState, useCallback, useEffect } from 'react';
 import ActividadStream from '../../nodos/ActividadStream';
+import PestanaComentarios from './PestanaComentarios';
 import PestanaDocumentos from './PestanaDocumentos';
 import PestanaIndicadores from './PestanaIndicadores';
 import PestanaTerritorio from './PestanaTerritorio';
@@ -52,6 +57,7 @@ import SeccionMiembrosNodo from '../SeccionMiembrosNodo';
 
 const TABS = [
   { id: 'actividad', label: 'Actividad' },
+  { id: 'comentarios', label: 'Comentarios' },
   { id: 'documentos', label: 'Documentos' },
   { id: 'indicadores', label: 'Indicadores' },
   { id: 'territorio', label: 'Territorio' },
@@ -77,6 +83,7 @@ export default function PestanasDetalle({
 
   // Una referencia estable por pestaña (no un arrow inline en el render) —
   // ver el comentario de cabecera.
+  const onContadorComentarios = useCallback(n => reportarContador('comentarios', n), [reportarContador]);
   const onContadorDocumentos = useCallback(n => reportarContador('documentos', n), [reportarContador]);
   const onContadorIndicadores = useCallback(n => reportarContador('indicadores', n), [reportarContador]);
   const onContadorRiesgos = useCallback(n => reportarContador('riesgos', n), [reportarContador]);
@@ -103,10 +110,19 @@ export default function PestanasDetalle({
           <ActividadStream
             tipo={tipo}
             id={id}
+            proyectoId={proyectoId}
             soloLectura={permisos?.esSoloLectura}
             onCambiado={onCambiado}
             riesgoIdInicial={riesgoAAbrir}
             onRiesgoConsumido={onRiesgoConsumido}
+          />
+        </div>
+
+        <div className={activa === 'comentarios' ? '' : 'hidden'}>
+          <PestanaComentarios
+            tipo={tipo} id={id} permisos={permisos}
+            onCambiado={onCambiado}
+            onContador={onContadorComentarios}
           />
         </div>
 
@@ -140,7 +156,7 @@ export default function PestanasDetalle({
 
         <div className={activa === 'riesgos' ? '' : 'hidden'}>
           <PestanaRiesgos
-            tipo={tipo} id={id} permisos={permisos} onCambiado={onCambiado} mostrarToast={mostrarToast} onNavegarNodo={onNavegarNodo}
+            tipo={tipo} id={id} proyectoId={proyectoId} permisos={permisos} onCambiado={onCambiado} mostrarToast={mostrarToast} onNavegarNodo={onNavegarNodo}
             onContador={onContadorRiesgos}
             altaSolicitada={accionRapida === 'riesgos'}
             onAltaConsumida={onAccionRapidaConsumida}
