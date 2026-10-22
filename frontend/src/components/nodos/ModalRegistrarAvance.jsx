@@ -223,10 +223,10 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
     || (puedeCapturarAvance && concluir !== (estadoActual === 'Completada'))
     || (puedeCapturarAvance && !concluir && avance !== Math.min(avanceActual, 99));
 
-  const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(hayCambiosSinGuardar, onCerrar);
+  const { cerrarConConfirmacion } = useCierreConDatosSinGuardar(hayCambiosSinGuardar, onCerrar);
 
   return createPortal((
-    <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4" onClick={cerrarPorFondo}>
+    <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-start justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <div>

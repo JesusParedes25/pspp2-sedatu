@@ -25,7 +25,7 @@ async function obtenerPorTipo(tipo, id, incluirHijos) {
   return riesgosApi.obtenerRiesgosAccion(id, incluirHijos);
 }
 
-export default function PestanaRiesgos({ tipo, id, permisos, onCambiado, mostrarToast, onContador, onNavegarNodo, altaSolicitada, onAltaConsumida }) {
+export default function PestanaRiesgos({ tipo, id, proyectoId, permisos, onCambiado, mostrarToast, onContador, onNavegarNodo, altaSolicitada, onAltaConsumida }) {
   const [incluirHijos, setIncluirHijos] = useState(true);
   const [riesgos, setRiesgos] = useState(null);
   const [cargando, setCargando] = useState(true);
@@ -66,7 +66,7 @@ export default function PestanaRiesgos({ tipo, id, permisos, onCambiado, mostrar
 
   // Clic en una fila — la tabla solo trae lo necesario para listar (título,
   // nivel, estado...), así que hace falta traer el riesgo completo (causa,
-  // impacto, medida de mitigación, responsable...) antes de poder editarlo.
+  // impacto, medida de atención, responsable...) antes de poder editarlo.
   async function abrirRiesgo(riesgoId) {
     try {
       const { datos } = await riesgosApi.obtenerRiesgo(riesgoId);
@@ -170,6 +170,7 @@ export default function PestanaRiesgos({ tipo, id, permisos, onCambiado, mostrar
         <ModalRiesgo
           entidadTipo={ENTIDAD_TIPO_RIESGO[tipo]}
           entidadId={id}
+          proyectoId={proyectoId}
           onGuardar={crear}
           onCerrar={() => setMostrarAlta(false)}
         />
@@ -184,6 +185,7 @@ export default function PestanaRiesgos({ tipo, id, permisos, onCambiado, mostrar
           riesgo={riesgoEditando}
           entidadTipo={riesgoEditando.entidad_tipo}
           entidadId={riesgoEditando.entidad_id}
+          proyectoId={proyectoId}
           onGuardar={guardarRiesgoEditado}
           onCerrar={() => setRiesgoEditando(null)}
         />

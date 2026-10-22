@@ -6,9 +6,13 @@
  * ─────────────────────────────────────────────────────────────────
  * Un modal se compone de: (1) backdrop oscuro que cubre toda la
  * pantalla, (2) contenedor blanco centrado con el contenido, y
- * (3) botones de acción. Click en el backdrop cierra el modal.
+ * (3) botones de acción. Click en el backdrop NO cierra el modal —
+ * solo los botones explícitos (Cancelar/Confirmar) lo hacen, mismo
+ * criterio que el resto de los modales de la plataforma: un clic fuera
+ * es fácil de hacer sin querer, y aquí encima se usa para confirmar
+ * acciones destructivas (eliminar), donde un cierre accidental que
+ * interrumpa la lectura del mensaje es peor que uno de más.
  * El atributo "role=dialog" y aria-modal mejoran la accesibilidad.
- * Se usa para confirmar acciones destructivas como eliminar.
  * ─────────────────────────────────────────────────────────────────
  */
 
@@ -22,7 +26,7 @@ export default function ConfirmDialog({ abierto, titulo, mensaje, textoConfirmar
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50" onClick={onCancelar} />
+      <div className="absolute inset-0 bg-black/50" />
 
       {/* Contenido del diálogo */}
       <div className="relative bg-white max-w-md w-full mx-4 p-6" style={{ borderRadius: '8px', border: '1px solid #E5E5E5', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>

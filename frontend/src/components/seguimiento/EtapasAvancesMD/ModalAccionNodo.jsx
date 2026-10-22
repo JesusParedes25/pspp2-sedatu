@@ -31,7 +31,7 @@ export default function ModalAccionNodo({ titulo, onCerrar, children }) {
   }, [onCerrar]);
 
   return createPortal((
-    <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4" onClick={onCerrar}>
+    <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <h3 className="text-base font-semibold text-gray-900">{titulo}</h3>

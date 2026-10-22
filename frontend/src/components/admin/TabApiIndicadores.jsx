@@ -78,7 +78,7 @@ export default function TabApiIndicadores() {
   const urlApi = `${window.location.origin}/api/v1/publico/indicadores`;
 
   const hayCambiosSinGuardar = nuevo.nombre.trim().length > 0 || nuevo.descripcion.trim().length > 0;
-  const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(hayCambiosSinGuardar, () => setCreando(false));
+  const { cerrarConConfirmacion } = useCierreConDatosSinGuardar(hayCambiosSinGuardar, () => setCreando(false));
 
   return (
     <div className="space-y-4">
@@ -192,7 +192,7 @@ export default function TabApiIndicadores() {
 
       {/* Alta */}
       {creando && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={cerrarPorFondo}>
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
               <h3 className="text-sm font-semibold text-gray-900">Nuevo acceso a la API</h3>
@@ -233,7 +233,7 @@ export default function TabApiIndicadores() {
 
       {/* Confirmar revocación */}
       {porRevocar && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setPorRevocar(null)}>
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
             <h3 className="text-sm font-semibold text-gray-900 mb-2">Revocar «{porRevocar.nombre}»</h3>
             <p className="text-xs text-gray-600 mb-4">

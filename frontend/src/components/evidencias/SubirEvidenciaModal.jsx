@@ -47,7 +47,7 @@ export default function SubirEvidenciaModal({ abierto, onCerrar, onSubir, cargan
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={limpiar} />
+      <div className="absolute inset-0 bg-black/50" />
       <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">

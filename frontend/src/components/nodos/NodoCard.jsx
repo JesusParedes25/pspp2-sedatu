@@ -310,7 +310,7 @@ export default function NodoCard({
 
   // El banner ámbar solo trae lo que ya viene en el stream de actividad
   // (contenido + nivel/estado) — para editar TODOS los campos (causa,
-  // impacto, responsable, medida de mitigación...) hay que traer el
+  // impacto, responsable, medida de atención...) hay que traer el
   // riesgo completo antes de abrir el modal. Ojo: metadata.riesgo_id solo
   // existe cuando el registro viene de la tabla `riesgos` (ver el UNION en
   // obtenerActividadNodo). Reportes viejos hechos con el cuadro de texto
@@ -503,6 +503,7 @@ export default function NodoCard({
             <ModalRiesgo
               entidadTipo={ENTIDAD_TIPO_RIESGO[tipo]}
               entidadId={nodo.id}
+              proyectoId={proyectoId}
               onGuardar={crearRiesgoDesdeTarjeta}
               onCerrar={() => setMostrarModalRiesgo(false)}
             />
@@ -513,6 +514,7 @@ export default function NodoCard({
               riesgo={riesgoEditando}
               entidadTipo={ENTIDAD_TIPO_RIESGO[tipo]}
               entidadId={nodo.id}
+              proyectoId={proyectoId}
               onGuardar={guardarRiesgoEditado}
               onCerrar={() => setRiesgoEditando(null)}
             />
@@ -703,7 +705,7 @@ export default function NodoCard({
 
           {seccion === 'riesgos' && (
             <div className="bg-gray-50 rounded-lg p-2.5 max-h-96 overflow-y-auto">
-              <PanelRiesgos entidadTipo={ENTIDAD_TIPO_RIESGO[tipo]} entidadId={nodo.id} soloLectura={soloLectura} onStatsChange={cargarActividad} />
+              <PanelRiesgos entidadTipo={ENTIDAD_TIPO_RIESGO[tipo]} entidadId={nodo.id} proyectoId={proyectoId} soloLectura={soloLectura} onStatsChange={cargarActividad} />
             </div>
           )}
 

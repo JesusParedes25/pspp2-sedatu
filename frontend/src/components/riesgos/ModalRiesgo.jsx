@@ -10,12 +10,14 @@
  * jerárquico gracias a entidad_tipo + entidad_id.
  * ─────────────────────────────────────────────────────────────────
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import client from '../../api/client';
+import { obtenerPanorama } from '../../api/miembros';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
+import SelectorNodoArbol from '../indicadores/SelectorNodoArbol';
 
 const FORM_VACIO = {
   titulo: '', descripcion: '', causa: '', impacto: '', nivel: 'Medio', tipo: 'Riesgo',
@@ -37,10 +39,22 @@ const NIVEL_COLORES = {
  * @param {object}   riesgo       - Riesgo existente (modo edición) o null (modo creación)
  * @param {string}   entidadTipo  - 'Proyecto'|'Etapa'|'Accion'|'Subaccion'|'Tarea'
  * @param {string}   entidadId    - UUID de la entidad padre
+ * @param {string}   proyectoId   - (opcional) proyecto al que pertenece, para acotar
+ *                                  el selector de Responsable a quien participa en él
+ *                                  (cualquier función) en vez de listar a todos los
+ *                                  usuarios del sistema. Sin esta prop se cae al
+ *                                  catálogo completo (comportamiento de antes — no
+ *                                  debería faltar en ningún punto de la app hoy).
+ * @param {array}    etapas       - (opcional, solo aplica en modo creación) árbol de
+ *                                  etapas del proyecto (misma forma que ya consume
+ *                                  SelectorNodoArbol) — si se pasa, se puede elegir
+ *                                  una etapa/acción/tarea específica a la que ligar
+ *                                  el riesgo, en vez de que siempre quede al nivel
+ *                                  fijo de `entidadTipo`/`entidadId`.
  * @param {function} onGuardar    - Recibe los datos del formulario
  * @param {function} onCerrar     - Cierra el modal
  */
-export default function ModalRiesgo({ riesgo, entidadTipo, entidadId, onGuardar, onCerrar }) {
+export default function ModalRiesgo({ riesgo, entidadTipo, entidadId, proyectoId, etapas, onGuardar, onCerrar }) {
   const editando = !!riesgo;
 
   // formInicial: snapshot contra el que se mide "¿hay algo sin guardar?"
@@ -76,19 +90,57 @@ export default function ModalRiesgo({ riesgo, entidadTipo, entidadId, onGuardar,
     }
   }, [riesgo]);
 
-  const hayCambiosSinGuardar = Object.keys(form).some(k => form[k] !== formInicial[k]);
-  const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(hayCambiosSinGuardar, onCerrar);
+  // nodoSeleccionado: etapa/acción/tarea elegida en el selector de abajo
+  // (null = al nivel de entidadTipo/entidadId recibido, el único caso que
+  // existía antes de este selector).
+  const [nodoSeleccionado, setNodoSeleccionado] = useState(null);
 
-  // Catálogo de usuarios para el selector de responsable — mismo endpoint
-  // que ya usa PropiedadesElemento para etapas/acciones.
+  const hayCambiosSinGuardar = Object.keys(form).some(k => form[k] !== formInicial[k]) || nodoSeleccionado !== null;
+  const { cerrarConConfirmacion } = useCierreConDatosSinGuardar(hayCambiosSinGuardar, onCerrar);
+
+  // Catálogo de responsables para el selector — acotado a quien participa
+  // en ESTE proyecto, en cualquier función (colaborador, responsable,
+  // lectura...), el mismo dato que ya usa "Equipo y permisos"
+  // (obtenerTodosParticipantes en el backend, vía GET /proyectos/:id/panorama
+  // — mismo patrón que ya sigue GestorUsuariosProyecto.jsx). Antes este
+  // selector ofrecía CUALQUIER usuario del sistema (/catalogos/usuarios),
+  // sin relación con el proyecto. Sin proyectoId (no debería faltar en
+  // ningún punto de la app hoy) se cae a ese catálogo completo en vez de
+  // dejar el selector vacío.
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await client.get('/catalogos/usuarios');
-        setUsuarios(data.datos || []);
+        if (proyectoId) {
+          const datos = await obtenerPanorama(proyectoId);
+          const lista = (datos.miembros || [])
+            .map(m => ({ id: m.id_usuario, nombre_completo: m.nombre_completo, dg_siglas: m.dg_siglas }))
+            .sort((a, b) => (a.nombre_completo || '').localeCompare(b.nombre_completo || ''));
+          setUsuarios(lista);
+        } else {
+          const { data } = await client.get('/catalogos/usuarios');
+          setUsuarios(data.datos || []);
+        }
       } catch { /* selector se queda vacío, no bloquea el resto del form */ }
     })();
-  }, []);
+  }, [proyectoId]);
+
+  // id de nodo -> entidad_tipo capitalizado que espera la tabla riesgos,
+  // para resolver qué mandar al guardar. Mismo criterio que ya usa
+  // PanoramaProyecto.jsx para distinguir Acción de Subacción
+  // (id_accion_padre) — el árbol de etapasApi.obtenerArbol no las separa
+  // por un `tipo` propio, solo anida las subacciones dentro de su padre.
+  const indiceNodos = useMemo(() => {
+    const mapa = new Map();
+    for (const etapa of etapas || []) {
+      mapa.set(etapa.id, 'Etapa');
+      for (const accion of etapa.acciones || []) {
+        mapa.set(accion.id, 'Accion');
+        for (const sub of accion.subacciones || []) mapa.set(sub.id, 'Subaccion');
+        for (const tarea of accion.tareas || []) mapa.set(tarea.id, 'Tarea');
+      }
+    }
+    return mapa;
+  }, [etapas]);
 
   function cambiarCampo(campo, valor) {
     setForm(prev => ({ ...prev, [campo]: valor }));
@@ -113,8 +165,8 @@ export default function ModalRiesgo({ riesgo, entidadTipo, entidadId, onGuardar,
     try {
       const datos = {
         ...form,
-        entidad_tipo: entidadTipo,
-        entidad_id: entidadId,
+        entidad_tipo: nodoSeleccionado ? (indiceNodos.get(nodoSeleccionado.id) || entidadTipo) : entidadTipo,
+        entidad_id: nodoSeleccionado ? nodoSeleccionado.id : entidadId,
         fecha_limite_resolucion: form.fecha_limite_resolucion || null,
         id_responsable: form.id_responsable || null,
       };
@@ -136,7 +188,7 @@ export default function ModalRiesgo({ riesgo, entidadTipo, entidadId, onGuardar,
   // panel en vez de cubrir toda la pantalla (mismo bug ya resuelto en
   // ModalRegistrarAvance.jsx).
   return createPortal((
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40" onClick={cerrarPorFondo}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -168,6 +220,29 @@ export default function ModalRiesgo({ riesgo, entidadTipo, entidadId, onGuardar,
             />
             {errores.titulo && <p className="text-xs text-red-500 mt-0.5">{errores.titulo}</p>}
           </div>
+
+          {/* A qué nivel aplica — solo en creación y solo si quien abrió el
+              modal pasó el árbol del proyecto (etapas): cuando ya se abre
+              desde un nodo concreto (tarjeta de una etapa/acción/tarea,
+              editar un riesgo existente) no hay ambigüedad que resolver y
+              esta sección no aparece. */}
+          {!editando && etapas && etapas.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                ¿A qué nivel aplica? <span className="text-gray-400 font-normal">(opcional)</span>
+              </label>
+              <SelectorNodoArbol
+                etapas={etapas}
+                valor={nodoSeleccionado}
+                onSeleccionar={(tipo, id) => setNodoSeleccionado(tipo ? { tipo, id } : null)}
+                puedeEditar={() => true}
+                yaVinculado={() => false}
+              />
+              <p className="text-[11px] text-gray-400 mt-1">
+                Déjalo "a nivel de todo el proyecto" si no corresponde a una etapa o acción en particular.
+              </p>
+            </div>
+          )}
 
           {/* Tipo + Nivel (inline) */}
           <div className="grid grid-cols-2 gap-3">
@@ -293,15 +368,16 @@ export default function ModalRiesgo({ riesgo, entidadTipo, entidadId, onGuardar,
             </div>
           </div>
 
-          {/* Medida de mitigación */}
+          {/* Medida de atención — campo en BD sigue siendo medida_mitigacion,
+              solo cambió la etiqueta que ve el usuario. */}
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Medida de mitigación</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Medida de atención</label>
             <textarea
               value={form.medida_mitigacion}
               onChange={e => cambiarCampo('medida_mitigacion', e.target.value)}
               rows={2}
               className="w-full border border-gray-300 rounded-lg p-3 text-sm resize-none outline-none focus:ring-2 focus:ring-blue-300"
-              placeholder="¿Cómo se mitiga?"
+              placeholder="¿Cómo se atiende?"
             />
           </div>
 

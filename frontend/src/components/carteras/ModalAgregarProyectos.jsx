@@ -49,10 +49,10 @@ export default function ModalAgregarProyectos({ carteraId, idsExcluidos = [], on
     }
   }
 
-  const { cerrarPorFondo, cerrarConConfirmacion } = useCierreConDatosSinGuardar(seleccionados.length > 0, onCerrar);
+  const { cerrarConConfirmacion } = useCierreConDatosSinGuardar(seleccionados.length > 0, onCerrar);
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={cerrarPorFondo}>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-2">

@@ -9,7 +9,8 @@
  * Esto permite al usuario identificar rápidamente los riesgos más
  * urgentes sin leer los detalles. El card muestra título, tipo
  * (Riesgo/Problema), nivel, estado, responsable y medida de
- * mitigación si existe.
+ * atención si existe (campo `medida_mitigacion` — el nombre en BD no
+ * cambió, solo la etiqueta que ve el usuario).
  * ─────────────────────────────────────────────────────────────────
  */
 import EstadoChip from '../common/EstadoChip';
@@ -78,10 +79,10 @@ export default function RiesgoCard({ riesgo, compacto = false, mostrarNodo = fal
         )}
       </div>
 
-      {/* Medida de mitigación */}
+      {/* Medida de atención */}
       {riesgo.medida_mitigacion && (
         <div className="mb-2 px-2 py-1.5 bg-blue-50 rounded text-xs text-blue-700">
-          <span className="font-medium">Mitigación:</span> {riesgo.medida_mitigacion}
+          <span className="font-medium">Atención:</span> {riesgo.medida_mitigacion}
         </div>
       )}
 

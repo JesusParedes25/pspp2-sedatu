@@ -142,7 +142,7 @@ export default function PanelDrawer({ nodo, proyectoId, permisos, arbol, onActua
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto px-3 py-3">
-          <ActividadStream tipo={tipo} id={id} titulo={data.nombre} soloLectura={soloLecturaNodo} onCambiado={onActualizado} />
+          <ActividadStream tipo={tipo} id={id} titulo={data.nombre} proyectoId={proyectoId} soloLectura={soloLecturaNodo} onCambiado={onActualizado} />
         </div>
       )}
     </aside>

@@ -1,19 +1,28 @@
 /**
  * ARCHIVO: PanoramaProyecto.jsx
- * PROPÓSITO: Tab "Panorama del proyecto" — single scrollable dashboard con:
- *  Encabezado, Participantes, Indicadores, Mapa territorial,
- *  Vencidos/por vencer, Riesgos, Actividad reciente.
+ * PROPÓSITO: Tab "Resumen" del proyecto — homologado con el dashboard
+ *            "Tablero General" (Tablero.jsx), mismas secciones y mismo
+ *            orden, acotado a un solo proyecto: Incidencia territorial
+ *            (mapa real, no una lista de chips) + Nota de avance a la
+ *            izquierda, Indicadores a la derecha; Acciones vencidas +
+ *            Riesgos abiertos en la misma fila (lista completa con
+ *            nivel, no solo un contador con link); Vencen en 14 días;
+ *            Actividad reciente. El mapa es el MISMO componente que usa
+ *            Tablero (`MapaTerritorialInicio`), pasándole
+ *            `filtro.proyectoIds=[proyectoId]` en vez de los proyectos
+ *            del usuario — no hay una fuente de datos nueva.
  */
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Target, MapPin, AlertTriangle, Clock, Activity,
-  TrendingUp, Shield, ChevronRight, MessageSquare,
+  TrendingUp, Shield, MessageSquare,
 } from 'lucide-react';
 import { obtenerPanorama } from '../../api/miembros';
 import TarjetaIndicador from '../indicadores/TarjetaIndicador';
 import GraficaIndicador from '../indicadores/GraficaIndicador';
 import ListaEstatusCualitativo from '../indicadores/ListaEstatusCualitativo';
+import MapaTerritorialInicio from '../inicio/MapaTerritorialInicio';
 
 const GUINDA = '#7B1C3E';
 
@@ -73,55 +82,53 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
 
   if (!datos) return <p className="text-center text-gray-500 py-10">Error al cargar panorama</p>;
 
-  const { indicadores, cobertura, vencidos, por_vencer, riesgos, actividad, estatus_cualitativo = [] } = datos;
+  const { indicadores, vencidos, por_vencer, riesgos, actividad, estatus_cualitativo = [] } = datos;
 
   return (
     <div className="space-y-5">
-      {/* ═══ INDICADORES ═══ */}
-      {indicadores.length > 0 && (
-        <SeccionCard titulo="Indicadores" icono={Target}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {indicadores.map(ind => (
-              <IndicadorCard key={ind.id} indicador={ind} />
-            ))}
-          </div>
-        </SeccionCard>
-      )}
+      {/* ═══ MAPA + INDICADORES — mismas dos columnas que Tablero
+          General: izquierda mapa real (no chips) + nota de avance,
+          derecha indicadores. Si no hay indicadores la izquierda ocupa
+          todo el ancho, igual que en Tablero. ═══ */}
+      <div className={`grid grid-cols-1 gap-5 ${indicadores.length > 0 ? 'lg:grid-cols-2' : ''}`}>
+        <div className="space-y-5">
+          <SeccionCard titulo="Incidencia territorial" icono={MapPin}>
+            <MapaTerritorialInicio filtro={{ proyectoIds: [proyectoId] }} />
+          </SeccionCard>
 
-      {/* ═══ ESTATUS CUALITATIVO ═══
-          Contraparte de los indicadores: el número dice cuánto, esto
-          dice por qué. Aquí no se repite el nombre del proyecto en cada
-          línea — ya se sabe cuál es. */}
-      {estatus_cualitativo.length > 0 && (
-        <SeccionCard titulo="Nota de avance" icono={MessageSquare}>
-          <ListaEstatusCualitativo items={estatus_cualitativo} dentroDeProyecto maxAltura="max-h-72" />
-        </SeccionCard>
-      )}
+          {/* ═══ ESTATUS CUALITATIVO ═══
+              Contraparte de los indicadores: el número dice cuánto, esto
+              dice por qué. Aquí no se repite el nombre del proyecto en
+              cada línea — ya se sabe cuál es. */}
+          {estatus_cualitativo.length > 0 && (
+            <SeccionCard titulo="Nota de avance" icono={MessageSquare}>
+              <ListaEstatusCualitativo items={estatus_cualitativo} dentroDeProyecto maxAltura="max-h-72" />
+            </SeccionCard>
+          )}
+        </div>
 
-      {/* ═══ MAPA TERRITORIAL ═══ */}
-      {cobertura.length > 0 && (
-        <SeccionCard titulo="Cobertura geográfica" icono={MapPin}>
-          <div className="flex flex-wrap gap-2">
-            {[...new Set(cobertura.map(c => c.estado_nombre).filter(Boolean))].map(e => (
-              <span key={e} className="text-xs bg-guinda-50 text-guinda-700 px-2 py-1 rounded-full border border-guinda-200">{e}</span>
-            ))}
-          </div>
-          {cobertura.some(c => c.municipio_nombre) && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {cobertura.filter(c => c.municipio_nombre).map(c => (
-                <span key={c.id} className="text-[11px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{c.municipio_nombre}, {c.estado_nombre}</span>
+        {indicadores.length > 0 && (
+          <SeccionCard titulo="Indicadores" icono={Target}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {indicadores.map(ind => (
+                <IndicadorCard key={ind.id} indicador={ind} />
               ))}
             </div>
-          )}
-        </SeccionCard>
-      )}
+          </SeccionCard>
+        )}
+      </div>
 
-      {/* ═══ VENCIDOS Y POR VENCER ═══ */}
-      {(vencidos.length > 0 || por_vencer.length > 0) && (
-        <div className="grid gap-5 md:grid-cols-2">
+      {/* ═══ ACCIONES VENCIDAS + RIESGOS ABIERTOS ═══ — misma fila que
+          Tablero General: son las dos listas que de verdad piden acción
+          ya; "Vencen en 14 días" es alerta temprana y va aparte, debajo.
+          Riesgos ya no es un contador con link: es la lista completa
+          (nivel + título), igual que en Tablero — cada uno abre
+          directo el nodo y el riesgo en Seguimiento. */}
+      {(vencidos.length > 0 || riesgos.length > 0) && (
+        <div className={`grid grid-cols-1 gap-5 ${vencidos.length > 0 && riesgos.length > 0 ? 'md:grid-cols-2' : ''}`}>
           {vencidos.length > 0 && (
-            <SeccionCard titulo={`Vencidas (${vencidos.length})`} icono={AlertTriangle}>
-              <ul className="space-y-2">
+            <SeccionCard titulo="Acciones vencidas" icono={AlertTriangle}>
+              <ul className="space-y-2 max-h-72 overflow-y-auto pr-1">
                 {vencidos.slice(0, 8).map(a => (
                   <li key={a.id}>
                     <button onClick={() => onNavegarNodo?.(a.id)} className="w-full flex items-start gap-2 text-left p-1 -m-1 rounded hover:bg-red-50 transition-colors">
@@ -141,22 +148,22 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
               </ul>
             </SeccionCard>
           )}
-          {por_vencer.length > 0 && (
-            <SeccionCard titulo={`Vencen en 14 días (${por_vencer.length})`} icono={Clock}>
-              <ul className="space-y-2">
-                {por_vencer.slice(0, 8).map(a => (
-                  <li key={a.id}>
-                    <button onClick={() => onNavegarNodo?.(a.id)} className="w-full flex items-start gap-2 text-left p-1 -m-1 rounded hover:bg-yellow-50 transition-colors">
-                      <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 mt-1.5 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-sm text-gray-800 truncate">{a.nombre}</p>
-                        <p className="text-[11px] text-gray-500">
-                          {a.id_accion_padre ? 'Subacción' : 'Acción'} · {a.dias_restantes}d restantes
-                        </p>
-                        {a.estatus_cualitativo && (
-                          <p className="text-[11px] text-gray-500 italic truncate mt-0.5">"{a.estatus_cualitativo}"</p>
-                        )}
-                      </div>
+          {riesgos.length > 0 && (
+            <SeccionCard titulo="Riesgos abiertos" icono={Shield}>
+              <ul className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                {riesgos.map(r => (
+                  <li key={r.id}>
+                    <button
+                      onClick={() => onNavegarNodo?.(r.entidad_id, r.id)}
+                      className="w-full flex items-center gap-1.5 text-left py-1 px-1.5 -ml-1.5 rounded hover:bg-orange-50 transition-colors"
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                        r.nivel === 'Critico' ? 'bg-red-600' :
+                        r.nivel === 'Alto' ? 'bg-orange-500' :
+                        r.nivel === 'Medio' ? 'bg-yellow-500' : 'bg-gray-400'
+                      }`} />
+                      <p className="text-sm text-gray-800 truncate flex-1">{r.titulo}</p>
+                      <span className="text-[11px] text-gray-400 flex-shrink-0">{r.nivel}</span>
                     </button>
                   </li>
                 ))}
@@ -166,26 +173,27 @@ export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refresh
         </div>
       )}
 
-      {/* ═══ RIESGOS ═══ — bloque compacto: la lista completa, filtros y
-          alta/edición/cierre viven en su propia sección (/riesgos), no
-          aquí. Mostrar la lista entera en Resumen era justo la
-          duplicación que se quitó: esto solo responde "¿hay algo que
-          atender?" con un enlace a donde sí se puede hacer algo. */}
-      {riesgos.length > 0 && (
-        <SeccionCard titulo="Riesgos" icono={Shield}>
-          <Link
-            to={`/proyectos/${proyectoId}/riesgos`}
-            className="flex items-center justify-between gap-3 -m-1 p-1 rounded-lg hover:bg-orange-50 transition-colors"
-          >
-            <p className="text-sm text-gray-700">
-              <span className="font-semibold text-gray-900">{riesgos.length}</span> riesgo{riesgos.length !== 1 ? 's' : ''} abierto{riesgos.length !== 1 ? 's' : ''}
-              {' · '}
-              <span className="font-semibold text-gray-900">{riesgos.filter(r => r.nivel === 'Alto' || r.nivel === 'Critico').length}</span> de impacto alto
-            </p>
-            <span className="flex items-center gap-0.5 text-xs font-medium text-guinda-600 flex-shrink-0">
-              Ver todos <ChevronRight size={14} />
-            </span>
-          </Link>
+      {/* ═══ VENCEN EN 14 DÍAS ═══ */}
+      {por_vencer.length > 0 && (
+        <SeccionCard titulo="Vencen en 14 días" icono={Clock}>
+          <ul className="space-y-2">
+            {por_vencer.slice(0, 8).map(a => (
+              <li key={a.id}>
+                <button onClick={() => onNavegarNodo?.(a.id)} className="w-full flex items-start gap-2 text-left p-1 -m-1 rounded hover:bg-yellow-50 transition-colors">
+                  <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 mt-1.5 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm text-gray-800 truncate">{a.nombre}</p>
+                    <p className="text-[11px] text-gray-500">
+                      {a.id_accion_padre ? 'Subacción' : 'Acción'} · {a.dias_restantes}d restantes
+                    </p>
+                    {a.estatus_cualitativo && (
+                      <p className="text-[11px] text-gray-500 italic truncate mt-0.5">"{a.estatus_cualitativo}"</p>
+                    )}
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
         </SeccionCard>
       )}
 
