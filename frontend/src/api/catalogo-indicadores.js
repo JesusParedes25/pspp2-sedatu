@@ -81,6 +81,13 @@ export async function crearIndicadorCatalogo(datos) {
   return data;
 }
 
+// Para quien no puede dar de alta (rol 'externo'): en vez de un 403, le
+// manda a los administradores un aviso con lo que necesita.
+export async function solicitarIndicadorCatalogo({ nombre, motivo }) {
+  const { data } = await client.post('/catalogo-indicadores/solicitar', { nombre, motivo });
+  return data;
+}
+
 export async function actualizarIndicadorCatalogo(id, datos) {
   const { data } = await client.put(`/catalogo-indicadores/${id}`, datos);
   return data;

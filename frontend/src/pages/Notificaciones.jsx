@@ -34,7 +34,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import {
   Bell, CheckCheck, Clock, AlertTriangle, MessageSquare, FileText,
-  UserPlus, MailCheck, Ban, MailQuestion, Shield, TrendingUp, Inbox, History, UserMinus,
+  UserPlus, MailCheck, Ban, MailQuestion, Shield, TrendingUp, Inbox, History, UserMinus, BarChart3,
 } from 'lucide-react';
 import { useNotificaciones } from '../hooks/useNotificaciones';
 import { misInvitaciones } from '../api/miembros';
@@ -63,6 +63,7 @@ const iconosPorTipo = {
   AccionBloqueada:          Ban,
   AvanceDG:                 TrendingUp,
   RetiroParticipante:       UserMinus,
+  SolicitudIndicador:       BarChart3,
   General:                  Bell,
 };
 
@@ -72,6 +73,7 @@ const CATEGORIAS_AVISO = [
   { titulo: 'Riesgos', tipos: ['Riesgo', 'RespuestaAsignacionRiesgo'] },
   { titulo: 'Solicitudes e invitaciones', tipos: ['RespuestaSolicitud', 'RespuestaInvitacion', 'RetiroParticipante'] },
   { titulo: 'Actividad del proyecto', tipos: ['Comentario', 'MencionUsuario', 'AccionBloqueada', 'AvanceDG', 'PermisoNuevo', 'Evidencia'] },
+  { titulo: 'Catálogo de indicadores', tipos: ['SolicitudIndicador'] },
 ];
 function categoriaDe(tipo) {
   return CATEGORIAS_AVISO.find(c => c.tipos.includes(tipo))?.titulo || 'Sistema';
@@ -83,6 +85,11 @@ function categoriaDe(tipo) {
 // error; si fue de una parte, puede que tampoco.
 function rutaDe(n) {
   if (n.tipo === 'RetiroParticipante') return null;
+  // No es de un proyecto — es una solicitud de alta para el catálogo
+  // general. Lleva directo a donde se puede atenderla (dar de alta la
+  // entrada que falta), igual que cualquier otro aviso lleva a lo que
+  // lo originó.
+  if (n.tipo === 'SolicitudIndicador') return '/indicadores?vista=catalogo';
   if (!n.id_proyecto) return null;
   if (n.entidad_tipo === 'Proyecto') return `/proyectos/${n.id_proyecto}`;
   if (['Etapa', 'Accion', 'Tarea'].includes(n.entidad_tipo)) {

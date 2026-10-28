@@ -26,6 +26,18 @@ export const UNIDADES_INDICADOR = [
   { valor: 'Numero', etiqueta: 'Número (personalizable)' },
 ];
 
+// Insignia de origen para una entrada del catálogo. Las ~1387 entradas
+// institucionales (instrumento IS NOT NULL — importadas de Informe de
+// Gobierno/Labores/PSEDATU, nunca creadas desde la plataforma) quedaron
+// TODAS con tipo='Otro': no dice nada, es ruido repetido en cada fila.
+// Para esas se muestra de qué instrumento vienen; "tipo" (Gestión,
+// Avance físico...) solo aporta información real en las entradas propias
+// (creadas desde la plataforma, instrumento NULL, con tipo elegido a mano).
+export function etiquetaOrigenIndicador(ind) {
+  if (ind?.instrumento) return { texto: ind.instrumento, institucional: true };
+  return { texto: TIPOS_INDICADOR.find(t => t.valor === ind?.tipo)?.etiqueta || ind?.tipo, institucional: false };
+}
+
 // Estado inicial de un indicador de proyecto en blanco — mismo objeto
 // para los 3 lugares donde se puede crear uno (crear proyecto, editar
 // proyecto, wizard de vincular/crear).

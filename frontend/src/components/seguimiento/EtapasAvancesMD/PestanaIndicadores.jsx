@@ -9,10 +9,11 @@
  */
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Loader2, BarChart3 } from 'lucide-react';
+import { Plus, Loader2, BarChart3, TrendingUp } from 'lucide-react';
 import * as indicadoresApi from '../../../api/indicadores';
 import ModalAccionNodo from './ModalAccionNodo';
 import TabIndicadores from '../TabIndicadores';
+import ModalRegistrarMovimiento from '../../indicadores/ModalRegistrarMovimiento';
 
 const NIVEL_LABEL = { etapa: 'Etapa', accion: 'Acción', tarea: 'Tarea' };
 const MODO_LABEL = { proporcional: 'Proporcional al avance', al_concluir: 'Al concluir' };
@@ -27,6 +28,11 @@ export default function PestanaIndicadores({ tipo, id, nodo, proyectoId, permiso
   const [aportaciones, setAportaciones] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [mostrarAlta, setMostrarAlta] = useState(false);
+  // Indicador al que se le va a registrar un movimiento a mano (Bloque 4
+  // del encargo) — null = modal cerrado. Se guarda la aportación
+  // completa, no solo el id, porque el modal necesita el nombre del
+  // indicador para el encabezado.
+  const [registrandoMovimiento, setRegistrandoMovimiento] = useState(null);
 
   // Atajo "Vincular indicador" de "Más acciones" (FilaAcciones.jsx vía
   // PestanasDetalle.jsx) — mismo modal que el botón "+ Vincular indicador"
@@ -92,6 +98,7 @@ export default function PestanaIndicadores({ tipo, id, nodo, proyectoId, permiso
                 <th className="text-left font-medium px-3 py-2">Aportación</th>
                 <th className="text-left font-medium px-3 py-2">Modo</th>
                 <th className="text-left font-medium px-3 py-2">Origen</th>
+                <th className="text-left font-medium px-3 py-2"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -118,6 +125,20 @@ export default function PestanaIndicadores({ tipo, id, nodo, proyectoId, permiso
                       </button>
                     ) : null}
                   </td>
+                  <td className="px-3 py-2 text-right">
+                    {/* Solo para la aportación de ESTE nodo, no las heredadas de
+                        un hijo (ap.origen) — un movimiento a mano aquí debe
+                        quedar atribuido a este nodo, no a uno ajeno. */}
+                    {!permisos?.esSoloLectura && !ap.origen && (
+                      <button
+                        onClick={() => setRegistrandoMovimiento(ap)}
+                        title="Registrar movimiento a mano"
+                        className="inline-flex items-center gap-1 text-[11px] text-gray-500 hover:text-guinda-700"
+                      >
+                        <TrendingUp size={12} /> Registrar
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -129,6 +150,16 @@ export default function PestanaIndicadores({ tipo, id, nodo, proyectoId, permiso
         <ModalAccionNodo titulo="Vincular indicador" onCerrar={() => { setMostrarAlta(false); cargar(); onCambiado?.(); }}>
           <TabIndicadores tipo={tipo} nodoId={id} nodoNombre={nodo?.nombre} proyectoId={proyectoId} soloLectura={permisos?.esSoloLectura} />
         </ModalAccionNodo>
+      )}
+
+      {registrandoMovimiento && (
+        <ModalRegistrarMovimiento
+          indicadorId={registrandoMovimiento.id_indicador}
+          indicadorNombre={registrandoMovimiento.indicador_nombre}
+          idNodoOrigen={id}
+          onCerrar={() => setRegistrandoMovimiento(null)}
+          onRegistrado={() => { setRegistrandoMovimiento(null); cargar(); onCambiado?.(); mostrarToast?.('Movimiento registrado', 'exito'); }}
+        />
       )}
     </div>
   );

@@ -28,7 +28,7 @@ const sse = require('./sse');
 // invitaciones y solicitudes, que también pasan por aquí con su propio
 // `tipo`), así que engancharlo aquí una vez cubre todos los casos sin
 // tener que acordarse de avisar en cada controlador que crea una.
-async function crearNotificacion({ tipo, mensaje, entidadTipo, entidadId, idUsuario }, client) {
+async function crearNotificacion({ tipo, mensaje, entidadTipo = null, entidadId = null, idUsuario }, client) {
   if (!idUsuario) return;
   const db = client || pool;
   try {
@@ -70,6 +70,22 @@ async function notificarEquipoProyecto(proyectoId, tipo, mensaje, entidadTipo, e
   }
 }
 
+// Notifica a todos los superadmin activos — para avisos que no son de un
+// proyecto ni de un usuario en particular, sino de administración general
+// de la plataforma (ej. alguien sin permiso de alta pide un indicador
+// nuevo del catálogo).
+async function notificarSuperadmins(tipo, mensaje, client) {
+  const db = client || pool;
+  try {
+    const { rows } = await db.query(`SELECT id FROM usuarios WHERE rol = 'superadmin' AND activo = true`);
+    for (const fila of rows) {
+      await crearNotificacion({ tipo, mensaje, idUsuario: fila.id }, db);
+    }
+  } catch (err) {
+    console.error('[notificaciones] Error al notificar a superadmins:', err.message);
+  }
+}
+
 // Notifica cuando una acción está próxima a vencer (llamado desde alertasVencimiento)
 async function notificarVencimiento(accion, client) {
   const db = client || pool;
@@ -92,5 +108,6 @@ async function notificarVencimiento(accion, client) {
 module.exports = {
   crearNotificacion,
   notificarEquipoProyecto,
+  notificarSuperadmins,
   notificarVencimiento
 };
