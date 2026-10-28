@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { BarChart3, Plus, Trash2, Loader2, AlertTriangle } from 'lucide-react';
 import * as indicadoresApi from '../../api/indicadores';
 import { useUI } from '../../context/UIContext';
+import { tieneCantidadValida } from '../indicadores/ChipAportacion';
 
 const MODOS = [
   { valor: 'proporcional', etiqueta: 'Proporcional al avance' },
@@ -23,6 +24,11 @@ export default function SeccionAportaciones({ tipo, nodoId, proyectoId, avanceEf
   // vinculado — el checkbox de vincular no aplica ahí, hace falta
   // elegir a cuál categoría aporta este nodo antes de poder vincular.
   const [categoriaElegida, setCategoriaElegida] = useState({});
+  // Cantidad elegida para cada indicador todavía no vinculado — vincular
+  // en 0 "para ajustar después" ya no se permite (el indicador no se
+  // movía aunque el nodo se completara, y nada avisaba): hace falta
+  // escribir una cantidad real antes de que el checkbox pueda marcarse.
+  const [montoElegido, setMontoElegido] = useState({});
 
   const cargar = useCallback(async () => {
     try {
@@ -56,12 +62,7 @@ export default function SeccionAportaciones({ tipo, nodoId, proyectoId, avanceEf
         await indicadoresApi.crearAportacion(ind.id, {
           tipo_nodo: tipo === 'etapa' ? 'etapa' : 'accion',
           id_nodo: nodoId,
-          // Monto en 0 a propósito: el modelo de esta sección es
-          // "vincula ahora, ajusta el monto en el campo inline de al
-          // lado" — no es el mismo caso que el wizard de vinculación,
-          // que sí exige un monto antes de crear la aportación.
-          valor_aportacion: 0,
-          permitir_cero: true,
+          valor_aportacion: montoElegido[ind.id],
           modo: 'proporcional',
           id_categoria: ind.composicion === 'Categorias' ? categoriaElegida[ind.id] : undefined,
         });
@@ -179,6 +180,14 @@ export default function SeccionAportaciones({ tipo, nodoId, proyectoId, avanceEf
                   {ap.aportacion} {unidadLabel}
                 </span>
               )}
+              {!tieneCantidadValida(ap) && (
+                <span
+                  className="flex items-center gap-1 text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full"
+                  title="El indicador no se mueve aunque este nodo avance, hasta que se escriba una cantidad mayor que 0 arriba."
+                >
+                  <AlertTriangle size={10} /> Sin cantidad definida
+                </span>
+              )}
             </div>
             <p className="text-[9px] text-gray-400 pl-6 mt-1 leading-snug">
               {ap.modo === 'proporcional'
@@ -195,18 +204,28 @@ export default function SeccionAportaciones({ tipo, nodoId, proyectoId, avanceEf
           {noVinculados.map(ind => {
             const esPorCategorias = ind.composicion === 'Categorias';
             const sinCategoriaElegida = esPorCategorias && !categoriaElegida[ind.id];
+            const sinMontoElegido = !(parseFloat(montoElegido[ind.id]) > 0);
+            const noSePuedeVincular = sinCategoriaElegida || sinMontoElegido;
             return (
               <div key={ind.id} className="flex items-center gap-2 text-xs text-gray-500 py-0.5">
                 <label className="flex items-center gap-2 hover:text-gray-700 cursor-pointer min-w-0">
                   <input
                     type="checkbox"
                     checked={false}
-                    onChange={() => !sinCategoriaElegida && toggleIndicador(ind)}
-                    disabled={guardando === ind.id || sinCategoriaElegida}
+                    onChange={() => !noSePuedeVincular && toggleIndicador(ind)}
+                    disabled={guardando === ind.id || noSePuedeVincular}
                     className="rounded text-[#7B1C3E] focus:ring-[#7B1C3E]/30"
                   />
                   <span className="truncate">{ind.nombre}</span>
                 </label>
+                <input
+                  type="number" step="any" min="0"
+                  value={montoElegido[ind.id] ?? ''}
+                  onChange={e => setMontoElegido(prev => ({ ...prev, [ind.id]: e.target.value }))}
+                  placeholder="cantidad"
+                  title="Cuánto aporta este nodo al indicador — hace falta antes de poder vincularlo"
+                  className="w-20 text-[10px] border border-gray-300 rounded px-1 py-0.5 focus:border-[#7B1C3E] focus:ring-1 focus:ring-[#7B1C3E]/20 outline-none"
+                />
                 {esPorCategorias && (
                   <select
                     value={categoriaElegida[ind.id] || ''}

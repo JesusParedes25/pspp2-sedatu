@@ -88,6 +88,7 @@ export default function TabApiIndicadores() {
   const [resultadoPrueba, setResultadoPrueba] = useState(null);
   const [errorPrueba, setErrorPrueba] = useState('');
   const [curlCopiado, setCurlCopiado] = useState(false);
+  const [incluirTodos, setIncluirTodos] = useState(false);
 
   useEffect(() => {
     if (!busquedaIndicador.trim() || indicadorElegido) { setSugerencias([]); return; }
@@ -106,7 +107,7 @@ export default function TabApiIndicadores() {
     setErrorPrueba('');
     setResultadoPrueba(null);
     try {
-      const res = await adminApi.probarApiIndicadores({ clave: indicadorElegido?.clave });
+      const res = await adminApi.probarApiIndicadores({ clave: indicadorElegido?.clave, todos: incluirTodos });
       setResultadoPrueba(res);
     } catch (err) {
       setErrorPrueba(err.response?.data?.mensaje || 'No se pudo ejecutar la prueba.');
@@ -115,7 +116,11 @@ export default function TabApiIndicadores() {
     }
   }
 
-  const comandoCurl = `curl -H "Authorization: Bearer <token>" "${urlApi}${indicadorElegido ? `?clave=${indicadorElegido.clave}` : ''}"`;
+  const parametrosCurl = [
+    indicadorElegido ? `clave=${indicadorElegido.clave}` : null,
+    incluirTodos ? 'todos=1' : null,
+  ].filter(Boolean).join('&');
+  const comandoCurl = `curl -H "Authorization: Bearer <token>" "${urlApi}${parametrosCurl ? `?${parametrosCurl}` : ''}"`;
 
   const hayCambiosSinGuardar = nuevo.nombre.trim().length > 0 || nuevo.descripcion.trim().length > 0;
   const { cerrarConConfirmacion } = useCierreConDatosSinGuardar(hayCambiosSinGuardar, () => setCreando(false));
@@ -140,11 +145,15 @@ export default function TabApiIndicadores() {
           Authorization: Bearer &lt;token&gt;
         </code>
         <p className="text-[11px] text-gray-500">
-          Devuelve cada indicador del catálogo con su <strong>clave estable</strong>, el total de
-          meta y avance sumando todos los proyectos, y el desglose por proyecto con quién capturó
-          el dato. Acepta <code className="font-mono">?clave=</code> para pedir uno solo, y también
-          el encabezado <code className="font-mono">X-API-Key</code> si la herramienta del otro
-          lado no permite Bearer.
+          Por omisión devuelve solo los indicadores con al menos un proyecto que los mida (no
+          filtra por si siguen activos en el catálogo: uno retirado con captura real sigue
+          apareciendo) — con su <strong>clave estable</strong>, el total de meta y avance sumando
+          todos los proyectos, y el desglose por proyecto con quién capturó el dato.
+          Acepta <code className="font-mono">?clave=</code> para pedir uno solo (ese siempre se
+          devuelve, tenga o no proyectos) y <code className="font-mono">?todos=1</code> para
+          incluir también lo que ningún proyecto mide. También acepta el encabezado{' '}
+          <code className="font-mono">X-API-Key</code> si la herramienta del otro lado no permite
+          Bearer.
         </p>
       </div>
 
@@ -191,6 +200,17 @@ export default function TabApiIndicadores() {
             </div>
           )}
         </div>
+
+        <label className="flex items-center gap-1.5 text-[11px] text-gray-600">
+          <input
+            type="checkbox"
+            checked={incluirTodos}
+            onChange={e => setIncluirTodos(e.target.checked)}
+            className="rounded border-gray-300"
+          />
+          Incluir también lo que ningún proyecto mide todavía
+          (<code className="font-mono">?todos=1</code>)
+        </label>
 
         <div className="flex items-center gap-2">
           <button onClick={probar} disabled={probando} className="btn-primary text-xs flex items-center gap-1.5 disabled:opacity-40">

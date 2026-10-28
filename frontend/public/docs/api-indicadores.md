@@ -26,11 +26,27 @@ Sin un token válido la API responde `401` con `codigo: "TOKEN_REQUERIDO"` o
 tiene una credencial válida no se le da información sobre cuáles sí lo
 son).
 
+## Cambio de comportamiento por omisión (importante si ya integraste esta API antes)
+
+Hasta ahora, sin ningún parámetro, esta API devolvía el catálogo
+institucional completo (alrededor de 1400 indicadores), la enorme mayoría
+sin ningún proyecto que los mida — totales en cero, puro ruido para
+graficar. **Desde esta versión, sin parámetros, solo se devuelven los
+indicadores con al menos un proyecto vinculado** (hoy, decenas, no
+miles). Si tu integración ya filtraba `proyectos: []` por su cuenta,
+puedes quitar ese filtro; si necesitas el catálogo completo tal como
+antes (incluido lo que ningún proyecto mide), agrega `?todos=1`.
+
+Este filtro es solo por proyecto, **no por `activo`**: un indicador que
+ya tiene captura real sigue apareciendo aunque se retire del catálogo
+(deje de ofrecerse para proyectos nuevos) — ver el campo `activo` abajo.
+
 ## Parámetros
 
 | Parámetro | Para qué | Default |
 |---|---|---|
-| `clave` | Pedir un solo indicador por su clave estable, en vez del catálogo completo. Ej. `?clave=viviendas-mejoradas` | (ninguno — sin este parámetro, devuelve todo el catálogo) |
+| `clave` | Pedir un solo indicador por su clave estable, en vez del listado general. Siempre se devuelve si existe, tenga o no proyectos y esté o no activo en el catálogo — es una consulta puntual, no pasa por el filtro de abajo. Ej. `?clave=viviendas-mejoradas` | (ninguno) |
+| `todos` | `?todos=1` quita el filtro por omisión: devuelve también lo que ningún proyecto mide — el comportamiento de esta API antes de este cambio. | sin este parámetro, solo lo que algún proyecto mide |
 | `historico_limite` | Cuántos puntos recientes trae `historico` por proyecto, como máximo | `60` (tope absoluto: `365`) |
 
 `historico` siempre trae los puntos **más recientes**, nunca una página
@@ -95,10 +111,10 @@ serie histórica.
 | Campo | Significado |
 |---|---|
 | `clave` | Identificador estable — ver arriba. Úsalo para emparejar series, no el `nombre`. |
-| `nombre`, `descripcion`, `tipo`, `definicion`, `fuente` | La definición del indicador, tal como vive en el catálogo. |
+| `nombre`, `descripcion`, `tipo`, `definicion`, `fuente` | La definición del indicador, tal como vive en el catálogo. `definicion`/`fuente` pueden venir `null` cuando el catálogo solo tiene ahí una nota de mantenimiento interna (nunca pensada para salir de la plataforma) en vez de contenido real. |
 | `unidad` | `Porcentaje`, `Moneda_MXN` o `Numero`. |
 | `etiqueta_unidad` | Para `Numero`: qué se cuenta (ej. "viviendas", "expedientes"). Vacío para `Porcentaje`/`Moneda_MXN` (ahí la unidad ya es autoexplicativa). |
-| `activo` | Si el indicador sigue vigente en el catálogo. Uno retirado puede seguir apareciendo si algún proyecto ya lo usó — revisa este campo antes de graficarlo como vigente. |
+| `activo` | Si el indicador sigue vigente en el catálogo (se sigue ofreciendo para proyectos nuevos). **Esta API nunca filtra por este campo**: un indicador retirado del catálogo puede venir en `false` y seguir apareciendo con su captura real, si algún proyecto ya lo usaba — revisa este campo antes de graficarlo como vigente, pero no asumas que su ausencia significa que está activo. |
 | `meta_total`, `avance_total` | Suma de la meta y el avance de **todos** los proyectos que lo miden. **Para `unidad: "Porcentaje"` esta suma no significa nada** (40% + 60% no son "100%" de nada real) — ignórala en ese caso y usa el desglose por proyecto. |
 | `porcentaje` | `avance_total / meta_total * 100`, redondeado a un decimal. `null` si no hay meta capturada en ningún proyecto. **Sin tope**: un indicador sobre-cumplido reporta más de 100 a propósito (es información real, no un error que esta API esconda). |
 
