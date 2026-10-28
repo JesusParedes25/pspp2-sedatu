@@ -12,19 +12,74 @@
  */
 const indicadoresQueries = require('../db/queries/indicadores.queries');
 const inicioQueries = require('../db/queries/inicio.queries');
+const miembrosQueries = require('../db/queries/miembros.queries');
 const { resolverProyectoIdsFiltro } = require('../utils/alcanceProyectos');
 
-// GET /indicadores/mios?proyecto_ids=id1,id2&cartera_id=xxx — todos los
-// indicadores de los proyectos donde participa el usuario (superadmin/
-// ejecutivo ven todos), agregados igual que en Tablero — mismo query,
-// mismo criterio de alcance/filtro (resolverProyectoIdsFiltro), para que
-// el número de un indicador sea el mismo sin importar si se ve aquí o
-// en el Tablero.
+const ROLES_CON_TOTAL_PLATAFORMA = ['superadmin', 'ejecutivo'];
+
+// GET /indicadores/mios?proyecto_ids=id1,id2&cartera_id=xxx
+//
+// Bloque 5 del encargo: esta pantalla se anuncia como "los indicadores
+// de TUS proyectos" — para superadmin/ejecutivo, cuyo alcance normal
+// (resolverProyectoIdsFiltro) es "todos los proyectos de la plataforma",
+// eso la inundaba con cientos de proyectos ajenos. Aquí la lista se
+// acota siempre a la participación real del usuario
+// (miembrosQueries.obtenerProyectosUsuario) — para el resto de roles
+// coincide con su alcance normal, así que no cambia nada.
+//
+// Por separado, solo para superadmin/ejecutivo, cada entrada que
+// comparta id_catalogo con algo medido en OTROS proyectos de su alcance
+// completo (más allá de los suyos) trae también `total_plataforma`/
+// `proyectos_plataforma` — el total real, para quien necesita reportar
+// hacia arriba. Mismo criterio de alcance de siempre
+// (resolverProyectoIdsFiltro, sin filtro base = su alcance completo), no
+// una regla de visibilidad nueva.
 async function listarMios(req, res, next) {
   try {
-    const proyectoIds = await resolverProyectoIdsFiltro(req.usuario, req.query);
-    if (!proyectoIds || proyectoIds.length === 0) return res.json({ datos: [] });
-    const datos = await inicioQueries.obtenerIndicadoresAgregados(proyectoIds);
+    // El recorte a "participación real" solo aplica a superadmin/
+    // ejecutivo (cuyo alcance normal ya es "todos los proyectos", ver
+    // mini-clase arriba) — para cualquier otro rol se deja el alcance de
+    // siempre (direccion conserva su bono de DG; enlace, lo de siempre),
+    // pasando null para que resolverProyectoIdsFiltro use su default.
+    const esRolAmplio = ROLES_CON_TOTAL_PLATAFORMA.includes(req.usuario.rol);
+    const basePersonal = esRolAmplio ? await miembrosQueries.obtenerProyectosUsuario(req.usuario.id) : null;
+    const proyectoIdsPersonales = await resolverProyectoIdsFiltro(req.usuario, req.query, basePersonal);
+    if (!proyectoIdsPersonales || proyectoIdsPersonales.length === 0) return res.json({ datos: [] });
+    const datos = await inicioQueries.obtenerIndicadoresAgregados(proyectoIdsPersonales);
+
+    const idsCatalogo = [...new Set(datos.map(d => d.id_catalogo).filter(Boolean))];
+    if (esRolAmplio && idsCatalogo.length > 0) {
+      const proyectoIdsAlcance = await resolverProyectoIdsFiltro(req.usuario, req.query);
+      const todosLosDatos = await inicioQueries.obtenerIndicadoresAgregados(proyectoIdsAlcance);
+      const porCatalogo = {};
+      for (const d of todosLosDatos) {
+        if (!d.id_catalogo) continue;
+        const acc = porCatalogo[d.id_catalogo] || { total: 0, proyectos: new Set() };
+        // Mismo criterio que agruparPorCatalogo/TarjetaIndicadorGrupo en el
+        // frontend: un porcentaje no se combina entre proyectos, así que
+        // no se suma — solo se cuenta cuántos proyectos más lo miden.
+        if (d.unidad !== 'Porcentaje') acc.total += d.valor_actual;
+        acc.proyectos.add(d.proyecto_id);
+        porCatalogo[d.id_catalogo] = acc;
+      }
+      // Cuántos de los proyectos PERSONALES ya miden cada entrada del
+      // catálogo — para comparar contra el total de la plataforma y
+      // anotar el dato solo cuando de verdad hay algo más allá de lo
+      // que ya se ve en esta misma pantalla.
+      const proyectosPersonalesPorCatalogo = {};
+      for (const d of datos) {
+        if (!d.id_catalogo) continue;
+        proyectosPersonalesPorCatalogo[d.id_catalogo] = (proyectosPersonalesPorCatalogo[d.id_catalogo] || 0) + 1;
+      }
+      for (const d of datos) {
+        const agg = d.id_catalogo && porCatalogo[d.id_catalogo];
+        if (agg && agg.proyectos.size > (proyectosPersonalesPorCatalogo[d.id_catalogo] || 0)) {
+          d.total_plataforma = agg.total;
+          d.proyectos_plataforma = agg.proyectos.size;
+        }
+      }
+    }
+
     res.json({ datos });
   } catch (err) {
     next(err);

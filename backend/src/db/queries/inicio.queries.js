@@ -182,7 +182,8 @@ async function obtenerIndicadoresAgregados(proyectoIds) {
       p.id AS proyecto_id, p.nombre AS proyecto_nombre,
       dg.siglas AS dg_siglas,
       COALESCE(ma.metas_anuales, '[]'::json) AS metas_anuales,
-      COALESCE(cat.categorias, '[]'::json) AS categorias
+      COALESCE(cat.categorias, '[]'::json) AS categorias,
+      mov.fecha_ultimo_movimiento
     FROM indicadores i
     JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL AND p.estado != 'Cancelada'
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
@@ -198,6 +199,13 @@ async function obtenerIndicadoresAgregados(proyectoIds) {
       ) ORDER BY orden, created_at) AS categorias
       FROM indicador_categorias WHERE id_indicador = i.id
     ) cat ON true
+    -- Fecha del movimiento no anulado más reciente — "Mis indicadores"
+    -- (Bloque 5 del encargo) la muestra en cada tarjeta; Tablero/Cartera/
+    -- Panorama simplemente no la piden.
+    LEFT JOIN LATERAL (
+      SELECT MAX(fecha) AS fecha_ultimo_movimiento
+      FROM indicador_movimientos WHERE id_indicador = i.id AND anulado_en IS NULL
+    ) mov ON true
     WHERE i.activo = true AND i.id_proyecto = ANY($1)
     ORDER BY i.tipo, p.nombre, i.nombre
   `, [proyectoIds]);

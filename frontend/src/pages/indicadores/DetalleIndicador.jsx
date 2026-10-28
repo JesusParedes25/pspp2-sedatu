@@ -242,13 +242,13 @@ function SeccionDefinicion({ indicador, aportaciones, onGuardado, mostrarToast }
 
 function SeccionValor({ indicador, onGuardado, mostrarToast, tieneAportaciones }) {
   const esMoneda = indicador.unidad === 'Moneda_MXN';
-  // modo_calculo nunca lo escribe el wizard (siempre queda en su
-  // default 'manual'), así que por sí solo no basta para saber si el
-  // valor se captura a mano — un indicador puede quedar en 'manual' y
-  // a la vez tener nodos aportando. En cuanto hay al menos un nodo, el
-  // valor se calcula solo (mismo criterio que ya aplica por categoría
-  // en SeccionCategorias/establecerValorManual) y el input se oculta.
-  const esManual = indicador.modo_calculo === 'manual' && !tieneAportaciones;
+  // modo_calculo se retiró (ver Bloque 1 del rediseño de Indicadores):
+  // ya no hay "automático" vs "manual" a nivel de indicador, solo nodos
+  // que aportan o no. En cuanto hay al menos un nodo vinculado, su
+  // avance ya mantiene el valor al día (procesarCambioNodo) y el input
+  // manual se oculta para no competir con eso; sin nodos, se captura a
+  // mano, como siempre hicieron los indicadores Simple reales.
+  const esManual = !tieneAportaciones;
   const {
     mostrarSelectorPeriodo, sinPeriodos, periodos,
     idPeriodo, cambiarPeriodo, periodoActual,

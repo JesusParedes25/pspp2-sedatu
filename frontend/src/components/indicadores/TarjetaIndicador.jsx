@@ -20,9 +20,10 @@
 
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronDown, ChevronUp, X, Pencil } from 'lucide-react';
+import { ChevronDown, ChevronUp, X, Pencil, Target } from 'lucide-react';
 import { formatearMonedaCorta, etiquetaUnidadIndicador } from '../../utils/formatoMoneda';
 import { TIPOS_INDICADOR } from '../../utils/tiposIndicador';
+import { formatFecha } from '../../utils/fecha';
 import ModalEditarValorIndicador from './ModalEditarValorIndicador';
 import ModalEditarCategoriasIndicador from './ModalEditarCategoriasIndicador';
 
@@ -81,16 +82,15 @@ export default function TarjetaIndicador({ indicador, contexto = null, variante 
   const esMoneda = indicador.unidad === 'Moneda_MXN';
   const unidad = unidadDe(indicador);
   const compacto = variante === 'compacto';
-  // Editar valor manual solo tiene sentido si el indicador de verdad se
-  // captura a mano (modo_calculo='manual') — para los automáticos el
-  // valor lo pone el propio recálculo, ofrecer editarlo confundiría más
-  // de lo que ayuda (parecería que "sirve" y el próximo recálculo lo
-  // pisa sin aviso). En tarjetas enlazable (solo "Mis indicadores") el
-  // lápiz queda fuera: la tarjeta completa ya es un link al detalle,
-  // que tiene el mismo editor — mostrar las dos formas de llegar ahí
-  // era ruido. En Tablero/Cartera/Panorama (sin página a la que ir)
-  // el lápiz sigue siendo la única forma de editar, sin cambios.
-  const puedeEditar = permitirEditarValor && indicador.modo_calculo === 'manual' && !enlazable;
+  // modo_calculo se retiró (Bloque 1 del rediseño de Indicadores) — ya
+  // no hay "automático"/"manual" a nivel de indicador, así que editar a
+  // mano siempre es una opción (un movimiento manual, aparte de los que
+  // ya insertan los nodos vinculados). En tarjetas enlazable (solo "Mis
+  // indicadores") el lápiz queda fuera: la tarjeta completa ya es un
+  // link al detalle, que tiene el mismo editor — mostrar las dos formas
+  // de llegar ahí era ruido. En Tablero/Cartera/Panorama (sin página a
+  // la que ir) el lápiz sigue siendo la única forma de editar.
+  const puedeEditar = permitirEditarValor && !enlazable;
 
   // El botón "editar valor" y el modal que abre nunca deben disparar la
   // navegación del <Link> cuando la tarjeta es enlazable — el modal se
@@ -159,10 +159,23 @@ export default function TarjetaIndicador({ indicador, contexto = null, variante 
             style={{ width: `${pctBarra}%`, backgroundColor: GUINDA }}
           />
         </div>
+      ) : enlazable ? (
+        // En "Mis indicadores" (la única vista enlazable) una tarjeta sin
+        // meta ofrece definirla en vez de solo decir que no hay una — el
+        // clic entero de la tarjeta ya lleva al detalle, donde se define.
+        <p className="mt-1.5 flex items-center gap-1 text-[10px] font-medium text-guinda-600">
+          <Target size={10} /> Definir meta
+        </p>
       ) : (
         // Sin meta no se dibuja una barra vacía: no hay nada que medir
         // contra qué, y una barra al 0% se lee como "no ha avanzado".
         <p className="mt-1.5 text-[10px] text-gray-400">Sin meta definida</p>
+      )}
+
+      {enlazable && indicador.fecha_ultimo_movimiento && (
+        <p className="mt-1.5 text-[10px] text-gray-400">
+          Último movimiento: {formatFecha(indicador.fecha_ultimo_movimiento)}
+        </p>
       )}
 
       {children}
@@ -250,7 +263,7 @@ function TarjetaIndicadorGrupo({ grupo, variante = 'normal', permitirEditarValor
   // directo al detalle en vez de aislar (ver abajo), así que `aislado`
   // se queda siempre null — el `&& !enlazable` es defensivo/explícito,
   // no cambia comportamiento observable.
-  const puedeEditar = permitirEditarValor && !!aislado && aislado.modo_calculo === 'manual' && !enlazable;
+  const puedeEditar = permitirEditarValor && !!aislado && !enlazable;
 
   const valorMostrado = aislado
     ? parseFloat(aislado.valor_actual) || 0
@@ -332,13 +345,36 @@ function TarjetaIndicadorGrupo({ grupo, variante = 'normal', permitirEditarValor
               </span>
             )}
           </div>
-          {tieneMeta && (
+          {tieneMeta ? (
             <div className={`${compacto ? 'mt-1.5 h-1.5' : 'mt-2 h-2'} bg-gray-100 rounded-full overflow-hidden`}>
               <div className="h-full rounded-full transition-all" style={{ width: `${pctBarra}%`, backgroundColor: GUINDA }} />
             </div>
+          ) : enlazable && (
+            <p className="mt-1.5 flex items-center gap-1 text-[10px] font-medium text-guinda-600">
+              <Target size={10} /> Definir meta
+            </p>
           )}
         </>
       )}
+
+      {/* Solo ejecutivo/superadmin la reciben del backend (listarMios),
+          y solo cuando hay proyectos más allá de los que ya se ven aquí
+          — ver indicadores.controller.js::listarMios. */}
+      {!aislado && grupo[0].total_plataforma != null && (
+        <p className="mt-1.5 text-[10px] text-gray-500">
+          En toda la plataforma: {esMoneda ? formatearMonedaCorta(grupo[0].total_plataforma) : `${formatoCorto(grupo[0].total_plataforma)}${unidad ? ` ${unidad}` : ''}`}
+          {' '}({grupo[0].proyectos_plataforma} proyecto{grupo[0].proyectos_plataforma !== 1 ? 's' : ''})
+        </p>
+      )}
+
+      {enlazable && (() => {
+        const fecha = aislado
+          ? aislado.fecha_ultimo_movimiento
+          : grupo.map(i => i.fecha_ultimo_movimiento).filter(Boolean).sort().at(-1);
+        return fecha ? (
+          <p className="mt-1.5 text-[10px] text-gray-400">Último movimiento: {formatFecha(fecha)}</p>
+        ) : null;
+      })()}
 
       {!aislado && (
         <button

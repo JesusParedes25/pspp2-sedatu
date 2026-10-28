@@ -59,15 +59,50 @@ describe('GET /indicadores/mios — hereda el bono de DG (Grupo 1)', () => {
     expect(pool.query).not.toHaveBeenCalled();
   });
 
-  test.each(['superadmin', 'ejecutivo'])('%s recibe todos los indicadores, sin tocar membresía', async (rol) => {
-    pool.query.mockResolvedValueOnce({ rows: [{ id: UUID_PROPIO }, { id: UUID_DG }] });
+  // Bloque 5 de la "Versión final de Indicadores": "Mis indicadores" se
+  // anuncia como personal — para superadmin/ejecutivo, cuyo alcance
+  // normal es "todos los proyectos de la plataforma" (sin tocar
+  // membresía), eso la inundaba con proyectos ajenos. Ahora la lista se
+  // acota a su participación real, igual que cualquier otro rol; el
+  // alcance completo solo se usa aparte, para el total agregado que
+  // ven estos dos roles cuando un indicador se mide también en otros
+  // proyectos (ver el siguiente describe).
+  test.each(['superadmin', 'ejecutivo'])('%s recibe solo los indicadores de su propia participación, no los de toda la plataforma', async (rol) => {
+    miembrosQueries.obtenerProyectosUsuario.mockResolvedValueOnce([UUID_PROPIO]);
 
-    const req = { usuario: { rol }, query: {} };
+    const req = { usuario: { rol, id: 'u1' }, query: {} };
     await indicadoresController.listarMios(req, crearRes(), jest.fn());
 
-    expect(miembrosQueries.obtenerProyectosUsuario).not.toHaveBeenCalled();
+    expect(miembrosQueries.obtenerProyectosUsuario).toHaveBeenCalledWith('u1');
+    expect(pool.query).not.toHaveBeenCalled();
     const [proyectoIdsPasados] = inicioQueries.obtenerIndicadoresAgregados.mock.calls[0];
-    expect(proyectoIdsPasados.sort()).toEqual([UUID_PROPIO, UUID_DG].sort());
+    expect(proyectoIdsPasados).toEqual([UUID_PROPIO]);
+  });
+
+  // Bloque 5: aparte de acotar la lista a lo personal (arriba), superadmin/
+  // ejecutivo ven, por cada entrada del catálogo que también se mida en
+  // proyectos fuera de los suyos, el total real de toda la plataforma —
+  // mismo criterio de alcance de siempre (resolverProyectoIdsFiltro sin
+  // base, = alcanceProyectosUsuario), no una regla nueva.
+  test('superadmin ve el total de la plataforma cuando el indicador se mide también fuera de sus proyectos', async () => {
+    const UUID_OTRO = '00000000-0000-0000-0000-000000000003';
+    miembrosQueries.obtenerProyectosUsuario.mockResolvedValueOnce([UUID_PROPIO]);
+    pool.query.mockResolvedValueOnce({ rows: [{ id: UUID_PROPIO }, { id: UUID_OTRO }] });
+    inicioQueries.obtenerIndicadoresAgregados
+      .mockResolvedValueOnce([{ id: 'ind-propio', id_catalogo: 'cat-1', unidad: 'Numero', valor_actual: 10, proyecto_id: UUID_PROPIO }])
+      .mockResolvedValueOnce([
+        { id: 'ind-propio', id_catalogo: 'cat-1', unidad: 'Numero', valor_actual: 10, proyecto_id: UUID_PROPIO },
+        { id: 'ind-otro', id_catalogo: 'cat-1', unidad: 'Numero', valor_actual: 25, proyecto_id: UUID_OTRO },
+      ]);
+
+    const res = crearRes();
+    const req = { usuario: { rol: 'superadmin', id: 'u1' }, query: {} };
+    await indicadoresController.listarMios(req, res, jest.fn());
+
+    const [{ datos }] = res.json.mock.calls[0];
+    expect(datos).toHaveLength(1);
+    expect(datos[0].total_plataforma).toBe(35);
+    expect(datos[0].proyectos_plataforma).toBe(2);
   });
 });
 
