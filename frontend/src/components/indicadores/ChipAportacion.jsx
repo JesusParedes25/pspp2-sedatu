@@ -12,7 +12,7 @@
  *            y termine divergiendo.
  */
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, Trash2, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Trash2, Loader2, AlertTriangle } from 'lucide-react';
 import * as indicadoresApi from '../../api/indicadores';
 import EstadoChip from '../common/EstadoChip';
 
@@ -20,6 +20,16 @@ export const MODOS_APORTACION = [
   { valor: 'al_concluir', etiqueta: 'Manual', ayuda: 'Tú escribes el número. Cuenta cuando esto se complete.' },
   { valor: 'proporcional', etiqueta: 'Automático', ayuda: 'Se calcula solo, proporcional a su avance.' },
 ];
+
+// Una aportación vinculada antes de que esto se exigiera al vincular
+// (ver aportaciones.controller.js) puede seguir en 0 — el indicador
+// nunca se mueve aunque el nodo se complete, y nada más lo avisa. Se
+// detecta aquí, en un solo lugar, para que todas las pantallas que
+// listan aportaciones (ficha del indicador, pestañas de nodo) usen el
+// mismo criterio.
+export function tieneCantidadValida(ap) {
+  return Number(ap.aportacion) > 0;
+}
 
 export default function ChipAportacion({ ap, etiquetaPrincipal, subtitulo, soloLectura, onActualizado, mostrarToast, categorias }) {
   const [abierto, setAbierto] = useState(false);
@@ -81,9 +91,18 @@ export default function ChipAportacion({ ap, etiquetaPrincipal, subtitulo, soloL
               Bloque 6) — en TabIndicadores.jsx (dentro de un nodo) no aporta
               nada saber el estado del nodo en el que ya se está parado. */}
           {ap.estado_nodo && <EstadoChip estado={ap.estado_nodo} className="!text-[9px] !px-1.5 !py-0" />}
-          <span className="text-[10px] text-gray-400 tabular-nums">
-            {Number(ap.aportacion) > 0 ? Number(ap.aportacion).toLocaleString('es-MX') + ' · ' : ''}{modoInfo.etiqueta}
-          </span>
+          {tieneCantidadValida(ap) ? (
+            <span className="text-[10px] text-gray-400 tabular-nums">
+              {Number(ap.aportacion).toLocaleString('es-MX')} · {modoInfo.etiqueta}
+            </span>
+          ) : (
+            <span
+              className="flex items-center gap-1 text-[9px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full"
+              title="Esta aportación no tiene una cantidad mayor que 0: el indicador no se mueve aunque este nodo avance. Toca para corregirlo."
+            >
+              <AlertTriangle size={10} /> Sin cantidad definida
+            </span>
+          )}
           {abierto ? <ChevronDown size={13} className="text-gray-400" /> : <ChevronRight size={13} className="text-gray-400" />}
         </span>
       </button>
@@ -128,7 +147,7 @@ export default function ChipAportacion({ ap, etiquetaPrincipal, subtitulo, soloL
               <>
                 <button
                   onClick={guardar}
-                  disabled={guardando || (modo === ap.modo && Number(valor) === Number(ap.aportacion) && idCategoria === (ap.id_categoria || ''))}
+                  disabled={guardando || !(Number(valor) > 0) || (modo === ap.modo && Number(valor) === Number(ap.aportacion) && idCategoria === (ap.id_categoria || ''))}
                   className="text-xs font-medium text-guinda-700 hover:underline disabled:opacity-40 disabled:no-underline"
                 >
                   Guardar
@@ -144,6 +163,9 @@ export default function ChipAportacion({ ap, etiquetaPrincipal, subtitulo, soloL
               </>
             )}
           </div>
+          {!soloLectura && !(Number(valor) > 0) && (
+            <p className="text-[10px] text-red-600">La cantidad debe ser mayor que 0.</p>
+          )}
         </div>
       )}
     </div>

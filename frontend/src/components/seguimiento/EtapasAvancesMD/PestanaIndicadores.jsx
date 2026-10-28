@@ -9,18 +9,63 @@
  */
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Loader2, BarChart3, TrendingUp } from 'lucide-react';
+import { Plus, Loader2, BarChart3, TrendingUp, AlertTriangle } from 'lucide-react';
 import * as indicadoresApi from '../../../api/indicadores';
 import ModalAccionNodo from './ModalAccionNodo';
 import TabIndicadores from '../TabIndicadores';
 import ModalRegistrarMovimiento from '../../indicadores/ModalRegistrarMovimiento';
+import { MODOS_APORTACION, tieneCantidadValida } from '../../indicadores/ChipAportacion';
 
 const NIVEL_LABEL = { etapa: 'Etapa', accion: 'Acción', tarea: 'Tarea' };
-const MODO_LABEL = { proporcional: 'Proporcional al avance', al_concluir: 'Al concluir' };
+
+function etiquetaModo(modo) {
+  return MODOS_APORTACION.find(m => m.valor === modo)?.etiqueta || modo;
+}
 
 function etiquetaUnidad(ap) {
   if (ap.unidad === 'Otra' || ap.unidad === 'Personalizada') return ap.etiqueta_unidad || ap.unidad_personalizada || '';
   return ap.unidad_personalizada || ap.unidad || '';
+}
+
+// Corregir, en el lugar, una aportación que quedó sin cantidad (0 o
+// nula) — sin esto, la única forma de arreglarla era a través del
+// editor del chip en la otra pantalla ("Indicadores" dentro del nodo).
+// Solo para la aportación de ESTE nodo (ver gating de "Registrar" más
+// abajo): la de un descendiente se corrige desde su propio nodo.
+function CorregirCantidad({ ap, onCorregido }) {
+  const [valor, setValor] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const esValido = Number(valor) > 0;
+
+  async function guardar() {
+    if (!esValido) return;
+    setGuardando(true);
+    try {
+      await indicadoresApi.actualizarAportacion(ap.id, { valor_aportacion: parseFloat(valor) });
+      onCorregido();
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      <input
+        type="number" step="any" min="0"
+        value={valor}
+        onChange={e => setValor(e.target.value)}
+        placeholder="cantidad"
+        className="w-20 text-[11px] border border-amber-300 rounded px-1.5 py-0.5 focus:border-guinda-500 outline-none"
+      />
+      <button
+        onClick={guardar}
+        disabled={guardando || !esValido}
+        className="text-[11px] font-medium text-guinda-700 hover:underline disabled:opacity-40 disabled:no-underline"
+      >
+        Guardar
+      </button>
+    </span>
+  );
 }
 
 export default function PestanaIndicadores({ tipo, id, nodo, proyectoId, permisos, onCambiado, mostrarToast, onContador, onNavegarNodo, altaSolicitada, onAltaConsumida }) {
@@ -96,7 +141,6 @@ export default function PestanaIndicadores({ tipo, id, nodo, proyectoId, permiso
               <tr>
                 <th className="text-left font-medium px-3 py-2">Indicador</th>
                 <th className="text-left font-medium px-3 py-2">Aportación</th>
-                <th className="text-left font-medium px-3 py-2">Modo</th>
                 <th className="text-left font-medium px-3 py-2">Origen</th>
                 <th className="text-left font-medium px-3 py-2"></th>
               </tr>
@@ -111,10 +155,25 @@ export default function PestanaIndicadores({ tipo, id, nodo, proyectoId, permiso
                       {ap.categoria_nombre && <span className="text-[10px] text-gray-400">· {ap.categoria_nombre}</span>}
                     </Link>
                   </td>
-                  <td className="px-3 py-2 text-gray-600">
-                    {Number(ap.aportacion).toLocaleString('es-MX')}{etiquetaUnidad(ap) ? ` ${etiquetaUnidad(ap)}` : ''}
+                  <td className="px-3 py-2">
+                    {tieneCantidadValida(ap) ? (
+                      <span className="text-gray-600">
+                        {Number(ap.aportacion).toLocaleString('es-MX')}{etiquetaUnidad(ap) ? ` ${etiquetaUnidad(ap)}` : ''} · {etiquetaModo(ap.modo)}
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full"
+                          title="El indicador no se mueve aunque este elemento avance, hasta que se defina una cantidad."
+                        >
+                          <AlertTriangle size={11} /> Sin cantidad definida
+                        </span>
+                        {!permisos?.esSoloLectura && !ap.origen && (
+                          <CorregirCantidad ap={ap} onCorregido={() => { cargar(); onCambiado?.(); }} />
+                        )}
+                      </div>
+                    )}
                   </td>
-                  <td className="px-3 py-2 text-gray-500">{MODO_LABEL[ap.modo] || ap.modo}</td>
                   <td className="px-3 py-2">
                     {ap.origen ? (
                       <button

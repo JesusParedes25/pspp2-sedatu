@@ -35,13 +35,37 @@ const { calcularAvancePorcentaje } = require('../utils/indicador-calculo');
 const HISTORICO_LIMITE_DEFAULT = 60;
 const HISTORICO_LIMITE_MAXIMO = 365;
 
+// Notas de mantenimiento interno que algún seeder/panel deja escritas en
+// un campo de texto libre del catálogo (hoy solo `definicion`, ver
+// backend/src/db/seeders/00_catalogo_indicadores_v1_sedatu.js) y que no
+// deben salir en una API pensada para un consumidor externo. No se tocan
+// en la base, solo se ocultan al armar esta respuesta.
+const PREFIJO_NOTA_INTERNA = '⚠';
+function quitarNotaInterna(texto) {
+  if (!texto || !texto.trim().startsWith(PREFIJO_NOTA_INTERNA)) return texto;
+  return null;
+}
+
 // Núcleo de la respuesta — lo comparten la ruta pública (autenticada con
 // token, GET /publico/indicadores) y el probador de Administración > API
 // (autenticado con la sesión del superadmin, nunca con el token: el
 // token solo se guarda hasheado, así que el panel no podría usarlo ni
 // si quisiera). Las dos rutas corren exactamente este mismo código —
 // lo que el probador muestra es la respuesta real, no una simulación.
-async function obtenerDatosIndicadores(soloClave, historicoLimite) {
+//
+// `soloClave`: pedir un solo indicador por su clave estable — siempre
+// se devuelve, tenga o no proyectos, esté activo o no en el catálogo:
+// es una consulta puntual y deliberada de un consumidor que ya sabe qué
+// busca, no el barrido general que `incluirTodos` controla.
+// `incluirTodos`: sin esto, el barrido general (sin `soloClave`) se
+// acota a indicadores activos en el catálogo y con al menos un
+// proyecto que los mida — de los ~1400 del catálogo institucional,
+// la enorme mayoría nunca se vinculó a un proyecto y es ruido puro
+// para quien consume la API. Con `incluirTodos`, se devuelve el
+// catálogo completo sin ninguno de los dos filtros, igual que antes de
+// este cambio.
+async function obtenerDatosIndicadores(soloClave, historicoLimite, incluirTodos = false) {
+  const omitirFiltroActivo = !!soloClave || !!incluirTodos;
   const { rows } = await pool.query(`
     SELECT
       c.clave, c.nombre, c.descripcion, c.tipo, c.unidad,
@@ -61,8 +85,9 @@ async function obtenerDatosIndicadores(soloClave, historicoLimite) {
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
     LEFT JOIN usuarios creador ON creador.id = i.id_creador
     WHERE ($1::text IS NULL OR c.clave = $1)
+      AND ($2::boolean OR c.activo = true)
     ORDER BY c.nombre, p.nombre
-  `, [soloClave]);
+  `, [soloClave, omitirFiltroActivo]);
 
   const idsIndicador = [...new Set(rows.map(r => r.indicador_id).filter(Boolean))];
 
@@ -116,8 +141,8 @@ async function obtenerDatosIndicadores(soloClave, historicoLimite) {
         tipo: r.tipo,
         unidad: r.unidad,
         etiqueta_unidad: r.etiqueta_unidad || r.unidad_personalizada || null,
-        definicion: r.definicion,
-        fuente: r.fuente,
+        definicion: quitarNotaInterna(r.definicion),
+        fuente: quitarNotaInterna(r.fuente),
         activo: r.activo,
         meta_total: 0,
         avance_total: 0,
@@ -148,10 +173,17 @@ async function obtenerDatosIndicadores(soloClave, historicoLimite) {
     });
   }
 
-  const datos = [...porClave.values()].map(e => ({
+  let datos = [...porClave.values()].map(e => ({
     ...e,
     porcentaje: calcularAvancePorcentaje(e.avance_total, e.meta_total),
   }));
+
+  // Mismo criterio que el filtro de activo arriba: una consulta puntual
+  // por `clave` siempre devuelve su indicador, tenga o no proyectos; el
+  // barrido general lo oculta por omisión salvo que se pida `incluirTodos`.
+  if (!soloClave && !incluirTodos) {
+    datos = datos.filter(e => e.proyectos.length > 0);
+  }
 
   return { generado_en: new Date().toISOString(), total: datos.length, datos };
 }
@@ -162,12 +194,17 @@ function leerHistoricoLimite(query) {
   return Math.min(pedido, HISTORICO_LIMITE_MAXIMO);
 }
 
+function leerIncluirTodos(query) {
+  return query.todos === '1' || query.todos === 'true';
+}
+
 // GET /publico/indicadores — autenticado con token (requiereApiToken).
 async function indicadores(req, res, next) {
   try {
     const soloClave = req.query.clave || null;
     const historicoLimite = leerHistoricoLimite(req.query);
-    res.json(await obtenerDatosIndicadores(soloClave, historicoLimite));
+    const incluirTodos = leerIncluirTodos(req.query);
+    res.json(await obtenerDatosIndicadores(soloClave, historicoLimite, incluirTodos));
   } catch (err) { next(err); }
 }
 
@@ -180,7 +217,8 @@ async function probar(req, res, next) {
   try {
     const soloClave = req.query.clave || null;
     const historicoLimite = leerHistoricoLimite(req.query);
-    res.json(await obtenerDatosIndicadores(soloClave, historicoLimite));
+    const incluirTodos = leerIncluirTodos(req.query);
+    res.json(await obtenerDatosIndicadores(soloClave, historicoLimite, incluirTodos));
   } catch (err) { next(err); }
 }
 

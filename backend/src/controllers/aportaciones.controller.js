@@ -51,15 +51,15 @@ async function listarPorNodo(req, res, next) {
 // POST /indicadores/:id/aportaciones
 async function crear(req, res, next) {
   try {
-    const { tipo_nodo, id_nodo, valor_aportacion, modo, permitir_cero } = req.body;
+    const { tipo_nodo, id_nodo, valor_aportacion, modo } = req.body;
 
-    // Un monto vacío/0 antes se aceptaba sin más (`?? 0` solo cubre
-    // undefined/null) — ahora hace falta un monto real, salvo que el
-    // llamador pida explícitamente permitir_cero (caso legítimo: el
-    // checkbox de vincular en Seguimiento crea la aportación en 0 a
-    // propósito y deja ajustar el monto justo al lado).
+    // Vincular con 0 ("ajusto el monto después") se permitía antes con
+    // un escape hatch (`permitir_cero`) — un nodo quedaba Completada sin
+    // que el indicador se moviera un solo número, y nada avisaba que
+    // faltaba por capturar. Ya no: toda vinculación nueva exige un monto
+    // real desde el momento en que se crea.
     const monto = valor_aportacion === '' || valor_aportacion == null ? 0 : Number(valor_aportacion);
-    if (!permitir_cero && (!Number.isFinite(monto) || monto <= 0)) {
+    if (!Number.isFinite(monto) || monto <= 0) {
       const err = new Error('Indica cuánto aporta este nodo antes de vincularlo');
       err.statusCode = 400;
       err.codigo = 'MONTO_REQUERIDO';
@@ -108,7 +108,16 @@ async function crear(req, res, next) {
 async function actualizar(req, res, next) {
   try {
     const mapped = {};
-    if (req.body.valor_aportacion !== undefined) mapped.aportacion = req.body.valor_aportacion;
+    if (req.body.valor_aportacion !== undefined) {
+      const monto = Number(req.body.valor_aportacion);
+      if (!Number.isFinite(monto) || monto <= 0) {
+        const err = new Error('La cantidad debe ser mayor que 0');
+        err.statusCode = 400;
+        err.codigo = 'MONTO_REQUERIDO';
+        throw err;
+      }
+      mapped.aportacion = monto;
+    }
     if (req.body.modo !== undefined) mapped.modo = req.body.modo;
     const aportacion = await aportacionesQueries.actualizar(req.params.id, mapped);
     if (!aportacion) return res.status(404).json({ error: true, mensaje: 'Aportación no encontrada' });
