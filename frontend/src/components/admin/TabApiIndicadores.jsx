@@ -14,8 +14,9 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, Plus, Copy, Check, Trash2, KeyRound, X, AlertTriangle } from 'lucide-react';
+import { Loader2, Plus, Copy, Check, Trash2, KeyRound, X, AlertTriangle, PlayCircle, FileText } from 'lucide-react';
 import * as adminApi from '../../api/admin';
+import * as catalogoApi from '../../api/catalogo-indicadores';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 import { useCierreConDatosSinGuardar } from '../../hooks/useCierreConDatosSinGuardar';
 
@@ -77,6 +78,45 @@ export default function TabApiIndicadores() {
 
   const urlApi = `${window.location.origin}/api/v1/publico/indicadores`;
 
+  // Probador (Bloque 8): corre con la sesión del superadmin, no con un
+  // token real — los tokens solo se guardan hasheados, ni este panel
+  // podría recuperar uno para probar con él.
+  const [busquedaIndicador, setBusquedaIndicador] = useState('');
+  const [sugerencias, setSugerencias] = useState([]);
+  const [indicadorElegido, setIndicadorElegido] = useState(null);
+  const [probando, setProbando] = useState(false);
+  const [resultadoPrueba, setResultadoPrueba] = useState(null);
+  const [errorPrueba, setErrorPrueba] = useState('');
+  const [curlCopiado, setCurlCopiado] = useState(false);
+
+  useEffect(() => {
+    if (!busquedaIndicador.trim() || indicadorElegido) { setSugerencias([]); return; }
+    let vivo = true;
+    const t = setTimeout(async () => {
+      try {
+        const res = await catalogoApi.listarCatalogoIndicadores({ busqueda: busquedaIndicador.trim(), limite: 8 });
+        if (vivo) setSugerencias(res.datos || []);
+      } catch { if (vivo) setSugerencias([]); }
+    }, 250);
+    return () => { vivo = false; clearTimeout(t); };
+  }, [busquedaIndicador, indicadorElegido]);
+
+  async function probar() {
+    setProbando(true);
+    setErrorPrueba('');
+    setResultadoPrueba(null);
+    try {
+      const res = await adminApi.probarApiIndicadores({ clave: indicadorElegido?.clave });
+      setResultadoPrueba(res);
+    } catch (err) {
+      setErrorPrueba(err.response?.data?.mensaje || 'No se pudo ejecutar la prueba.');
+    } finally {
+      setProbando(false);
+    }
+  }
+
+  const comandoCurl = `curl -H "Authorization: Bearer <token>" "${urlApi}${indicadorElegido ? `?clave=${indicadorElegido.clave}` : ''}"`;
+
   const hayCambiosSinGuardar = nuevo.nombre.trim().length > 0 || nuevo.descripcion.trim().length > 0;
   const { cerrarConConfirmacion } = useCierreConDatosSinGuardar(hayCambiosSinGuardar, () => setCreando(false));
 
@@ -106,6 +146,85 @@ export default function TabApiIndicadores() {
           el encabezado <code className="font-mono">X-API-Key</code> si la herramienta del otro
           lado no permite Bearer.
         </p>
+      </div>
+
+      {/* Probador — Bloque 8 del encargo */}
+      <div className="border border-gray-200 rounded-lg px-4 py-3 space-y-3">
+        <div>
+          <p className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+            <PlayCircle size={13} className="text-guinda-600" /> Probar la API
+          </p>
+          <p className="text-[11px] text-gray-500 mt-1">
+            Esta prueba corre con tu sesión de superadmin, no con el token: el token solo se
+            guarda hasheado, ni este panel puede recuperarlo. La respuesta que ves abajo es real,
+            la misma que recibiría el tablero externo.
+          </p>
+        </div>
+
+        <div className="relative">
+          <input
+            value={indicadorElegido ? indicadorElegido.nombre : busquedaIndicador}
+            onChange={e => { setIndicadorElegido(null); setBusquedaIndicador(e.target.value); }}
+            placeholder="Buscar un indicador del catálogo (opcional — vacío = todos)"
+            className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400"
+          />
+          {indicadorElegido && (
+            <button
+              onClick={() => { setIndicadorElegido(null); setBusquedaIndicador(''); }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <X size={13} />
+            </button>
+          )}
+          {sugerencias.length > 0 && (
+            <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg divide-y divide-gray-100 max-h-48 overflow-y-auto">
+              {sugerencias.map(s => (
+                <button
+                  key={s.id}
+                  onClick={() => { setIndicadorElegido(s); setSugerencias([]); }}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50"
+                >
+                  <span className="text-gray-800">{s.nombre}</span>
+                  <code className="block text-[10px] text-gray-400 font-mono">{s.clave}</code>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button onClick={probar} disabled={probando} className="btn-primary text-xs flex items-center gap-1.5 disabled:opacity-40">
+            {probando ? <><Loader2 size={12} className="animate-spin" /> Ejecutando...</> : <><PlayCircle size={12} /> Ejecutar</>}
+          </button>
+          <button
+            onClick={() => {
+              navigator.clipboard?.writeText(comandoCurl);
+              setCurlCopiado(true);
+              setTimeout(() => setCurlCopiado(false), 2000);
+            }}
+            className="btn-secondary text-xs flex items-center gap-1.5"
+            title="Para mandárselo al programador del tablero"
+          >
+            {curlCopiado ? <><Check size={12} /> Copiado</> : <><Copy size={12} /> Copiar comando curl</>}
+          </button>
+        </div>
+
+        {errorPrueba && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{errorPrueba}</p>}
+
+        {resultadoPrueba && (
+          <pre className="text-[10px] font-mono text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-3 overflow-x-auto max-h-72">
+            {JSON.stringify(resultadoPrueba, null, 2)}
+          </pre>
+        )}
+
+        <a
+          href="/docs/api-indicadores.md"
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-1.5 text-[11px] text-guinda-600 hover:underline"
+        >
+          <FileText size={12} /> Documentación completa para el programador del tablero
+        </a>
       </div>
 
       {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>}

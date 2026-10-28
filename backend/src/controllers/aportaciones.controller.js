@@ -51,7 +51,7 @@ async function listarPorNodo(req, res, next) {
 // POST /indicadores/:id/aportaciones
 async function crear(req, res, next) {
   try {
-    const { tipo_nodo, id_nodo, valor_aportacion, modo, id_categoria, permitir_cero } = req.body;
+    const { tipo_nodo, id_nodo, valor_aportacion, modo, permitir_cero } = req.body;
 
     // Un monto vacío/0 antes se aceptaba sin más (`?? 0` solo cubre
     // undefined/null) — ahora hace falta un monto real, salvo que el
@@ -66,21 +66,19 @@ async function crear(req, res, next) {
       throw err;
     }
 
-    await aportacionesQueries.validarCategoriaAportacion(req.params.id, id_categoria || null);
     const datos = {
       id_indicador: req.params.id,
       id_etapa: tipo_nodo === 'etapa' ? id_nodo : null,
       id_accion: tipo_nodo === 'accion' ? id_nodo : null,
       id_tarea: tipo_nodo === 'tarea' ? id_nodo : null,
-      id_categoria: id_categoria || null,
       aportacion: monto,
-      modo: modo || 'proporcional',
+      modo: modo || 'al_concluir',
     };
     const aportacion = await aportacionesQueries.crear(datos);
-    // Recalcular de inmediato: si el nodo elegido ya estaba Completada (o
+    // Procesar de inmediato: si el nodo elegido ya estaba Completada (o
     // ya tenía avance, en modo proporcional), sin esto el indicador se
-    // queda en 0 hasta el próximo cambio de estado de cualquier otro nodo.
-    await aportacionesQueries.recalcularUnIndicador(aportacion.id_indicador);
+    // queda en 0 hasta el próximo cambio de estado/avance de ese nodo.
+    await aportacionesQueries.procesarCambioNodo(tipo_nodo, id_nodo, { idUsuario: req.usuario?.id });
 
     const ind = await proyectoDelIndicador(aportacion.id_indicador);
     if (ind) {
@@ -112,19 +110,21 @@ async function actualizar(req, res, next) {
     const mapped = {};
     if (req.body.valor_aportacion !== undefined) mapped.aportacion = req.body.valor_aportacion;
     if (req.body.modo !== undefined) mapped.modo = req.body.modo;
-    if (req.body.id_categoria !== undefined) {
-      const idIndicador = await aportacionesQueries.obtenerIndicadorDeAportacion(req.params.id);
-      if (!idIndicador) return res.status(404).json({ error: true, mensaje: 'Aportación no encontrada' });
-      await aportacionesQueries.validarCategoriaAportacion(idIndicador, req.body.id_categoria || null);
-      mapped.id_categoria = req.body.id_categoria || null;
-    }
     const aportacion = await aportacionesQueries.actualizar(req.params.id, mapped);
     if (!aportacion) return res.status(404).json({ error: true, mensaje: 'Aportación no encontrada' });
-    await aportacionesQueries.recalcularUnIndicador(aportacion.id_indicador);
+
+    // Cambiar el monto o el modo declarado puede dejar el acumulado
+    // desalineado del nuevo objetivo (ej. subir la aportación de un nodo
+    // ya completado) — se corrige con el mismo cálculo de siempre.
+    const conNodo = await aportacionesQueries.obtenerConNodo(aportacion.id);
+    const tipoNodo = conNodo?.id_etapa ? 'etapa' : conNodo?.id_tarea ? 'tarea' : conNodo?.id_accion ? 'accion' : null;
+    const idNodo = conNodo?.id_etapa || conNodo?.id_accion || conNodo?.id_tarea || null;
+    if (tipoNodo && idNodo) {
+      await aportacionesQueries.procesarCambioNodo(tipoNodo, idNodo, { idUsuario: req.usuario?.id });
+    }
 
     const ind = await proyectoDelIndicador(aportacion.id_indicador);
     if (ind) {
-      const conNodo = await aportacionesQueries.obtenerConNodo(aportacion.id);
       const nodo = conNodo && describirNodoAportacion(conNodo);
       await registrarActividad({
         id_proyecto: ind.id_proyecto,
@@ -155,7 +155,9 @@ async function eliminar(req, res, next) {
 
     const resultado = await aportacionesQueries.eliminar(req.params.id);
     if (!resultado) return res.status(404).json({ error: true, mensaje: 'Aportación no encontrada' });
-    await aportacionesQueries.recalcularUnIndicador(antes.id_indicador);
+    // Desvincular el nodo no deshace los movimientos que ya generó — son
+    // historia capturada, no se recalcula ni se pierde nada (valor_actual
+    // ya es la suma del historial, y el historial no cambia aquí).
 
     if (ind) {
       await registrarActividad({

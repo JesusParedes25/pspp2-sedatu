@@ -176,15 +176,32 @@ async function obtenerIndicadoresAgregados(proyectoIds) {
   if (!proyectoIds || proyectoIds.length === 0) return [];
   const { rows } = await pool.query(`
     SELECT
-      i.id, i.nombre, i.tipo, i.unidad, i.unidad_personalizada, i.id_catalogo,
-      i.meta_global, i.valor_actual, i.modo_calculo, i.composicion,
+      i.id,
+      -- Bloque 7.5 del rediseño de Indicadores: cuando el indicador viene
+      -- del catálogo, su nombre/tipo/unidad son los del catálogo, EN
+      -- VIVO — no la copia que se guardó en indicadores al vincularlo.
+      -- Antes solo la API externa (/publico/indicadores) leía el
+      -- catálogo directo; estas pantallas internas seguían mostrando la
+      -- copia congelada, así que editar el catálogo parecía no surtir
+      -- efecto aquí aunque el consumidor externo ya lo veía. Los
+      -- indicadores propios (id_catalogo NULL) no tienen de dónde leer
+      -- distinto, así que COALESCE cae de vuelta a su propia columna.
+      COALESCE(c.nombre, i.nombre) AS nombre,
+      COALESCE(c.tipo, i.tipo) AS tipo,
+      COALESCE(c.unidad, i.unidad) AS unidad,
+      COALESCE(c.unidad_personalizada, i.unidad_personalizada) AS unidad_personalizada,
+      COALESCE(c.etiqueta_unidad, i.etiqueta_unidad) AS etiqueta_unidad,
+      i.id_catalogo,
+      i.meta_global, i.valor_actual, i.composicion,
       i.temporalidad, i.anio_inicio, i.anio_fin,
       p.id AS proyecto_id, p.nombre AS proyecto_nombre,
       dg.siglas AS dg_siglas,
       COALESCE(ma.metas_anuales, '[]'::json) AS metas_anuales,
-      COALESCE(cat.categorias, '[]'::json) AS categorias
+      COALESCE(cat.categorias, '[]'::json) AS categorias,
+      mov.fecha_ultimo_movimiento
     FROM indicadores i
     JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL AND p.estado != 'Cancelada'
+    LEFT JOIN catalogo_indicadores c ON c.id = i.id_catalogo
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
     LEFT JOIN LATERAL (
       SELECT json_agg(json_build_object(
@@ -198,8 +215,15 @@ async function obtenerIndicadoresAgregados(proyectoIds) {
       ) ORDER BY orden, created_at) AS categorias
       FROM indicador_categorias WHERE id_indicador = i.id
     ) cat ON true
+    -- Fecha del movimiento no anulado más reciente — "Mis indicadores"
+    -- (Bloque 5 del encargo) la muestra en cada tarjeta; Tablero/Cartera/
+    -- Panorama simplemente no la piden.
+    LEFT JOIN LATERAL (
+      SELECT MAX(fecha) AS fecha_ultimo_movimiento
+      FROM indicador_movimientos WHERE id_indicador = i.id AND anulado_en IS NULL
+    ) mov ON true
     WHERE i.activo = true AND i.id_proyecto = ANY($1)
-    ORDER BY i.tipo, p.nombre, i.nombre
+    ORDER BY tipo, p.nombre, nombre
   `, [proyectoIds]);
 
   return rows.map(r => ({

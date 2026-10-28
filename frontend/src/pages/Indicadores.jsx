@@ -16,7 +16,7 @@ import { BarChart3, Loader2, Plus } from 'lucide-react';
 import { obtenerProyectosFiltroInicio, obtenerCarterasFiltroInicio } from '../api/inicio';
 import * as indicadoresApi from '../api/indicadores';
 import FiltroTablero from '../components/inicio/FiltroTablero';
-import { ETIQUETA_TIPO_INDICADOR, agruparPorCatalogo, TarjetaIndicadorOAgrupada } from '../components/indicadores/TarjetaIndicador';
+import { agruparPorCatalogo, TarjetaIndicadorOAgrupada } from '../components/indicadores/TarjetaIndicador';
 import ModalVincularIndicador from '../components/indicadores/ModalVincularIndicador';
 import CatalogoIndicadores from '../components/indicadores/CatalogoIndicadores';
 
@@ -82,11 +82,29 @@ function MisIndicadores() {
     cargarIndicadores();
   }, [filtro.carteraId, filtro.proyectoIds.join(',')]);
 
-  const grupos = {};
-  for (const ind of indicadores) {
-    const tipo = ind.tipo || 'Otro';
-    (grupos[tipo] = grupos[tipo] || []).push(ind);
+  // Bloque 5 del rediseño de Indicadores: agrupado por PROYECTO, no por
+  // tipo — "Mis indicadores" es ante todo "en qué proyecto vive esto",
+  // el tipo (Gestión, Avance físico...) es secundario y ya se lee en la
+  // propia tarjeta. Se calcula agruparPorCatalogo UNA vez, sobre todos
+  // los indicadores a la vez (antes se recalculaba por cada grupo de
+  // tipo, lo que partía en dos un mismo indicador medido en varios
+  // proyectos si esos proyectos no compartían tipo) — los grupos de 2+
+  // proyectos se quedan arriba, como ya funcionaba; los que son de un
+  // solo proyecto se reparten en una sección por proyecto.
+  const gruposCatalogo = agruparPorCatalogo(indicadores);
+  const multiProyecto = gruposCatalogo.filter(g => g.length > 1);
+  const porProyecto = {};
+  const idsProyecto = [];
+  for (const g of gruposCatalogo) {
+    if (g.length > 1) continue;
+    const ind = g[0];
+    if (!porProyecto[ind.proyecto_id]) {
+      porProyecto[ind.proyecto_id] = { nombre: ind.proyecto_nombre, dg: ind.dg_siglas, grupos: [] };
+      idsProyecto.push(ind.proyecto_id);
+    }
+    porProyecto[ind.proyecto_id].grupos.push(g);
   }
+  idsProyecto.sort((a, b) => porProyecto[a].nombre.localeCompare(porProyecto[b].nombre, 'es'));
 
   return (
     <div className="p-6 space-y-5">
@@ -130,13 +148,13 @@ function MisIndicadores() {
         </div>
       ) : (
         <div className="space-y-6">
-          {Object.entries(grupos).map(([tipo, inds]) => (
-            <div key={tipo}>
+          {multiProyecto.length > 0 && (
+            <div>
               <p className="text-xs font-semibold text-gray-600 mb-2.5 uppercase tracking-wide">
-                {ETIQUETA_TIPO_INDICADOR[tipo] || tipo}
+                Medidos en varios proyectos
               </p>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {agruparPorCatalogo(inds).map(grupo => (
+                {multiProyecto.map(grupo => (
                   <TarjetaIndicadorOAgrupada
                     key={grupo[0].id_catalogo || grupo[0].id}
                     grupo={grupo}
@@ -148,7 +166,30 @@ function MisIndicadores() {
                 ))}
               </div>
             </div>
-          ))}
+          )}
+
+          {idsProyecto.map(idProyecto => {
+            const { nombre, dg, grupos } = porProyecto[idProyecto];
+            return (
+              <div key={idProyecto}>
+                <p className="text-xs font-semibold text-gray-600 mb-2.5 uppercase tracking-wide">
+                  {nombre}{dg ? ` · ${dg}` : ''}
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {grupos.map(grupo => (
+                    <TarjetaIndicadorOAgrupada
+                      key={grupo[0].id_catalogo || grupo[0].id}
+                      grupo={grupo}
+                      variante="normal"
+                      permitirEditarValor
+                      onValorActualizado={cargarIndicadores}
+                      enlazable
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 

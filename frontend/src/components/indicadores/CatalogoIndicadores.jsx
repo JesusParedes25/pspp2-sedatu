@@ -32,7 +32,7 @@ import * as catalogoApi from '../../api/catalogo-indicadores';
 import { useAuth } from '../../context/AuthContext';
 import { useUI } from '../../context/UIContext';
 import { usePsedatuTitulos } from '../../hooks/usePsedatuTitulos';
-import { TIPOS_INDICADOR as TIPOS } from '../../utils/tiposIndicador';
+import { etiquetaOrigenIndicador } from '../../utils/tiposIndicador';
 import FiltrosCatalogoIndicadores from './FiltrosCatalogoIndicadores';
 import MigajaPsedatu from './MigajaPsedatu';
 
@@ -385,9 +385,16 @@ function FichaCatalogo({ indicador: ind, modoFusion, seleccionado, onAlternarSel
         </p>
       )}
       <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">
-          {TIPOS.find(t => t.valor === ind.tipo)?.etiqueta || ind.tipo}
-        </span>
+        {(() => {
+          const origen = etiquetaOrigenIndicador(ind);
+          return (
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+              origen.institucional ? 'bg-sky-50 text-sky-700' : 'bg-gray-100 text-gray-600'
+            }`}>
+              {origen.texto}
+            </span>
+          );
+        })()}
         {ind.unidad_personalizada && <span className="text-[10px] text-gray-400">{ind.unidad_personalizada}</span>}
       </div>
       <MigajaPsedatu

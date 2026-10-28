@@ -15,8 +15,42 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const pool = require('../pool');
-const { calcularAvancePorcentaje } = require('../../utils/indicador-calculo');
 const { registrarActividad } = require('../../utils/actividad-log');
+
+// Bloque 7.5 del rediseño de Indicadores: cuando un indicador viene del
+// catálogo (id_catalogo IS NOT NULL), su nombre/tipo/unidad/etiqueta son
+// los del catálogo EN VIVO, no la copia que se guardó en `indicadores`
+// al vincularlo — antes solo la API externa (/publico/indicadores) leía
+// el catálogo directo, así que editar una entrada ahí parecía no surtir
+// efecto en las pantallas internas aunque el consumidor externo ya lo
+// veía. Se resuelve con una consulta aparte (en vez de un JOIN con
+// columnas repetidas tipo "SELECT i.*, x AS nombre", ambiguo de leer y
+// de depender de en qué orden pg resuelve el duplicado) porque estas
+// funciones ya traen la fila completa con `i.*`. El costo es una
+// consulta extra por llamada — páginas de detalle, no un endpoint de
+// alta frecuencia, así que no vale la pena complicar el SQL por eso.
+async function aplicarDefinicionCatalogo(filas) {
+  const lista = Array.isArray(filas) ? filas : [filas];
+  const idsCatalogo = [...new Set(lista.map(f => f?.id_catalogo).filter(Boolean))];
+  if (idsCatalogo.length > 0) {
+    const { rows: entradas } = await pool.query(
+      'SELECT id, nombre, tipo, unidad, unidad_personalizada, etiqueta_unidad FROM catalogo_indicadores WHERE id = ANY($1)',
+      [idsCatalogo]
+    );
+    const porId = new Map(entradas.map(e => [e.id, e]));
+    for (const f of lista) {
+      const c = f?.id_catalogo && porId.get(f.id_catalogo);
+      if (c) {
+        f.nombre = c.nombre;
+        f.tipo = c.tipo;
+        f.unidad = c.unidad;
+        f.unidad_personalizada = c.unidad_personalizada;
+        f.etiqueta_unidad = c.etiqueta_unidad;
+      }
+    }
+  }
+  return filas;
+}
 
 // Válida la combinación composicion/unidad antes de crear/actualizar —
 // un indicador en Porcentaje no puede componerse de categorías: sumar
@@ -135,6 +169,7 @@ async function listarPorProyecto(proyectoId) {
   }
 
   await cargarCategorias(pool, indicadores.rows);
+  await aplicarDefinicionCatalogo(indicadores.rows);
   return indicadores.rows;
 }
 
@@ -165,6 +200,7 @@ async function obtenerPorId(indicadorId) {
   );
   indicador.categorias = categorias;
 
+  await aplicarDefinicionCatalogo(indicador);
   return indicador;
 }
 
@@ -261,115 +297,37 @@ async function crear(proyectoId, datos, client = null, creadorId = null) {
   return indicador;
 }
 
-// Actualiza un indicador y sincroniza sus metas/periodos por diff.
+// Actualiza un indicador. Desde esta versión el formulario ya no ofrece
+// temporalidad/composicion/tipo_grafico/categorías (ver el encargo de
+// "versión final de Indicadores") — por eso esos campos y las filas de
+// indicador_metas_anuales/indicador_categorias de un indicador existente
+// NUNCA se tocan aquí, se hayan mandado o no en `datos`. Antes esta
+// función los recibía siempre (el formulario viejo los mandaba todos) y
+// defaulteaba a 'Simple'/'Global' cuando faltaban — con el formulario
+// nuevo, que simplemente ya no los manda, ese default habría aplanado en
+// silencio cualquier indicador Anual/Categorías con solo editarle el
+// nombre. Quedan intactos para siempre; si algún día hace falta volver a
+// editarlos, es una decisión aparte (ver Bloque 1 del encargo).
 async function actualizar(indicadorId, datos, idUsuario = null) {
-  validarComposicion(datos);
   validarDatosIndicador(datos);
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
+  const metaGlobal = datos.meta_global === '' || datos.meta_global == null ? null : parseFloat(datos.meta_global);
+  const resultado = await pool.query(`
+    UPDATE indicadores SET
+      nombre = $1, tipo = $2, unidad = $3,
+      unidad_personalizada = $4, etiqueta_unidad = $5,
+      meta_global = $6, descripcion = $7,
+      updated_at = NOW()
+    WHERE id = $8
+    RETURNING *
+  `, [
+    datos.nombre, datos.tipo, datos.unidad,
+    datos.unidad_personalizada || null,
+    datos.etiqueta_unidad || datos.unidad_personalizada || null,
+    metaGlobal, datos.descripcion || null,
+    indicadorId
+  ]);
 
-    const metaGlobal = datos.meta_global === '' || datos.meta_global == null ? null : parseFloat(datos.meta_global);
-    const resultado = await client.query(`
-      UPDATE indicadores SET
-        nombre = $1, tipo = $2, unidad = $3,
-        unidad_personalizada = $4, etiqueta_unidad = $5,
-        meta_global = $6, temporalidad = $7, unidad_periodo = $8,
-        anio_inicio = $9, anio_fin = $10,
-        descripcion = $11, composicion = $12, tipo_grafico = $13,
-        updated_at = NOW()
-      WHERE id = $14
-      RETURNING *
-    `, [
-      datos.nombre, datos.tipo, datos.unidad,
-      datos.unidad_personalizada || null,
-      datos.etiqueta_unidad || datos.unidad_personalizada || null,
-      metaGlobal, datos.temporalidad || 'Global', datos.unidad_periodo || 'Anio',
-      datos.anio_inicio || null, datos.anio_fin || null,
-      datos.descripcion || null,
-      datos.composicion === 'Categorias' ? 'Categorias' : 'Simple',
-      datos.tipo_grafico === 'dona' ? 'dona' : 'barras',
-      indicadorId
-    ]);
-
-    // Sincronizar metas/periodos por diff en vez de borrar y recrear
-    // todo: borrar-y-recrear pisaba valor_actual de CADA periodo con
-    // cualquier edición de metadatos (nombre, meta, etc.), no solo con
-    // un cambio real a los periodos. Con 'Personalizado' agregar/quitar
-    // periodos es una acción frecuente, así que perder el valor ya
-    // capturado de los demás en cada guardado dejó de ser aceptable.
-    // Filas entrantes con "id" existente → UPDATE (conserva
-    // valor_actual); sin "id" → INSERT (periodo nuevo); filas que ya
-    // no vienen en el arreglo entrante → DELETE (el usuario lo quitó).
-    const entrantes = datos.metas_anuales || [];
-    const { rows: existentes } = await client.query(
-      'SELECT id FROM indicador_metas_anuales WHERE id_indicador = $1',
-      [indicadorId]
-    );
-    const idsEntrantes = new Set(entrantes.filter(ma => ma.id).map(ma => ma.id));
-    const idsAEliminar = existentes.map(e => e.id).filter(id => !idsEntrantes.has(id));
-
-    if (idsAEliminar.length > 0) {
-      await client.query(
-        'DELETE FROM indicador_metas_anuales WHERE id = ANY($1)',
-        [idsAEliminar]
-      );
-    }
-
-    for (const ma of entrantes) {
-      const anio = ma.anio === '' || ma.anio == null ? null : parseInt(ma.anio);
-      const meta = ma.meta === '' || ma.meta == null ? 0 : parseFloat(ma.meta);
-      const etiqueta = ma.etiqueta || null;
-      if (ma.id) {
-        await client.query(
-          'UPDATE indicador_metas_anuales SET anio = $1, meta = $2, etiqueta = $3 WHERE id = $4 AND id_indicador = $5',
-          [anio, meta, etiqueta, ma.id, indicadorId]
-        );
-      } else {
-        await client.query(
-          'INSERT INTO indicador_metas_anuales (id_indicador, anio, meta, etiqueta) VALUES ($1, $2, $3, $4)',
-          [indicadorId, anio, meta, etiqueta]
-        );
-      }
-    }
-
-    // Mismo diff-upsert que arriba, aplicado a categorías: conserva
-    // valor_actual de las que solo cambiaron de nombre/meta. "orden" se
-    // recalcula siempre a partir de la posición en el arreglo entrante
-    // (sin UI de reordenar en v1, solo agregar/quitar al final).
-    const categoriasEntrantes = datos.categorias || [];
-    const { rows: categoriasExistentes } = await client.query(
-      'SELECT id FROM indicador_categorias WHERE id_indicador = $1',
-      [indicadorId]
-    );
-    const idsCategoriasEntrantes = new Set(categoriasEntrantes.filter(c => c.id).map(c => c.id));
-    const idsCategoriasAEliminar = categoriasExistentes.map(e => e.id).filter(id => !idsCategoriasEntrantes.has(id));
-
-    if (idsCategoriasAEliminar.length > 0) {
-      await client.query(
-        'DELETE FROM indicador_categorias WHERE id = ANY($1)',
-        [idsCategoriasAEliminar]
-      );
-    }
-
-    let ordenCategoria = 0;
-    for (const cat of categoriasEntrantes) {
-      const meta = cat.meta === '' || cat.meta == null ? 0 : parseFloat(cat.meta);
-      if (cat.id) {
-        await client.query(
-          'UPDATE indicador_categorias SET nombre = $1, meta = $2, orden = $3 WHERE id = $4 AND id_indicador = $5',
-          [cat.nombre, meta, ordenCategoria++, cat.id, indicadorId]
-        );
-      } else {
-        await client.query(
-          'INSERT INTO indicador_categorias (id_indicador, nombre, meta, orden) VALUES ($1, $2, $3, $4)',
-          [indicadorId, cat.nombre, meta, ordenCategoria++]
-        );
-      }
-    }
-
-    await client.query('COMMIT');
-
+  if (resultado.rows[0]) {
     await registrarActividad({
       id_proyecto: resultado.rows[0].id_proyecto,
       id_usuario: idUsuario,
@@ -378,14 +336,9 @@ async function actualizar(indicadorId, datos, idUsuario = null) {
       entidad_tipo: 'Indicador',
       entidad_id: indicadorId,
     });
-
-    return resultado.rows[0];
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
   }
+
+  return resultado.rows[0] || null;
 }
 
 // Elimina (soft) un indicador
@@ -428,6 +381,7 @@ async function listarPorEtapa(etapaId) {
   `, [etapaId]);
 
   const todos = [...propios.rows, ...asociados.rows];
+  await aplicarDefinicionCatalogo(todos);
 
   if (todos.length > 0) {
     const ids = todos.map(i => i.id);
@@ -464,6 +418,7 @@ async function listarTodosPorProyecto(proyectoId) {
     ORDER BY i.id_etapa NULLS FIRST, i.orden, i.created_at
   `, [proyectoId]);
   await cargarCategorias(pool, indicadores.rows);
+  await aplicarDefinicionCatalogo(indicadores.rows);
   return indicadores.rows;
 }
 
@@ -472,15 +427,16 @@ async function obtenerResumenAportaciones(indicadorId) {
   const resultado = await pool.query(`
     SELECT
       i.meta_global,
-      i.unidad,
-      i.unidad_personalizada,
-      i.nombre,
+      COALESCE(c.unidad, i.unidad) AS unidad,
+      COALESCE(c.unidad_personalizada, i.unidad_personalizada) AS unidad_personalizada,
+      COALESCE(c.nombre, i.nombre) AS nombre,
       COALESCE(SUM(ai.aportacion), 0)::numeric AS total_aportado,
       COUNT(ai.id)::int AS num_acciones
     FROM indicadores i
+    LEFT JOIN catalogo_indicadores c ON c.id = i.id_catalogo
     LEFT JOIN indicador_aportaciones ai ON ai.id_indicador = i.id
     WHERE i.id = $1
-    GROUP BY i.id
+    GROUP BY i.id, c.id
   `, [indicadorId]);
 
   if (!resultado.rows[0]) return null;
@@ -495,282 +451,6 @@ async function obtenerResumenAportaciones(indicadorId) {
   };
 }
 
-/**
- * Recalcula valor_actual de un indicador según su modo_calculo.
- * - contar_completadas: cuenta acciones con estado='Completada' vinculadas
- * - porcentaje_promedio: promedio de porcentaje_avance de acciones vinculadas
- *
- * 'manual' y 'suma_manual' NO pasan por aquí — recalcularIndicadoresProyecto
- * ya los excluye. Un indicador manual se edita con PATCH /indicadores/:id/valor
- * (captura directa) o vía sus aportaciones (indicador_aportaciones, ver
- * aportaciones.queries.js::recalcularAportacionesProyecto) — nunca desde
- * esta función, que solo existió para los dos modos verdaderamente
- * automáticos.
- *
- * Si id_etapa no es null, solo cuenta acciones de esa etapa.
- */
-async function recalcularIndicador(indicadorId, client = null) {
-  const db = client || pool;
-  const ind = await db.query(
-    'SELECT id, modo_calculo, id_proyecto, id_etapa FROM indicadores WHERE id = $1',
-    [indicadorId]
-  );
-  if (!ind.rows[0]) return null;
-  const { modo_calculo, id_proyecto, id_etapa } = ind.rows[0];
-
-  let valor = 0;
-  if (modo_calculo === 'contar_completadas') {
-    const filtroEtapa = id_etapa ? 'AND a.id_etapa = $2' : '';
-    const params = id_etapa ? [id_proyecto, id_etapa] : [id_proyecto];
-    const res = await db.query(`
-      SELECT COUNT(*)::int AS total
-      FROM acciones a
-      WHERE a.id_proyecto = $1 AND a.estado = 'Completada'
-        AND a.id_accion_padre IS NULL ${filtroEtapa}
-    `, params);
-    valor = res.rows[0].total;
-  } else if (modo_calculo === 'porcentaje_promedio') {
-    const filtroEtapa = id_etapa ? 'AND a.id_etapa = $2' : '';
-    const params = id_etapa ? [id_proyecto, id_etapa] : [id_proyecto];
-    const res = await db.query(`
-      SELECT COALESCE(AVG(a.porcentaje_avance), 0)::numeric AS promedio
-      FROM acciones a
-      WHERE a.id_proyecto = $1 AND a.id_accion_padre IS NULL
-        AND a.estado != 'Cancelada' ${filtroEtapa}
-    `, params);
-    valor = parseFloat(res.rows[0].promedio) || 0;
-  } else {
-    return null;
-  }
-
-  await db.query(
-    'UPDATE indicadores SET valor_actual = $1, updated_at = NOW() WHERE id = $2',
-    [valor, indicadorId]
-  );
-  return valor;
-}
-
-/**
- * Recalcula TODOS los indicadores auto-calculados de un proyecto.
- * Se invoca cuando cambia el estado de una acción. Inclusión explícita
- * (antes era `!= 'suma_manual'`, que de paso arrastraba 'manual' — la
- * causa de que un indicador manual se pusiera en cero solo con
- * cualquier cambio de estado, ver migración 068).
- */
-async function recalcularIndicadoresProyecto(proyectoId, client = null) {
-  const db = client || pool;
-  const res = await db.query(
-    `SELECT id FROM indicadores
-     WHERE id_proyecto = $1 AND activo = true
-       AND modo_calculo IN ('contar_completadas', 'porcentaje_promedio')`,
-    [proyectoId]
-  );
-  for (const row of res.rows) {
-    await recalcularIndicador(row.id, db);
-  }
-}
-
-/**
- * Lista indicadores publicables para la plataforma externa.
- * Opcionalmente filtra por id_dg.
- */
-async function listarPublicables(filtros = {}) {
-  let where = "i.es_publicable = true AND i.activo = true";
-  const params = [];
-  if (filtros.id_dg) {
-    params.push(filtros.id_dg);
-    where += ` AND p.id_dg_lider = $${params.length}`;
-  }
-  const res = await pool.query(`
-    SELECT
-      i.id,
-      i.nombre,
-      i.tipo,
-      i.unidad,
-      i.unidad_personalizada,
-      i.meta_global,
-      i.valor_actual,
-      i.modo_calculo,
-      i.temporalidad,
-      i.updated_at,
-      p.id AS proyecto_id,
-      p.nombre AS proyecto_nombre,
-      dg.siglas AS dg_siglas,
-      dg.nombre AS dg_nombre
-    FROM indicadores i
-    JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL AND p.estado != 'Cancelada'
-    LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
-    WHERE ${where}
-    ORDER BY dg.siglas, p.nombre, i.nombre
-  `, params);
-
-  return res.rows.map(r => {
-    const meta = parseFloat(r.meta_global) || 0;
-    const valor = parseFloat(r.valor_actual) || 0;
-    const unidadLabel = r.unidad === 'Porcentaje' ? '%'
-      : r.unidad === 'Moneda_MXN' ? '$MXN'
-      : r.unidad_personalizada || '#';
-    return {
-      id: r.id,
-      proyecto_id: r.proyecto_id,
-      proyecto: r.proyecto_nombre,
-      dg: r.dg_siglas,
-      dg_nombre: r.dg_nombre,
-      indicador: r.nombre,
-      tipo: r.tipo,
-      meta: meta,
-      valor_actual: valor,
-      porcentaje: calcularAvancePorcentaje(valor, meta),
-      unidad: unidadLabel,
-      modo_calculo: r.modo_calculo,
-      ultima_actualizacion: r.updated_at,
-    };
-  });
-}
-
-/**
- * Captura manual directa del valor de un indicador — la pieza que hasta
- * ahora no existía: un indicador en modo 'manual' no tenía NINGÚN
- * endpoint para fijar su valor a mano (solo se podía poner en cero por
- * el bug de recalcularIndicadoresProyecto, ya corregido).
- *
- * temporalidad 'Global': set directo de valor_actual.
- * temporalidad 'Anual': upsert de indicador_metas_anuales.valor_actual
- * para ese año (crea la fila si no existía, sin tocar su meta si ya
- * tenía una) — valor_actual del indicador pasa a ser la SUMA de todos
- * sus años capturados, así el corte anual (indicador financiero) queda
- * completo: el número global es la suma de lo capturado año por año.
- *
- * Solo aplica a modo_calculo = 'manual' — lo valida el controller antes
- * de llamar aquí, para no pisar por accidente un valor auto-calculado.
- */
-// { valor, id_periodo } — id_periodo es el id real de la fila de
-// indicador_metas_anuales, no un año: con 'Personalizado' un año no
-// identifica de forma confiable "cuál periodo". Usar el id de la fila
-// deja un solo camino (UPDATE por id) para Año/Sexenio/Personalizado
-// por igual, sin ramas por tipo de periodo. A diferencia de antes, el
-// periodo ya no se autocrea aquí — siempre se define explícitamente en
-// crear()/actualizar() antes de poder capturarle un valor.
-// { valor, id_periodo, id_categoria } — composicion='Categorias' implica
-// temporalidad='Global' por diseño (excluyentes), así que estas dos
-// ramas nunca compiten por el mismo indicador: id_periodo identifica
-// una fila de indicador_metas_anuales, id_categoria una de
-// indicador_categorias, mismo shape de UPDATE-por-id y rollup por SUM
-// para ambas.
-async function establecerValorManual(indicadorId, { valor, id_periodo, id_categoria }, idUsuario = null) {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    const { rows: [ind] } = await client.query(
-      'SELECT temporalidad, composicion FROM indicadores WHERE id = $1', [indicadorId]
-    );
-    if (!ind) { await client.query('ROLLBACK'); return null; }
-
-    if (ind.temporalidad === 'Anual') {
-      if (id_periodo == null) {
-        const err = new Error('Este indicador tiene corte por periodos: falta indicar cuál');
-        err.statusCode = 400;
-        throw err;
-      }
-      const { rows: [periodo] } = await client.query(
-        'UPDATE indicador_metas_anuales SET valor_actual = $1 WHERE id = $2 AND id_indicador = $3 RETURNING id',
-        [valor, id_periodo, indicadorId]
-      );
-      if (!periodo) {
-        const err = new Error('El periodo indicado no existe para este indicador');
-        err.statusCode = 404;
-        throw err;
-      }
-
-      const { rows: [suma] } = await client.query(
-        'SELECT COALESCE(SUM(valor_actual), 0)::numeric AS total FROM indicador_metas_anuales WHERE id_indicador = $1',
-        [indicadorId]
-      );
-      await client.query(
-        'UPDATE indicadores SET valor_actual = $1, updated_at = NOW() WHERE id = $2',
-        [suma.total, indicadorId]
-      );
-    } else if (ind.composicion === 'Categorias') {
-      if (id_categoria == null) {
-        const err = new Error('Este indicador se compone de categorías: falta indicar cuál');
-        err.statusCode = 400;
-        throw err;
-      }
-      // Si la categoría ya tiene algún nodo aportándole, su valor se
-      // calcula solo (mismo criterio de exclusión manual/automático que
-      // ya usa el indicador completo vía modo_calculo) — escribirla a
-      // mano aquí se perdería en el próximo recálculo automático.
-      const { rows: [conAportacion] } = await client.query(
-        'SELECT 1 FROM indicador_aportaciones WHERE id_indicador = $1 AND id_categoria = $2 LIMIT 1',
-        [indicadorId, id_categoria]
-      );
-      if (conAportacion) {
-        const err = new Error('Esta categoría se calcula automáticamente desde los nodos vinculados — no se puede editar a mano');
-        err.statusCode = 409;
-        err.codigo = 'CATEGORIA_CON_APORTACIONES';
-        throw err;
-      }
-      const { rows: [categoria] } = await client.query(
-        'UPDATE indicador_categorias SET valor_actual = $1 WHERE id = $2 AND id_indicador = $3 RETURNING id',
-        [valor, id_categoria, indicadorId]
-      );
-      if (!categoria) {
-        const err = new Error('La categoría indicada no existe para este indicador');
-        err.statusCode = 404;
-        throw err;
-      }
-
-      const { rows: [suma] } = await client.query(
-        'SELECT COALESCE(SUM(valor_actual), 0)::numeric AS total FROM indicador_categorias WHERE id_indicador = $1',
-        [indicadorId]
-      );
-      await client.query(
-        'UPDATE indicadores SET valor_actual = $1, updated_at = NOW() WHERE id = $2',
-        [suma.total, indicadorId]
-      );
-    } else {
-      // Mismo criterio que la rama de categorías: si algún nodo ya
-      // aporta a este indicador, su valor se calcula solo — el guard
-      // de modo_calculo no basta por sí solo porque el wizard nunca lo
-      // escribe (siempre queda en su default 'manual').
-      const { rows: [conAportacion] } = await client.query(
-        'SELECT 1 FROM indicador_aportaciones WHERE id_indicador = $1 LIMIT 1',
-        [indicadorId]
-      );
-      if (conAportacion) {
-        const err = new Error('Este indicador se calcula automáticamente desde los nodos vinculados — no se puede editar a mano');
-        err.statusCode = 409;
-        err.codigo = 'INDICADOR_CON_APORTACIONES';
-        throw err;
-      }
-      await client.query(
-        'UPDATE indicadores SET valor_actual = $1, updated_at = NOW() WHERE id = $2',
-        [valor, indicadorId]
-      );
-    }
-
-    const { rows: [actualizado] } = await client.query('SELECT * FROM indicadores WHERE id = $1', [indicadorId]);
-    await client.query('COMMIT');
-
-    await registrarActividad({
-      id_proyecto: actualizado.id_proyecto,
-      id_usuario: idUsuario,
-      tipo: 'indicador',
-      titulo: `Valor capturado para "${actualizado.nombre}"`,
-      entidad_tipo: 'Indicador',
-      entidad_id: indicadorId,
-    });
-
-    return actualizado;
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
-}
-
 module.exports = {
   listarPorProyecto,
   obtenerPorId,
@@ -780,8 +460,4 @@ module.exports = {
   actualizar,
   eliminar,
   obtenerResumenAportaciones,
-  recalcularIndicador,
-  recalcularIndicadoresProyecto,
-  listarPublicables,
-  establecerValorManual,
 };

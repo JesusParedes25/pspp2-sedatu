@@ -277,9 +277,9 @@ async function duplicarProyecto(idOrigen, opciones, creadorId) {
           INSERT INTO indicadores (
             id_proyecto, id_etapa, nombre, tipo, unidad, unidad_personalizada,
             etiqueta_unidad, meta_global, temporalidad, anio_inicio, anio_fin,
-            descripcion, orden, activo, modo_calculo, es_publicable, valor_actual,
+            descripcion, orden, activo, valor_actual,
             id_catalogo, id_creador
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,0,$17,$18)
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,0,$15,$16)
           RETURNING id
         `, [
           nuevo.id,
@@ -287,10 +287,13 @@ async function duplicarProyecto(idOrigen, opciones, creadorId) {
           ind.nombre, ind.tipo, ind.unidad, ind.unidad_personalizada,
           ind.etiqueta_unidad, ind.meta_global, ind.temporalidad,
           ind.anio_inicio, ind.anio_fin, ind.descripcion, ind.orden,
-          ind.activo, ind.modo_calculo, ind.es_publicable,
+          ind.activo,
           // El vínculo al catálogo viaja (es la identidad del indicador);
           // el autor pasa a ser quien duplica, que es quien lo dio de alta
-          // en ESTE proyecto.
+          // en ESTE proyecto. modo_calculo/es_publicable ya no se copian
+          // — quedaron retirados del flujo vivo (ver Bloques 1/7 del
+          // encargo "versión final de Indicadores"); la columna sigue
+          // existiendo, el duplicado simplemente no la toca.
           ind.id_catalogo || null, creadorId,
         ]);
 

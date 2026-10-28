@@ -15,6 +15,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const catalogoQueries = require('../db/queries/catalogo-indicadores.queries');
+const { notificarSuperadmins } = require('../utils/notificaciones');
 
 async function listar(req, res, next) {
   try {
@@ -123,6 +124,27 @@ async function crear(req, res, next) {
   }
 }
 
+// Para quien no puede dar de alta (rol 'externo', ver crear() arriba):
+// en vez de un 403 sin salida, manda un aviso a los superadmin con el
+// nombre que necesita — mismo sistema de notificaciones que usa el resto
+// de la plataforma. No queda como un mensaje sin acción posible: el
+// aviso lleva el nombre pedido y quién lo pidió, y quien lo recibe puede
+// ir directo al catálogo a darlo de alta.
+async function solicitar(req, res, next) {
+  try {
+    const nombre = (req.body?.nombre || '').trim();
+    if (!nombre) {
+      return res.status(400).json({ error: true, mensaje: 'Escribe el nombre del indicador que necesitas', codigo: 'CAMPOS_REQUERIDOS' });
+    }
+    const motivo = (req.body?.motivo || '').trim();
+    const quien = req.usuario?.nombre_completo || 'Un usuario';
+    const mensaje = `${quien} solicita agregar el indicador "${nombre}" al catálogo.`
+      + (motivo ? ` Motivo: ${motivo}` : '');
+    await notificarSuperadmins('SolicitudIndicador', mensaje);
+    res.status(201).json({ mensaje: 'Solicitud enviada a los administradores' });
+  } catch (err) { next(err); }
+}
+
 async function actualizar(req, res, next) {
   try {
     const datos = await catalogoQueries.actualizar(req.params.id, req.body);
@@ -167,4 +189,4 @@ async function cambiarActivo(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listar, obtener, uso, nodosVinculados, crear, actualizar, cambiarActivo, buscarSimilares, duplicadosSugeridos, fusionar, listarProductos, listarLineasAccion, listarAreas, titulosPsedatu };
+module.exports = { listar, obtener, uso, nodosVinculados, crear, solicitar, actualizar, cambiarActivo, buscarSimilares, duplicadosSugeridos, fusionar, listarProductos, listarLineasAccion, listarAreas, titulosPsedatu };

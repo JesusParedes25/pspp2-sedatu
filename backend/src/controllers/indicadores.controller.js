@@ -12,19 +12,74 @@
  */
 const indicadoresQueries = require('../db/queries/indicadores.queries');
 const inicioQueries = require('../db/queries/inicio.queries');
+const miembrosQueries = require('../db/queries/miembros.queries');
 const { resolverProyectoIdsFiltro } = require('../utils/alcanceProyectos');
 
-// GET /indicadores/mios?proyecto_ids=id1,id2&cartera_id=xxx — todos los
-// indicadores de los proyectos donde participa el usuario (superadmin/
-// ejecutivo ven todos), agregados igual que en Tablero — mismo query,
-// mismo criterio de alcance/filtro (resolverProyectoIdsFiltro), para que
-// el número de un indicador sea el mismo sin importar si se ve aquí o
-// en el Tablero.
+const ROLES_CON_TOTAL_PLATAFORMA = ['superadmin', 'ejecutivo'];
+
+// GET /indicadores/mios?proyecto_ids=id1,id2&cartera_id=xxx
+//
+// Bloque 5 del encargo: esta pantalla se anuncia como "los indicadores
+// de TUS proyectos" — para superadmin/ejecutivo, cuyo alcance normal
+// (resolverProyectoIdsFiltro) es "todos los proyectos de la plataforma",
+// eso la inundaba con cientos de proyectos ajenos. Aquí la lista se
+// acota siempre a la participación real del usuario
+// (miembrosQueries.obtenerProyectosUsuario) — para el resto de roles
+// coincide con su alcance normal, así que no cambia nada.
+//
+// Por separado, solo para superadmin/ejecutivo, cada entrada que
+// comparta id_catalogo con algo medido en OTROS proyectos de su alcance
+// completo (más allá de los suyos) trae también `total_plataforma`/
+// `proyectos_plataforma` — el total real, para quien necesita reportar
+// hacia arriba. Mismo criterio de alcance de siempre
+// (resolverProyectoIdsFiltro, sin filtro base = su alcance completo), no
+// una regla de visibilidad nueva.
 async function listarMios(req, res, next) {
   try {
-    const proyectoIds = await resolverProyectoIdsFiltro(req.usuario, req.query);
-    if (!proyectoIds || proyectoIds.length === 0) return res.json({ datos: [] });
-    const datos = await inicioQueries.obtenerIndicadoresAgregados(proyectoIds);
+    // El recorte a "participación real" solo aplica a superadmin/
+    // ejecutivo (cuyo alcance normal ya es "todos los proyectos", ver
+    // mini-clase arriba) — para cualquier otro rol se deja el alcance de
+    // siempre (direccion conserva su bono de DG; enlace, lo de siempre),
+    // pasando null para que resolverProyectoIdsFiltro use su default.
+    const esRolAmplio = ROLES_CON_TOTAL_PLATAFORMA.includes(req.usuario.rol);
+    const basePersonal = esRolAmplio ? await miembrosQueries.obtenerProyectosUsuario(req.usuario.id) : null;
+    const proyectoIdsPersonales = await resolverProyectoIdsFiltro(req.usuario, req.query, basePersonal);
+    if (!proyectoIdsPersonales || proyectoIdsPersonales.length === 0) return res.json({ datos: [] });
+    const datos = await inicioQueries.obtenerIndicadoresAgregados(proyectoIdsPersonales);
+
+    const idsCatalogo = [...new Set(datos.map(d => d.id_catalogo).filter(Boolean))];
+    if (esRolAmplio && idsCatalogo.length > 0) {
+      const proyectoIdsAlcance = await resolverProyectoIdsFiltro(req.usuario, req.query);
+      const todosLosDatos = await inicioQueries.obtenerIndicadoresAgregados(proyectoIdsAlcance);
+      const porCatalogo = {};
+      for (const d of todosLosDatos) {
+        if (!d.id_catalogo) continue;
+        const acc = porCatalogo[d.id_catalogo] || { total: 0, proyectos: new Set() };
+        // Mismo criterio que agruparPorCatalogo/TarjetaIndicadorGrupo en el
+        // frontend: un porcentaje no se combina entre proyectos, así que
+        // no se suma — solo se cuenta cuántos proyectos más lo miden.
+        if (d.unidad !== 'Porcentaje') acc.total += d.valor_actual;
+        acc.proyectos.add(d.proyecto_id);
+        porCatalogo[d.id_catalogo] = acc;
+      }
+      // Cuántos de los proyectos PERSONALES ya miden cada entrada del
+      // catálogo — para comparar contra el total de la plataforma y
+      // anotar el dato solo cuando de verdad hay algo más allá de lo
+      // que ya se ve en esta misma pantalla.
+      const proyectosPersonalesPorCatalogo = {};
+      for (const d of datos) {
+        if (!d.id_catalogo) continue;
+        proyectosPersonalesPorCatalogo[d.id_catalogo] = (proyectosPersonalesPorCatalogo[d.id_catalogo] || 0) + 1;
+      }
+      for (const d of datos) {
+        const agg = d.id_catalogo && porCatalogo[d.id_catalogo];
+        if (agg && agg.proyectos.size > (proyectosPersonalesPorCatalogo[d.id_catalogo] || 0)) {
+          d.total_plataforma = agg.total;
+          d.proyectos_plataforma = agg.proyectos.size;
+        }
+      }
+    }
+
     res.json({ datos });
   } catch (err) {
     next(err);
@@ -172,89 +227,4 @@ async function resumenAportaciones(req, res, next) {
   }
 }
 
-// GET /indicadores/publicos — para plataforma externa
-async function listarPublicables(req, res, next) {
-  try {
-    const filtros = {};
-    if (req.query.id_dg) filtros.id_dg = req.query.id_dg;
-    const datos = await indicadoresQueries.listarPublicables(filtros);
-    res.json({ datos });
-  } catch (err) {
-    next(err);
-  }
-}
-
-// PATCH /indicadores/:id/valor — captura manual directa (modo_calculo = 'manual')
-async function establecerValor(req, res, next) {
-  try {
-    const pool = require('../db/pool');
-    const { rows: [ind] } = await pool.query('SELECT modo_calculo FROM indicadores WHERE id = $1', [req.params.id]);
-    if (!ind) {
-      return res.status(404).json({ error: true, mensaje: 'Indicador no encontrado' });
-    }
-    if (ind.modo_calculo !== 'manual') {
-      return res.status(409).json({
-        error: true,
-        mensaje: 'Este indicador se calcula automáticamente — no se puede editar su valor a mano',
-        codigo: 'NO_ES_MANUAL',
-      });
-    }
-    const { valor, id_periodo, id_categoria } = req.body;
-    if (valor === undefined || valor === null || valor === '') {
-      return res.status(400).json({ error: true, mensaje: 'Falta el valor', codigo: 'CAMPOS_REQUERIDOS' });
-    }
-    const datos = await indicadoresQueries.establecerValorManual(req.params.id, {
-      valor: parseFloat(valor),
-      id_periodo: id_periodo || null,
-      id_categoria: id_categoria || null,
-    }, req.usuario?.id);
-    res.json({ datos, mensaje: 'Valor guardado' });
-  } catch (err) {
-    if (err.statusCode) {
-      return res.status(err.statusCode).json({ error: true, mensaje: err.message });
-    }
-    next(err);
-  }
-}
-
-// PATCH /indicadores/:id/publicar — toggle es_publicable
-async function togglePublicable(req, res, next) {
-  try {
-    const { es_publicable } = req.body;
-    const pool = require('../db/pool');
-    const result = await pool.query(
-      'UPDATE indicadores SET es_publicable = $1, updated_at = NOW() WHERE id = $2 RETURNING id, es_publicable',
-      [!!es_publicable, req.params.id]
-    );
-    if (!result.rows[0]) {
-      return res.status(404).json({ error: true, mensaje: 'Indicador no encontrado' });
-    }
-    res.json({ datos: result.rows[0], mensaje: es_publicable ? 'Indicador publicado' : 'Indicador despublicado' });
-  } catch (err) {
-    next(err);
-  }
-}
-
-// GET /proyectos/:id/indicadores/resumen — con valores realizados y warnings
-async function resumenConValores(req, res, next) {
-  try {
-    const aportacionesQueries = require('../db/queries/aportaciones.queries');
-    const indicadores = await indicadoresQueries.listarPorProyecto(req.params.id);
-
-    const resultado = [];
-    for (const ind of indicadores) {
-      const { total, porAnio } = await aportacionesQueries.calcularValorRealizado(ind.id);
-      const warnings = await aportacionesQueries.detectarDobleConteo(ind.id);
-      resultado.push({
-        ...ind,
-        valor_realizado_total: total,
-        valor_realizado_por_anio: porAnio,
-        warnings
-      });
-    }
-
-    res.json({ datos: resultado });
-  } catch (err) { next(err); }
-}
-
-module.exports = { obtenerPorId, listarPorProyecto, listarPorEtapa, listarTodosPorProyecto, crear, actualizar, eliminar, resumenAportaciones, listarPublicables, togglePublicable, resumenConValores, establecerValor, listarMios };
+module.exports = { obtenerPorId, listarPorProyecto, listarPorEtapa, listarTodosPorProyecto, crear, actualizar, eliminar, resumenAportaciones, listarMios };

@@ -19,8 +19,7 @@ const {
   restaurarEstadoAutomatico: restaurarEstadoAutomaticoUtil
 } = require('../utils/validaciones-estado');
 const { recalcularEtapa, recalcularProyecto } = require('../utils/recalculos');
-const { recalcularIndicadoresProyecto } = require('../db/queries/indicadores.queries');
-const { recalcularAportacionesProyecto } = require('../db/queries/aportaciones.queries');
+const { procesarCambioNodo } = require('../db/queries/aportaciones.queries');
 const { registrarActividad } = require('../utils/actividad-log');
 const { obtenerProyectoId, recalcularPadres } = require('../utils/avance-semaforo');
 const { tienePeldanoProyecto, tienePeldanoNodo } = require('../utils/autorizacion');
@@ -81,8 +80,13 @@ async function resolverProyectoId(entidadTipo, entidadId, client) {
  * Body: { entidad_tipo, entidad_id, estado, motivo_bloqueo?, nota_resolucion? }
  */
 async function cambiarEstado(req, res) {
-  const { entidad_tipo, entidad_id, estado, motivo_bloqueo, nota_resolucion } = req.body;
+  const { entidad_tipo, entidad_id, estado, motivo_bloqueo, nota_resolucion, sumar_aportaciones } = req.body;
   const idUsuario = req.usuario?.id;
+  // Casilla "Sumar aportación a X" del momento de completar — desmarcada,
+  // la actividad se completa igual pero no se inserta ningún movimiento
+  // de indicador. La decisión de qué insertar vive en procesarCambioNodo,
+  // nunca aquí; esta bandera solo dice si se le permite correr.
+  const sumarAportaciones = sumar_aportaciones !== false;
 
   if (!entidad_tipo || !entidad_id || !estado) {
     return res.status(400).json({
@@ -111,6 +115,16 @@ async function cambiarEstado(req, res) {
 
     // Recalcular porcentajes en cascada tras cambio de estado
     await recalcularTrasEstado(entidad_tipo, entidad_id, client);
+
+    // Movimientos de indicador por las aportaciones de ESTE nodo (no del
+    // proyecto completo — procesarCambioNodo solo mira las aportaciones
+    // que apuntan a entidad_id). Proyecto no es un tipo de nodo que pueda
+    // tener aportaciones propias (indicador_aportaciones solo admite
+    // etapa/acción/tarea), así que se omite.
+    const tipoNodoAportacion = TIPO_NODO_POR_TIPO[entidad_tipo];
+    if (tipoNodoAportacion) {
+      await procesarCambioNodo(tipoNodoAportacion, entidad_id, { sumarAportaciones, idUsuario }, client);
+    }
 
     // Registrar actividad
     const proyectoId = await resolverProyectoId(entidad_tipo, entidad_id, client);
@@ -172,13 +186,15 @@ async function restaurarEstadoAutomatico(req, res) {
 
     const resultado = await restaurarEstadoAutomaticoUtil(entidad_tipo, entidad_id, idUsuario, client);
 
-    // Recalcular indicadores/aportaciones del proyecto afectado, igual que
-    // tras cualquier otro cambio de estado.
+    // Movimientos de indicador por las aportaciones de este nodo, igual
+    // que tras cualquier otro cambio de estado (ver cambiarEstado arriba).
+    const tipoNodoAportacion = TIPO_NODO_POR_TIPO[entidad_tipo];
+    if (tipoNodoAportacion) {
+      await procesarCambioNodo(tipoNodoAportacion, entidad_id, { idUsuario }, client);
+    }
+
     const proyectoId = await resolverProyectoId(entidad_tipo, entidad_id, client);
     if (proyectoId) {
-      await recalcularIndicadoresProyecto(proyectoId, client);
-      await recalcularAportacionesProyecto(proyectoId, client);
-
       const { rows: [ent] } = await client.query(
         `SELECT nombre FROM ${TABLA_POR_TIPO[entidad_tipo]} WHERE id = $1`, [entidad_id]
       );
@@ -293,12 +309,12 @@ async function recalcularTrasEstado(entidadTipo, entidadId, client) {
     else if (accionPadre?.id_proyecto) await recalcularProyecto(accionPadre.id_proyecto, client);
   }
 
-  // Recalcular indicadores auto-calculados del proyecto afectado
-  const proyectoId = await resolverProyectoId(entidadTipo, entidadId, client);
-  if (proyectoId) {
-    await recalcularIndicadoresProyecto(proyectoId, client);
-    await recalcularAportacionesProyecto(proyectoId, client);
-  }
+  // Los movimientos de indicador por las aportaciones del nodo que
+  // cambió de estado ya se procesan en cambiarEstado()/
+  // restaurarEstadoAutomatico() justo después de llamar a esta función
+  // — no aquí, porque esta función también recalcula a los ANCESTROS
+  // (etapa, proyecto), que no son el nodo que de verdad tiene la
+  // aportación.
 }
 
 module.exports = { cambiarEstado, restaurarEstadoAutomatico, conteoDescendientes };

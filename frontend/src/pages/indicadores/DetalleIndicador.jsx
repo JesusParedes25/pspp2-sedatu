@@ -21,19 +21,37 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Loader2, Link2, AlertTriangle } from 'lucide-react';
+import {
+  ArrowLeft, Loader2, Link2, AlertTriangle, Pencil, Plus, Ban, Target,
+} from 'lucide-react';
+import { LineChart, Line, ReferenceLine, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import * as indicadoresApi from '../../api/indicadores';
 import { useUI } from '../../context/UIContext';
 import CamposIndicadorProyecto from '../../components/indicadores/CamposIndicadorProyecto';
 import ChipAportacion from '../../components/indicadores/ChipAportacion';
 import ModalVincularIndicador from '../../components/indicadores/ModalVincularIndicador';
-import GraficaIndicador from '../../components/indicadores/GraficaIndicador';
-import ListaCategoriasEditable from '../../components/indicadores/ListaCategoriasEditable';
-import ConfirmDialog from '../../components/common/ConfirmDialog';
-import { usarCapturaValorIndicador } from '../../hooks/usarCapturaValorIndicador';
-import { usarCapturaCategorias } from '../../hooks/usarCapturaCategorias';
-import { formatearMoneda } from '../../utils/formatoMoneda';
+import ModalRegistrarMovimiento from '../../components/indicadores/ModalRegistrarMovimiento';
+import { etiquetaUnidad } from '../../components/indicadores/SelectorIndicadorCatalogo';
+import { formatearMoneda, formatearMonedaCorta } from '../../utils/formatoMoneda';
+import { formatFecha } from '../../utils/fecha';
 import { excedeMeta } from '../../utils/estadoMeta';
+import { formatoCorto } from '../../components/indicadores/TarjetaIndicador';
+
+const GUINDA = '#7B1C3E';
+const NIVEL_LABEL = { etapa: 'Etapa', accion: 'Acción', tarea: 'Tarea' };
+
+// "Se completó 'X'" / "Registro a mano de Y" (Bloque 6 del encargo) — el
+// origen de un movimiento, en una frase. `nota` ya trae el detalle que
+// puso procesarCambioNodo ("Actividad completada", "Avance de la
+// actividad vinculada: 60%"...) para los automáticos; para los
+// manuales con nodo (Bloque 4, registrados desde la pestaña Indicadores
+// de un nodo) no hay nota prefabricada, así que se compone aquí.
+function descripcionOrigenMovimiento(m) {
+  const nodo = m.nodo_nombre ? `${NIVEL_LABEL[m.nodo_tipo] || ''} "${m.nodo_nombre}"` : null;
+  if (m.origen === 'migracion') return m.nota || 'Valor migrado de la versión anterior';
+  if (m.origen === 'manual') return nodo ? `Registro a mano de ${nodo}` : (m.nota || 'Registro a mano');
+  return nodo ? `${nodo} — ${m.nota || 'actualizada'}` : (m.nota || 'Actividad vinculada');
+}
 
 function datosEditables(indicador) {
   return {
@@ -54,6 +72,9 @@ export default function DetalleIndicador() {
   const [aportaciones, setAportaciones] = useState([]);
   const [cargandoAportaciones, setCargandoAportaciones] = useState(true);
   const [mostrarWizard, setMostrarWizard] = useState(false);
+  const [movimientos, setMovimientos] = useState([]);
+  const [cargandoMovimientos, setCargandoMovimientos] = useState(true);
+  const [mostrarRegistrarMovimiento, setMostrarRegistrarMovimiento] = useState(false);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -80,7 +101,19 @@ export default function DetalleIndicador() {
     }
   }, [id]);
 
-  useEffect(() => { cargar(); cargarAportaciones(); }, [cargar, cargarAportaciones]);
+  const cargarMovimientos = useCallback(async () => {
+    setCargandoMovimientos(true);
+    try {
+      const datos = await indicadoresApi.listarMovimientosIndicador(id);
+      setMovimientos(datos);
+    } catch (err) {
+      console.error('Error cargando movimientos:', err);
+    } finally {
+      setCargandoMovimientos(false);
+    }
+  }, [id]);
+
+  useEffect(() => { cargar(); cargarAportaciones(); cargarMovimientos(); }, [cargar, cargarAportaciones, cargarMovimientos]);
 
   // El spinner de página completa solo tiene sentido en el mount
   // inicial (todavía no hay nada que mostrar) — en cada refresh
@@ -124,13 +157,16 @@ export default function DetalleIndicador() {
         </p>
       </div>
 
-      <SeccionDefinicion indicador={indicador} aportaciones={aportaciones} onGuardado={cargar} mostrarToast={mostrarToast} />
+      <SeccionDefinicion indicador={indicador} onGuardado={cargar} mostrarToast={mostrarToast} />
 
-      {indicador.composicion === 'Categorias' ? (
-        <SeccionCategorias indicador={indicador} aportaciones={aportaciones} onGuardado={cargar} mostrarToast={mostrarToast} />
-      ) : (
-        <SeccionValor indicador={indicador} onGuardado={cargar} mostrarToast={mostrarToast} tieneAportaciones={aportaciones.length > 0} />
-      )}
+      <SeccionValorMovimientos
+        indicador={indicador}
+        movimientos={movimientos}
+        cargando={cargandoMovimientos}
+        onRegistrar={() => setMostrarRegistrarMovimiento(true)}
+        onActualizado={() => { cargar(); cargarMovimientos(); }}
+        mostrarToast={mostrarToast}
+      />
 
       <SeccionAportaciones
         indicador={indicador}
@@ -151,20 +187,46 @@ export default function DetalleIndicador() {
           onVinculado={() => { setMostrarWizard(false); cargar(); cargarAportaciones(); }}
         />
       )}
+
+      {mostrarRegistrarMovimiento && (
+        <ModalRegistrarMovimiento
+          indicadorId={indicador.id}
+          indicadorNombre={indicador.nombre}
+          idNodoOrigen={null}
+          onCerrar={() => setMostrarRegistrarMovimiento(false)}
+          onRegistrado={() => {
+            setMostrarRegistrarMovimiento(false);
+            cargar();
+            cargarMovimientos();
+            mostrarToast('Movimiento registrado', 'exito');
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function SeccionDefinicion({ indicador, aportaciones, onGuardado, mostrarToast }) {
+// Bloque 6 del rediseño de Indicadores: "deja de ser un formulario" — por
+// defecto se muestra como texto, con un solo botón "Editar" que revela el
+// mismo formulario de siempre (CamposIndicadorProyecto) con un único
+// "Guardar". Antes esta sección y "Valor actual" mostraban cada una su
+// propio "Guardar" uno junto al otro, dos botones idénticos que no decían
+// qué hacía cada uno.
+function SeccionDefinicion({ indicador, onGuardado, mostrarToast }) {
+  const [editando, setEditando] = useState(false);
   const [datos, setDatos] = useState(() => datosEditables(indicador));
   const [guardando, setGuardando] = useState(false);
-  const [categoriasABorrar, setCategoriasABorrar] = useState(null);
 
   // Si se recarga el indicador (tras guardar, o tras un cambio hecho
   // desde otra pantalla), el formulario se resincroniza con lo real.
   useEffect(() => { setDatos(datosEditables(indicador)); }, [indicador]);
 
-  async function guardarDeVerdad() {
+  // temporalidad/composicion/tipo_grafico/metas_anuales/categorias ya no
+  // viajan: el formulario (CamposIndicadorProyecto) dejó de pedirlos
+  // (Bloque 7 del rediseño) y actualizar() los ignora de todos modos
+  // desde el Bloque 1 — nunca sobreescribe lo ya capturado por periodo o
+  // categoría con solo editar nombre/meta/descripción.
+  async function guardar() {
     setGuardando(true);
     try {
       await indicadoresApi.actualizarIndicador(indicador.id, {
@@ -173,17 +235,10 @@ function SeccionDefinicion({ indicador, aportaciones, onGuardado, mostrarToast }
         unidad: datos.unidad,
         unidad_personalizada: datos.unidad_personalizada,
         meta_global: datos.meta_global === '' ? null : parseFloat(datos.meta_global),
-        temporalidad: datos.temporalidad,
-        unidad_periodo: datos.unidad_periodo,
-        anio_inicio: datos.temporalidad === 'Anual' ? datos.anio_inicio : null,
-        anio_fin: datos.temporalidad === 'Anual' ? datos.anio_fin : null,
-        metas_anuales: datos.temporalidad === 'Anual' ? datos.metas_anuales : [],
-        composicion: datos.composicion,
-        tipo_grafico: datos.tipo_grafico,
-        categorias: datos.composicion === 'Categorias' ? datos.categorias : [],
         descripcion: datos.descripcion,
       });
       mostrarToast('Indicador actualizado', 'exito');
+      setEditando(false);
       onGuardado();
     } catch (err) {
       mostrarToast(err.response?.data?.mensaje || 'No se pudo guardar el indicador', 'error');
@@ -192,172 +247,242 @@ function SeccionDefinicion({ indicador, aportaciones, onGuardado, mostrarToast }
     }
   }
 
-  // El diff-upsert del backend (actualizar()) borra cualquier categoría
-  // cuyo "id" ya no venga en el arreglo entrante — sus aportaciones
-  // sobreviven con id_categoria=NULL (ON DELETE SET NULL, migración 072)
-  // y quedan bajo "Sin categoría asignada", el total no cambia. El dato
-  // resultante ya es correcto; lo que faltaba era avisar ANTES de que
-  // pase, ya que hoy desaparece de la lista sin aviso.
-  function guardar() {
-    const idsEntrantes = new Set((datos.categorias || []).filter(c => c.id).map(c => c.id));
-    const categoriasEliminadas = (indicador.categorias || []).filter(c => !idsEntrantes.has(c.id));
-    const afectadas = categoriasEliminadas
-      .map(cat => ({ cat, nAportaciones: (aportaciones || []).filter(a => a.id_categoria === cat.id).length }))
-      .filter(x => x.nAportaciones > 0);
-
-    if (afectadas.length > 0) {
-      setCategoriasABorrar(afectadas);
-      return;
-    }
-    guardarDeVerdad();
+  if (!editando) {
+    const esMoneda = indicador.unidad === 'Moneda_MXN';
+    const meta = parseFloat(indicador.meta_global) || 0;
+    return (
+      <section className="bg-white border border-gray-200 rounded-xl p-4">
+        <div className="flex items-start justify-between gap-2 mb-3">
+          <h2 className="text-sm font-semibold text-gray-900">Definición</h2>
+          <button
+            onClick={() => { setDatos(datosEditables(indicador)); setEditando(true); }}
+            className="flex items-center gap-1 text-xs font-medium text-guinda-700 hover:underline flex-shrink-0"
+          >
+            <Pencil size={12} /> Editar
+          </button>
+        </div>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+          <div>
+            <dt className="text-gray-400">Tipo</dt>
+            <dd className="text-gray-700">{indicador.tipo?.replaceAll('_', ' ') || '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-gray-400">Unidad</dt>
+            <dd className="text-gray-700">{etiquetaUnidad(indicador)}</dd>
+          </div>
+          <div className="col-span-2">
+            <dt className="text-gray-400">Cómo se mide</dt>
+            <dd className="text-gray-700">{indicador.definicion || '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-gray-400">Fuente del dato</dt>
+            <dd className="text-gray-700">{indicador.fuente || '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-gray-400">Meta</dt>
+            <dd className="text-gray-700">
+              {meta > 0 ? (esMoneda ? formatearMoneda(meta) : meta.toLocaleString('es-MX')) : (
+                // Mismo tratamiento discreto que ya usa la nota de fecha
+                // límite — no capturar meta es una decisión válida, no un
+                // campo olvidado.
+                <span className="text-gray-400">
+                  Sin meta, este indicador reporta el número pero no puede calcular porcentaje de avance
+                </span>
+              )}
+            </dd>
+          </div>
+        </dl>
+      </section>
+    );
   }
 
   return (
     <section className="bg-white border border-gray-200 rounded-xl p-4">
       <h2 className="text-sm font-semibold text-gray-900 mb-3">Definición</h2>
       <CamposIndicadorProyecto indicador={datos} onCambio={patch => setDatos(prev => ({ ...prev, ...patch }))} />
-      <div className="flex justify-end mt-3">
+      <div className="flex justify-end gap-2 mt-3">
+        <button onClick={() => setEditando(false)} disabled={guardando} className="btn-secondary text-sm disabled:opacity-40">
+          Cancelar
+        </button>
         <button onClick={guardar} disabled={guardando} className="btn-primary text-sm disabled:opacity-40">
           {guardando ? 'Guardando...' : 'Guardar'}
         </button>
       </div>
-
-      <ConfirmDialog
-        abierto={!!categoriasABorrar}
-        variante="neutral"
-        titulo="Categoría con nodos vinculados"
-        mensaje={categoriasABorrar ? (
-          categoriasABorrar.length === 1
-            ? `La categoría "${categoriasABorrar[0].cat.nombre}" tiene ${categoriasABorrar[0].nAportaciones} nodo(s) vinculado(s). Al eliminarla, esos nodos quedarán como "Sin categoría asignada". El total del indicador no cambia.`
-            : `Las categorías ${categoriasABorrar.map(x => `"${x.cat.nombre}"`).join(', ')} tienen nodos vinculados. Al eliminarlas, esos nodos quedarán como "Sin categoría asignada". El total del indicador no cambia.`
-        ) : ''}
-        textoConfirmar="Eliminar de todos modos"
-        textoCancelar="Cancelar"
-        onConfirmar={() => { setCategoriasABorrar(null); guardarDeVerdad(); }}
-        onCancelar={() => setCategoriasABorrar(null)}
-      />
     </section>
   );
 }
 
-function SeccionValor({ indicador, onGuardado, mostrarToast, tieneAportaciones }) {
+// Bloque 6 del rediseño de Indicadores: el historial de movimientos es
+// lo más útil de la pantalla — reemplaza a las viejas "Valor actual"/
+// "Valor por categoría" (formularios que pisaban un número sin dejar
+// rastro). Aquí solo se MUESTRA valor/meta/gráfica/historial; capturar
+// pasa siempre por ModalRegistrarMovimiento (mismo modal que ya usa la
+// pestaña Indicadores de un nodo en Seguimiento, Bloque 4), que inserta
+// un movimiento — nunca pisa el total directo.
+function SeccionValorMovimientos({ indicador, movimientos, cargando, onRegistrar, onActualizado, mostrarToast }) {
   const esMoneda = indicador.unidad === 'Moneda_MXN';
-  // modo_calculo nunca lo escribe el wizard (siempre queda en su
-  // default 'manual'), así que por sí solo no basta para saber si el
-  // valor se captura a mano — un indicador puede quedar en 'manual' y
-  // a la vez tener nodos aportando. En cuanto hay al menos un nodo, el
-  // valor se calcula solo (mismo criterio que ya aplica por categoría
-  // en SeccionCategorias/establecerValorManual) y el input se oculta.
-  const esManual = indicador.modo_calculo === 'manual' && !tieneAportaciones;
-  const {
-    mostrarSelectorPeriodo, sinPeriodos, periodos,
-    idPeriodo, cambiarPeriodo, periodoActual,
-    valor, setValor, guardando, error, guardar, metaActual,
-  } = usarCapturaValorIndicador(indicador);
+  const unidad = etiquetaUnidad(indicador);
+  const valor = parseFloat(indicador.valor_actual) || 0;
+  const meta = parseFloat(indicador.meta_global) || 0;
+  const tieneMeta = meta > 0;
+  const pct = tieneMeta ? (valor / meta) * 100 : null;
+  const [anulando, setAnulando] = useState(null); // id del movimiento con el campo de motivo abierto
+  const [motivo, setMotivo] = useState('');
+  const [procesando, setProcesando] = useState(false);
 
-  async function manejarGuardar() {
-    const ok = await guardar();
-    if (ok) { mostrarToast('Valor actualizado', 'exito'); onGuardado(); }
+  // Orden cronológico ascendente para acumular, conservando el orden
+  // DESC (más reciente arriba) para mostrar — un movimiento anulado no
+  // suma al acumulado (coincide con cómo recalcularValorActual excluye
+  // los anulados), pero se deja ver tachado en su lugar en el tiempo.
+  const conAcumulado = (() => {
+    const asc = [...movimientos].reverse();
+    let acumulado = 0;
+    const calculados = asc.map(m => {
+      if (!m.anulado_en) acumulado += parseFloat(m.cantidad);
+      return { ...m, acumuladoTrasEste: acumulado };
+    });
+    return calculados.reverse();
+  })();
+
+  const serieGrafica = (() => {
+    const asc = [...movimientos].reverse().filter(m => !m.anulado_en);
+    let acumulado = 0;
+    return asc.map(m => {
+      acumulado += parseFloat(m.cantidad);
+      return { fecha: formatFecha(m.fecha, { day: '2-digit', month: 'short' }), valor: acumulado };
+    });
+  })();
+
+  async function confirmarAnular(movimientoId) {
+    if (!motivo.trim()) return;
+    setProcesando(true);
+    try {
+      await indicadoresApi.anularMovimientoIndicador(movimientoId, motivo.trim());
+      mostrarToast('Movimiento anulado', 'exito');
+      setAnulando(null);
+      setMotivo('');
+      onActualizado();
+    } catch (err) {
+      mostrarToast(err.response?.data?.mensaje || 'No se pudo anular el movimiento', 'error');
+    } finally {
+      setProcesando(false);
+    }
   }
 
   return (
     <section className="bg-white border border-gray-200 rounded-xl p-4">
-      <h2 className="text-sm font-semibold text-gray-900 mb-2">Valor actual</h2>
-      {!esManual ? (
-        <p className="text-xs text-gray-500">
-          Este indicador se calcula automáticamente desde el avance de los nodos vinculados, no se edita a mano. Ver "Nodos que aportan" más abajo.
-        </p>
-      ) : sinPeriodos ? (
-        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-          Todavía no hay ningún periodo definido. Agrega uno en Definición (arriba) antes de poder registrar un valor.
-        </p>
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <h2 className="text-sm font-semibold text-gray-900">Valor actual</h2>
+        <button onClick={onRegistrar} className="flex items-center gap-1 text-xs font-medium text-guinda-700 hover:underline flex-shrink-0">
+          <Plus size={12} /> Registrar movimiento
+        </button>
+      </div>
+
+      <div className="flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <span className="text-2xl font-bold tabular-nums leading-none" style={{ color: GUINDA }} title={valor.toLocaleString('es-MX')}>
+            {esMoneda ? formatearMonedaCorta(valor) : formatoCorto(valor)}
+          </span>
+          {tieneMeta ? (
+            <span className="text-xs text-gray-500 ml-1.5">
+              de {esMoneda ? formatearMonedaCorta(meta) : `${formatoCorto(meta)}${unidad ? ` ${unidad}` : ''}`}
+            </span>
+          ) : (!esMoneda && unidad && <span className="text-xs text-gray-500 ml-1.5">{unidad}</span>)}
+        </div>
+        {tieneMeta && (
+          <span className="text-sm font-semibold tabular-nums flex-shrink-0 px-1.5 py-0.5 rounded" style={{ color: GUINDA, backgroundColor: 'rgba(123,28,62,0.07)' }}>
+            {pct.toFixed(0)}%
+          </span>
+        )}
+      </div>
+      {tieneMeta ? (
+        <div className="mt-2 h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: GUINDA }} />
+        </div>
       ) : (
-        <div className="space-y-2 max-w-sm">
-          {mostrarSelectorPeriodo && (
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Periodo</label>
-              <select value={idPeriodo || ''} onChange={e => cambiarPeriodo(e.target.value)} className="input-base text-sm">
-                {periodos.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.etiqueta || p.anio}{p.valor_actual != null ? ` (ya capturado: ${esMoneda ? formatearMoneda(p.valor_actual) : p.valor_actual})` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">
-              Valor{mostrarSelectorPeriodo ? ` ${periodoActual?.etiqueta || periodoActual?.anio || ''}` : ''}
-            </label>
-            <div className="flex items-center gap-2">
-              <input type="number" step="any" value={valor} onChange={e => setValor(e.target.value)} className="input-base text-sm flex-1" />
-              <button onClick={manejarGuardar} disabled={guardando} className="btn-primary text-sm disabled:opacity-40 flex-shrink-0">
-                {guardando ? 'Guardando...' : 'Guardar'}
-              </button>
-            </div>
-            {metaActual > 0 && (
-              <p className="text-[10px] text-gray-400 mt-1">Meta: {esMoneda ? formatearMoneda(metaActual) : metaActual}</p>
-            )}
-          </div>
-          {error && <p className="text-xs text-red-600">{error}</p>}
+        <p className="mt-1.5 flex items-center gap-1 text-[11px] text-gray-400">
+          <Target size={10} /> Sin meta, este indicador reporta el número pero no puede calcular porcentaje de avance
+        </p>
+      )}
+
+      {serieGrafica.length > 1 && (
+        <div className="h-32 mt-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={serieGrafica}>
+              <XAxis dataKey="fecha" tick={{ fontSize: 10 }} />
+              <YAxis hide />
+              <Tooltip contentStyle={{ fontSize: 11 }} formatter={v => esMoneda ? formatearMoneda(v) : Number(v).toLocaleString('es-MX')} />
+              {tieneMeta && <ReferenceLine y={meta} stroke="#e5e7eb" strokeDasharray="4 3" label={{ value: 'Meta', fontSize: 10, fill: '#9ca3af', position: 'insideTopRight' }} />}
+              <Line type="monotone" dataKey="valor" stroke={GUINDA} strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       )}
-      {mostrarSelectorPeriodo && periodos.length > 0 && (
-        <GraficaIndicador
-          tipo={indicador.tipo_grafico}
-          filas={periodos.map(p => ({
-            etiqueta: p.etiqueta || String(p.anio),
-            meta: parseFloat(p.meta) || 0,
-            real: parseFloat(p.valor_actual) || 0,
-          }))}
-        />
-      )}
-    </section>
-  );
-}
 
-function SeccionCategorias({ indicador, aportaciones, onGuardado, mostrarToast }) {
-  const categoriasConAportacion = new Set(aportaciones.map(a => a.id_categoria).filter(Boolean));
-  const { categorias, sinCategorias, valores, cambiarValor, guardar, guardando, error } = usarCapturaCategorias(indicador, categoriasConAportacion);
-
-  async function manejarGuardar() {
-    const ok = await guardar();
-    if (ok) { mostrarToast('Valores actualizados', 'exito'); onGuardado(); }
-  }
-
-  return (
-    <section className="bg-white border border-gray-200 rounded-xl p-4">
-      <h2 className="text-sm font-semibold text-gray-900 mb-2">Valor por categoría</h2>
-      {sinCategorias ? (
-        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-          Todavía no hay ninguna categoría definida. Agrega al menos una en Definición (arriba) antes de poder registrar valores.
-        </p>
+      <h3 className="text-xs font-semibold text-gray-600 mt-4 mb-1.5">Historial de movimientos</h3>
+      {cargando ? (
+        <div className="flex items-center gap-2 text-xs text-gray-400 py-2"><Loader2 size={13} className="animate-spin" /> Cargando…</div>
+      ) : conAcumulado.length === 0 ? (
+        <p className="text-xs text-gray-500">Todavía no hay ningún movimiento registrado.</p>
       ) : (
-        <div className="max-w-sm">
-          <ListaCategoriasEditable
-            indicador={indicador}
-            categorias={categorias}
-            valores={valores}
-            onCambiarValor={cambiarValor}
-            categoriasConAportacion={categoriasConAportacion}
-          />
-          <div className="flex justify-end mt-3">
-            <button onClick={manejarGuardar} disabled={guardando} className="btn-primary text-sm disabled:opacity-40">
-              {guardando ? 'Guardando...' : 'Guardar'}
-            </button>
-          </div>
-          {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
+        <div className="divide-y divide-gray-100 border border-gray-100 rounded-lg">
+          {conAcumulado.map(m => {
+            const anulado = !!m.anulado_en;
+            const cantidad = parseFloat(m.cantidad);
+            return (
+              <div key={m.id} className={`px-3 py-2 text-xs ${anulado ? 'opacity-50' : ''}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className={`min-w-0 ${anulado ? 'line-through' : ''}`}>
+                    <p className="text-gray-700">{descripcionOrigenMovimiento(m)}</p>
+                    <p className="text-[10px] text-gray-400">
+                      {formatFecha(m.fecha)}{m.creador_nombre ? ` · ${m.creador_nombre}` : ''}
+                    </p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className={`font-medium tabular-nums ${anulado ? 'line-through text-gray-400' : cantidad < 0 ? 'text-red-600' : 'text-gray-700'}`}>
+                      {cantidad > 0 ? '+' : ''}{esMoneda ? formatearMoneda(cantidad) : cantidad.toLocaleString('es-MX')}
+                    </p>
+                    <p className="text-[10px] text-gray-400 tabular-nums">
+                      acumulado: {esMoneda ? formatearMoneda(m.acumuladoTrasEste) : m.acumuladoTrasEste.toLocaleString('es-MX')}
+                    </p>
+                  </div>
+                </div>
+                {anulado ? (
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Anulado por {m.anulador_nombre || 'alguien'}{m.motivo_anulacion ? `: ${m.motivo_anulacion}` : ''}
+                  </p>
+                ) : anulando === m.id ? (
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <input
+                      autoFocus
+                      value={motivo}
+                      onChange={e => setMotivo(e.target.value)}
+                      placeholder="Motivo de la anulación"
+                      className="flex-1 text-[11px] border border-gray-300 rounded px-2 py-1 focus:border-guinda-500 focus:ring-1 focus:ring-guinda-500/20 outline-none"
+                    />
+                    <button
+                      onClick={() => confirmarAnular(m.id)}
+                      disabled={procesando || !motivo.trim()}
+                      className="text-[11px] font-medium text-red-600 hover:underline disabled:opacity-40"
+                    >
+                      Confirmar
+                    </button>
+                    <button onClick={() => { setAnulando(null); setMotivo(''); }} className="text-[11px] text-gray-400 hover:text-gray-600">
+                      Cancelar
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => { setAnulando(m.id); setMotivo(''); }}
+                    className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-red-600 mt-1"
+                  >
+                    <Ban size={10} /> Anular
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
-      )}
-      {!sinCategorias && (
-        <GraficaIndicador
-          tipo={indicador.tipo_grafico}
-          filas={categorias.map(c => ({
-            etiqueta: c.nombre,
-            meta: parseFloat(c.meta) || 0,
-            real: parseFloat(c.valor_actual) || 0,
-          }))}
-        />
       )}
     </section>
   );

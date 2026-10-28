@@ -169,3 +169,13 @@ export async function revocarApiToken(id) {
   const { data } = await API.delete(`/admin/api-tokens/${id}`);
   return data;
 }
+
+// Probador de la API externa (Bloque 8) — corre con la sesión del
+// superadmin, no con un token real (el token solo se guarda hasheado,
+// ni este panel puede recuperarlo). Devuelve la respuesta real.
+export async function probarApiIndicadores({ clave, historicoLimite } = {}) {
+  const { data } = await API.get('/admin/api-tokens/probar', {
+    params: { clave: clave || undefined, historico_limite: historicoLimite || undefined },
+  });
+  return data;
+}

@@ -24,7 +24,6 @@ const aportacionesQueries = require('./aportaciones.queries');
 // actualizaba ningún recálculo — retirada, ver migración 069.
 async function vincularIndicadoresEtapa(client, etapaId, indicadoresAsociados) {
   if (!indicadoresAsociados || indicadoresAsociados.length === 0) return;
-  const idsAfectados = new Set();
   for (const ia of indicadoresAsociados) {
     const aportado = (ia.meta_etapa !== '' && ia.meta_etapa != null) ? parseFloat(ia.meta_etapa) : 0;
     if (aportado < 0) throw new Error('El valor aportado no puede ser negativo');
@@ -51,14 +50,13 @@ async function vincularIndicadoresEtapa(client, etapaId, indicadoresAsociados) {
       { id_indicador: ia.id_indicador, id_etapa: etapaId, aportacion: aportado, modo: 'al_concluir' },
       client
     );
-    idsAfectados.add(ia.id_indicador);
   }
-  // Recalcular de inmediato: la etapa puede ya estar Completada al
-  // momento de vincularla (mismo hueco ya corregido para aportaciones
-  // de nodo en general — ver aportaciones.controller.js).
-  for (const idIndicador of idsAfectados) {
-    await aportacionesQueries.recalcularUnIndicador(idIndicador, client);
-  }
+  // Procesar de inmediato: la etapa puede ya estar Completada al momento
+  // de vincularla (mismo hueco ya corregido para aportaciones de nodo en
+  // general — ver aportaciones.controller.js). Una sola llamada basta:
+  // procesarCambioNodo mira TODAS las aportaciones de esta etapa, no una
+  // por indicador.
+  await aportacionesQueries.procesarCambioNodo('etapa', etapaId, {}, client);
 }
 
 // Obtiene todas las etapas de un proyecto con datos del responsable y conteos
@@ -244,19 +242,16 @@ async function actualizarEtapa(etapaId, datos, externalClient) {
       return null;
     }
 
-    // Sincronizar indicadores asociados (aportación fija por indicador)
+    // Sincronizar indicadores asociados (aportación fija por indicador).
+    // Reemplazar el conjunto de vínculos NO deshace los movimientos que
+    // el vínculo anterior ya haya generado — son historia capturada,
+    // igual que al desvincular un solo nodo (ver aportaciones.
+    // controller.js::eliminar) — por eso no hace falta "recordar" los
+    // indicadores previos para recalcularlos: ninguno pierde su
+    // acumulado por este reemplazo.
     if (Array.isArray(datos.indicadores_asociados)) {
-      // Indicadores que perdían aportación en este reemplazo — también
-      // se recalculan al final, junto con los que la ganan (dentro de
-      // vincularIndicadoresEtapa).
-      const previos = await client.query(
-        'SELECT DISTINCT id_indicador FROM indicador_aportaciones WHERE id_etapa = $1', [etapaId]
-      );
       await client.query('DELETE FROM indicador_aportaciones WHERE id_etapa = $1', [etapaId]);
       await vincularIndicadoresEtapa(client, etapaId, datos.indicadores_asociados);
-      for (const row of previos.rows) {
-        await aportacionesQueries.recalcularUnIndicador(row.id_indicador, client);
-      }
     }
 
     if (gestionaTransaccion) await client.query('COMMIT');

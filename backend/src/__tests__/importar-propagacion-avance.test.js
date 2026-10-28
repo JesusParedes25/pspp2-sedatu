@@ -92,11 +92,6 @@ jest.mock('../utils/recalculos', () => ({
   recalcularEtapa: (...args) => mockRecalcularEtapa(...args),
 }));
 
-const mockRecalcularIndicadoresProyecto = jest.fn().mockResolvedValue(undefined);
-jest.mock('../db/queries/indicadores.queries', () => ({
-  recalcularIndicadoresProyecto: (...args) => mockRecalcularIndicadoresProyecto(...args),
-}));
-
 const { ejecutarImportacion } = require('../services/importar.service');
 
 beforeEach(() => {
@@ -106,7 +101,6 @@ beforeEach(() => {
   mockRecalcularPadres.mockClear();
   mockRecalcularPesosEtapa.mockClear();
   mockRecalcularEtapa.mockClear();
-  mockRecalcularIndicadoresProyecto.mockClear();
 });
 
 describe('ejecutarImportacion — propagación de avance de Tareas a su Acción contenedora', () => {

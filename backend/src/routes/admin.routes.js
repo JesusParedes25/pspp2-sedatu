@@ -7,6 +7,7 @@ const multer = require('multer');
 const { requiereRol } = require('../middleware/roles.middleware');
 const adminController = require('../controllers/admin.controller');
 const miembrosController = require('../controllers/miembros.controller');
+const publicoController = require('../controllers/publico.controller');
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
@@ -68,5 +69,9 @@ router.put('/config', adminController.actualizarConfig);
 router.get('/api-tokens', adminController.listarApiTokens);
 router.post('/api-tokens', adminController.crearApiToken);
 router.delete('/api-tokens/:id', adminController.revocarApiToken);
+// Probador (Bloque 8 del encargo): corre con la sesión del superadmin
+// (este mismo router ya exige requiereRol(['superadmin']) arriba),
+// nunca con un token real — el token solo se guarda hasheado.
+router.get('/api-tokens/probar', publicoController.probar);
 
 module.exports = router;

@@ -88,8 +88,16 @@ async function alcanceProyectosUsuarioONull(usuario) {
 // mutuamente excluyentes; si llegan los dos, gana cartera_id. Extraído
 // de inicio.controller.js para reusarse también en el módulo de
 // Indicadores — mismo criterio de filtro, misma fuente.
-async function resolverProyectoIdsFiltro(usuario, query) {
-  let proyectoIds = await alcanceProyectosUsuario(usuario);
+//
+// `baseProyectoIds` (opcional) sustituye el punto de partida
+// alcanceProyectosUsuario(usuario) por una lista ya resuelta — lo usa
+// "Mis indicadores" (Bloque 5 del encargo) para aplicar el MISMO filtro
+// de proyecto/cartera sobre la participación real del usuario en vez de
+// su alcance completo (que para superadmin/ejecutivo es "todos los
+// proyectos de la plataforma", demasiado para una sección que se anuncia
+// como personal). Omitido, el comportamiento es idéntico al de siempre.
+async function resolverProyectoIdsFiltro(usuario, query, baseProyectoIds = null) {
+  let proyectoIds = baseProyectoIds !== null ? baseProyectoIds : await alcanceProyectosUsuario(usuario);
   const { proyecto_ids: proyectoIdsQuery, cartera_id: carteraIdQuery } = query;
   if (carteraIdQuery) {
     const idsCartera = new Set(await carterasQueries.obtenerProyectoIdsDeCartera(carteraIdQuery));

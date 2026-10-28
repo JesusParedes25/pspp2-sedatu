@@ -910,10 +910,6 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
       await recalcularEtapa(etapaId, client);
     }
 
-    // Recalcular indicadores auto-calculados del proyecto
-    const { recalcularIndicadoresProyecto } = require('../db/queries/indicadores.queries');
-    await recalcularIndicadoresProyecto(proyectoId, client);
-
     await client.query('COMMIT');
     // La interfaz desplegada lee subacciones_creadas para mostrar "X
     // tarea(s) creada(s)". Se espeja el conteo para que un frontend viejo
@@ -1294,9 +1290,6 @@ async function ejecutarImportacionMultiHoja(hojas, configMultiHoja, proyectoId, 
       await recalcularEtapa(etapaId, client);
     }
 
-    const { recalcularIndicadoresProyecto } = require('../db/queries/indicadores.queries');
-    await recalcularIndicadoresProyecto(proyectoId, client);
-
     await client.query('COMMIT');
     // La interfaz desplegada lee subacciones_creadas para mostrar "X
     // tarea(s) creada(s)". Se espeja el conteo para que un frontend viejo
@@ -1382,9 +1375,6 @@ async function eliminarLote(loteImportacionId, proyectoId) {
       await recalcularPesosEtapa(id, client);
       await recalcularEtapa(id, client);
     }
-
-    const { recalcularIndicadoresProyecto } = require('../db/queries/indicadores.queries');
-    await recalcularIndicadoresProyecto(proyectoId, client);
 
     await client.query('COMMIT');
     return { encontrado: true, etapas: etapaIds.length, acciones: accionIds.length, tareas: tareaIds.length };
