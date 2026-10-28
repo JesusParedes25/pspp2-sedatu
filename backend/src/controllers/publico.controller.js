@@ -58,14 +58,18 @@ function quitarNotaInterna(texto) {
 // es una consulta puntual y deliberada de un consumidor que ya sabe qué
 // busca, no el barrido general que `incluirTodos` controla.
 // `incluirTodos`: sin esto, el barrido general (sin `soloClave`) se
-// acota a indicadores activos en el catálogo y con al menos un
-// proyecto que los mida — de los ~1400 del catálogo institucional,
-// la enorme mayoría nunca se vinculó a un proyecto y es ruido puro
-// para quien consume la API. Con `incluirTodos`, se devuelve el
-// catálogo completo sin ninguno de los dos filtros, igual que antes de
-// este cambio.
+// acota a indicadores con al menos un proyecto que los mida — de los
+// ~1400 del catálogo institucional, la enorme mayoría nunca se vinculó
+// a un proyecto y es ruido puro para quien consume la API. Con
+// `incluirTodos`, se devuelve también lo que ningún proyecto mide.
+//
+// Deliberadamente NO se filtra por `activo` del catálogo: un indicador
+// puede desactivarse en el catálogo (ya no se ofrece para proyectos
+// nuevos) sin que el proyecto que ya lo capturaba deje de hacerlo —
+// ocultarlo aquí haría desaparecer, sin aviso, un número que el
+// tablero externo ya venía graficando. `activo` viaja en la respuesta
+// para que el consumidor decida, como ya documentaba api-indicadores.md.
 async function obtenerDatosIndicadores(soloClave, historicoLimite, incluirTodos = false) {
-  const omitirFiltroActivo = !!soloClave || !!incluirTodos;
   const { rows } = await pool.query(`
     SELECT
       c.clave, c.nombre, c.descripcion, c.tipo, c.unidad,
@@ -85,9 +89,8 @@ async function obtenerDatosIndicadores(soloClave, historicoLimite, incluirTodos 
     LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
     LEFT JOIN usuarios creador ON creador.id = i.id_creador
     WHERE ($1::text IS NULL OR c.clave = $1)
-      AND ($2::boolean OR c.activo = true)
     ORDER BY c.nombre, p.nombre
-  `, [soloClave, omitirFiltroActivo]);
+  `, [soloClave]);
 
   const idsIndicador = [...new Set(rows.map(r => r.indicador_id).filter(Boolean))];
 
@@ -178,9 +181,9 @@ async function obtenerDatosIndicadores(soloClave, historicoLimite, incluirTodos 
     porcentaje: calcularAvancePorcentaje(e.avance_total, e.meta_total),
   }));
 
-  // Mismo criterio que el filtro de activo arriba: una consulta puntual
-  // por `clave` siempre devuelve su indicador, tenga o no proyectos; el
-  // barrido general lo oculta por omisión salvo que se pida `incluirTodos`.
+  // Una consulta puntual por `clave` siempre devuelve su indicador,
+  // tenga o no proyectos; el barrido general lo oculta por omisión
+  // salvo que se pida `incluirTodos` (ver nota de la función, arriba).
   if (!soloClave && !incluirTodos) {
     datos = datos.filter(e => e.proyectos.length > 0);
   }

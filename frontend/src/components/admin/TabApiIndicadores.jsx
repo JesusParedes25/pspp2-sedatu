@@ -145,12 +145,13 @@ export default function TabApiIndicadores() {
           Authorization: Bearer &lt;token&gt;
         </code>
         <p className="text-[11px] text-gray-500">
-          Por omisión devuelve solo los indicadores activos en el catálogo y con al menos un
-          proyecto que los mida — con su <strong>clave estable</strong>, el total de meta y avance
-          sumando todos los proyectos, y el desglose por proyecto con quién capturó el dato.
+          Por omisión devuelve solo los indicadores con al menos un proyecto que los mida (no
+          filtra por si siguen activos en el catálogo: uno retirado con captura real sigue
+          apareciendo) — con su <strong>clave estable</strong>, el total de meta y avance sumando
+          todos los proyectos, y el desglose por proyecto con quién capturó el dato.
           Acepta <code className="font-mono">?clave=</code> para pedir uno solo (ese siempre se
-          devuelve, tenga o no proyectos) y <code className="font-mono">?todos=1</code> para el
-          catálogo completo sin ninguno de los dos filtros. También acepta el encabezado{' '}
+          devuelve, tenga o no proyectos) y <code className="font-mono">?todos=1</code> para
+          incluir también lo que ningún proyecto mide. También acepta el encabezado{' '}
           <code className="font-mono">X-API-Key</code> si la herramienta del otro lado no permite
           Bearer.
         </p>
@@ -207,7 +208,7 @@ export default function TabApiIndicadores() {
             onChange={e => setIncluirTodos(e.target.checked)}
             className="rounded border-gray-300"
           />
-          Incluir todo el catálogo, sin proyecto y sin importar si está activo
+          Incluir también lo que ningún proyecto mide todavía
           (<code className="font-mono">?todos=1</code>)
         </label>
 
