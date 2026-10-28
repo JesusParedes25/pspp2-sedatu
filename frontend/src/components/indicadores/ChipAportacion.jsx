@@ -14,6 +14,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Trash2, Loader2 } from 'lucide-react';
 import * as indicadoresApi from '../../api/indicadores';
+import EstadoChip from '../common/EstadoChip';
 
 export const MODOS_APORTACION = [
   { valor: 'al_concluir', etiqueta: 'Manual', ayuda: 'Tú escribes el número. Cuenta cuando esto se complete.' },
@@ -75,6 +76,11 @@ export default function ChipAportacion({ ap, etiquetaPrincipal, subtitulo, soloL
               {ap.categoria_nombre}
             </span>
           )}
+          {/* estado_nodo solo lo trae aportaciones.queries.js::listarPorIndicador
+              (la lista de "qué nodos aportan" en la ficha del indicador,
+              Bloque 6) — en TabIndicadores.jsx (dentro de un nodo) no aporta
+              nada saber el estado del nodo en el que ya se está parado. */}
+          {ap.estado_nodo && <EstadoChip estado={ap.estado_nodo} className="!text-[9px] !px-1.5 !py-0" />}
           <span className="text-[10px] text-gray-400 tabular-nums">
             {Number(ap.aportacion) > 0 ? Number(ap.aportacion).toLocaleString('es-MX') + ' · ' : ''}{modoInfo.etiqueta}
           </span>
