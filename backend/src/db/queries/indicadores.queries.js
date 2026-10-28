@@ -17,6 +17,41 @@
 const pool = require('../pool');
 const { registrarActividad } = require('../../utils/actividad-log');
 
+// Bloque 7.5 del rediseño de Indicadores: cuando un indicador viene del
+// catálogo (id_catalogo IS NOT NULL), su nombre/tipo/unidad/etiqueta son
+// los del catálogo EN VIVO, no la copia que se guardó en `indicadores`
+// al vincularlo — antes solo la API externa (/publico/indicadores) leía
+// el catálogo directo, así que editar una entrada ahí parecía no surtir
+// efecto en las pantallas internas aunque el consumidor externo ya lo
+// veía. Se resuelve con una consulta aparte (en vez de un JOIN con
+// columnas repetidas tipo "SELECT i.*, x AS nombre", ambiguo de leer y
+// de depender de en qué orden pg resuelve el duplicado) porque estas
+// funciones ya traen la fila completa con `i.*`. El costo es una
+// consulta extra por llamada — páginas de detalle, no un endpoint de
+// alta frecuencia, así que no vale la pena complicar el SQL por eso.
+async function aplicarDefinicionCatalogo(filas) {
+  const lista = Array.isArray(filas) ? filas : [filas];
+  const idsCatalogo = [...new Set(lista.map(f => f?.id_catalogo).filter(Boolean))];
+  if (idsCatalogo.length > 0) {
+    const { rows: entradas } = await pool.query(
+      'SELECT id, nombre, tipo, unidad, unidad_personalizada, etiqueta_unidad FROM catalogo_indicadores WHERE id = ANY($1)',
+      [idsCatalogo]
+    );
+    const porId = new Map(entradas.map(e => [e.id, e]));
+    for (const f of lista) {
+      const c = f?.id_catalogo && porId.get(f.id_catalogo);
+      if (c) {
+        f.nombre = c.nombre;
+        f.tipo = c.tipo;
+        f.unidad = c.unidad;
+        f.unidad_personalizada = c.unidad_personalizada;
+        f.etiqueta_unidad = c.etiqueta_unidad;
+      }
+    }
+  }
+  return filas;
+}
+
 // Válida la combinación composicion/unidad antes de crear/actualizar —
 // un indicador en Porcentaje no puede componerse de categorías: sumar
 // porcentajes entre categorías no representa nada real, mismo criterio
@@ -134,6 +169,7 @@ async function listarPorProyecto(proyectoId) {
   }
 
   await cargarCategorias(pool, indicadores.rows);
+  await aplicarDefinicionCatalogo(indicadores.rows);
   return indicadores.rows;
 }
 
@@ -164,6 +200,7 @@ async function obtenerPorId(indicadorId) {
   );
   indicador.categorias = categorias;
 
+  await aplicarDefinicionCatalogo(indicador);
   return indicador;
 }
 
@@ -344,6 +381,7 @@ async function listarPorEtapa(etapaId) {
   `, [etapaId]);
 
   const todos = [...propios.rows, ...asociados.rows];
+  await aplicarDefinicionCatalogo(todos);
 
   if (todos.length > 0) {
     const ids = todos.map(i => i.id);
@@ -380,6 +418,7 @@ async function listarTodosPorProyecto(proyectoId) {
     ORDER BY i.id_etapa NULLS FIRST, i.orden, i.created_at
   `, [proyectoId]);
   await cargarCategorias(pool, indicadores.rows);
+  await aplicarDefinicionCatalogo(indicadores.rows);
   return indicadores.rows;
 }
 
@@ -388,15 +427,16 @@ async function obtenerResumenAportaciones(indicadorId) {
   const resultado = await pool.query(`
     SELECT
       i.meta_global,
-      i.unidad,
-      i.unidad_personalizada,
-      i.nombre,
+      COALESCE(c.unidad, i.unidad) AS unidad,
+      COALESCE(c.unidad_personalizada, i.unidad_personalizada) AS unidad_personalizada,
+      COALESCE(c.nombre, i.nombre) AS nombre,
       COALESCE(SUM(ai.aportacion), 0)::numeric AS total_aportado,
       COUNT(ai.id)::int AS num_acciones
     FROM indicadores i
+    LEFT JOIN catalogo_indicadores c ON c.id = i.id_catalogo
     LEFT JOIN indicador_aportaciones ai ON ai.id_indicador = i.id
     WHERE i.id = $1
-    GROUP BY i.id
+    GROUP BY i.id, c.id
   `, [indicadorId]);
 
   if (!resultado.rows[0]) return null;

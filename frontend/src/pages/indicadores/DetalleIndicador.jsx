@@ -31,7 +31,6 @@ import CamposIndicadorProyecto from '../../components/indicadores/CamposIndicado
 import ChipAportacion from '../../components/indicadores/ChipAportacion';
 import ModalVincularIndicador from '../../components/indicadores/ModalVincularIndicador';
 import ModalRegistrarMovimiento from '../../components/indicadores/ModalRegistrarMovimiento';
-import ConfirmDialog from '../../components/common/ConfirmDialog';
 import { etiquetaUnidad } from '../../components/indicadores/SelectorIndicadorCatalogo';
 import { formatearMoneda, formatearMonedaCorta } from '../../utils/formatoMoneda';
 import { formatFecha } from '../../utils/fecha';
@@ -158,7 +157,7 @@ export default function DetalleIndicador() {
         </p>
       </div>
 
-      <SeccionDefinicion indicador={indicador} aportaciones={aportaciones} onGuardado={cargar} mostrarToast={mostrarToast} />
+      <SeccionDefinicion indicador={indicador} onGuardado={cargar} mostrarToast={mostrarToast} />
 
       <SeccionValorMovimientos
         indicador={indicador}
@@ -213,17 +212,21 @@ export default function DetalleIndicador() {
 // "Guardar". Antes esta sección y "Valor actual" mostraban cada una su
 // propio "Guardar" uno junto al otro, dos botones idénticos que no decían
 // qué hacía cada uno.
-function SeccionDefinicion({ indicador, aportaciones, onGuardado, mostrarToast }) {
+function SeccionDefinicion({ indicador, onGuardado, mostrarToast }) {
   const [editando, setEditando] = useState(false);
   const [datos, setDatos] = useState(() => datosEditables(indicador));
   const [guardando, setGuardando] = useState(false);
-  const [categoriasABorrar, setCategoriasABorrar] = useState(null);
 
   // Si se recarga el indicador (tras guardar, o tras un cambio hecho
   // desde otra pantalla), el formulario se resincroniza con lo real.
   useEffect(() => { setDatos(datosEditables(indicador)); }, [indicador]);
 
-  async function guardarDeVerdad() {
+  // temporalidad/composicion/tipo_grafico/metas_anuales/categorias ya no
+  // viajan: el formulario (CamposIndicadorProyecto) dejó de pedirlos
+  // (Bloque 7 del rediseño) y actualizar() los ignora de todos modos
+  // desde el Bloque 1 — nunca sobreescribe lo ya capturado por periodo o
+  // categoría con solo editar nombre/meta/descripción.
+  async function guardar() {
     setGuardando(true);
     try {
       await indicadoresApi.actualizarIndicador(indicador.id, {
@@ -232,14 +235,6 @@ function SeccionDefinicion({ indicador, aportaciones, onGuardado, mostrarToast }
         unidad: datos.unidad,
         unidad_personalizada: datos.unidad_personalizada,
         meta_global: datos.meta_global === '' ? null : parseFloat(datos.meta_global),
-        temporalidad: datos.temporalidad,
-        unidad_periodo: datos.unidad_periodo,
-        anio_inicio: datos.temporalidad === 'Anual' ? datos.anio_inicio : null,
-        anio_fin: datos.temporalidad === 'Anual' ? datos.anio_fin : null,
-        metas_anuales: datos.temporalidad === 'Anual' ? datos.metas_anuales : [],
-        composicion: datos.composicion,
-        tipo_grafico: datos.tipo_grafico,
-        categorias: datos.composicion === 'Categorias' ? datos.categorias : [],
         descripcion: datos.descripcion,
       });
       mostrarToast('Indicador actualizado', 'exito');
@@ -250,26 +245,6 @@ function SeccionDefinicion({ indicador, aportaciones, onGuardado, mostrarToast }
     } finally {
       setGuardando(false);
     }
-  }
-
-  // El diff-upsert del backend (actualizar()) borra cualquier categoría
-  // cuyo "id" ya no venga en el arreglo entrante — sus aportaciones
-  // sobreviven con id_categoria=NULL (ON DELETE SET NULL, migración 072)
-  // y quedan bajo "Sin categoría asignada", el total no cambia. El dato
-  // resultante ya es correcto; lo que faltaba era avisar ANTES de que
-  // pase, ya que hoy desaparece de la lista sin aviso.
-  function guardar() {
-    const idsEntrantes = new Set((datos.categorias || []).filter(c => c.id).map(c => c.id));
-    const categoriasEliminadas = (indicador.categorias || []).filter(c => !idsEntrantes.has(c.id));
-    const afectadas = categoriasEliminadas
-      .map(cat => ({ cat, nAportaciones: (aportaciones || []).filter(a => a.id_categoria === cat.id).length }))
-      .filter(x => x.nAportaciones > 0);
-
-    if (afectadas.length > 0) {
-      setCategoriasABorrar(afectadas);
-      return;
-    }
-    guardarDeVerdad();
   }
 
   if (!editando) {
@@ -333,21 +308,6 @@ function SeccionDefinicion({ indicador, aportaciones, onGuardado, mostrarToast }
           {guardando ? 'Guardando...' : 'Guardar'}
         </button>
       </div>
-
-      <ConfirmDialog
-        abierto={!!categoriasABorrar}
-        variante="neutral"
-        titulo="Categoría con nodos vinculados"
-        mensaje={categoriasABorrar ? (
-          categoriasABorrar.length === 1
-            ? `La categoría "${categoriasABorrar[0].cat.nombre}" tiene ${categoriasABorrar[0].nAportaciones} nodo(s) vinculado(s). Al eliminarla, esos nodos quedarán como "Sin categoría asignada". El total del indicador no cambia.`
-            : `Las categorías ${categoriasABorrar.map(x => `"${x.cat.nombre}"`).join(', ')} tienen nodos vinculados. Al eliminarlas, esos nodos quedarán como "Sin categoría asignada". El total del indicador no cambia.`
-        ) : ''}
-        textoConfirmar="Eliminar de todos modos"
-        textoCancelar="Cancelar"
-        onConfirmar={() => { setCategoriasABorrar(null); guardarDeVerdad(); }}
-        onCancelar={() => setCategoriasABorrar(null)}
-      />
     </section>
   );
 }

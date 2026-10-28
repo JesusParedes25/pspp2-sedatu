@@ -72,11 +72,20 @@ async function obtenerPanorama(req, res, next) {
  */
 async function obtenerIndicadoresCompletos(proyectoId) {
   const { rows: indicadores } = await pool.query(`
-    SELECT i.id, i.nombre, i.tipo, i.unidad, i.unidad_personalizada, i.etiqueta_unidad,
+    SELECT i.id,
+      -- Bloque 7.5 del rediseño de Indicadores: nombre/tipo/unidad en vivo
+      -- desde el catálogo cuando el indicador viene de ahí (ver la misma
+      -- nota en inicio.queries.js::obtenerIndicadoresAgregados).
+      COALESCE(c.nombre, i.nombre) AS nombre,
+      COALESCE(c.tipo, i.tipo) AS tipo,
+      COALESCE(c.unidad, i.unidad) AS unidad,
+      COALESCE(c.unidad_personalizada, i.unidad_personalizada) AS unidad_personalizada,
+      COALESCE(c.etiqueta_unidad, i.etiqueta_unidad) AS etiqueta_unidad,
       i.meta_global, i.valor_actual, i.temporalidad, i.descripcion,
       i.id_etapa, e.nombre AS etapa_nombre,
       i.composicion, i.tipo_grafico
     FROM indicadores i
+    LEFT JOIN catalogo_indicadores c ON c.id = i.id_catalogo
     LEFT JOIN etapas e ON e.id = i.id_etapa
     WHERE i.id_proyecto = $1 AND i.activo = true
     ORDER BY i.id_etapa NULLS FIRST, i.orden, i.created_at
