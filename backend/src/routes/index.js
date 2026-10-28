@@ -28,7 +28,7 @@ const upload = multer({
 const {
   exigirEdicionNodo, exigirEdicionProyecto, exigirEdicionDeEntidadEnCuerpo,
   exigirEdicionComentario, exigirEdicionRiesgo, exigirEdicionEvidencia,
-  exigirEdicionIndicador, exigirEdicionAportacion, exigirEdicionAportacionNueva,
+  exigirEdicionIndicador, exigirEdicionMovimientoIndicador, exigirEdicionAportacion, exigirEdicionAportacionNueva,
   exigirResponsableNodo, exigirResponsableProyecto,
 } = require('../middleware/permisos.middleware');
 
@@ -75,6 +75,7 @@ const geografiaController = require('../controllers/geografia.controller');
 const geoController = require('../controllers/geo.controller');
 const dashboardController = require('../controllers/dashboard.controller');
 const aportacionesController = require('../controllers/aportaciones.controller');
+const indicadorMovimientosController = require('../controllers/indicador-movimientos.controller');
 const miembrosController = require('../controllers/miembros.controller');
 const nodoMiembrosController = require('../controllers/nodo-miembros.controller');
 const solicitudesController = require('../controllers/solicitudes.controller');
@@ -225,14 +226,26 @@ router.get('/proyectos/:id/indicadores', exigirVisibilidadProyecto(), indicadore
 router.get('/proyectos/:id/indicadores/todos', exigirVisibilidadProyecto(), indicadoresController.listarTodosPorProyecto);
 router.post('/proyectos/:id/indicadores', exigirEdicionProyecto(), indicadoresController.crear);
 router.get('/etapas/:id/indicadores', indicadoresController.listarPorEtapa);
-router.get('/indicadores/publicos', indicadoresController.listarPublicables);
 router.get('/indicadores/mios', indicadoresController.listarMios);
 router.get('/indicadores/:id', exigirVisibilidadIndicador(), indicadoresController.obtenerPorId);
 router.put('/indicadores/:id', exigirEdicionIndicador(), indicadoresController.actualizar);
 router.delete('/indicadores/:id', exigirEdicionIndicador(), indicadoresController.eliminar);
 router.get('/indicadores/:id/resumen-aportaciones', indicadoresController.resumenAportaciones);
-router.patch('/indicadores/:id/publicar', exigirEdicionIndicador(), indicadoresController.togglePublicable);
-router.patch('/indicadores/:id/valor', exigirEdicionIndicador(), indicadoresController.establecerValor);
+// `GET /indicadores/publicos` + `PATCH /indicadores/:id/publicar`
+// (es_publicable) se retiraron: sin interfaz, sin consumidor, y la única
+// ruta del módulo que no verificaba visibilidad de proyecto — ver Bloque
+// 7 del encargo. La columna es_publicable se queda en la tabla sin usarse.
+// `PATCH /indicadores/:id/valor` también se retiró — la captura manual
+// ahora es POST /indicadores/:id/movimientos (ver abajo), que deja
+// historial en vez de pisar el valor.
+
+// Historial de movimientos de un indicador (migración 084) — captura
+// manual y anulación; los automáticos (completar/avanzar una actividad
+// vinculada) los inserta aportacionesController.procesarCambioNodo desde
+// dentro de los endpoints de etapas/acciones/tareas/estado, no desde aquí.
+router.get('/indicadores/:id/movimientos', exigirVisibilidadIndicador(), indicadorMovimientosController.listar);
+router.post('/indicadores/:id/movimientos', exigirEdicionIndicador(), indicadorMovimientosController.crear);
+router.patch('/movimientos/:id/anular', exigirEdicionMovimientoIndicador(), indicadorMovimientosController.anular);
 
 // Aportaciones a indicadores
 router.get('/indicadores/:id/aportaciones', exigirVisibilidadIndicador(), aportacionesController.listar);
@@ -242,9 +255,10 @@ router.delete('/aportaciones/:id', exigirEdicionAportacion(), aportacionesContro
 router.get('/etapas/:id/aportaciones', exigirVisibilidadNodo('etapa'), aportacionesController.listarPorNodo);
 router.get('/acciones/:id/aportaciones', exigirVisibilidadNodo('accion'), aportacionesController.listarPorNodo);
 router.get('/tareas/:id/aportaciones', exigirVisibilidadNodo('tarea'), aportacionesController.listarPorNodo);
-
-// Indicadores con valor realizado (dashboard-ready)
-router.get('/proyectos/:id/indicadores/resumen', exigirVisibilidadProyecto(), indicadoresController.resumenConValores);
+// `GET /proyectos/:id/indicadores/resumen` (resumenConValores) se retiró:
+// cero consumidores en el frontend, y lo que calculaba (valor realizado
+// desde las aportaciones) ya ES indicadores.valor_actual con el nuevo
+// historial — habría quedado como un segundo cálculo redundante.
 
 // Estadísticas del proyecto (para el resumen/dashboard)
 router.get('/proyectos/:id/stats', proyectosStatsController.obtenerStats);

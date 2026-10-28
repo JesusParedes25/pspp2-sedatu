@@ -201,6 +201,19 @@ const exigirEdicionIndicador = (param = 'id') => exigirEdicionResuelta(async (re
   return rows[0] ? { tipo: 'proyecto', id: rows[0].id_proyecto } : null;
 });
 
+// PATCH /movimientos/:id/anular — el movimiento no trae id_proyecto
+// propio, se resuelve vía su indicador (misma traversal que
+// exigirEdicionIndicador, un salto más abajo).
+const exigirEdicionMovimientoIndicador = (param = 'id') => exigirEdicionResuelta(async (req) => {
+  const { rows } = await pool.query(
+    `SELECT i.id_proyecto FROM indicador_movimientos m
+       JOIN indicadores i ON i.id = m.id_indicador
+      WHERE m.id = $1`,
+    [req.params[param]]
+  );
+  return rows[0] ? { tipo: 'proyecto', id: rows[0].id_proyecto } : null;
+});
+
 // Una aportación sí es captura de un nodo concreto: quien tiene esa etapa
 // asignada puede declarar cuánto aporta al indicador.
 const exigirEdicionAportacion = (param = 'id') => exigirEdicionResuelta(async (req) => {
@@ -290,6 +303,7 @@ module.exports = {
   exigirEdicionRiesgo,
   exigirEdicionEvidencia,
   exigirEdicionIndicador,
+  exigirEdicionMovimientoIndicador,
   exigirEdicionAportacion,
   exigirEdicionAportacionNueva,
   exigirResolverBloqueo,

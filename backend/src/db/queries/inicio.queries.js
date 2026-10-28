@@ -177,7 +177,7 @@ async function obtenerIndicadoresAgregados(proyectoIds) {
   const { rows } = await pool.query(`
     SELECT
       i.id, i.nombre, i.tipo, i.unidad, i.unidad_personalizada, i.id_catalogo,
-      i.meta_global, i.valor_actual, i.modo_calculo, i.composicion,
+      i.meta_global, i.valor_actual, i.composicion,
       i.temporalidad, i.anio_inicio, i.anio_fin,
       p.id AS proyecto_id, p.nombre AS proyecto_nombre,
       dg.siglas AS dg_siglas,

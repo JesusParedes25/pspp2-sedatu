@@ -4,8 +4,7 @@
  */
 const tareasQueries = require('../db/queries/tareas.queries');
 const avanceSemaforo = require('../utils/avance-semaforo');
-const { recalcularAportacionesProyecto } = require('../db/queries/aportaciones.queries');
-const { recalcularIndicadoresProyecto } = require('../db/queries/indicadores.queries');
+const { procesarCambioNodo } = require('../db/queries/aportaciones.queries');
 const { recalcularEtapa, recalcularProyecto } = require('../utils/recalculos');
 const actividadQueries = require('../db/queries/actividad.queries');
 const municipiosNodoQueries = require('../db/queries/municipios-nodo.queries');
@@ -153,8 +152,11 @@ async function patchAvanceSemaforo(req, res, next) {
       return res.status(404).json({ error: true, mensaje: 'Tarea no encontrada' });
     }
 
-    const { avance_actual, semaforo, estado, motivo_bloqueo, nota_resolucion, prioridad, fecha_inicio, fecha_limite, nombre, descripcion, observaciones, id_responsable, estatus_cualitativo, cve_ent, municipios } = req.body;
+    const { avance_actual, semaforo, estado, motivo_bloqueo, nota_resolucion, prioridad, fecha_inicio, fecha_limite, nombre, descripcion, observaciones, id_responsable, estatus_cualitativo, cve_ent, municipios, sumar_aportaciones } = req.body;
     const sets = []; const params = []; let idx = 1;
+    // Casilla "Sumar aportación a X" del modal de Registrar avance — ver
+    // el mismo comentario en acciones.controller.js.
+    const sumarAportaciones = sumar_aportaciones !== false;
 
     // ── Estado (tareas siempre son hojas) — delega a validaciones-estado.js
     // (cambiarEstadoUtil) igual que ya hacen etapas/acciones: exige motivo
@@ -270,12 +272,9 @@ async function patchAvanceSemaforo(req, res, next) {
       await recalcularProyecto(accionPadre.id_proyecto, client);
     }
 
-    // ── PART 2: Recalcular indicadores ──
-    const proyectoId = await avanceSemaforo.obtenerProyectoId('accion', tarea.id_accion, client);
-    if (proyectoId) {
-      await recalcularIndicadoresProyecto(proyectoId, client);
-      await recalcularAportacionesProyecto(proyectoId, client);
-    }
+    // ── PART 2: movimientos de indicador por las aportaciones de ESTA
+    // tarea — mismo criterio que etapas/acciones.controller.js.
+    await procesarCambioNodo('tarea', req.params.id, { sumarAportaciones, idUsuario: req.usuario?.id }, client);
 
     // Stream de actividad: registrar cambios de estatus/avance (misma transacción)
     if (estadoCambiado) {

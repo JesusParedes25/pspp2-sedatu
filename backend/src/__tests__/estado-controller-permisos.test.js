@@ -23,8 +23,7 @@ jest.mock('../utils/validaciones-estado', () => ({
   restaurarEstadoAutomatico: jest.fn(),
 }));
 jest.mock('../utils/recalculos', () => ({ recalcularEtapa: jest.fn(), recalcularProyecto: jest.fn() }));
-jest.mock('../db/queries/indicadores.queries', () => ({ recalcularIndicadoresProyecto: jest.fn() }));
-jest.mock('../db/queries/aportaciones.queries', () => ({ recalcularAportacionesProyecto: jest.fn() }));
+jest.mock('../db/queries/aportaciones.queries', () => ({ procesarCambioNodo: jest.fn() }));
 jest.mock('../utils/actividad-log', () => ({ registrarActividad: jest.fn() }));
 jest.mock('../utils/avance-semaforo', () => ({ obtenerProyectoId: jest.fn(), recalcularPadres: jest.fn() }));
 const mockClient = { query: jest.fn().mockResolvedValue({ rows: [{ nombre: 'x' }] }), release: jest.fn() };

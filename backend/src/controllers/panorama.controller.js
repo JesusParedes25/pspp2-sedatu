@@ -73,9 +73,9 @@ async function obtenerPanorama(req, res, next) {
 async function obtenerIndicadoresCompletos(proyectoId) {
   const { rows: indicadores } = await pool.query(`
     SELECT i.id, i.nombre, i.tipo, i.unidad, i.unidad_personalizada, i.etiqueta_unidad,
-      i.meta_global, i.valor_actual, i.modo_calculo, i.temporalidad, i.descripcion,
+      i.meta_global, i.valor_actual, i.temporalidad, i.descripcion,
       i.id_etapa, e.nombre AS etapa_nombre,
-      i.es_publicable, i.composicion, i.tipo_grafico
+      i.composicion, i.tipo_grafico
     FROM indicadores i
     LEFT JOIN etapas e ON e.id = i.id_etapa
     WHERE i.id_proyecto = $1 AND i.activo = true

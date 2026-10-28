@@ -55,18 +55,6 @@ export async function obtenerAportacionesIndicador(indicadorId) {
   return data.datos || [];
 }
 
-export async function listarPublicables(filtros = {}) {
-  const params = new URLSearchParams();
-  if (filtros.id_dg) params.set('id_dg', filtros.id_dg);
-  const { data } = await client.get(`/indicadores/publicos?${params}`);
-  return data.datos;
-}
-
-export async function togglePublicable(indicadorId, esPublicable) {
-  const { data } = await client.patch(`/indicadores/${indicadorId}/publicar`, { es_publicable: esPublicable });
-  return data;
-}
-
 // Aportaciones
 const RUTA_NODO = { etapa: 'etapas', accion: 'acciones', tarea: 'tareas' };
 
@@ -95,12 +83,6 @@ export async function eliminarIndicadorConConfirm(indicadorId, confirmar = false
   return data;
 }
 
-// Resumen con valores realizados
-export async function obtenerResumenIndicadores(proyectoId) {
-  const { data } = await client.get(`/proyectos/${proyectoId}/indicadores/resumen`);
-  return data;
-}
-
 // Todos los indicadores de los proyectos donde participa el usuario
 // (superadmin/ejecutivo ven todos) — módulo de Indicadores, "Mis indicadores".
 export async function listarMios({ proyectoIds, carteraId } = {}) {
@@ -111,13 +93,29 @@ export async function listarMios({ proyectoIds, carteraId } = {}) {
   return data.datos || [];
 }
 
-// Fija el valor de un indicador en modo_calculo='manual'. Sin
-// `id_periodo`, escribe el total global; con `id_periodo` (el id real de
-// la fila en indicador_metas_anuales, no un año — un periodo
-// Personalizado no tiene un año confiable), escribe el valor de ESE
-// periodo. El periodo debe existir ya (definido desde la sección de
-// Definición del indicador) — este endpoint ya no lo autocrea.
-export async function establecerValorIndicador(indicadorId, { valor, id_periodo, id_categoria } = {}) {
-  const { data } = await client.patch(`/indicadores/${indicadorId}/valor`, { valor, id_periodo, id_categoria });
+// Historial de movimientos (migración 084) — reemplaza al viejo
+// PATCH /indicadores/:id/valor, que pisaba valor_actual sin dejar
+// rastro. Cada captura, automática o a mano, queda como un renglón.
+export async function listarMovimientosIndicador(indicadorId) {
+  const { data } = await client.get(`/indicadores/${indicadorId}/movimientos`);
+  return data.datos || [];
+}
+
+// Captura a mano. `cantidad` es la diferencia a sumar (puede ser
+// negativa), no el total — quien llama con un valor absoluto en mente
+// calcula la diferencia contra `valor_actual` antes de llamar esto (ver
+// usarCapturaValorIndicador). `idNodoOrigen` es opcional: desde la
+// pestaña Indicadores de un nodo en Seguimiento se manda el nodo, para
+// que el historial diga de dónde vino; desde la ficha del indicador se
+// omite.
+export async function crearMovimientoIndicador(indicadorId, { cantidad, fecha, nota, idNodoOrigen } = {}) {
+  const { data } = await client.post(`/indicadores/${indicadorId}/movimientos`, {
+    cantidad, fecha, nota, id_nodo_origen: idNodoOrigen,
+  });
+  return data;
+}
+
+export async function anularMovimientoIndicador(movimientoId, motivo) {
+  const { data } = await client.patch(`/movimientos/${movimientoId}/anular`, { motivo });
   return data;
 }

@@ -17,11 +17,10 @@ const pool = require('../db/pool');
 const { cambiarEstado: cambiarEstadoUtil, tipoRealAccion, verificarAutoCompletarPadre } = require('../utils/validaciones-estado');
 const { recalcularEtapa, recalcularProyecto } = require('../utils/recalculos');
 const avanceSemaforo = require('../utils/avance-semaforo');
-const { recalcularAportacionesProyecto } = require('../db/queries/aportaciones.queries');
+const { procesarCambioNodo } = require('../db/queries/aportaciones.queries');
 const { tienePeldanoNodo, minimoParaPatchNodo } = require('../utils/autorizacion');
 const municipiosNodoQueries = require('../db/queries/municipios-nodo.queries');
 const { sincronizarCobertura } = require('../db/queries/cobertura-sync.queries');
-const { recalcularIndicadoresProyecto } = require('../db/queries/indicadores.queries');
 const actividadQueries = require('../db/queries/actividad.queries');
 const { puedeGestionarNodo } = require('../utils/autorizacion');
 
@@ -325,7 +324,12 @@ async function patchAvanceSemaforo(req, res, next) {
   const { avance_actual, semaforo, estado, prioridad, fecha_limite, fecha_inicio,
           escala_territorial, instrumento, cve_ent, cve_mun, id_zm, tipo, id_responsable,
           instancia_responsable, enlace_responsable, nombre, descripcion, observaciones,
-          estatus_cualitativo, municipios, motivo_bloqueo, nota_resolucion } = req.body;
+          estatus_cualitativo, municipios, motivo_bloqueo, nota_resolucion, sumar_aportaciones } = req.body;
+  // Casilla "Sumar aportación a X" del modal de Registrar avance —
+  // desmarcada, el avance/estado se guarda igual pero no se inserta
+  // ningún movimiento de indicador (ver aportaciones.queries.js::
+  // procesarCambioNodo).
+  const sumarAportaciones = sumar_aportaciones !== false;
 
   const minimo = minimoParaPatchNodo(req.body);
   if (!(await tienePeldanoNodo(req.usuario, 'accion', accionId, minimo))) {
@@ -511,12 +515,13 @@ async function patchAvanceSemaforo(req, res, next) {
       await recalcularProyecto(accion.id_proyecto, client);
     }
 
-    // ── PART 2: Recalcular indicadores afectados ──
-    const proyectoId = await avanceSemaforo.obtenerProyectoId('accion', accionId, client);
-    if (proyectoId) {
-      await recalcularIndicadoresProyecto(proyectoId, client);
-      await recalcularAportacionesProyecto(proyectoId, client);
-    }
+    // ── PART 2: movimientos de indicador por las aportaciones de ESTA
+    // acción (no un recálculo del proyecto completo) — cubre tanto el
+    // estado recién cambiado arriba (cambiarEstadoUtil) como un avance
+    // tocado en este mismo PATCH sin cambiar estado (aportación
+    // proporcional). Se llama después del UPDATE de acciones de abajo,
+    // nunca antes — necesita leer el estado/avance ya guardado.
+    await procesarCambioNodo('accion', accionId, { sumarAportaciones, idUsuario: req.usuario?.id }, client);
 
     // Stream de actividad: registrar cambios de estatus/avance (misma transacción)
     if (estadoCambiado) {

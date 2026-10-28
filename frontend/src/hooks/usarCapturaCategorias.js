@@ -1,18 +1,18 @@
 /**
  * ARCHIVO: usarCapturaCategorias.js
- * PROPÓSITO: Captura manual del valor de cada categoría de un indicador
- *            composicion='Categorias'. A diferencia de
- *            usarCapturaValorIndicador (que selecciona UN periodo de una
- *            lista y captura su valor, pensado para un rango de años
- *            potencialmente largo), aquí la lista de categorías es
- *            corta y fija — se editan todas a la vez, no una por una.
- *            Mismo endpoint PATCH /indicadores/:id/valor de siempre
- *            (con id_categoria en vez de id_periodo), llamado una vez
- *            por cada fila que de verdad cambió — no hace falta un
- *            endpoint de lote nuevo.
+ * PROPÓSITO: Mostrar el último valor conocido de cada categoría de un
+ *            indicador composicion='Categorias'. Dejó de ser editable:
+ *            el viejo PATCH /indicadores/:id/valor con id_categoria se
+ *            retiró junto con el resto de la captura directa (ver
+ *            usarCapturaValorIndicador) y el nuevo historial de
+ *            movimientos no tiene noción de categoría — solo totaliza
+ *            por indicador (Bloque 7 del encargo: "la funcionalidad de
+ *            meta dividida en categorías se quita"). Las categorías y su
+ *            último valor siguen en la base tal cual estaban — esto solo
+ *            deja de ofrecer un botón que ya no tiene a dónde escribir,
+ *            en vez de dejarlo fallar con un error de red.
  */
 import { useState, useEffect } from 'react';
-import * as indicadoresApi from '../api/indicadores';
 
 export function usarCapturaCategorias(indicador, categoriasConAportacion = new Set()) {
   const categorias = indicador.categorias || [];
@@ -32,33 +32,11 @@ export function usarCapturaCategorias(indicador, categoriasConAportacion = new S
     setValores(v => ({ ...v, [idCategoria]: valor }));
   }
 
-  // Devuelve true/false en vez de lanzar — el llamador decide qué hacer
-  // en éxito (toast, cerrar modal, recargar).
+  // Ya no hay a dónde guardar (ver mini-clase arriba) — devuelve false de
+  // inmediato con una explicación, sin intentar ninguna llamada de red.
   async function guardar() {
-    setGuardando(true);
-    setError('');
-    try {
-      for (const cat of categorias) {
-        // Se calcula sola desde los nodos vinculados — ni la UI la deja
-        // editar ya, pero se salta también aquí por si acaso, en vez
-        // de mandar un PATCH que el backend de todos modos rechazaría.
-        if (categoriasConAportacion.has(cat.id)) continue;
-        const nuevo = valores[cat.id];
-        const actual = cat.valor_actual ?? '';
-        if (String(nuevo) === String(actual)) continue;
-        if (nuevo === '' || isNaN(parseFloat(nuevo))) continue;
-        await indicadoresApi.establecerValorIndicador(indicador.id, {
-          valor: parseFloat(nuevo),
-          id_categoria: cat.id,
-        });
-      }
-      return true;
-    } catch (err) {
-      setError(err.response?.data?.mensaje || 'No se pudo guardar algún valor.');
-      return false;
-    } finally {
-      setGuardando(false);
-    }
+    setError('La captura por categoría ya no está disponible. Registra el valor total del indicador en conjunto, desde "Valor".');
+    return false;
   }
 
   return { categorias, sinCategorias, valores, cambiarValor, guardar, guardando, error };
