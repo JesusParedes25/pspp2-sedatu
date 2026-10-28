@@ -2,32 +2,33 @@
  * ARCHIVO: CatalogoIndicadores.jsx
  * PROPÓSITO: Pantalla 3 del módulo de Indicadores — el catálogo único,
  *            abierto a lectura para cualquiera, con curaduría (editar,
- *            retirar, fusionar duplicados) exclusiva de superadmin.
+ *            dar de baja, eliminar) exclusiva de superadmin.
  *
- * MINI-CLASE: por qué "fusionar" y no solo "retirar"
+ * MINI-CLASE: eliminar vs. dar de baja
  * ─────────────────────────────────────────────────────────────────
- * Retirar una entrada duplicada no arreglaba la fragmentación que
- * causó: los proyectos ya vinculados a esa entrada quedaban huérfanos
- * (su dato dejaba de sumar en cualquier lado, porque las pantallas
- * agrupan por catálogo activo). Fusionar reapunta esos proyectos hacia
- * la entrada que sobrevive antes de retirar la duplicada — es la
- * operación que de verdad corrige el catálogo, no solo lo esconde.
+ * Dar de baja (cambiarActivo) nunca borra nada: un proyecto que ya usa
+ * esa entrada conserva su referencia y su historial. Eliminar sí borra
+ * la fila de la base — por eso solo se permite cuando NINGÚN proyecto
+ * la usa todavía (y por lo tanto no hay ningún movimiento capturado
+ * contra ella que se perdería). El backend valida esa condición antes
+ * de borrar, no solo el frontend: un DELETE directo a una entrada en
+ * uso responde 409, nunca borra.
  *
  * MINI-CLASE: fichas, no filas — mismo criterio que TarjetaIndicador.jsx
  * ─────────────────────────────────────────────────────────────────
  * Cada entrada es una ficha en una grilla que enlaza de lleno al
  * detalle (`/indicadores/catalogo/:id`, DetalleCatalogo.jsx) — ahí es
- * donde se responde "¿algún proyecto ya le está aportando?", se edita y
- * se retira. La ficha de la lista ya no tiene lápiz/ojo propios (mismo
- * criterio que ya usa `TarjetaIndicador.jsx` en "Mis indicadores": la
- * ficha entera ya es el link al editor, un ícono aparte sería
- * redundante). En modo fusión, la ficha deja de navegar y se vuelve
- * seleccionable — el resto del flujo de fusión no cambia.
+ * donde se responde "¿algún proyecto ya le está aportando?" y se edita.
+ * La ficha de la lista ya no tiene lápiz/ojo propios (mismo criterio
+ * que ya usa `TarjetaIndicador.jsx` en "Mis indicadores": la ficha
+ * entera ya es el link al editor, un ícono aparte sería redundante) —
+ * el único control propio de la ficha es el bote de basura de
+ * superadmin, que no navega al hacer clic (stopPropagation).
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2, Search, GitMerge, CheckSquare, Square, Tag, X } from 'lucide-react';
+import { Loader2, Search, Tag, Trash2, AlertTriangle } from 'lucide-react';
 import * as catalogoApi from '../../api/catalogo-indicadores';
 import { useAuth } from '../../context/AuthContext';
 import { useUI } from '../../context/UIContext';
@@ -37,6 +38,16 @@ import FiltrosCatalogoIndicadores from './FiltrosCatalogoIndicadores';
 import MigajaPsedatu from './MigajaPsedatu';
 
 const LIMITE_PAGINA = 50;
+
+// Nota de mantenimiento interna que el cargador del catálogo deja en
+// `definicion` para una entrada cuya unidad original no era numérica
+// (ver publico.controller.js::quitarNotaInterna, que la oculta en la
+// API externa) — dentro de la plataforma SÍ se muestra, como la razón
+// de por qué esa entrada está dada de baja.
+function notaInterna(definicion) {
+  const texto = (definicion || '').trim();
+  return texto.startsWith('⚠ Revisar:') ? texto : null;
+}
 
 export default function CatalogoIndicadores() {
   const { usuario } = useAuth();
@@ -53,28 +64,10 @@ export default function CatalogoIndicadores() {
   const [verRetirados, setVerRetirados] = useState(false);
   const [error, setError] = useState('');
 
-  // Modo fusión: selección múltiple entre entradas duplicadas.
-  const [modoFusion, setModoFusion] = useState(false);
-  const [seleccionados, setSeleccionados] = useState(new Set());
-  const [sobrevive, setSobrevive] = useState(null);
-  const [confirmandoFusion, setConfirmandoFusion] = useState(false);
-  const [fusionando, setFusionando] = useState(false);
-
-  // Sugerencias automáticas de posibles duplicados (pg_trgm) al entrar en
-  // modo fusión — antes solo existía la selección manual, obligando a
-  // adivinar cuáles entradas se parecen entre sí.
-  const [sugerencias, setSugerencias] = useState([]);
-  const [cargandoSugerencias, setCargandoSugerencias] = useState(false);
-  const [umbralSugerencias, setUmbralSugerencias] = useState(0.5);
-
-  useEffect(() => {
-    if (!modoFusion) return;
-    setCargandoSugerencias(true);
-    catalogoApi.buscarDuplicadosSugeridos(umbralSugerencias)
-      .then(setSugerencias)
-      .catch(() => setSugerencias([]))
-      .finally(() => setCargandoSugerencias(false));
-  }, [modoFusion, umbralSugerencias]);
+  // Eliminar de verdad (distinto de dar de baja): confirmación pendiente
+  // y si ya se está borrando, para deshabilitar el botón del modal.
+  const [porEliminar, setPorEliminar] = useState(null);
+  const [eliminando, setEliminando] = useState(false);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -102,54 +95,30 @@ export default function CatalogoIndicadores() {
 
   const totalPaginas = Math.ceil(total / LIMITE_PAGINA);
 
-  function alternarSeleccion(id) {
-    setSeleccionados(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }
-
-  function salirModoFusion() {
-    setModoFusion(false);
-    setSeleccionados(new Set());
-    setSobrevive(null);
-    setSugerencias([]);
-  }
-
-  function seleccionarSugerencia(par) {
-    setSeleccionados(prev => new Set([...prev, par.entrada1.id, par.entrada2.id]));
-  }
-
-  const itemsSeleccionados = items.filter(i => seleccionados.has(i.id));
-
-  function abrirConfirmacionFusion() {
-    // Por default, sobrevive la entrada con más proyectos usándola — es
-    // la que menos reapuntamientos necesita y la más probable de ser la
-    // "correcta" entre las duplicadas.
-    const porUso = [...itemsSeleccionados].sort((a, b) => (b.usos || 0) - (a.usos || 0));
-    setSobrevive(porUso[0]?.id || null);
-    setConfirmandoFusion(true);
-  }
-
-  async function confirmarFusion() {
-    setFusionando(true);
+  async function confirmarEliminar() {
+    if (!porEliminar) return;
+    setEliminando(true);
     try {
-      const res = await catalogoApi.fusionarIndicadoresCatalogo(sobrevive, [...seleccionados]);
-      mostrarToast(res.mensaje || 'Fusionado', 'exito');
-      setConfirmandoFusion(false);
-      salirModoFusion();
+      const res = await catalogoApi.eliminarIndicadorCatalogo(porEliminar.id);
+      mostrarToast(res.mensaje || 'Indicador eliminado', 'exito');
+      setPorEliminar(null);
       cargar();
     } catch (err) {
-      mostrarToast(err.response?.data?.mensaje || 'No se pudo fusionar.', 'error');
+      mostrarToast(err.response?.data?.mensaje || 'No se pudo eliminar.', 'error');
     } finally {
-      setFusionando(false);
+      setEliminando(false);
     }
   }
 
-  const sobrevivienteEntrada = itemsSeleccionados.find(i => i.id === sobrevive);
-  const perdedoras = itemsSeleccionados.filter(i => i.id !== sobrevive);
-  const totalReapuntados = perdedoras.reduce((s, i) => s + (i.usos || 0), 0);
+  async function darDeBaja(ind) {
+    try {
+      await catalogoApi.cambiarActivoIndicadorCatalogo(ind.id, false);
+      mostrarToast('Indicador dado de baja', 'exito');
+      cargar();
+    } catch (err) {
+      mostrarToast(err.response?.data?.mensaje || 'No se pudo dar de baja.', 'error');
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -162,88 +131,7 @@ export default function CatalogoIndicadores() {
             {esSuperadmin ? ' Cualquier usuario puede dar de alta uno que falte; aquí se cura.' : ''}
           </p>
         </div>
-        {esSuperadmin && !modoFusion && (
-          <button
-            onClick={() => setModoFusion(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-guinda-700 border border-guinda-200 rounded-lg hover:bg-guinda-50 flex-shrink-0"
-          >
-            <GitMerge size={13} /> Fusionar duplicados
-          </button>
-        )}
       </div>
-
-      {modoFusion && (
-        <div className="flex items-center justify-between gap-3 bg-guinda-50/60 border border-guinda-200 rounded-lg px-3 py-2.5">
-          <p className="text-xs text-guinda-800">
-            Selecciona 2 o más entradas que midan lo mismo.
-            {seleccionados.size > 0 && ` ${seleccionados.size} seleccionada${seleccionados.size !== 1 ? 's' : ''}.`}
-          </p>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button onClick={salirModoFusion} className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
-            <button
-              onClick={abrirConfirmacionFusion}
-              disabled={seleccionados.size < 2}
-              className="px-3 py-1.5 text-xs font-medium bg-guinda-700 text-white rounded-lg disabled:opacity-40 hover:bg-guinda-600"
-            >
-              Fusionar seleccionados
-            </button>
-          </div>
-        </div>
-      )}
-
-      {modoFusion && (
-        <div className="border border-gray-200 rounded-lg px-3 py-2.5 space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs font-semibold text-gray-700">Posibles duplicados sugeridos</p>
-            <label className="flex items-center gap-1.5 text-[11px] text-gray-500 flex-shrink-0">
-              Sensibilidad
-              <select
-                value={umbralSugerencias}
-                onChange={e => setUmbralSugerencias(parseFloat(e.target.value))}
-                className="text-[11px] border border-gray-200 rounded px-1.5 py-0.5 focus:outline-none focus:border-guinda-400"
-              >
-                <option value={0.3}>Amplia</option>
-                <option value={0.5}>Media</option>
-                <option value={0.7}>Estricta</option>
-              </select>
-            </label>
-          </div>
-          {cargandoSugerencias ? (
-            <div className="flex justify-center py-4"><Loader2 size={14} className="animate-spin text-gray-400" /></div>
-          ) : sugerencias.length === 0 ? (
-            <p className="text-xs text-gray-500 py-1">No se encontraron pares parecidos con esta sensibilidad.</p>
-          ) : (
-            <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
-              {sugerencias.map(par => {
-                const yaSeleccionado = seleccionados.has(par.entrada1.id) && seleccionados.has(par.entrada2.id);
-                return (
-                  <div key={`${par.entrada1.id}-${par.entrada2.id}`}
-                    className={`flex items-center justify-between gap-3 px-2.5 py-1.5 rounded-lg text-xs ${yaSeleccionado ? 'bg-guinda-50 border border-guinda-200' : 'bg-gray-50'}`}>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-gray-800">
-                        <span className="font-medium">{par.entrada1.nombre}</span>
-                        <span className="text-gray-400"> ({par.entrada1.usos})</span>
-                      </p>
-                      <p className="truncate text-gray-800">
-                        <span className="font-medium">{par.entrada2.nombre}</span>
-                        <span className="text-gray-400"> ({par.entrada2.usos})</span>
-                      </p>
-                    </div>
-                    <span className="text-[10px] text-gray-400 flex-shrink-0">{Math.round(par.score * 100)}% parecido</span>
-                    <button
-                      onClick={() => seleccionarSugerencia(par)}
-                      disabled={yaSeleccionado}
-                      className="text-[11px] font-medium text-guinda-700 hover:text-guinda-800 disabled:text-gray-400 flex-shrink-0"
-                    >
-                      {yaSeleccionado ? 'Seleccionado' : 'Seleccionar'}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
 
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
@@ -255,10 +143,10 @@ export default function CatalogoIndicadores() {
             className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:border-guinda-400 focus:ring-2 focus:ring-guinda-100 transition-shadow"
           />
         </div>
-        {esSuperadmin && !modoFusion && (
+        {esSuperadmin && (
           <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer flex-shrink-0">
             <input type="checkbox" checked={verRetirados} onChange={e => { setVerRetirados(e.target.checked); setPagina(1); }} className="accent-guinda-600" />
-            Ver retirados
+            Mostrar dados de baja
           </label>
         )}
       </div>
@@ -281,9 +169,9 @@ export default function CatalogoIndicadores() {
             <FichaCatalogo
               key={ind.id}
               indicador={ind}
-              modoFusion={modoFusion}
-              seleccionado={seleccionados.has(ind.id)}
-              onAlternarSeleccion={() => alternarSeleccion(ind.id)}
+              esSuperadmin={esSuperadmin}
+              onEliminar={setPorEliminar}
+              onDarDeBaja={darDeBaja}
               titulosPsedatu={titulosPsedatu}
             />
           ))}
@@ -312,43 +200,24 @@ export default function CatalogoIndicadores() {
         </div>
       )}
 
-      {/* ─── Fusión: elegir sobreviviente + preview ─── */}
-      {confirmandoFusion && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
-              <h3 className="text-sm font-semibold text-gray-900">Fusionar {itemsSeleccionados.length} entradas</h3>
-              <button onClick={() => setConfirmandoFusion(false)} className="p-1 text-gray-400 hover:text-gray-700"><X size={16} /></button>
-            </div>
-            <div className="px-5 py-4 space-y-3 overflow-y-auto">
-              <p className="text-xs text-gray-600">¿Cuál de estas entradas sobrevive? Las demás se retiran y sus proyectos pasan a esta.</p>
-              <div className="space-y-1.5">
-                {itemsSeleccionados.map(ind => (
-                  <label key={ind.id} className={`flex items-center justify-between gap-2 px-3 py-2 border rounded-lg cursor-pointer ${
-                    sobrevive === ind.id ? 'border-guinda-400 bg-guinda-50/50' : 'border-gray-200'
-                  }`}>
-                    <span className="flex items-center gap-2 min-w-0">
-                      <input type="radio" name="sobrevive" checked={sobrevive === ind.id} onChange={() => setSobrevive(ind.id)} className="accent-guinda-600" />
-                      <span className="text-sm text-gray-800 truncate">{ind.nombre}</span>
-                    </span>
-                    <span className="text-[10px] text-gray-400 flex-shrink-0">{ind.usos} proyecto{ind.usos !== 1 ? 's' : ''}</span>
-                  </label>
-                ))}
-              </div>
-              {sobrevivienteEntrada && (
-                <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                  {totalReapuntados > 0
-                    ? `${totalReapuntados} indicador(es) de proyecto pasarán de ${perdedoras.map(p => `"${p.nombre}"`).join(', ')} a "${sobrevivienteEntrada.nombre}". `
-                    : `Ningún proyecto usa todavía las entradas que se retiran. `}
-                  Las demás quedan retiradas. No se puede deshacer.
-                </p>
-              )}
-            </div>
-            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-100">
-              <button onClick={() => setConfirmandoFusion(false)} className="btn-secondary text-sm">Cancelar</button>
-              <button onClick={confirmarFusion} disabled={fusionando || !sobrevive}
-                className="px-4 py-2 text-sm font-semibold rounded-lg bg-guinda-700 text-white hover:bg-guinda-600 disabled:opacity-40">
-                {fusionando ? 'Fusionando...' : 'Fusionar'}
+      {/* ─── Confirmar eliminación real ─── */}
+      {porEliminar && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => !eliminando && setPorEliminar(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-gray-900 mb-2">Eliminar &quot;{porEliminar.nombre}&quot;</h3>
+            <p className="text-xs text-gray-600 mb-4">
+              Se borra de verdad del catálogo, no solo se da de baja. No se puede deshacer.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setPorEliminar(null)} disabled={eliminando} className="btn-secondary text-sm disabled:opacity-50">
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarEliminar}
+                disabled={eliminando}
+                className="text-sm px-3 py-1.5 rounded-lg text-white bg-red-600 hover:bg-red-700 disabled:opacity-50"
+              >
+                {eliminando ? 'Eliminando...' : 'Eliminar'}
               </button>
             </div>
           </div>
@@ -358,11 +227,13 @@ export default function CatalogoIndicadores() {
   );
 }
 
-// Una ficha del catálogo. Fuera de modo fusión, la ficha ENTERA es el
-// link al detalle (mismo criterio que TarjetaIndicador.jsx: sin lápiz/
-// ojo propios, el detalle es donde se edita/retira con más contexto).
-// En modo fusión deja de navegar y se vuelve seleccionable.
-function FichaCatalogo({ indicador: ind, modoFusion, seleccionado, onAlternarSeleccion, titulosPsedatu }) {
+// Una ficha del catálogo. La ficha ENTERA es el link al detalle (mismo
+// criterio que TarjetaIndicador.jsx: sin lápiz/ojo propios, el detalle
+// es donde se edita con más contexto) — el único control propio es el
+// bote de basura de superadmin, que corta la navegación con
+// stopPropagation/preventDefault.
+function FichaCatalogo({ indicador: ind, esSuperadmin, onEliminar, onDarDeBaja, titulosPsedatu }) {
+  const razonBaja = notaInterna(ind.definicion);
   const contenido = (
     <>
       <div className="flex items-start justify-between gap-2">
@@ -371,13 +242,16 @@ function FichaCatalogo({ indicador: ind, modoFusion, seleccionado, onAlternarSel
             {ind.nombre}
           </span>
         </div>
-        {modoFusion && (
-          <span className="flex-shrink-0 text-guinda-600 mt-0.5">
-            {seleccionado ? <CheckSquare size={16} /> : <Square size={16} className="text-gray-300" />}
-          </span>
+        {esSuperadmin && (
+          <BotonEliminar indicador={ind} onEliminar={onEliminar} onDarDeBaja={onDarDeBaja} />
         )}
       </div>
-      {!ind.activo && <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600 font-medium">retirado</span>}
+      {!ind.activo && (
+        <div className="mt-1">
+          <span className="inline-block text-[10px] px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600 font-medium">Dado de baja</span>
+          {razonBaja && <p className="mt-1 text-[10px] text-amber-700">{razonBaja}</p>}
+        </div>
+      )}
       {ind.producto && (
         <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-sky-700 bg-sky-50 border border-sky-100 rounded-full px-2 py-0.5 max-w-full">
           <Tag size={10} className="flex-shrink-0 text-sky-400" />
@@ -430,16 +304,69 @@ function FichaCatalogo({ indicador: ind, modoFusion, seleccionado, onAlternarSel
     </div>
   );
 
-  const clases = `group relative block rounded-xl border bg-white p-3.5 transition-all ${
+  const clases = `group relative block rounded-xl border bg-white p-3.5 transition-all hover:border-guinda-200 hover:shadow-sm ${
     ind.activo ? 'border-gray-200' : 'border-gray-200 bg-gray-50/70'
-  } ${
-    modoFusion
-      ? seleccionado ? 'border-guinda-300 ring-1 ring-guinda-200 cursor-pointer' : 'hover:border-gray-300 cursor-pointer'
-      : 'hover:border-guinda-200 hover:shadow-sm'
   }`;
 
-  if (modoFusion) {
-    return <div className={clases} onClick={onAlternarSeleccion}>{contenido}{infoHover}</div>;
-  }
   return <Link to={`/indicadores/catalogo/${ind.id}`} className={clases}>{contenido}{infoHover}</Link>;
+}
+
+// Bote de basura de la ficha — eliminar de verdad (sin proyectos
+// vinculados) o, si ya lo usa alguno, deshabilitado con un aviso que
+// explica por qué y ofrece dar de baja en su lugar. `usos` ya viene
+// calculado en la misma consulta que alimenta la grilla (listar()).
+function BotonEliminar({ indicador, onEliminar, onDarDeBaja }) {
+  const [mostrarAviso, setMostrarAviso] = useState(false);
+  const enUso = (indicador.usos || 0) > 0;
+
+  if (!enUso) {
+    return (
+      <button
+        type="button"
+        onClick={e => { e.preventDefault(); e.stopPropagation(); onEliminar(indicador); }}
+        className="flex-shrink-0 p-1 text-gray-300 hover:text-red-600 transition-colors"
+        title="Eliminar del catálogo"
+      >
+        <Trash2 size={14} />
+      </button>
+    );
+  }
+
+  return (
+    <div
+      className="relative flex-shrink-0"
+      onMouseEnter={() => setMostrarAviso(true)}
+      onMouseLeave={() => setMostrarAviso(false)}
+    >
+      <button
+        type="button"
+        disabled
+        className="p-1 text-gray-200 cursor-not-allowed"
+        title={`No se puede eliminar: ${indicador.usos} proyecto${indicador.usos !== 1 ? 's' : ''} lo usa${indicador.usos !== 1 ? 'n' : ''}.`}
+      >
+        <Trash2 size={14} />
+      </button>
+      {mostrarAviso && (
+        <div
+          className="absolute right-0 top-full mt-1 z-30 w-56 bg-white border border-gray-200 shadow-lg rounded-lg p-2.5"
+          onClick={e => { e.preventDefault(); e.stopPropagation(); }}
+        >
+          <p className="flex items-start gap-1.5 text-[11px] text-gray-600">
+            <AlertTriangle size={12} className="flex-shrink-0 mt-0.5 text-amber-500" />
+            <span>
+              No se puede eliminar: {indicador.usos} proyecto{indicador.usos !== 1 ? 's' : ''} lo usa
+              {indicador.usos !== 1 ? 'n' : ''}.
+            </span>
+          </p>
+          <button
+            type="button"
+            onClick={e => { e.preventDefault(); e.stopPropagation(); setMostrarAviso(false); onDarDeBaja(indicador); }}
+            className="mt-1.5 text-[11px] font-medium text-guinda-700 hover:underline"
+          >
+            Dar de baja en su lugar
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }

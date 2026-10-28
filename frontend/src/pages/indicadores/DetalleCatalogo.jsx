@@ -59,7 +59,7 @@ export default function DetalleCatalogo() {
   async function alternarActivo() {
     try {
       await catalogoApi.cambiarActivoIndicadorCatalogo(indicador.id, !indicador.activo);
-      mostrarToast(indicador.activo ? 'Indicador retirado' : 'Indicador reactivado', 'exito');
+      mostrarToast(indicador.activo ? 'Indicador dado de baja' : 'Indicador reactivado', 'exito');
       cargar();
     } catch (err) {
       mostrarToast(err.response?.data?.mensaje || 'No se pudo cambiar el estado.', 'error');
@@ -90,7 +90,7 @@ export default function DetalleCatalogo() {
         <div className="flex items-start justify-between gap-3 mt-2">
           <h1 className="text-lg font-bold text-gray-900 break-words">
             {indicador.nombre}
-            {!indicador.activo && <span className="ml-2 align-middle text-[11px] px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 font-medium">retirado</span>}
+            {!indicador.activo && <span className="ml-2 align-middle text-[11px] px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 font-medium">Dado de baja</span>}
           </h1>
         </div>
         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
@@ -127,7 +127,7 @@ export default function DetalleCatalogo() {
             onClick={alternarActivo}
             className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-amber-700"
           >
-            {indicador.activo ? <><EyeOff size={15} /> Retirar del catálogo</> : <><Eye size={15} /> Reactivar</>}
+            {indicador.activo ? <><EyeOff size={15} /> Dar de baja</> : <><Eye size={15} /> Reactivar</>}
           </button>
         </div>
       )}

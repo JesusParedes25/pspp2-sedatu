@@ -10,8 +10,9 @@
  * exigiera pedírselo a un administrador, la gente volvería a
  * teclearlo suelto y el catálogo quedaría desactualizado desde el
  * primer día. Queda registrado quién lo creó.
- * Editar, retirar y reactivar son de superadmin: son las operaciones
- * que afectan a proyectos ajenos (ver el guard en las rutas).
+ * Editar, dar de baja/reactivar y eliminar son de superadmin: son las
+ * operaciones que afectan a proyectos ajenos, o que son irreversibles
+ * (ver el guard en las rutas).
  * ─────────────────────────────────────────────────────────────────
  */
 const catalogoQueries = require('../db/queries/catalogo-indicadores.queries');
@@ -70,15 +71,6 @@ async function titulosPsedatu(req, res, next) {
 async function buscarSimilares(req, res, next) {
   try {
     const datos = await catalogoQueries.buscarSimilares(req.query.q, req.query.excluir_id || null);
-    res.json({ datos });
-  } catch (err) { next(err); }
-}
-
-async function duplicadosSugeridos(req, res, next) {
-  try {
-    const umbral = req.query.umbral !== undefined ? parseFloat(req.query.umbral) : 0.5;
-    const seguro = Number.isFinite(umbral) ? Math.min(Math.max(umbral, 0.1), 1) : 0.5;
-    const datos = await catalogoQueries.buscarDuplicadosSugeridos(seguro);
     res.json({ datos });
   } catch (err) { next(err); }
 }
@@ -160,24 +152,6 @@ async function actualizar(req, res, next) {
   }
 }
 
-async function fusionar(req, res, next) {
-  try {
-    const { id_sobrevive, ids_fusionar } = req.body || {};
-    if (!id_sobrevive || !Array.isArray(ids_fusionar) || ids_fusionar.length === 0) {
-      return res.status(400).json({
-        error: true,
-        mensaje: 'Se requiere id_sobrevive y al menos una entrada en ids_fusionar',
-        codigo: 'CAMPOS_REQUERIDOS',
-      });
-    }
-    const datos = await catalogoQueries.fusionar(id_sobrevive, ids_fusionar);
-    res.json({
-      datos,
-      mensaje: `Fusionado — ${datos.proyectos_reapuntados} indicador(es) de proyecto pasaron a "${datos.sobreviviente.nombre}"`,
-    });
-  } catch (err) { next(err); }
-}
-
 async function cambiarActivo(req, res, next) {
   try {
     const activo = req.body?.activo !== false;
@@ -185,8 +159,27 @@ async function cambiarActivo(req, res, next) {
     if (!datos) {
       return res.status(404).json({ error: true, mensaje: 'Indicador no encontrado en el catálogo', codigo: 'NO_ENCONTRADO' });
     }
-    res.json({ datos, mensaje: activo ? 'Indicador reactivado' : 'Indicador retirado del catálogo' });
+    res.json({ datos, mensaje: activo ? 'Indicador reactivado' : 'Indicador dado de baja' });
   } catch (err) { next(err); }
 }
 
-module.exports = { listar, obtener, uso, nodosVinculados, crear, solicitar, actualizar, cambiarActivo, buscarSimilares, duplicadosSugeridos, fusionar, listarProductos, listarLineasAccion, listarAreas, titulosPsedatu };
+// DELETE /catalogo-indicadores/:id — borrado real, distinto de
+// cambiarActivo (dar de baja). Solo posible si ningún proyecto usa esta
+// entrada todavía; catalogoQueries.eliminar ya valida eso y lanza un
+// error tipado (EN_USO, 409) en vez de borrar.
+async function eliminar(req, res, next) {
+  try {
+    const datos = await catalogoQueries.eliminar(req.params.id);
+    if (!datos) {
+      return res.status(404).json({ error: true, mensaje: 'Indicador no encontrado en el catálogo', codigo: 'NO_ENCONTRADO' });
+    }
+    res.json({ datos, mensaje: `"${datos.nombre}" se eliminó del catálogo` });
+  } catch (err) {
+    if (err.codigo === 'EN_USO') {
+      return res.status(409).json({ error: true, mensaje: err.message, codigo: err.codigo, usos: err.usos });
+    }
+    next(err);
+  }
+}
+
+module.exports = { listar, obtener, uso, nodosVinculados, crear, solicitar, actualizar, cambiarActivo, eliminar, buscarSimilares, listarProductos, listarLineasAccion, listarAreas, titulosPsedatu };

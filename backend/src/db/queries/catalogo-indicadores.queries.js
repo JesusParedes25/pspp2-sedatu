@@ -10,11 +10,23 @@
  * indicador renombrado aparecería del otro lado como uno nuevo y la
  * serie histórica se partiría en dos. Por eso se fija al crear y
  * después solo se editan nombre, descripción, definición y fuente.
- * Retirar un indicador es desactivarlo, no borrarlo: los proyectos
- * que ya lo usan conservan su referencia.
+ * Dar de baja un indicador es desactivarlo (cambiarActivo), no
+ * borrarlo: los proyectos que ya lo usan conservan su referencia.
+ * Borrarlo de verdad (eliminar) solo es posible cuando ningún proyecto
+ * lo usa todavía — si lo usa alguno, se rechaza y la salida es darlo de
+ * baja.
  * ─────────────────────────────────────────────────────────────────
  */
 const pool = require('../pool');
+
+// Valor de `instrumento` que el filtro "De la plataforma" manda para
+// pedir las entradas SIN instrumento (creadas por usuarios dentro de
+// PSPP, no importadas de un documento institucional) — un query string
+// no puede distinguir "sin filtro" de "filtra por NULL", así que se
+// manda este valor fijo en vez de una cadena vacía. Mismo valor en
+// FiltrosCatalogoIndicadores.jsx del frontend; si uno cambia, cambia el
+// otro.
+const SIN_INSTRUMENTO = '__sin_instrumento__';
 
 // Mismo criterio que el backfill de la migración 049, para que una
 // entrada creada desde la app y una sembrada tengan claves del mismo
@@ -72,80 +84,6 @@ async function buscarSimilares(nombre, excluirId = null) {
   return rows.map(r => ({ ...r, usos: parseInt(r.usos, 10) || 0 }));
 }
 
-// Sugiere PARES de entradas activas que se parecen entre sí, para la
-// pantalla "Fusionar duplicados" — a diferencia de buscarSimilares()
-// (que compara UN nombre nuevo contra el catálogo, para el alta manual),
-// esto recorre el catálogo completo contra sí mismo para encontrar
-// duplicados que YA existen y nadie detectó.
-//
-// Con 1387+ entradas, un self-join evaluando similarity() en cada par
-// posible (~950 mil pares) tomó ~21s en pruebas — Postgres no usa un
-// índice GIN de trigramas para acotar un self-join columna-contra-columna
-// en una tabla de este tamaño (el planner prefiere Seq Scan). La solución
-// que sí funciona: un índice GIST (gist_trgm_ops, migración 075) permite
-// una búsqueda "los 3 más parecidos" por fila vía el operador de
-// distancia "<->" en una LATERAL — Postgres SÍ usa ese índice para KNN,
-// bajando el tiempo a ~2.5s (1366 búsquedas de índice en vez de 1366
-// barridos completos). El umbral filtra los candidatos DESPUÉS de la
-// búsqueda por índice (no cambia qué candidatos se examinan, solo cuáles
-// se muestran) — sigue siendo "configurable", solo que ya no se aplica
-// vía el GUC pg_trgm.similarity_threshold.
-async function buscarDuplicadosSugeridos(umbral = 0.5) {
-  const { rows: candidatos } = await pool.query(`
-    SELECT a.id AS id1, a.nombre AS nombre1, a.clave AS clave1,
-           m.id2, m.nombre2, m.clave2, m.score
-      FROM catalogo_indicadores a
-      CROSS JOIN LATERAL (
-        SELECT b.id AS id2, b.nombre AS nombre2, b.clave AS clave2,
-               similarity(LOWER(b.nombre), LOWER(a.nombre)) AS score
-          FROM catalogo_indicadores b
-         WHERE b.activo = true AND b.id <> a.id
-         ORDER BY b.nombre <-> a.nombre
-         LIMIT 3
-      ) m
-     WHERE a.activo = true AND m.score >= $1
-  `, [umbral]);
-
-  if (candidatos.length === 0) return [];
-
-  // Cada fila del catálogo aporta sus propios 3 candidatos más cercanos,
-  // así que el mismo par puede aparecer dos veces (una vez desde cada
-  // lado) — se deduplica por par sin ordenar, quedándose con el mayor
-  // score visto.
-  const porPar = new Map();
-  for (const c of candidatos) {
-    const [id1, id2] = c.id1 < c.id2 ? [c.id1, c.id2] : [c.id2, c.id1];
-    const [n1, k1, n2, k2] = c.id1 < c.id2
-      ? [c.nombre1, c.clave1, c.nombre2, c.clave2]
-      : [c.nombre2, c.clave2, c.nombre1, c.clave1];
-    const clave = `${id1}|${id2}`;
-    const score = parseFloat(c.score);
-    const existente = porPar.get(clave);
-    if (!existente || score > existente.score) {
-      porPar.set(clave, { id1, nombre1: n1, clave1: k1, id2, nombre2: n2, clave2: k2, score });
-    }
-  }
-
-  const pares = [...porPar.values()].sort((a, b) => b.score - a.score).slice(0, 50);
-
-  const ids = [...new Set(pares.flatMap(p => [p.id1, p.id2]))];
-  const { rows: usosPorId } = await pool.query(`
-    SELECT c.id, COUNT(DISTINCT i.id_proyecto)::int AS usos
-      FROM catalogo_indicadores c
-      LEFT JOIN indicadores i ON i.id_catalogo = c.id
-      LEFT JOIN proyectos p ON p.id = i.id_proyecto AND p.deleted_at IS NULL
-     WHERE c.id = ANY($1)
-     GROUP BY c.id
-  `, [ids]);
-  const usos = Object.fromEntries(usosPorId.map(r => [r.id, r.usos]));
-
-  return pares.map(p => ({
-    score: p.score,
-    entrada1: { id: p.id1, nombre: p.nombre1, clave: p.clave1, usos: usos[p.id1] || 0 },
-    entrada2: { id: p.id2, nombre: p.nombre2, clave: p.clave2, usos: usos[p.id2] || 0 },
-  }));
-}
-
 // Sugerencias en vivo para el combobox de "Producto" (Informe de
 // Gobierno/Labores, donde no hay código jerárquico) — acotado por
 // instrumento porque el usuario pidió agrupar "primero por instrumento
@@ -165,7 +103,9 @@ async function listarProductos(busqueda, instrumento) {
     valores.push(`%${busqueda}%`);
     condiciones.push(`producto ILIKE $${valores.length}`);
   }
-  if (instrumento) {
+  if (instrumento === SIN_INSTRUMENTO) {
+    condiciones.push('instrumento IS NULL');
+  } else if (instrumento) {
     valores.push(instrumento);
     condiciones.push(`instrumento = $${valores.length}`);
   }
@@ -248,7 +188,9 @@ async function listar({ busqueda, incluirInactivos = false, instrumento, product
     valores.push(`%${busqueda}%`);
     condiciones.push(`(c.nombre ILIKE $${valores.length} OR c.clave ILIKE $${valores.length} OR c.producto ILIKE $${valores.length} OR c.area_sugerida ILIKE $${valores.length})`);
   }
-  if (instrumento) {
+  if (instrumento === SIN_INSTRUMENTO) {
+    condiciones.push('c.instrumento IS NULL');
+  } else if (instrumento) {
     valores.push(instrumento);
     condiciones.push(`c.instrumento = $${valores.length}`);
   }
@@ -545,63 +487,31 @@ async function cambiarActivo(id, activo) {
   return rows[0] || null;
 }
 
-// Fusiona 2+ entradas duplicadas del catálogo en una sola. Retirar una
-// entrada (cambiarActivo) nunca arregló la fragmentación que ya existe:
-// las pantallas de agregados (Tablero/Cartera) agrupan por
-// indicadores.id_catalogo sin fijarse si esa entrada del catálogo sigue
-// activa, así que un proyecto vinculado a una entrada retirada quedaba
-// huérfano — su dato dejaba de sumar en cualquier lado. Fusionar reapunta
-// TODOS los indicadores de proyecto de las entradas perdedoras hacia la
-// que sobrevive, y entonces sí las retira — a partir de ahí sí vuelven a
-// sumar juntos.
-async function fusionar(idSobrevive, idsFusionar) {
-  const perdedores = idsFusionar.filter(id => id !== idSobrevive);
-  if (perdedores.length === 0) {
-    const err = new Error('No hay entradas distintas que fusionar');
-    err.statusCode = 400;
+// Borrado real, no un cambiarActivo — solo para una entrada que ningún
+// proyecto usa todavía. Si algún proyecto ya la tiene vinculada (y por
+// lo tanto puede tener movimientos capturados contra ella), se rechaza:
+// la salida correcta ahí es darla de baja (cambiarActivo), no borrarla
+// de la base. Se valida aquí, no solo en el frontend — un DELETE directo
+// a la API nunca debe poder saltarse esta regla.
+async function eliminar(id) {
+  const { rows: usos } = await pool.query(
+    'SELECT COUNT(*)::int AS n FROM indicadores WHERE id_catalogo = $1',
+    [id]
+  );
+  if (usos[0].n > 0) {
+    const err = new Error(
+      `Este indicador se usa en ${usos[0].n} proyecto${usos[0].n !== 1 ? 's' : ''} — no se puede borrar. Dalo de baja en su lugar.`
+    );
+    err.statusCode = 409;
+    err.codigo = 'EN_USO';
+    err.usos = usos[0].n;
     throw err;
   }
-
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    const { rows: existen } = await client.query(
-      'SELECT id FROM catalogo_indicadores WHERE id = ANY($1)',
-      [[idSobrevive, ...perdedores]]
-    );
-    if (existen.length !== perdedores.length + 1) {
-      const err = new Error('Alguna de las entradas ya no existe');
-      err.statusCode = 404;
-      throw err;
-    }
-
-    const { rows: reapuntados } = await client.query(
-      'UPDATE indicadores SET id_catalogo = $1, updated_at = NOW() WHERE id_catalogo = ANY($2) RETURNING id, id_proyecto',
-      [idSobrevive, perdedores]
-    );
-
-    await client.query(
-      'UPDATE catalogo_indicadores SET activo = false, updated_at = NOW() WHERE id = ANY($1)',
-      [perdedores]
-    );
-
-    const { rows: sobreviviente } = await client.query(
-      'SELECT * FROM catalogo_indicadores WHERE id = $1', [idSobrevive]
-    );
-
-    await client.query('COMMIT');
-    return {
-      sobreviviente: sobreviviente[0],
-      proyectos_reapuntados: reapuntados.length,
-      ids_retirados: perdedores,
-    };
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
+  const { rows } = await pool.query(
+    'DELETE FROM catalogo_indicadores WHERE id = $1 RETURNING id, nombre',
+    [id]
+  );
+  return rows[0] || null;
 }
 
-module.exports = { listar, obtener, uso, obtenerNodosVinculados, crear, actualizar, cambiarActivo, generarClave, claveDisponible, buscarSimilares, buscarDuplicadosSugeridos, fusionar, listarProductos, listarLineasAccion, listarAreas, obtenerTitulosPsedatu, validarMetadatosInstitucionales, INSTRUMENTOS_VALIDOS };
+module.exports = { listar, obtener, uso, obtenerNodosVinculados, crear, actualizar, cambiarActivo, eliminar, generarClave, claveDisponible, buscarSimilares, listarProductos, listarLineasAccion, listarAreas, obtenerTitulosPsedatu, validarMetadatosInstitucionales, INSTRUMENTOS_VALIDOS, SIN_INSTRUMENTO };

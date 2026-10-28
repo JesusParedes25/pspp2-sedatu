@@ -65,17 +65,6 @@ export async function buscarSimilares(nombre, excluirId) {
   return data.datos || [];
 }
 
-// Pares de entradas activas que se parecen entre sí (self-join pg_trgm
-// sobre el catálogo completo) — alimenta la sugerencia automática de
-// "Fusionar duplicados", antes de que el usuario tenga que adivinar
-// cuáles son duplicados y seleccionarlos a mano uno por uno.
-export async function buscarDuplicadosSugeridos(umbral) {
-  const { data } = await client.get('/catalogo-indicadores/duplicados-sugeridos', {
-    params: { umbral: umbral || undefined },
-  });
-  return data.datos || [];
-}
-
 export async function crearIndicadorCatalogo(datos) {
   const { data } = await client.post('/catalogo-indicadores', datos);
   return data;
@@ -107,7 +96,7 @@ export async function obtenerIndicadorCatalogo(id) {
 
 // En qué proyectos se usa — lectura abierta a cualquier usuario, igual
 // que el resto del catálogo (no es una operación que afecte el proyecto
-// de nadie, a diferencia de editar/retirar/fusionar).
+// de nadie, a diferencia de editar/dar de baja/eliminar).
 export async function obtenerUsoIndicadorCatalogo(id) {
   const { data } = await client.get(`/catalogo-indicadores/${id}/uso`);
   return data;
@@ -120,14 +109,11 @@ export async function obtenerNodosVinculadosCatalogo(id) {
   return data.datos || [];
 }
 
-// Fusiona 2+ entradas duplicadas del catálogo: reapunta los indicadores
-// de proyecto de las perdedoras hacia la sobreviviente y retira las
-// perdedoras. Irreversible — la pantalla debe pedir confirmación con el
-// efecto en números antes de llamar esto.
-export async function fusionarIndicadoresCatalogo(idSobrevive, idsFusionar) {
-  const { data } = await client.post('/catalogo-indicadores/fusionar', {
-    id_sobrevive: idSobrevive,
-    ids_fusionar: idsFusionar,
-  });
+// Borrado real, distinto de cambiarActivoIndicadorCatalogo (dar de
+// baja): solo tiene éxito si ningún proyecto usa esta entrada todavía
+// — el backend lo valida y responde 409 si no. Irreversible; la
+// pantalla debe pedir confirmación con el nombre antes de llamar esto.
+export async function eliminarIndicadorCatalogo(id) {
+  const { data } = await client.delete(`/catalogo-indicadores/${id}`);
   return data;
 }

@@ -4,8 +4,9 @@
  *
  * Lectura y alta abiertas a cualquier usuario autenticado (sin eso no
  * podría elegir indicadores al capturar su proyecto, ni agregar el que
- * le falte); edición, retiro y fusión reservadas a superadmin, que son
- * las operaciones que afectan proyectos ajenos.
+ * le falte); edición, baja/reactivación y eliminación reservadas a
+ * superadmin, que son las operaciones que afectan proyectos ajenos o
+ * son irreversibles.
  */
 const { Router } = require('express');
 const ctrl = require('../controllers/catalogo-indicadores.controller');
@@ -21,7 +22,7 @@ router.post('/', ctrl.crear);
 // catálogo — el frontend solo ofrece este botón a quien no puede crear.
 router.post('/solicitar', ctrl.solicitar);
 // Rutas literales ANTES de '/:id' — si no, Express intentaría matchear
-// "similares"/"fusionar" como si fueran un :id.
+// "similares" como si fuera un :id.
 router.get('/similares', ctrl.buscarSimilares);
 router.get('/productos', ctrl.listarProductos);
 router.get('/lineas-accion', ctrl.listarLineasAccion);
@@ -30,14 +31,10 @@ router.get('/areas', ctrl.listarAreas);
 // tablas vacías hasta que se carguen) — lectura abierta, alimenta la
 // migaja de pan de cada tarjeta.
 router.get('/psedatu/titulos', ctrl.titulosPsedatu);
-// Alimenta la pantalla "Fusionar duplicados" — mismo nivel de permiso que
-// /fusionar, ya que es parte del mismo flujo de curación.
-router.get('/duplicados-sugeridos', requiereRol(['superadmin']), ctrl.duplicadosSugeridos);
-router.post('/fusionar', requiereRol(['superadmin']), ctrl.fusionar);
 router.get('/:id', ctrl.obtener);
 
 // "uso" y "nodos" son lectura, no una operación que afecte el proyecto
-// de nadie (a diferencia de actualizar/cambiarActivo/fusionar) — quedan
+// de nadie (a diferencia de actualizar/cambiarActivo/eliminar) — quedan
 // abiertas como el resto de la lectura del catálogo. Antes /uso era
 // superadmin-only (venía de cuando el catálogo solo vivía en el panel
 // de admin); la pantalla de Catálogo abierta a todos ya la llamaba sin
@@ -47,5 +44,9 @@ router.get('/:id/uso', ctrl.uso);
 router.get('/:id/nodos', ctrl.nodosVinculados);
 router.put('/:id', requiereRol(['superadmin']), ctrl.actualizar);
 router.patch('/:id/activo', requiereRol(['superadmin']), ctrl.cambiarActivo);
+// Borrado real — solo tiene éxito si ningún proyecto usa la entrada
+// (ctrl.eliminar/catalogoQueries.eliminar lo validan antes de tocar la
+// base); con proyectos vinculados responde 409, nunca borra.
+router.delete('/:id', requiereRol(['superadmin']), ctrl.eliminar);
 
 module.exports = router;
