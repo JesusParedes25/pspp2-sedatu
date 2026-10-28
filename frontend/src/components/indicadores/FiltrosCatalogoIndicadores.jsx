@@ -32,6 +32,12 @@ import * as catalogoApi from '../../api/catalogo-indicadores';
 
 const INSTRUMENTOS = ['Informe de Gobierno', 'Informe de Labores', 'PSEDATU 2025-2030'];
 
+// Mismo valor que SIN_INSTRUMENTO en catalogo-indicadores.queries.js del
+// backend — pedir "instrumento nulo" con un query string normal no se
+// puede distinguir de "sin filtro", así que ambos lados usan este valor
+// fijo en vez de null/vacío. Si uno cambia, cambia el otro.
+export const SIN_INSTRUMENTO = '__sin_instrumento__';
+
 export default function FiltrosCatalogoIndicadores({ valor, onCambio }) {
   const { instrumento, producto, area } = valor;
   const [busquedaProducto, setBusquedaProducto] = useState(producto || '');
@@ -104,6 +110,18 @@ export default function FiltrosCatalogoIndicadores({ valor, onCambio }) {
             {i}
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => elegirInstrumento(SIN_INSTRUMENTO)}
+          className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
+            instrumento === SIN_INSTRUMENTO
+              ? 'bg-guinda-600 text-white border-guinda-600 shadow-sm'
+              : 'bg-white border-gray-200 text-gray-600 hover:border-guinda-200 hover:text-guinda-700'
+          }`}
+          title="Indicadores que los usuarios crearon dentro de PSPP, no importados de un instrumento institucional"
+        >
+          De la plataforma
+        </button>
       </div>
 
       {/* Nivel 2: buscador de categoría, con texto completo (truncado con
