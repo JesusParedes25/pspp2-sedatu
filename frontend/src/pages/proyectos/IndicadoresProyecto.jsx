@@ -325,6 +325,11 @@ export default function IndicadoresProyecto() {
   );
 }
 
+// Mismo guinda que ya usan TarjetaIndicador.jsx y DetalleIndicador.jsx
+// para el valor/la barra de avance — un solo lenguaje visual para "el
+// número que importa", no uno nuevo para esta pantalla.
+const GUINDA = '#7B1C3E';
+
 function valorFormateado(valor, esMoneda) {
   const n = parseFloat(valor) || 0;
   return esMoneda ? formatearMoneda(n) : formatoCorto(n);
@@ -347,36 +352,77 @@ function FilaIndicador({
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
       <button
         onClick={onToggle}
-        className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+        className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors"
       >
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-gray-900 truncate">{ind.nombre}</p>
-          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
-              origen.institucional ? 'bg-sky-50 text-sky-700' : 'bg-gray-100 text-gray-600'
-            }`}>
-              {origen.texto}
-            </span>
-            <span className="text-[10px] text-gray-400">{etiquetaUnidad(ind) || ind.unidad}</span>
+        {/* Nombre + chevron. El nombre nunca se recorta: en un
+            indicador institucional lo que distingue a uno de otro
+            parecido suele venir hasta el final, así que se deja crecer
+            a 2+ renglones en vez de truncar con puntos suspensivos. */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-gray-900 break-words">{ind.nombre}</p>
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+              <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded-full border ${
+                origen.institucional ? 'bg-sky-50 text-sky-700 border-sky-100' : 'bg-gray-100 text-gray-600 border-gray-200'
+              }`}>
+                {origen.texto}
+              </span>
+              <span className="text-[10px] text-gray-400">{etiquetaUnidad(ind) || ind.unidad}</span>
+            </div>
+          </div>
+          <div className="flex-shrink-0 pt-0.5">
+            {abierto ? <ChevronDown size={16} className="text-gray-400" /> : <ChevronRight size={16} className="text-gray-400" />}
           </div>
         </div>
-        <div className="flex items-center gap-4 flex-shrink-0 text-right">
-          <div className="hidden sm:block">
-            <p className="text-sm font-semibold tabular-nums text-gray-800">
+
+        {/* El valor contra la meta es lo principal de la fila: mismo
+            tratamiento (tamaño, color, insignia de porcentaje) que ya
+            usa TarjetaIndicador.jsx en Mis indicadores, para que sea lo
+            primero que se lee, no "Último:"/nodos al mismo peso. */}
+        <div className="mt-2.5 flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <span className="text-2xl font-bold tabular-nums leading-none" style={{ color: GUINDA }} title={valor.toLocaleString('es-MX')}>
               {valorFormateado(valor, esMoneda)}
-              {tieneMeta && <span className="text-xs font-normal text-gray-400"> / {valorFormateado(meta, esMoneda)}</span>}
-            </p>
-            <p className="text-[10px] text-gray-400">
-              {tieneMeta ? `${pct}% de avance` : 'Sin meta definida'}
-            </p>
+            </span>
+            {tieneMeta ? (
+              <span className="text-xs text-gray-500 ml-1.5">de {valorFormateado(meta, esMoneda)}</span>
+            ) : (
+              !esMoneda && etiquetaUnidad(ind) && <span className="text-xs text-gray-500 ml-1.5">{etiquetaUnidad(ind)}</span>
+            )}
           </div>
-          <div className="hidden md:block text-[11px] text-gray-400 w-28">
-            {ind.fecha_corte ? `Último: ${formatFecha(ind.fecha_corte)}` : 'Sin movimientos'}
+          {tieneMeta && (
+            <span
+              className="text-sm font-semibold tabular-nums flex-shrink-0 px-1.5 py-0.5 rounded"
+              style={{ color: GUINDA, backgroundColor: 'rgba(123,28,62,0.07)' }}
+            >
+              {pct}%
+            </span>
+          )}
+        </div>
+
+        {tieneMeta ? (
+          <div className="mt-2 h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: GUINDA }} />
           </div>
-          <div className="text-[11px] text-gray-400 w-20">
-            {ind.num_nodos || 0} nodo{ind.num_nodos !== 1 ? 's' : ''}
-          </div>
-          {abierto ? <ChevronDown size={16} className="text-gray-400" /> : <ChevronRight size={16} className="text-gray-400" />}
+        ) : (
+          // Sin meta es uno de los dos estados que piden una acción
+          // (el otro es "sin movimientos", abajo) — se distingue con el
+          // mismo tono guinda del botón "Definir meta" que ya usa Mis
+          // indicadores, no con el gris plano de un dato neutro.
+          <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-guinda-600">
+            <Target size={11} /> Sin meta definida
+          </p>
+        )}
+
+        <div className="mt-2 flex items-center gap-3 text-[10px] text-gray-400 flex-wrap">
+          {ind.fecha_corte ? (
+            <span>Último: {formatFecha(ind.fecha_corte)}</span>
+          ) : (
+            <span className="flex items-center gap-1 font-medium text-guinda-600">
+              <Plus size={10} /> Sin movimientos todavía
+            </span>
+          )}
+          <span>{ind.num_nodos || 0} nodo{ind.num_nodos !== 1 ? 's' : ''}</span>
         </div>
       </button>
 
