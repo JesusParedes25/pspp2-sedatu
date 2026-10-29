@@ -22,7 +22,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
-  ArrowLeft, Loader2, Link2, AlertTriangle, Pencil, Plus, Ban, Target,
+  ArrowLeft, Loader2, Link2, AlertTriangle, Pencil, Plus, Target,
 } from 'lucide-react';
 import { LineChart, Line, ReferenceLine, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import * as indicadoresApi from '../../api/indicadores';
@@ -31,6 +31,7 @@ import CamposIndicadorProyecto from '../../components/indicadores/CamposIndicado
 import ChipAportacion from '../../components/indicadores/ChipAportacion';
 import ModalVincularIndicador from '../../components/indicadores/ModalVincularIndicador';
 import ModalRegistrarMovimiento from '../../components/indicadores/ModalRegistrarMovimiento';
+import HistorialMovimientosIndicador from '../../components/indicadores/HistorialMovimientosIndicador';
 import { etiquetaUnidad } from '../../components/indicadores/SelectorIndicadorCatalogo';
 import { formatearMoneda, formatearMonedaCorta } from '../../utils/formatoMoneda';
 import { formatFecha } from '../../utils/fecha';
@@ -38,20 +39,6 @@ import { excedeMeta } from '../../utils/estadoMeta';
 import { formatoCorto } from '../../components/indicadores/TarjetaIndicador';
 
 const GUINDA = '#7B1C3E';
-const NIVEL_LABEL = { etapa: 'Etapa', accion: 'Acción', tarea: 'Tarea' };
-
-// "Se completó 'X'" / "Registro a mano de Y" (Bloque 6 del encargo) — el
-// origen de un movimiento, en una frase. `nota` ya trae el detalle que
-// puso procesarCambioNodo ("Actividad completada", "Avance de la
-// actividad vinculada: 60%"...) para los automáticos; para los
-// manuales con nodo (Bloque 4, registrados desde la pestaña Indicadores
-// de un nodo) no hay nota prefabricada, así que se compone aquí.
-function descripcionOrigenMovimiento(m) {
-  const nodo = m.nodo_nombre ? `${NIVEL_LABEL[m.nodo_tipo] || ''} "${m.nodo_nombre}"` : null;
-  if (m.origen === 'migracion') return m.nota || 'Valor migrado de la versión anterior';
-  if (m.origen === 'manual') return nodo ? `Registro a mano de ${nodo}` : (m.nota || 'Registro a mano');
-  return nodo ? `${nodo}: ${m.nota || 'actualizada'}` : (m.nota || 'Actividad vinculada');
-}
 
 function datosEditables(indicador) {
   return {
@@ -326,23 +313,6 @@ function SeccionValorMovimientos({ indicador, movimientos, cargando, onRegistrar
   const meta = parseFloat(indicador.meta_global) || 0;
   const tieneMeta = meta > 0;
   const pct = tieneMeta ? (valor / meta) * 100 : null;
-  const [anulando, setAnulando] = useState(null); // id del movimiento con el campo de motivo abierto
-  const [motivo, setMotivo] = useState('');
-  const [procesando, setProcesando] = useState(false);
-
-  // Orden cronológico ascendente para acumular, conservando el orden
-  // DESC (más reciente arriba) para mostrar — un movimiento anulado no
-  // suma al acumulado (coincide con cómo recalcularValorActual excluye
-  // los anulados), pero se deja ver tachado en su lugar en el tiempo.
-  const conAcumulado = (() => {
-    const asc = [...movimientos].reverse();
-    let acumulado = 0;
-    const calculados = asc.map(m => {
-      if (!m.anulado_en) acumulado += parseFloat(m.cantidad);
-      return { ...m, acumuladoTrasEste: acumulado };
-    });
-    return calculados.reverse();
-  })();
 
   const serieGrafica = (() => {
     const asc = [...movimientos].reverse().filter(m => !m.anulado_en);
@@ -352,22 +322,6 @@ function SeccionValorMovimientos({ indicador, movimientos, cargando, onRegistrar
       return { fecha: formatFecha(m.fecha, { day: '2-digit', month: 'short' }), valor: acumulado };
     });
   })();
-
-  async function confirmarAnular(movimientoId) {
-    if (!motivo.trim()) return;
-    setProcesando(true);
-    try {
-      await indicadoresApi.anularMovimientoIndicador(movimientoId, motivo.trim());
-      mostrarToast('Movimiento anulado', 'exito');
-      setAnulando(null);
-      setMotivo('');
-      onActualizado();
-    } catch (err) {
-      mostrarToast(err.response?.data?.mensaje || 'No se pudo anular el movimiento', 'error');
-    } finally {
-      setProcesando(false);
-    }
-  }
 
   return (
     <section className="bg-white border border-gray-200 rounded-xl p-4">
@@ -420,70 +374,13 @@ function SeccionValorMovimientos({ indicador, movimientos, cargando, onRegistrar
       )}
 
       <h3 className="text-xs font-semibold text-gray-600 mt-4 mb-1.5">Historial de movimientos</h3>
-      {cargando ? (
-        <div className="flex items-center gap-2 text-xs text-gray-400 py-2"><Loader2 size={13} className="animate-spin" /> Cargando…</div>
-      ) : conAcumulado.length === 0 ? (
-        <p className="text-xs text-gray-500">Todavía no hay ningún movimiento registrado.</p>
-      ) : (
-        <div className="divide-y divide-gray-100 border border-gray-100 rounded-lg">
-          {conAcumulado.map(m => {
-            const anulado = !!m.anulado_en;
-            const cantidad = parseFloat(m.cantidad);
-            return (
-              <div key={m.id} className={`px-3 py-2 text-xs ${anulado ? 'opacity-50' : ''}`}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className={`min-w-0 ${anulado ? 'line-through' : ''}`}>
-                    <p className="text-gray-700">{descripcionOrigenMovimiento(m)}</p>
-                    <p className="text-[10px] text-gray-400">
-                      {formatFecha(m.fecha)}{m.creador_nombre ? ` · ${m.creador_nombre}` : ''}
-                    </p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className={`font-medium tabular-nums ${anulado ? 'line-through text-gray-400' : cantidad < 0 ? 'text-red-600' : 'text-gray-700'}`}>
-                      {cantidad > 0 ? '+' : ''}{esMoneda ? formatearMoneda(cantidad) : cantidad.toLocaleString('es-MX')}
-                    </p>
-                    <p className="text-[10px] text-gray-400 tabular-nums">
-                      acumulado: {esMoneda ? formatearMoneda(m.acumuladoTrasEste) : m.acumuladoTrasEste.toLocaleString('es-MX')}
-                    </p>
-                  </div>
-                </div>
-                {anulado ? (
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    Anulado por {m.anulador_nombre || 'alguien'}{m.motivo_anulacion ? `: ${m.motivo_anulacion}` : ''}
-                  </p>
-                ) : anulando === m.id ? (
-                  <div className="flex items-center gap-1.5 mt-1.5">
-                    <input
-                      autoFocus
-                      value={motivo}
-                      onChange={e => setMotivo(e.target.value)}
-                      placeholder="Motivo de la anulación"
-                      className="flex-1 text-[11px] border border-gray-300 rounded px-2 py-1 focus:border-guinda-500 focus:ring-1 focus:ring-guinda-500/20 outline-none"
-                    />
-                    <button
-                      onClick={() => confirmarAnular(m.id)}
-                      disabled={procesando || !motivo.trim()}
-                      className="text-[11px] font-medium text-red-600 hover:underline disabled:opacity-40"
-                    >
-                      Confirmar
-                    </button>
-                    <button onClick={() => { setAnulando(null); setMotivo(''); }} className="text-[11px] text-gray-400 hover:text-gray-600">
-                      Cancelar
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => { setAnulando(m.id); setMotivo(''); }}
-                    className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-red-600 mt-1"
-                  >
-                    <Ban size={10} /> Anular
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <HistorialMovimientosIndicador
+        movimientos={movimientos}
+        cargando={cargando}
+        esMoneda={esMoneda}
+        onActualizado={onActualizado}
+        mostrarToast={mostrarToast}
+      />
     </section>
   );
 }
