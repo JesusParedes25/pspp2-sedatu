@@ -180,7 +180,7 @@ async function transferirAdministracion(proyectoId, nuevoAdministradorId) {
       FOR UPDATE
     `, [proyectoId]);
     if (actuales.length === 0) {
-      const err = new Error('El proyecto no tiene administrador actual — no hay a quién reemplazar.');
+      const err = new Error('El proyecto no tiene administrador actual. No hay a quién reemplazar.');
       err.statusCode = 409; err.codigo = 'SIN_ADMINISTRADOR';
       throw err;
     }

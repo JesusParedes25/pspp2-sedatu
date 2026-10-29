@@ -33,7 +33,7 @@ const ESTADO_LEGIBLE = e => formatearEstado(e || 'Pendiente');
 // frontend/common/SemaforoDot.jsx::URGENCIA_SEMAFORO) — antes decía el
 // nombre del color ("Ámbar"), no lo que significa.
 const SEMAFORO_LEGIBLE = { verde: 'En tiempo', ambar: 'Por vencer', rojo: 'Vencida', gris: 'Sin urgencia' };
-const semaforoLegible = s => SEMAFORO_LEGIBLE[s] || '—';
+const semaforoLegible = s => SEMAFORO_LEGIBLE[s] || '';
 // `pg` devuelve las columnas DATE como objetos Date de JS. String(date)
 // da "Thu Jan 01 2026 00:00:00 GMT..." — hay que pedir el ISO explícito
 // antes de recortar, o la fecha exportada sale ilegible.
@@ -154,10 +154,10 @@ function construirXlsx(proyecto, etapas) {
     ['Descripción', proyecto.descripcion || ''],
     ['Tipo', ESTADO_LEGIBLE(proyecto.tipo)],
     ['Estado', ESTADO_LEGIBLE(proyecto.estado)],
-    ['DG líder', proyecto.dg_lider_siglas ? `${proyecto.dg_lider_siglas} — ${proyecto.dg_lider_nombre}` : ''],
+    ['DG líder', proyecto.dg_lider_siglas ? `${proyecto.dg_lider_siglas}: ${proyecto.dg_lider_nombre}` : ''],
     ['Dirección de área líder', proyecto.direccion_area_lider_siglas
-      ? `${proyecto.direccion_area_lider_siglas} — ${proyecto.direccion_area_lider_nombre}` : ''],
-    ['Programa presupuestario', proyecto.programa_clave ? `${proyecto.programa_clave} — ${proyecto.programa_nombre}` : ''],
+      ? `${proyecto.direccion_area_lider_siglas}: ${proyecto.direccion_area_lider_nombre}` : ''],
+    ['Programa presupuestario', proyecto.programa_clave ? `${proyecto.programa_clave}: ${proyecto.programa_nombre}` : ''],
     ['Fecha inicio', soloFecha(proyecto.fecha_inicio)],
     ['Fecha límite', soloFecha(proyecto.fecha_limite)],
     // No hay un "avance del proyecto" como columna propia — se calcula

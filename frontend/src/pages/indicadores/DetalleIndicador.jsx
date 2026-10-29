@@ -50,7 +50,7 @@ function descripcionOrigenMovimiento(m) {
   const nodo = m.nodo_nombre ? `${NIVEL_LABEL[m.nodo_tipo] || ''} "${m.nodo_nombre}"` : null;
   if (m.origen === 'migracion') return m.nota || 'Valor migrado de la versión anterior';
   if (m.origen === 'manual') return nodo ? `Registro a mano de ${nodo}` : (m.nota || 'Registro a mano');
-  return nodo ? `${nodo} — ${m.nota || 'actualizada'}` : (m.nota || 'Actividad vinculada');
+  return nodo ? `${nodo}: ${m.nota || 'actualizada'}` : (m.nota || 'Actividad vinculada');
 }
 
 function datosEditables(indicador) {
@@ -184,7 +184,7 @@ export default function DetalleIndicador() {
           proyectoPreseleccionado={{ id: indicador.proyecto_id, nombre: indicador.proyecto_nombre }}
           indicadorPreseleccionado={indicador}
           onCerrar={() => setMostrarWizard(false)}
-          onVinculado={() => { setMostrarWizard(false); cargar(); cargarAportaciones(); }}
+          onVinculado={() => { setMostrarWizard(false); cargar(); cargarAportaciones(); cargarMovimientos(); }}
         />
       )}
 
@@ -264,7 +264,7 @@ function SeccionDefinicion({ indicador, onGuardado, mostrarToast }) {
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
           <div>
             <dt className="text-gray-400">Tipo</dt>
-            <dd className="text-gray-700">{indicador.tipo?.replaceAll('_', ' ') || '—'}</dd>
+            <dd className="text-gray-700">{indicador.tipo?.replaceAll('_', ' ') || 'Sin capturar'}</dd>
           </div>
           <div>
             <dt className="text-gray-400">Unidad</dt>
@@ -272,11 +272,11 @@ function SeccionDefinicion({ indicador, onGuardado, mostrarToast }) {
           </div>
           <div className="col-span-2">
             <dt className="text-gray-400">Cómo se mide</dt>
-            <dd className="text-gray-700">{indicador.definicion || '—'}</dd>
+            <dd className="text-gray-700">{indicador.definicion || 'Sin definición capturada.'}</dd>
           </div>
           <div>
             <dt className="text-gray-400">Fuente del dato</dt>
-            <dd className="text-gray-700">{indicador.fuente || '—'}</dd>
+            <dd className="text-gray-700">{indicador.fuente || 'Sin fuente capturada.'}</dd>
           </div>
           <div>
             <dt className="text-gray-400">Meta</dt>

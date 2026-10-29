@@ -175,6 +175,21 @@ export default function ModalVincularIndicador({
     onCerrar();
   }
 
+  // Elegir directo un indicador que este proyecto YA mide, sin pasar
+  // por el catálogo — antes, desde un nodo sin vínculos todavía, el
+  // único camino era "Elegir indicador del catálogo", donde ese mismo
+  // indicador aparecía en gris con "ya agregado" (por ser parte de
+  // `yaUsados`) y no se podía seleccionar: un callejón sin salida que
+  // obligaba a ir al detalle del indicador y usar "Agregar nodo" ahí.
+  // Mismo resultado final que alElegirCatalogo() cuando ya existe un
+  // indicador para esa entrada (líneas de abajo) — se llega directo al
+  // paso 3 sin crear nada nuevo.
+  function elegirIndicadorDelProyecto(ind) {
+    setIndicadorExistente(ind);
+    setCatalogoElegido(ind);
+    setPaso(3);
+  }
+
   async function alElegirCatalogo(entradaCatalogo) {
     setMostrarCatalogo(false);
     setCatalogoElegido(entradaCatalogo);
@@ -376,13 +391,35 @@ export default function ModalVincularIndicador({
                   <button onClick={() => setMostrarCatalogo(true)} className="text-xs text-guinda-600 hover:underline flex-shrink-0">Cambiar</button>
                 </div>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => setMostrarCatalogo(true)}
-                  className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-guinda-200 rounded-xl text-sm font-medium text-guinda-700 hover:bg-guinda-50 transition-colors"
-                >
-                  Elegir indicador del catálogo
-                </button>
+                <>
+                  {indicadoresProyecto.length > 0 && (
+                    <div>
+                      <p className="text-[11px] text-gray-500 mb-1.5">Este proyecto ya mide:</p>
+                      <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
+                        {indicadoresProyecto.map(ind => (
+                          <button
+                            key={ind.id}
+                            type="button"
+                            onClick={() => elegirIndicadorDelProyecto(ind)}
+                            className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left border border-gray-200 rounded-lg hover:border-guinda-300 hover:bg-guinda-50/40 transition-colors"
+                          >
+                            <span className="text-sm text-gray-800 truncate">{ind.nombre}</span>
+                            <span className="text-[10px] text-gray-400 flex-shrink-0">
+                              {ind.etiqueta_unidad || ind.unidad_personalizada || ind.unidad}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setMostrarCatalogo(true)}
+                    className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-guinda-200 rounded-xl text-sm font-medium text-guinda-700 hover:bg-guinda-50 transition-colors"
+                  >
+                    {indicadoresProyecto.length > 0 ? 'Elegir otro del catálogo' : 'Elegir indicador del catálogo'}
+                  </button>
+                </>
               )}
 
               {catalogoElegido && !indicadorExistente && (

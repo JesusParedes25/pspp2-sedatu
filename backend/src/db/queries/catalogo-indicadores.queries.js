@@ -452,7 +452,7 @@ async function actualizar(id, datos) {
           'SELECT COUNT(*)::int AS n FROM indicadores WHERE id_catalogo = $1', [id]
         );
         if (n > 0) {
-          const err = new Error(`Este indicador ya está vinculado a ${n} proyecto(s) — cambiar tipo o unidad alteraría el significado de valores ya capturados. Si necesitas un indicador distinto, crea uno nuevo.`);
+          const err = new Error(`Este indicador ya está vinculado a ${n} proyecto(s). Cambiar tipo o unidad alteraría el significado de valores ya capturados. Si necesitas un indicador distinto, crea uno nuevo.`);
           err.statusCode = 409;
           err.codigo = 'CATALOGO_EN_USO';
           throw err;
@@ -500,7 +500,7 @@ async function eliminar(id) {
   );
   if (usos[0].n > 0) {
     const err = new Error(
-      `Este indicador se usa en ${usos[0].n} proyecto${usos[0].n !== 1 ? 's' : ''} — no se puede borrar. Dalo de baja en su lugar.`
+      `Este indicador se usa en ${usos[0].n} proyecto${usos[0].n !== 1 ? 's' : ''}. No se puede borrar. Dalo de baja en su lugar.`
     );
     err.statusCode = 409;
     err.codigo = 'EN_USO';

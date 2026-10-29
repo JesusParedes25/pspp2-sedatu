@@ -315,7 +315,7 @@ async function transferirAdministracionProyecto(req, res, next) {
     for (const idSaliente of resultado.administradoresAnteriores) {
       await crearNotificacion({
         tipo: 'PermisoNuevo',
-        mensaje: `Un superadministrador transfirió la administración del proyecto "${nombreProyecto}" — ahora participas ahí como responsable.`,
+        mensaje: `Un superadministrador transfirió la administración del proyecto "${nombreProyecto}". Ahora participas ahí como responsable.`,
         entidadTipo: 'Proyecto',
         entidadId: req.params.id,
         idUsuario: idSaliente,
