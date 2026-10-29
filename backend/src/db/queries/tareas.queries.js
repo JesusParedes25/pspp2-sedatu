@@ -158,7 +158,7 @@ async function patchCampoTarea(tareaId, campo, valor) {
     fecha_inicio: 'fecha_inicio', fecha_fin: 'fecha_limite', prioridad: 'prioridad',
   };
   if (campo === 'estado') {
-    throw new Error(`Campo no permitido: ${campo} — se cambia desde el selector de Estatus (motivo de bloqueo, cascada y auditoría), no por edición en línea.`);
+    throw new Error(`Campo no permitido: ${campo}. Se cambia desde el selector de Estatus (motivo de bloqueo, cascada y auditoría), no por edición en línea.`);
   }
   const columna = CAMPOS_DIRECTOS[campo];
   if (!columna) throw new Error(`Campo no permitido: ${campo}`);

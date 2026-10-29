@@ -311,7 +311,7 @@ async function eliminar(req, res, next) {
       });
     }
 
-    res.json({ datos: resultado, mensaje: 'Proyecto eliminado — se puede restaurar dentro de los próximos 30 días.' });
+    res.json({ datos: resultado, mensaje: 'Proyecto eliminado. Se puede restaurar dentro de los próximos 30 días.' });
   } catch (err) {
     next(err);
   }

@@ -147,7 +147,7 @@ export default function TabApiIndicadores() {
         <p className="text-[11px] text-gray-500">
           Por omisión devuelve solo los indicadores con al menos un proyecto que los mida (no
           filtra por si siguen activos en el catálogo: uno retirado con captura real sigue
-          apareciendo) — con su <strong>clave estable</strong>, el total de meta y avance sumando
+          apareciendo), con su <strong>clave estable</strong>, el total de meta y avance sumando
           todos los proyectos, y el desglose por proyecto con quién capturó el dato.
           Acepta <code className="font-mono">?clave=</code> para pedir uno solo (ese siempre se
           devuelve, tenga o no proyectos) y <code className="font-mono">?todos=1</code> para
@@ -174,7 +174,7 @@ export default function TabApiIndicadores() {
           <input
             value={indicadorElegido ? indicadorElegido.nombre : busquedaIndicador}
             onChange={e => { setIndicadorElegido(null); setBusquedaIndicador(e.target.value); }}
-            placeholder="Buscar un indicador del catálogo (opcional — vacío = todos)"
+            placeholder="Buscar un indicador del catálogo (opcional, vacío = todos)"
             className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-guinda-400"
           />
           {indicadorElegido && (

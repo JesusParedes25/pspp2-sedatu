@@ -1029,7 +1029,7 @@ async function patchCampoAccion(accionId, campo, valor) {
 
   let query, params;
   if (CAMPOS_GOBERNADOS.includes(campo)) {
-    throw new Error(`Campo no permitido: ${campo} — se cambia desde el selector de Estatus (motivo de bloqueo, cascada y auditoría), no por edición en línea.`);
+    throw new Error(`Campo no permitido: ${campo}. Se cambia desde el selector de Estatus (motivo de bloqueo, cascada y auditoría), no por edición en línea.`);
   } else if (CAMPOS_DIRECTOS.includes(campo)) {
     query = `UPDATE acciones SET ${campo} = $1, updated_at = NOW() WHERE id = $2 RETURNING *`;
     params = [valor, accionId];

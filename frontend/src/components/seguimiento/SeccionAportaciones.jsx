@@ -223,7 +223,7 @@ export default function SeccionAportaciones({ tipo, nodoId, proyectoId, avanceEf
                   value={montoElegido[ind.id] ?? ''}
                   onChange={e => setMontoElegido(prev => ({ ...prev, [ind.id]: e.target.value }))}
                   placeholder="cantidad"
-                  title="Cuánto aporta este nodo al indicador — hace falta antes de poder vincularlo"
+                  title="Cuánto aporta este nodo al indicador: hace falta antes de poder vincularlo"
                   className="w-20 text-[10px] border border-gray-300 rounded px-1 py-0.5 focus:border-[#7B1C3E] focus:ring-1 focus:ring-[#7B1C3E]/20 outline-none"
                 />
                 {esPorCategorias && (

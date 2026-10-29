@@ -342,7 +342,7 @@ export default function ModalImportarCSV({ proyectoId, onImportado, onCerrar }) 
                           </td>
                           <td className="px-2 py-1 text-gray-500">{f.clave_etapa}{f.clave_accion ? ` / ${f.clave_accion}` : ''}</td>
                           <td className={`px-2 py-1 ${esSub ? 'pl-6' : ''}`}>{esEtapa ? f.etapa : f.accion}</td>
-                          <td className="px-2 py-1 text-gray-400">{f.fecha_inicio || ''} — {f.fecha_fin || ''}</td>
+                          <td className="px-2 py-1 text-gray-400">{f.fecha_inicio || ''} a {f.fecha_fin || ''}</td>
                           <td className="px-2 py-1 text-gray-400 truncate max-w-[150px]">{f.entregable || ''}</td>
                         </tr>
                       );
