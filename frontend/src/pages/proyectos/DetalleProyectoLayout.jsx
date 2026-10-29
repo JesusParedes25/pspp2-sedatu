@@ -25,7 +25,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate, useLocation, useSearchParams, Outlet } from 'react-router-dom';
-import { Star, Pencil, Trash2, Settings, LayoutDashboard, FileText, BookText, LayoutGrid, SlidersHorizontal, ShieldAlert } from 'lucide-react';
+import { Star, Pencil, Trash2, Settings, LayoutDashboard, FileText, BookText, LayoutGrid, SlidersHorizontal, ShieldAlert, BarChart3 } from 'lucide-react';
 import { useProyecto } from '../../hooks/useProyectos';
 import { useEtapas } from '../../hooks/useEtapas';
 import { formatearEstado } from '../../utils/estados';
@@ -47,6 +47,7 @@ const SECCIONES = [
   { to: '', etiqueta: 'Portada', icono: LayoutGrid, fin: true },
   { to: 'seguimiento', etiqueta: 'Seguimiento', icono: Settings },
   { to: 'resumen', etiqueta: 'Resumen', icono: LayoutDashboard },
+  { to: 'indicadores', etiqueta: 'Indicadores', icono: BarChart3 },
   { to: 'riesgos', etiqueta: 'Riesgos', icono: ShieldAlert },
   { to: 'documentos', etiqueta: 'Documentos', icono: FileText },
   { to: 'bitacora', etiqueta: 'Bitácora', icono: BookText },

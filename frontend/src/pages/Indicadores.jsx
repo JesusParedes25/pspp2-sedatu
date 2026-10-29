@@ -112,7 +112,9 @@ function MisIndicadores() {
         <div>
           <h1 className="text-lg font-bold text-gray-900">Indicadores</h1>
           <p className="text-xs text-gray-500 mt-0.5">
-            Los indicadores de los proyectos donde participas, en un solo lugar.
+            Los indicadores de los proyectos donde participas, en un solo lugar. Para
+            administrar los de un proyecto en particular (vincular, definir meta, capturar
+            avance) usa su pestaña Indicadores.
           </p>
         </div>
         <div className="flex items-center gap-2">

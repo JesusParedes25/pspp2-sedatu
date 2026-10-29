@@ -34,7 +34,7 @@ async function aplicarDefinicionCatalogo(filas) {
   const idsCatalogo = [...new Set(lista.map(f => f?.id_catalogo).filter(Boolean))];
   if (idsCatalogo.length > 0) {
     const { rows: entradas } = await pool.query(
-      'SELECT id, nombre, tipo, unidad, unidad_personalizada, etiqueta_unidad FROM catalogo_indicadores WHERE id = ANY($1)',
+      'SELECT id, nombre, tipo, unidad, unidad_personalizada, etiqueta_unidad, instrumento FROM catalogo_indicadores WHERE id = ANY($1)',
       [idsCatalogo]
     );
     const porId = new Map(entradas.map(e => [e.id, e]));
@@ -46,6 +46,14 @@ async function aplicarDefinicionCatalogo(filas) {
         f.unidad = c.unidad;
         f.unidad_personalizada = c.unidad_personalizada;
         f.etiqueta_unidad = c.etiqueta_unidad;
+        // `instrumento` (Bloque 2 de "Indicadores dentro del proyecto"):
+        // misma fuente que ya usa etiquetaOrigenIndicador() en el
+        // frontend para pintar el chip "De la plataforma"/institucional
+        // del catálogo — null cuando el indicador no viene de ningún
+        // catálogo (id_catalogo NULL, este bloque ni se ejecuta) o
+        // cuando la entrada del catálogo no tiene instrumento (creada
+        // dentro de la plataforma).
+        f.instrumento = c.instrumento;
       }
     }
   }
@@ -406,9 +414,17 @@ async function listarPorEtapa(etapaId) {
 
 // Lista TODOS los indicadores de un proyecto (nivel proyecto + nivel etapa)
 // — usada por ModalVincularIndicador para saber qué indicadores ya tiene
-// el proyecto. Necesita .categorias igual que las otras funciones de
-// listado: sin esto, el selector de categoría al vincular un nodo no
-// tendría de dónde poblarse para un indicador que ya existía de antes.
+// el proyecto, y por la pestaña Indicadores del proyecto (Parte 2 del
+// encargo "Indicadores dentro del proyecto") para administrarlos. Necesita
+// .categorias igual que las otras funciones de listado: sin esto, el
+// selector de categoría al vincular un nodo no tendría de dónde poblarse
+// para un indicador que ya existía de antes.
+//
+// `fecha_corte`/`num_nodos` solo los necesita la pestaña del proyecto
+// (ModalVincularIndicador los ignora sin problema) — se calculan en lote
+// con 2 consultas más, mismo patrón de batching que cargarCategorias, en
+// vez de un JOIN+GROUP BY sobre la consulta principal que complicaría leer
+// esa consulta para gente que solo necesita las columnas de `indicadores`.
 async function listarTodosPorProyecto(proyectoId) {
   const indicadores = await pool.query(`
     SELECT i.*, e.nombre AS etapa_nombre
@@ -419,6 +435,29 @@ async function listarTodosPorProyecto(proyectoId) {
   `, [proyectoId]);
   await cargarCategorias(pool, indicadores.rows);
   await aplicarDefinicionCatalogo(indicadores.rows);
+
+  if (indicadores.rows.length > 0) {
+    const ids = indicadores.rows.map(i => i.id);
+    const { rows: cortes } = await pool.query(`
+      SELECT id_indicador, MAX(fecha) AS fecha_corte
+      FROM indicador_movimientos
+      WHERE id_indicador = ANY($1) AND anulado_en IS NULL
+      GROUP BY id_indicador
+    `, [ids]);
+    const { rows: conteosNodos } = await pool.query(`
+      SELECT id_indicador, COUNT(*)::int AS num_nodos
+      FROM indicador_aportaciones
+      WHERE id_indicador = ANY($1)
+      GROUP BY id_indicador
+    `, [ids]);
+    const cortePorId = new Map(cortes.map(c => [c.id_indicador, c.fecha_corte]));
+    const nodosPorId = new Map(conteosNodos.map(c => [c.id_indicador, c.num_nodos]));
+    for (const ind of indicadores.rows) {
+      ind.fecha_corte = cortePorId.get(ind.id) || null;
+      ind.num_nodos = nodosPorId.get(ind.id) || 0;
+    }
+  }
+
   return indicadores.rows;
 }
 

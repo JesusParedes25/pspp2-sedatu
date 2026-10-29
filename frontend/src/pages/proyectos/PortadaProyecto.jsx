@@ -9,7 +9,7 @@
  */
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Settings, LayoutDashboard, FileText, BookText, Loader2, AlertTriangle, Clock, SlidersHorizontal, ShieldAlert } from 'lucide-react';
+import { Settings, LayoutDashboard, FileText, BookText, Loader2, AlertTriangle, Clock, SlidersHorizontal, ShieldAlert, BarChart3 } from 'lucide-react';
 import * as proyectosApi from '../../api/proyectos';
 import FichaSeccion from '../../components/common/FichaSeccion';
 
@@ -97,11 +97,26 @@ export default function PortadaProyecto() {
           to={`/proyectos/${proyectoId}/resumen`}
           icono={LayoutDashboard}
           titulo="Resumen"
-          descripcion="Consulta cómo va el proyecto: avance, indicadores, riesgos y actividad reciente."
+          descripcion="Consulta cómo va el proyecto: avance, riesgos y actividad reciente."
           cargandoContadores={cargandoResumen}
           contadores={!errorResumen && resumen && (
-            <>{resumen.avance_pct}% de avance · {resumen.indicadores_total} indicador{resumen.indicadores_total !== 1 ? 'es' : ''} · {resumen.riesgos_abiertos} riesgo{resumen.riesgos_abiertos !== 1 ? 's' : ''} abierto{resumen.riesgos_abiertos !== 1 ? 's' : ''}</>
+            <>{resumen.avance_pct}% de avance · {resumen.riesgos_abiertos} riesgo{resumen.riesgos_abiertos !== 1 ? 's' : ''} abierto{resumen.riesgos_abiertos !== 1 ? 's' : ''}</>
           )}
+        />
+        <FichaSeccion
+          to={`/proyectos/${proyectoId}/indicadores`}
+          icono={BarChart3}
+          titulo="Indicadores"
+          descripcion="Mide el resultado del proyecto: qué indicadores mide, su meta y su avance real."
+          cargandoContadores={cargandoResumen}
+          contadores={!errorResumen && resumen && (
+            <>
+              {resumen.indicadores_total} indicador{resumen.indicadores_total !== 1 ? 'es' : ''}
+              {resumen.indicadores_sin_meta > 0 && <> · {resumen.indicadores_sin_meta} sin meta</>}
+              {' '}· {formatoFechaRelativa(resumen.ultimo_movimiento_indicador)}
+            </>
+          )}
+          atajos={soloLectura ? [] : [{ etiqueta: 'Vincular indicador', to: `/proyectos/${proyectoId}/indicadores?vincular=1` }]}
         />
         <FichaSeccion
           to={`/proyectos/${proyectoId}/documentos`}
