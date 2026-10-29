@@ -14,6 +14,11 @@ const MODOS = [
   { valor: 'al_concluir', etiqueta: 'Al concluir (100%)' },
 ];
 
+// Para el texto que delimita esta vista (Parte 2.4 de "Indicadores
+// dentro del proyecto") frente a Mis indicadores y a la pestaña
+// Indicadores del proyecto — ver la nota en cada una de esas pantallas.
+const NIVEL_LABEL = { etapa: 'esta etapa', accion: 'esta acción', tarea: 'esta tarea' };
+
 export default function SeccionAportaciones({ tipo, nodoId, proyectoId, avanceEfectivo, soloLectura }) {
   const { mostrarToast } = useUI();
   const [indicadores, setIndicadores] = useState([]);
@@ -103,10 +108,14 @@ export default function SeccionAportaciones({ tipo, nodoId, proyectoId, avanceEf
 
   return (
     <div className="px-5 py-3 border-t border-gray-100">
-      <div className="flex items-center gap-2 mb-2">
+      <div className="flex items-center gap-2 mb-1">
         <BarChart3 size={12} className="text-gray-500" />
         <span className="text-xs font-semibold text-gray-600">Aportación a indicadores</span>
       </div>
+      <p className="text-[10px] text-gray-400 mb-2">
+        Solo lo que {NIVEL_LABEL[tipo] || 'este nodo'} aporta. Para ver y administrar todos los
+        indicadores del proyecto, entra a su pestaña Indicadores.
+      </p>
 
       {/* Indicadores vinculados */}
       {vinculados.map(ind => {

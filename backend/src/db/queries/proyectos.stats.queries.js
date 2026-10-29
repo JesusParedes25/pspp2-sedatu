@@ -462,14 +462,30 @@ async function contarNodosVencidos(proyectoId) {
 }
 
 /**
- * Cuenta indicadores activos del proyecto.
+ * Resumen de indicadores del proyecto para la Portada: total activos,
+ * cuántos no tienen meta definida (meta_global NULL — no pueden reportar
+ * porcentaje de avance), y la fecha del movimiento más reciente entre
+ * todos ellos. Antes esta función solo devolvía el total (un número) —
+ * se renombró en vez de ampliar su forma bajo el mismo nombre, para que
+ * cambiar qué devuelve no quede silencioso (ver la ficha "Indicadores"
+ * nueva en PortadaProyecto.jsx, que necesita los 3 datos).
  */
-async function contarIndicadoresProyecto(proyectoId) {
-  const resultado = await pool.query(
-    'SELECT COUNT(*)::int AS total FROM indicadores WHERE id_proyecto = $1 AND activo = true',
-    [proyectoId]
-  );
-  return resultado.rows[0]?.total || 0;
+async function obtenerResumenIndicadoresProyecto(proyectoId) {
+  const { rows: [conteo] } = await pool.query(`
+    SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE meta_global IS NULL)::int AS sin_meta
+    FROM indicadores WHERE id_proyecto = $1 AND activo = true
+  `, [proyectoId]);
+  const { rows: [movimiento] } = await pool.query(`
+    SELECT MAX(m.fecha) AS fecha
+    FROM indicador_movimientos m
+    JOIN indicadores i ON i.id = m.id_indicador
+    WHERE i.id_proyecto = $1 AND m.anulado_en IS NULL
+  `, [proyectoId]);
+  return {
+    total: conteo?.total || 0,
+    sin_meta: conteo?.sin_meta || 0,
+    ultimo_movimiento: movimiento?.fecha || null,
+  };
 }
 
 /**
@@ -563,7 +579,7 @@ module.exports = {
   obtenerIndicadoresConProgreso,
   contarEtapasProyecto,
   contarNodosVencidos,
-  contarIndicadoresProyecto,
+  obtenerResumenIndicadoresProyecto,
   contarParticipantesProyecto,
   obtenerActividadesSinFecha,
 };
