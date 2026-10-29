@@ -7,6 +7,12 @@
  *            ninguna acción de cambio visible, backend aparte) y
  *            muestra un estado vacío explicativo en vez de una pantalla
  *            en blanco cuando el proyecto no mide nada todavía.
+ *
+ *            Suma del encargo de seguimiento (reportado tras probar en
+ *            producción): la fila desplegada no mostraba el historial
+ *            de movimientos, y registrar uno no refrescaba la fila sin
+ *            recargar la página (la misma falla del PR #173 bloque G2,
+ *            reaparecida aquí). Los dos últimos tests cubren eso.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -26,14 +32,18 @@ vi.mock('react-router-dom', async (importOriginal) => {
 
 const listarTodosPorProyectoMock = vi.fn();
 const obtenerAportacionesIndicadorMock = vi.fn();
+const listarMovimientosIndicadorMock = vi.fn();
+const crearMovimientoIndicadorMock = vi.fn();
 vi.mock('../../../api/indicadores', () => ({
   listarTodosPorProyecto: (...args) => listarTodosPorProyectoMock(...args),
   obtenerAportacionesIndicador: (...args) => obtenerAportacionesIndicadorMock(...args),
+  listarMovimientosIndicador: (...args) => listarMovimientosIndicadorMock(...args),
+  crearMovimientoIndicador: (...args) => crearMovimientoIndicadorMock(...args),
   eliminarIndicadorConConfirm: vi.fn(),
   actualizarIndicador: vi.fn(),
   actualizarAportacion: vi.fn(),
   eliminarAportacion: vi.fn(),
-  crearMovimientoIndicador: vi.fn(),
+  anularMovimientoIndicador: vi.fn(),
   crearIndicador: vi.fn(),
   crearAportacion: vi.fn(),
 }));
@@ -92,6 +102,7 @@ describe('IndicadoresProyecto — permisos de solo lectura', () => {
     contextoProyecto({ esSoloLectura: true });
     listarTodosPorProyectoMock.mockResolvedValue([INDICADOR_INSTITUCIONAL]);
     obtenerAportacionesIndicadorMock.mockResolvedValue([]);
+    listarMovimientosIndicadorMock.mockResolvedValue([]);
     renderPantalla();
 
     await waitFor(() => expect(screen.getByText('Viviendas mejoradas')).toBeInTheDocument());
@@ -110,6 +121,7 @@ describe('IndicadoresProyecto — permisos de solo lectura', () => {
     contextoProyecto({ esSoloLectura: false });
     listarTodosPorProyectoMock.mockResolvedValue([INDICADOR_INSTITUCIONAL]);
     obtenerAportacionesIndicadorMock.mockResolvedValue([]);
+    listarMovimientosIndicadorMock.mockResolvedValue([]);
     renderPantalla();
 
     await waitFor(() => expect(screen.getByText('Viviendas mejoradas')).toBeInTheDocument());
@@ -119,6 +131,75 @@ describe('IndicadoresProyecto — permisos de solo lectura', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /Registrar movimiento/i })).toBeInTheDocument());
     expect(screen.getByRole('button', { name: /Agregar nodo/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Desvincular indicador/i })).toBeInTheDocument();
+    // Siempre visible, incluso en solo lectura: es navegación, no una mutación.
+    expect(screen.getByRole('link', { name: /Ver detalle completo/i })).toBeInTheDocument();
+  });
+});
+
+describe('IndicadoresProyecto — historial de movimientos en la fila desplegada', () => {
+  it('muestra fecha, origen, cantidad con signo, acumulado y quién registró cada movimiento', async () => {
+    contextoProyecto({ esSoloLectura: false });
+    listarTodosPorProyectoMock.mockResolvedValue([INDICADOR_INSTITUCIONAL]);
+    obtenerAportacionesIndicadorMock.mockResolvedValue([]);
+    listarMovimientosIndicadorMock.mockResolvedValue([
+      { id: 'm1', fecha: '2026-10-10', cantidad: '3', origen: 'manual', creador_nombre: 'Ana Reportera', anulado_en: null, nodo_nombre: null },
+    ]);
+    renderPantalla();
+
+    await waitFor(() => expect(screen.getByText('Viviendas mejoradas')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Viviendas mejoradas'));
+
+    await waitFor(() => expect(screen.getByText('Registro a mano')).toBeInTheDocument());
+    expect(screen.getByText(/Ana Reportera/)).toBeInTheDocument();
+    expect(screen.getByText('+3')).toBeInTheDocument();
+    expect(screen.getByText(/acumulado: 3/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Anular/i })).toBeInTheDocument();
+  });
+
+  it('en solo lectura no ofrece la acción de Anular sobre un movimiento', async () => {
+    contextoProyecto({ esSoloLectura: true });
+    listarTodosPorProyectoMock.mockResolvedValue([INDICADOR_INSTITUCIONAL]);
+    obtenerAportacionesIndicadorMock.mockResolvedValue([]);
+    listarMovimientosIndicadorMock.mockResolvedValue([
+      { id: 'm1', fecha: '2026-10-10', cantidad: '3', origen: 'manual', creador_nombre: 'Ana Reportera', anulado_en: null, nodo_nombre: null },
+    ]);
+    renderPantalla();
+
+    await waitFor(() => expect(screen.getByText('Viviendas mejoradas')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Viviendas mejoradas'));
+
+    await waitFor(() => expect(screen.getByText('Registro a mano')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: /Anular/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('IndicadoresProyecto — refresco sin recargar', () => {
+  it('después de registrar un movimiento, el valor, la fecha y el historial de la fila se actualizan solos', async () => {
+    contextoProyecto({ esSoloLectura: false });
+    listarTodosPorProyectoMock
+      .mockResolvedValueOnce([INDICADOR_INSTITUCIONAL])
+      .mockResolvedValueOnce([{ ...INDICADOR_INSTITUCIONAL, valor_actual: 1203, fecha_corte: '2026-10-15' }]);
+    obtenerAportacionesIndicadorMock.mockResolvedValue([]);
+    listarMovimientosIndicadorMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'm1', fecha: '2026-10-15', cantidad: '3', origen: 'manual', creador_nombre: 'Ana Reportera', anulado_en: null, nodo_nombre: null }]);
+    crearMovimientoIndicadorMock.mockResolvedValue({});
+    renderPantalla();
+
+    await waitFor(() => expect(screen.getByText('Viviendas mejoradas')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Viviendas mejoradas'));
+    await waitFor(() => expect(listarMovimientosIndicadorMock).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: /Registrar movimiento/i }));
+    fireEvent.change(screen.getByPlaceholderText('0'), { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar' }));
+
+    await waitFor(() => expect(crearMovimientoIndicadorMock).toHaveBeenCalled());
+    // Sin recargar la página: la misma instancia del componente vuelve a
+    // pedir la lista, los nodos y el historial de esta fila.
+    await waitFor(() => expect(listarTodosPorProyectoMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(listarMovimientosIndicadorMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByText(/Ana Reportera/)).toBeInTheDocument());
   });
 });
 

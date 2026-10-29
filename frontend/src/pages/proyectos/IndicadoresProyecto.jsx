@@ -13,11 +13,15 @@
  *
  * Esta pantalla NO reinventa ninguna pieza: reusa ModalVincularIndicador
  * (vincular uno nuevo o agregarle un nodo), ModalRegistrarMovimiento
- * (capturar avance) y ChipAportacion (listar/editar/quitar los nodos que
- * aportan, el mismo componente que ya usa la ficha de un indicador) —
- * ver DetalleIndicador.jsx, que resuelve exactamente lo mismo a nivel de
- * UN indicador. Aquí se administran TODOS los del proyecto en una sola
- * lista, con el detalle de nodos colapsado por renglón.
+ * (capturar avance), ChipAportacion (listar/editar/quitar los nodos que
+ * aportan) y HistorialMovimientosIndicador (fecha, origen, cantidad,
+ * acumulado, quién lo registró, Anular) — los mismos componentes que ya
+ * usa la ficha de un indicador, ver DetalleIndicador.jsx, que resuelve
+ * exactamente lo mismo a nivel de UN indicador. Aquí se administran
+ * TODOS los del proyecto en una sola lista, con el detalle de nodos e
+ * historial colapsados por renglón (los 5 más recientes, con un enlace
+ * al detalle completo si hay más — nunca se vuelcan decenas de
+ * renglones dentro de una fila desplegada).
  *
  * MINI-CLASE: tres vistas de indicadores, tres alcances distintos
  * ─────────────────────────────────────────────────────────────────
@@ -40,15 +44,16 @@
  * mismo criterio que RiesgosProyecto.jsx.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { useOutletContext, useSearchParams } from 'react-router-dom';
+import { useOutletContext, useSearchParams, Link } from 'react-router-dom';
 import {
-  BarChart3, Plus, ChevronDown, ChevronRight, Loader2, Link2, Pencil, Trash2, Target,
+  BarChart3, Plus, ChevronDown, ChevronRight, Loader2, Link2, Trash2, Target, ExternalLink,
 } from 'lucide-react';
 import * as indicadoresApi from '../../api/indicadores';
 import { useUI } from '../../context/UIContext';
 import ModalVincularIndicador from '../../components/indicadores/ModalVincularIndicador';
 import ModalRegistrarMovimiento from '../../components/indicadores/ModalRegistrarMovimiento';
 import ChipAportacion from '../../components/indicadores/ChipAportacion';
+import HistorialMovimientosIndicador from '../../components/indicadores/HistorialMovimientosIndicador';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import { etiquetaOrigenIndicador } from '../../utils/tiposIndicador';
 import { etiquetaUnidad } from '../../components/indicadores/SelectorIndicadorCatalogo';
@@ -65,6 +70,8 @@ export default function IndicadoresProyecto() {
   const [expandido, setExpandido] = useState(null);
   const [nodosPorIndicador, setNodosPorIndicador] = useState({});
   const [cargandoNodosDe, setCargandoNodosDe] = useState(null);
+  const [movimientosPorIndicador, setMovimientosPorIndicador] = useState({});
+  const [cargandoMovimientosDe, setCargandoMovimientosDe] = useState(null);
   // null (cerrado) | {} (vincular uno nuevo) | { indicador } (agregar nodo a uno existente)
   const [modalVincular, setModalVincular] = useState(null);
   const [registrarMovimientoPara, setRegistrarMovimientoPara] = useState(null);
@@ -112,15 +119,39 @@ export default function IndicadoresProyecto() {
     }
   }
 
+  async function cargarMovimientos(indicadorId) {
+    setCargandoMovimientosDe(indicadorId);
+    try {
+      const datos = await indicadoresApi.listarMovimientosIndicador(indicadorId);
+      setMovimientosPorIndicador(prev => ({ ...prev, [indicadorId]: datos }));
+    } catch {
+      setMovimientosPorIndicador(prev => ({ ...prev, [indicadorId]: [] }));
+    } finally {
+      setCargandoMovimientosDe(null);
+    }
+  }
+
   function toggleExpandir(ind) {
     const abrir = expandido !== ind.id;
     setExpandido(abrir ? ind.id : null);
     if (abrir && !nodosPorIndicador[ind.id]) cargarNodos(ind.id);
+    if (abrir && !movimientosPorIndicador[ind.id]) cargarMovimientos(ind.id);
   }
 
-  function refrescarNodosDe(indicadorId) {
+  // Un solo punto de refresco para las 4 acciones que pueden cambiar lo
+  // que muestra esta fila (registrar movimiento, cambiar meta, agregar/
+  // quitar/editar un nodo, anular un movimiento): valor actual,
+  // porcentaje y fecha "Último:" salen de `cargar()` (la lista
+  // completa); nodos e historial son propios de la fila. Antes de
+  // agregar el historial aquí, un registro desde esta pestaña dejaba el
+  // historial de la ficha de detalle desactualizado hasta recargar la
+  // página (la misma falla que ya se había corregido ahí en el PR #173,
+  // bloque G2) — unificar el refresco evita que vuelva a faltar en
+  // alguna de las acciones.
+  function refrescarFilaCompleta(indicadorId) {
     cargar();
     cargarNodos(indicadorId);
+    cargarMovimientos(indicadorId);
     incrementarStats?.();
   }
 
@@ -173,7 +204,7 @@ export default function IndicadoresProyecto() {
       });
       mostrarToast('Meta actualizada', 'exito');
       setEditandoMetaDe(null);
-      cargar();
+      refrescarFilaCompleta(ind.id);
     } catch (err) {
       mostrarToast(err.response?.data?.mensaje || 'No se pudo actualizar la meta', 'error');
     } finally {
@@ -234,9 +265,11 @@ export default function IndicadoresProyecto() {
               onToggle={() => toggleExpandir(ind)}
               nodos={nodosPorIndicador[ind.id]}
               cargandoNodos={cargandoNodosDe === ind.id}
+              movimientos={movimientosPorIndicador[ind.id]}
+              cargandoMovimientos={cargandoMovimientosDe === ind.id}
               soloLectura={soloLectura}
               mostrarToast={mostrarToast}
-              onNodosActualizados={() => refrescarNodosDe(ind.id)}
+              onFilaActualizada={() => refrescarFilaCompleta(ind.id)}
               onAgregarNodo={() => setModalVincular({ indicador: ind })}
               onRegistrarMovimiento={() => setRegistrarMovimientoPara(ind)}
               onDesvincular={() => iniciarDesvincular(ind)}
@@ -259,8 +292,8 @@ export default function IndicadoresProyecto() {
           onCerrar={() => setModalVincular(null)}
           onVinculado={() => {
             setModalVincular(null);
-            cargar();
-            if (modalVincular.indicador) cargarNodos(modalVincular.indicador.id);
+            if (modalVincular.indicador) refrescarFilaCompleta(modalVincular.indicador.id);
+            else cargar();
             incrementarStats?.();
           }}
         />
@@ -275,8 +308,7 @@ export default function IndicadoresProyecto() {
           onRegistrado={() => {
             setRegistrarMovimientoPara(null);
             mostrarToast('Movimiento registrado', 'exito');
-            cargar();
-            incrementarStats?.();
+            refrescarFilaCompleta(registrarMovimientoPara.id);
           }}
         />
       )}
@@ -299,8 +331,8 @@ function valorFormateado(valor, esMoneda) {
 }
 
 function FilaIndicador({
-  indicador: ind, proyectoId, abierto, onToggle, nodos, cargandoNodos, soloLectura, mostrarToast,
-  onNodosActualizados, onAgregarNodo, onRegistrarMovimiento, onDesvincular,
+  indicador: ind, proyectoId, abierto, onToggle, nodos, cargandoNodos, movimientos, cargandoMovimientos, soloLectura, mostrarToast,
+  onFilaActualizada, onAgregarNodo, onRegistrarMovimiento, onDesvincular,
   editandoMeta, valorMeta, onCambiarValorMeta, onIniciarEditarMeta, onCancelarEditarMeta, onGuardarMeta, guardandoMeta,
 }) {
   const esMoneda = ind.unidad === 'Moneda_MXN';
@@ -378,11 +410,32 @@ function FilaIndicador({
                 <button onClick={onAgregarNodo} className="flex items-center gap-1 text-gray-600 hover:text-guinda-700">
                   <Link2 size={12} /> Agregar nodo
                 </button>
-                <button onClick={onDesvincular} className="flex items-center gap-1 text-gray-400 hover:text-red-600 ml-auto">
-                  <Trash2 size={12} /> Desvincular indicador
-                </button>
               </>
             )}
+            <Link to={`/indicadores/${ind.id}`} className="flex items-center gap-1 text-gray-600 hover:text-guinda-700">
+              <ExternalLink size={12} /> Ver detalle completo
+            </Link>
+            {!soloLectura && (
+              <button onClick={onDesvincular} className="flex items-center gap-1 text-gray-400 hover:text-red-600 ml-auto">
+                <Trash2 size={12} /> Desvincular indicador
+              </button>
+            )}
+          </div>
+
+          <div>
+            <h4 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+              Historial de movimientos
+            </h4>
+            <HistorialMovimientosIndicador
+              movimientos={movimientos || []}
+              cargando={cargandoMovimientos}
+              esMoneda={esMoneda}
+              soloLectura={soloLectura}
+              onActualizado={onFilaActualizada}
+              mostrarToast={mostrarToast}
+              limite={5}
+              enlaceVerTodos={`/indicadores/${ind.id}`}
+            />
           </div>
 
           <div>
@@ -409,7 +462,7 @@ function FilaIndicador({
                       etiquetaPrincipal={nombreNodo}
                       subtitulo={subtitulo}
                       soloLectura={soloLectura}
-                      onActualizado={onNodosActualizados}
+                      onActualizado={onFilaActualizada}
                       mostrarToast={mostrarToast}
                       categorias={esPorCategorias ? ind.categorias : undefined}
                     />
