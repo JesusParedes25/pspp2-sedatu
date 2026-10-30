@@ -43,6 +43,7 @@ function FlyController({ bounds }) {
  * @param {object} props.estadosGeoJSON        FeatureCollection nacional de estados (o ZM si escala='zm')
  * @param {object|null} props.estadoActivo      { cve_ent, bounds } del estado seleccionado (drill-down activo)
  * @param {(cve:string)=>number} props.estadoIntensidad  0..1 para el degradado guinda del estado
+ * @param {(cve:string)=>(string|null)} [props.estadoColor]  Color fijo opcional por estado (p.ej. el semáforo de urgencia) — si devuelve un color, pinta con ese color plano en vez del degradado guinda de estadoIntensidad. Pensado para un selector de modo de coloreado (ver MapaTerritorial.jsx); quien no lo pase conserva el comportamiento de siempre.
  * @param {(cve:string, nombre:string, layer)=>void} props.onClickEstado
  * @param {(data:{cve_ent,nombre,x,y}|null)=>void} props.onHoverEstado
  * @param {object|null} props.municipiosGeoJSON FeatureCollection de municipios del estado activo (drill-down)
@@ -52,7 +53,7 @@ function FlyController({ bounds }) {
  * @param {string} props.propEstado  nombre de la propiedad en el geojson de estado que trae la clave ('cve_ent')
  */
 export default function MapaDrillDown({
-  estadosGeoJSON, estadoActivo, estadoIntensidad, onClickEstado, onHoverEstado,
+  estadosGeoJSON, estadoActivo, estadoIntensidad, estadoColor, onClickEstado, onHoverEstado,
   municipiosGeoJSON, municipiosActivos, onClickMunicipio, onHoverMunicipio,
   propEstado = 'cve_ent',
 }) {
@@ -67,10 +68,12 @@ export default function MapaDrillDown({
       // pero conserva el borde grueso como referencia del área seleccionada.
       return { color: GUINDA_DARK, weight: 3, fillColor: GUINDA, fillOpacity: 0.1 };
     }
+    const colorFijo = estadoColor?.(cve);
+    if (colorFijo) return { color: colorFijo, weight: 1.5, fillColor: colorFijo, fillOpacity: 0.55 };
     const ratio = estadoIntensidad ? estadoIntensidad(cve) : 0;
     if (ratio <= 0) return ESTADO_BASE;
     return { color: GUINDA_DARK, weight: 1.5, fillColor: GUINDA, fillOpacity: 0.12 + ratio * 0.55 };
-  }, [estadoIntensidad, propEstado]);
+  }, [estadoIntensidad, estadoColor, propEstado]);
 
   useEffect(() => {
     Object.values(estadosLayerRef.current).forEach(layer => {
