@@ -102,6 +102,27 @@ async function obtenerMapaZmInicio(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// GET /inicio/mapa/urgencia?proyecto_ids=&cartera_id= — semáforo más
+// urgente por estado, para el modo "Urgencia" del selector de coloreado
+// del mapa (alternativa a "Proyectos por estado", que no distingue
+// urgencia). Mismo filtro de alcance que /inicio/mapa.
+async function obtenerUrgenciaMapaInicio(req, res, next) {
+  try {
+    const proyectoIds = await aplicarFiltroTablero(await alcanceProyectosUsuario(req.usuario), req.query);
+    const datos = await geoQueries.obtenerUrgenciaPorEstado(proyectoIds);
+    res.json({ datos });
+  } catch (err) { next(err); }
+}
+
+// Mismo endpoint que obtenerUrgenciaMapaInicio pero por ZM.
+async function obtenerUrgenciaMapaZmInicio(req, res, next) {
+  try {
+    const proyectoIds = await aplicarFiltroTablero(await alcanceProyectosUsuario(req.usuario), req.query);
+    const datos = await geoQueries.obtenerUrgenciaPorZM(proyectoIds);
+    res.json({ datos });
+  } catch (err) { next(err); }
+}
+
 // Determina el filtro de acceso del usuario para el drill-down territorial:
 // null = ve todo (superadmin/ejecutivo). Punto de consolidación (Fase 1 del
 // modelo de permisos, docs/modelo-permisos.md sección 6.3): esta función ya
@@ -169,6 +190,8 @@ module.exports = {
   obtenerMapaTerritorial,
   obtenerMapaInicio,
   obtenerMapaZmInicio,
+  obtenerUrgenciaMapaInicio,
+  obtenerUrgenciaMapaZmInicio,
   obtenerDetalleEstado,
   obtenerMunicipiosActividadEstado,
   obtenerDetalleZM,

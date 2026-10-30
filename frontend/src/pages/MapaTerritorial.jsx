@@ -1,14 +1,17 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import L from 'leaflet';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Map, AlertTriangle, TrendingUp, Clock, ChevronLeft, ChevronRight,
-  Layers, Target, Activity, Search, X, Building2,
+  Layers, Target, Activity, Search, X, Building2, User,
 } from 'lucide-react';
 import client from '../api/client';
 import MapaDrillDown, { MEXICO_CENTER, MEXICO_ZOOM, VERDE_MUNICIPIO } from '../components/mapa/MapaDrillDown';
 import EtiquetaFiltroInput from '../components/common/EtiquetaFiltroInput';
 import { COLORES_SEMAFORO } from '../components/common/SemaforoDot';
+import LeyendaSemaforo from '../components/common/LeyendaSemaforo';
+import ModalRegistrarAvance from '../components/nodos/ModalRegistrarAvance';
+import { usePermisosProyecto, permisosDeNodo } from '../hooks/usePermisos';
 import 'leaflet/dist/leaflet.css';
 
 const GUINDA = '#7B1C3E';
@@ -93,7 +96,7 @@ function BloqueProyectos({ proyectos }) {
             className="block p-2.5 rounded-lg border border-gray-100 hover:border-[#7B1C3E]/30 hover:bg-[#fbf3f6] transition-colors group">
             <div className="flex items-start justify-between gap-2 mb-1">
               <span className="text-xs font-medium text-gray-800 group-hover:text-[#7B1C3E] leading-snug">{p.nombre}</span>
-              <span className="text-[10px] text-gray-400 flex-shrink-0">{p.num_etapas_aqui} etapa{p.num_etapas_aqui !== 1 ? 's' : ''} aquí</span>
+              <span className="text-[10px] text-gray-400 flex-shrink-0">{p.num_etapas_aqui} elemento{p.num_etapas_aqui !== 1 ? 's' : ''} aquí</span>
             </div>
             <BarraAvance pct={p.avance} />
           </Link>
@@ -103,28 +106,33 @@ function BloqueProyectos({ proyectos }) {
   );
 }
 
+// Muestra solo lo reportado desde un nodo con cobertura en esta área — no
+// el total del proyecto completo (que antes se mostraba igual en cualquier
+// estado donde el proyecto tuviera presencia, aunque el reporte real fuera
+// de otra parte del país). Por eso nunca compara contra la meta global del
+// proyecto: un numerador parcial (solo aquí) contra una meta de todo el
+// proyecto sería otra forma de atribución engañosa, así que esta vista es
+// solo numeralía — un indicador sin ningún reporte desde un nodo de aquí
+// simplemente no aparece en la lista.
 function BloqueIndicadores({ indicadores }) {
   if (!indicadores.length) return null;
   return (
     <Seccion titulo="Indicadores" icono={TrendingUp} iconoCls="text-blue-500">
+      <p className="text-[10px] text-gray-400 -mt-2 mb-2.5">Solo lo reportado desde nodos de aquí.</p>
       <div className="space-y-2.5">
-        {indicadores.map((ind, i) => (
-          <div key={i} className="flex items-start gap-3">
+        {indicadores.map(ind => (
+          <Link key={ind.id} to={`/indicadores/${ind.id}`}
+            className="flex items-start gap-3 -mx-1 px-1 py-0.5 rounded hover:bg-gray-50 group transition-colors">
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-gray-700 truncate">{ind.nombre}</p>
-              <p className="text-[10px] text-gray-400">
-                {ind.pct_meta !== null ? `${ind.pct_meta}% de meta · ${ind.unidad}` : `Sin meta · numeralía`}
-              </p>
+              <p className="text-xs font-medium text-gray-700 group-hover:text-[#7B1C3E] truncate">{ind.nombre}</p>
+              <p className="text-[10px] text-gray-400">{ind.unidad}</p>
             </div>
             <div className="flex-shrink-0 text-right">
-              <span className="text-base font-bold" style={{ color: ind.pct_meta !== null ? '#22c55e' : '#a8864b' }}>
-                {Number(ind.realizado).toLocaleString('es-MX')}
+              <span className="text-base font-bold" style={{ color: '#a8864b' }}>
+                {Number(ind.realizado_aqui).toLocaleString('es-MX')}
               </span>
-              {ind.pct_meta !== null && (
-                <span className="text-[10px] text-gray-400 block">/ {Number(ind.meta_global).toLocaleString('es-MX')}</span>
-              )}
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     </Seccion>
@@ -134,21 +142,36 @@ function BloqueIndicadores({ indicadores }) {
 // Una fila (etapa o hijo indentado). `subtitulo` opcional: solo se
 // muestra cuando aporta algo nuevo — un hijo directo de la etapa no
 // necesita repetir el nombre de la etapa bajo la que ya está agrupado.
-// El link lleva el nodo específico (?tab=seguimiento&nodo=) — mismo patrón
-// de deep-link que MisActividades.jsx/ListaEstatusCualitativo.jsx — antes
-// solo llevaba a la vista general del proyecto y el clic "se perdía".
-function FilaNodo({ item, subtitulo }) {
+// El link lleva directo a Seguimiento con el nodo ya seleccionado y
+// enfocado en el árbol (?nodo=&foco=, mismo par que usa irANodo en
+// EtapasAvancesMD/index.jsx) — antes solo llevaba a la vista general del
+// proyecto (?tab=seguimiento&nodo=, formato viejo sin foco) y el clic "se
+// perdía" sin abrir/expandir el nodo correcto.
+// `permisos`/`onRegistrarAvance` son opcionales: quien no los pase (no
+// hay ningún otro caso hoy) simplemente no ve la acción de "Registrar
+// avance" — el botón vive FUERA del <Link> (hermano, no hijo) para no
+// anidar un botón dentro de un elemento clicable.
+function FilaNodo({ item, subtitulo, permisos, onRegistrarAvance }) {
+  const soloLectura = permisosDeNodo(permisos, item.tipo, item.id)?.esSoloLectura ?? true;
   return (
-    <Link to={`/proyectos/${item.id_proyecto}?tab=seguimiento&nodo=${item.id}`}
-      className="flex items-center gap-2 py-1 hover:bg-gray-50 rounded px-1 -mx-1 transition-colors">
-      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO[item.semaforo_efectivo || item.semaforo || 'gris'] }} />
-      <TipoBadge tipo={item.tipo} />
-      <div className="flex-1 min-w-0">
-        <p className="text-xs text-gray-800 truncate">{item.nombre}</p>
-        {subtitulo && <p className="text-[10px] text-gray-400 italic truncate">{subtitulo}</p>}
-      </div>
-      <span className="text-[10px] text-gray-500 tabular-nums flex-shrink-0">{item.avance}%</span>
-    </Link>
+    <div className="flex items-center gap-1 -mx-1 px-1 rounded hover:bg-gray-50 transition-colors">
+      <Link to={`/proyectos/${item.id_proyecto}/seguimiento?nodo=${item.id}&foco=${item.id}`}
+        className="flex items-center gap-2 py-1 flex-1 min-w-0">
+        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORES_SEMAFORO[item.semaforo_efectivo || item.semaforo || 'gris'] }} />
+        <TipoBadge tipo={item.tipo} />
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-gray-800 truncate">{item.nombre}</p>
+          {subtitulo && <p className="text-[10px] text-gray-400 italic truncate">{subtitulo}</p>}
+        </div>
+        <span className="text-[10px] text-gray-500 tabular-nums flex-shrink-0">{item.avance}%</span>
+      </Link>
+      {onRegistrarAvance && !soloLectura && (
+        <button onClick={() => onRegistrarAvance(item)} title="Registrar avance"
+          className="flex-shrink-0 p-1 rounded text-gray-400 hover:text-[#7B1C3E] hover:bg-[#fbf3f6] transition-colors">
+          <TrendingUp size={13} />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -210,48 +233,62 @@ function agruparPorProyectoYEtapa(etapas) {
 // Fila de un nodo más, recursivamente, sus hijos anidados un nivel más
 // adentro con su propia línea tenue — así una subacción cuelga de su
 // acción raíz, y una tarea de la subacción o acción a la que pertenece.
-function FilaNodoConHijos({ item }) {
+function FilaNodoConHijos({ item, permisos, onRegistrarAvance }) {
   const hijos = item._hijos || [];
   return (
     <div>
-      <FilaNodo item={item} subtitulo={item._huerfano ? `de: ${item.nombre_padre}` : null} />
+      <FilaNodo item={item} subtitulo={item._huerfano ? `de: ${item.nombre_padre}` : null}
+        permisos={permisos} onRegistrarAvance={onRegistrarAvance} />
       {hijos.length > 0 && (
         <div className="ml-2.5 pl-2.5 border-l-2 border-gray-100 mt-1 space-y-1">
-          {hijos.map(h => <FilaNodoConHijos key={h.id} item={h} />)}
+          {hijos.map(h => <FilaNodoConHijos key={h.id} item={h} permisos={permisos} onRegistrarAvance={onRegistrarAvance} />)}
         </div>
       )}
     </div>
   );
 }
 
-function BloqueEtapas({ etapas }) {
+// Un grupo por proyecto, con sus propios permisos — Territorio mezcla
+// nodos de muchos proyectos distintos en la misma lista, así que no hay
+// un solo `permisos` para toda la pantalla como en Seguimiento (que vive
+// adentro de un proyecto): cada grupo pide los suyos una sola vez
+// (usePermisosProyecto ya cachea por proyecto+usuario) y los reparte a
+// sus filas.
+function GrupoProyecto({ proy, onRegistrarAvance }) {
+  const permisos = usePermisosProyecto(useMemo(() => ({ id: proy.id }), [proy.id]));
+  return (
+    <div>
+      <Link to={`/proyectos/${proy.id}`} className="text-[11px] font-semibold text-[#7B1C3E] hover:underline block mb-1.5 truncate">
+        {proy.nombre}
+      </Link>
+      <div className="space-y-2.5">
+        {proy.gruposEtapa.map(grupo => (
+          <div key={grupo.id || 'sin-etapa'}>
+            {grupo.filaEtapa ? (
+              <FilaNodo item={grupo.filaEtapa} permisos={permisos} onRegistrarAvance={onRegistrarAvance} />
+            ) : (
+              <p className="text-[11px] font-medium text-gray-500 truncate">{grupo.nombre}</p>
+            )}
+            {grupo.raices.length > 0 && (
+              <div className="ml-2.5 pl-2.5 border-l-2 border-gray-100 mt-1 space-y-1">
+                {grupo.raices.map(h => <FilaNodoConHijos key={h.id} item={h} permisos={permisos} onRegistrarAvance={onRegistrarAvance} />)}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BloqueEtapas({ etapas, onRegistrarAvance }) {
   const porProyecto = useMemo(() => agruparPorProyectoYEtapa(etapas), [etapas]);
   if (!etapas.length) return null;
   return (
     <Seccion titulo="Etapas, acciones y tareas aquí" icono={Layers} iconoCls="text-indigo-500">
       <div className="space-y-4">
         {porProyecto.map(proy => (
-          <div key={proy.id}>
-            <Link to={`/proyectos/${proy.id}`} className="text-[11px] font-semibold text-[#7B1C3E] hover:underline block mb-1.5 truncate">
-              {proy.nombre}
-            </Link>
-            <div className="space-y-2.5">
-              {proy.gruposEtapa.map(grupo => (
-                <div key={grupo.id || 'sin-etapa'}>
-                  {grupo.filaEtapa ? (
-                    <FilaNodo item={grupo.filaEtapa} />
-                  ) : (
-                    <p className="text-[11px] font-medium text-gray-500 truncate">{grupo.nombre}</p>
-                  )}
-                  {grupo.raices.length > 0 && (
-                    <div className="ml-2.5 pl-2.5 border-l-2 border-gray-100 mt-1 space-y-1">
-                      {grupo.raices.map(h => <FilaNodoConHijos key={h.id} item={h} />)}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
+          <GrupoProyecto key={proy.id} proy={proy} onRegistrarAvance={onRegistrarAvance} />
         ))}
       </div>
     </Seccion>
@@ -283,22 +320,24 @@ function BloqueVencimientos({ vencidos, por_vencer }) {
     <Seccion titulo="Vencimientos" icono={Clock} iconoCls="text-red-400">
       <div className="space-y-1.5">
         {vencidos.map((v, i) => (
-          <div key={i} className="flex items-center gap-2">
+          <Link key={i} to={`/proyectos/${v.id_proyecto}/seguimiento?nodo=${v.id_nodo}&foco=${v.id_nodo}`}
+            className="flex items-center gap-2 -mx-1 px-1 py-0.5 rounded hover:bg-gray-50 group transition-colors">
             <span className="flex-shrink-0 text-[10px] font-bold bg-red-100 text-red-600 rounded px-1.5 py-0.5 tabular-nums">{v.dias}d</span>
             <div className="min-w-0">
-              <p className="text-xs text-gray-700 truncate">{v.nombre}</p>
+              <p className="text-xs text-gray-700 group-hover:text-[#7B1C3E] truncate">{v.nombre}</p>
               <p className="text-[10px] text-gray-400 truncate">{v.nombre_proyecto}</p>
             </div>
-          </div>
+          </Link>
         ))}
         {por_vencer.map((v, i) => (
-          <div key={i} className="flex items-center gap-2">
+          <Link key={i} to={`/proyectos/${v.id_proyecto}/seguimiento?nodo=${v.id_nodo}&foco=${v.id_nodo}`}
+            className="flex items-center gap-2 -mx-1 px-1 py-0.5 rounded hover:bg-gray-50 group transition-colors">
             <span className="flex-shrink-0 text-[10px] font-bold bg-amber-100 text-amber-600 rounded px-1.5 py-0.5 tabular-nums">+{v.dias}d</span>
             <div className="min-w-0">
-              <p className="text-xs text-gray-700 truncate">{v.nombre}</p>
+              <p className="text-xs text-gray-700 group-hover:text-[#7B1C3E] truncate">{v.nombre}</p>
               <p className="text-[10px] text-gray-400 truncate">{v.nombre_proyecto}</p>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     </Seccion>
@@ -306,7 +345,7 @@ function BloqueVencimientos({ vencidos, por_vencer }) {
 }
 
 // ─── Sidebar: detalle de Estado o ZM (rico, viene del backend) ────
-function SidebarDetalleEstadoZM({ detalle, tipo, onVolver, breadcrumb }) {
+function SidebarDetalleEstadoZM({ detalle, tipo, onVolver, breadcrumb, filtrosActivos, onRegistrarAvance }) {
   const { nombre, cve_ent, cve_met, num_proyectos, num_etapas, num_riesgos, avance_promedio,
     proyectos, indicadores, etapas, riesgos, vencidos, por_vencer } = detalle;
 
@@ -329,14 +368,23 @@ function SidebarDetalleEstadoZM({ detalle, tipo, onVolver, breadcrumb }) {
       <div className="flex-1 overflow-y-auto px-4 pb-6">
         <BloqueProyectos proyectos={proyectos} />
         <BloqueIndicadores indicadores={indicadores} />
-        <BloqueEtapas etapas={etapas} />
+        <BloqueEtapas etapas={etapas} onRegistrarAvance={onRegistrarAvance} />
         <BloqueRiesgos riesgos={riesgos} />
         <BloqueVencimientos vencidos={vencidos} por_vencer={por_vencer} />
         {proyectos.length === 0 && etapas.length === 0 && (
           <div className="flex flex-col items-center justify-center py-12 text-gray-400">
             <Activity size={28} className="mb-2 text-gray-200" />
-            <p className="text-sm">Sin actividad registrada aquí</p>
-            <p className="text-xs mt-1">Asigna esta ubicación a etapas o acciones.</p>
+            {filtrosActivos ? (
+              <>
+                <p className="text-sm">Nada aquí coincide con el filtro activo</p>
+                <p className="text-xs mt-1">Quita "Solo lo mío" o "Solo lo vencido" para ver todo.</p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm">Sin actividad registrada aquí</p>
+                <p className="text-xs mt-1">Asigna esta ubicación a etapas o acciones.</p>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -345,7 +393,7 @@ function SidebarDetalleEstadoZM({ detalle, tipo, onVolver, breadcrumb }) {
 }
 
 // ─── Sidebar: detalle de Municipio (armado en cliente desde municipios-actividad) ──
-function SidebarDetalleMunicipio({ municipio, onVolver, breadcrumb }) {
+function SidebarDetalleMunicipio({ municipio, onVolver, breadcrumb, onRegistrarAvance }) {
   const { nombre, cvegeo, etapas } = municipio;
   const porProyecto = useMemo(() => {
     const acc = {};
@@ -353,7 +401,11 @@ function SidebarDetalleMunicipio({ municipio, onVolver, breadcrumb }) {
       if (!acc[et.id_proyecto]) acc[et.id_proyecto] = { id: et.id_proyecto, nombre: et.nombre_proyecto, suma: 0, cuenta: 0, num_etapas_aqui: 0 };
       acc[et.id_proyecto].suma += et.avance;
       acc[et.id_proyecto].cuenta++;
-      if (et.tipo === 'etapa') acc[et.id_proyecto].num_etapas_aqui++;
+      // Cuenta etapas+acciones+tareas, no solo etapas — mismo fix que
+      // geografia.queries.js (obtenerDetalleEstado/ZM): antes este número
+      // no coincidía con la lista de BloqueEtapas de abajo, que sí incluye
+      // los tres tipos.
+      acc[et.id_proyecto].num_etapas_aqui++;
     }
     return Object.values(acc).map(p => ({
       id: p.id, nombre: p.nombre,
@@ -381,7 +433,7 @@ function SidebarDetalleMunicipio({ municipio, onVolver, breadcrumb }) {
       />
       <div className="flex-1 overflow-y-auto px-4 pb-6">
         <BloqueProyectos proyectos={porProyecto} />
-        <BloqueEtapas etapas={etapas} />
+        <BloqueEtapas etapas={etapas} onRegistrarAvance={onRegistrarAvance} />
         <p className="text-[10px] text-gray-400 mt-4 text-center">
           Indicadores, riesgos y vencimientos se muestran a nivel estado.
         </p>
@@ -412,6 +464,7 @@ function Toolbar({
   estadosOpciones, estadoClaveSel, onSeleccionarEstado,
   municipiosOpciones, municipioClaveSel, onSeleccionarMunicipio,
   zmOpciones, zmClaveSel, onSeleccionarZm,
+  soloLoMio, onSoloLoMio, soloLoVencido, onSoloLoVencido,
 }) {
   const [menuMasAbierto, setMenuMasAbierto] = useState(false);
   const [mostrarResultados, setMostrarResultados] = useState(false);
@@ -507,6 +560,23 @@ function Toolbar({
           )}
         </div>
 
+        <div className="h-4 w-px bg-gray-200" />
+
+        {/* Solo lo mío / Solo lo vencido — combinables entre sí y con el
+            filtro de proyecto de arriba. Viven en la URL (?mio=1&vencido=1)
+            para que la vista se pueda compartir o guardar con el mismo
+            recorte puesto. */}
+        <div className="flex items-center gap-1.5">
+          <button onClick={onSoloLoMio} title="Solo proyectos donde participo"
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${soloLoMio ? 'bg-[#7B1C3E] text-white' : 'bg-gray-100 text-gray-500 hover:text-gray-700'}`}>
+            <User size={11} /> Solo lo mío
+          </button>
+          <button onClick={onSoloLoVencido} title="Solo nodos con fecha vencida"
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${soloLoVencido ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-500 hover:text-gray-700'}`}>
+            <Clock size={11} /> Solo lo vencido
+          </button>
+        </div>
+
         {/* Buscador */}
         <div className="relative ml-auto w-64">
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -563,6 +633,50 @@ export default function MapaTerritorial() {
   const [mapaDataZm, setMapaDataZm] = useState([]);
   const [proyectosDisponibles, setProyectosDisponibles] = useState([]);
   const [cargandoMapa, setCargandoMapa] = useState(true);
+  // IDs de "mis proyectos" (participacion=participo, mismo filtro ya usado
+  // en /proyectos — ver proyectos.queries.js) para el toggle "Solo lo mío".
+  const [misProyectoIds, setMisProyectoIds] = useState(() => new Set());
+
+  // "Solo lo mío"/"Solo lo vencido" viven en la URL (?mio=1&vencido=1), no
+  // en useState, para que la vista se pueda compartir o guardar con el
+  // mismo recorte puesto — a diferencia del resto de los filtros de este
+  // toolbar (proyecto, etiqueta, búsqueda), que el usuario no pidió llevar
+  // ahí.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const soloLoMio = searchParams.get('mio') === '1';
+  const soloLoVencido = searchParams.get('vencido') === '1';
+  function toggleSoloLoMio() {
+    const next = new URLSearchParams(searchParams);
+    if (soloLoMio) next.delete('mio'); else next.set('mio', '1');
+    setSearchParams(next, { replace: true });
+  }
+  function toggleSoloLoVencido() {
+    const next = new URLSearchParams(searchParams);
+    if (soloLoVencido) next.delete('vencido'); else next.set('vencido', '1');
+    setSearchParams(next, { replace: true });
+  }
+
+  // Nodo con el modal "Registrar avance" abierto (Parte 5) — el MISMO
+  // modal que usa Seguimiento, no una copia. item.estatus/avance tienen
+  // otro nombre que lo que el modal espera (estado/avance_actual), de ahí
+  // el pequeño adaptador en abrirRegistrarAvance.
+  const [nodoAvance, setNodoAvance] = useState(null);
+  function abrirRegistrarAvance(item) {
+    setNodoAvance({
+      tipo: item.tipo,
+      esContenedor: !!item.es_contenedor,
+      nodo: { id: item.id, nombre: item.nombre, estado: item.estatus, avance_actual: item.avance },
+    });
+  }
+
+  // Modo de coloreado del mapa: 'proyectos' (default, cuenta 1..4 por
+  // estado) o 'urgencia' (peor semáforo del estado, mismo modelo y colores
+  // que ya usa Seguimiento — ver SemaforoDot/LeyendaSemaforo). No vive en
+  // la URL: el usuario no lo pidió ahí, a diferencia de soloLoMio/soloLoVencido.
+  const [modoColor, setModoColor] = useState('proyectos');
+  const [urgenciaPorEstado, setUrgenciaPorEstado] = useState([]);
+  const [urgenciaPorZm, setUrgenciaPorZm] = useState([]);
+  const [cargandoUrgencia, setCargandoUrgencia] = useState(false);
 
   const [scale, setScale] = useState('estados');
   const [filtroProyecto, setFiltroProyecto] = useState(null);
@@ -594,12 +708,17 @@ export default function MapaTerritorial() {
       client.get('/inicio/mapa'),
       client.get('/inicio/mapa/zm'),
       client.get('/proyectos', { params: { limite: 100 } }),
+      // participacion=participo: el mismo filtro "es lo mío" que ya usa la
+      // pantalla Proyectos (proyectos.queries.js) — no es control de
+      // acceso, es encontrar lo propio dentro de todo lo que ya se ve.
+      client.get('/proyectos', { params: { limite: 200, participacion: 'participo' } }),
     ])
-      .then(([geoRes, mapaRes, mapaZmRes, proyRes]) => {
+      .then(([geoRes, mapaRes, mapaZmRes, proyRes, misProyRes]) => {
         setGeoJSON(geoRes.data);
         setMapaData(mapaRes.data.datos || []);
         setMapaDataZm(mapaZmRes.data.datos || []);
         setProyectosDisponibles((proyRes.data.datos?.proyectos || []).map(p => ({ id: p.id, nombre: p.nombre, etiquetas: p.etiquetas || [] })));
+        setMisProyectoIds(new Set((misProyRes.data.datos?.proyectos || []).map(p => p.id)));
       })
       .catch(console.error)
       .finally(() => setCargandoMapa(false));
@@ -612,23 +731,88 @@ export default function MapaTerritorial() {
     }
   }, [scale, zmGeoJSON]);
 
+  // Urgencia por estado/ZM — solo se pide cuando el usuario de verdad
+  // cambia al modo "Urgencia" del selector de coloreado (evitar pedirlo de
+  // entrada cuando la mayoría ni lo usa). Se re-pide si cambia el filtro de
+  // proyecto o "Solo lo mío" (mismo proyecto_ids que ya soporta este
+  // endpoint para /inicio/mapa — aplicarFiltroTablero, geo.controller.js),
+  // para que el color pintado respete los mismos filtros que el modo
+  // "Proyectos". "Solo lo vencido" no participa aquí: el color ya resume
+  // el semáforo entero del estado, filtrar solo por vencidos antes de
+  // reducir no distinguiría casi nada de "rojo".
+  // Extraída de su propio efecto (que la dispara al cambiar de modo/filtro)
+  // para poder volver a pedirla también después de registrar un avance
+  // desde el panel (ver refrescarDetalleActual) — sin eso, el color de
+  // "Urgencia" se quedaba desactualizado tras guardar hasta el siguiente
+  // cambio de filtro.
+  const cargarUrgencia = useCallback(() => {
+    let idsEfectivos;
+    if (filtroProyecto && soloLoMio) idsEfectivos = misProyectoIds.has(filtroProyecto) ? [filtroProyecto] : [];
+    else if (filtroProyecto) idsEfectivos = [filtroProyecto];
+    else if (soloLoMio) idsEfectivos = [...misProyectoIds];
+    // Lista vacía (filtroProyecto no está entre "mis proyectos"): no hay
+    // nada que pedir — una cadena vacía en proyecto_ids la ignoraría
+    // aplicarFiltroTablero y traería de vuelta TODO, justo lo contrario de
+    // lo que el filtro combinado pide.
+    if (idsEfectivos && idsEfectivos.length === 0) {
+      setUrgenciaPorEstado([]);
+      setUrgenciaPorZm([]);
+      return Promise.resolve();
+    }
+    const params = idsEfectivos ? { proyecto_ids: idsEfectivos.join(',') } : {};
+    setCargandoUrgencia(true);
+    return Promise.all([
+      client.get('/inicio/mapa/urgencia', { params }),
+      client.get('/inicio/mapa/zm/urgencia', { params }),
+    ])
+      .then(([estRes, zmRes]) => {
+        setUrgenciaPorEstado(estRes.data.datos || []);
+        setUrgenciaPorZm(zmRes.data.datos || []);
+      })
+      .catch(console.error)
+      .finally(() => setCargandoUrgencia(false));
+  }, [filtroProyecto, soloLoMio, misProyectoIds]);
+
+  // Urgencia por estado/ZM — solo se pide cuando el usuario de verdad
+  // cambia al modo "Urgencia" del selector de coloreado (evitar pedirlo de
+  // entrada cuando la mayoría ni lo usa). Se re-pide si cambia el filtro de
+  // proyecto o "Solo lo mío" (mismo proyecto_ids que ya soporta este
+  // endpoint para /inicio/mapa — aplicarFiltroTablero, geo.controller.js),
+  // para que el color pintado respete los mismos filtros que el modo
+  // "Proyectos". "Solo lo vencido" no participa aquí: el color ya resume
+  // el semáforo entero del estado, filtrar solo por vencidos antes de
+  // reducir no distinguiría casi nada de "rojo".
+  useEffect(() => {
+    if (modoColor !== 'urgencia') return;
+    cargarUrgencia();
+  }, [modoColor, cargarUrgencia]);
+
   // Proyectos que ofrecer como chip en "Filtro de proyecto", acotados por
   // etiqueta cuando hay una elegida — mismo dato ya traído para el
-  // selector, sin pedir nada nuevo.
+  // selector, sin pedir nada nuevo. "Solo lo mío" también acota esta lista:
+  // no tiene sentido ofrecer como chip un proyecto que el filtro activo ya
+  // esconde del mapa.
   const proyectosDisponiblesFiltrados = useMemo(() => {
-    if (!filtroEtiqueta) return proyectosDisponibles;
     return proyectosDisponibles.filter(p =>
-      (p.etiquetas || []).some(et => et.toLowerCase() === filtroEtiqueta.toLowerCase())
+      (!filtroEtiqueta || (p.etiquetas || []).some(et => et.toLowerCase() === filtroEtiqueta.toLowerCase()))
+      && (!soloLoMio || misProyectoIds.has(p.id))
     );
-  }, [proyectosDisponibles, filtroEtiqueta]);
+  }, [proyectosDisponibles, filtroEtiqueta, soloLoMio, misProyectoIds]);
 
   // ─── Datos nacionales filtrados por proyecto (client-side) ────
+  // "Solo lo mío" se combina con el filtro de proyecto de siempre: ambos
+  // acotan la misma lista `proyectos` de cada estado, uno detrás del otro.
   const mapaDataFiltrada = useMemo(() => {
-    if (!filtroProyecto) return mapaData;
+    if (!filtroProyecto && !soloLoMio) return mapaData;
     return mapaData
-      .map(e => ({ ...e, proyectos: e.proyectos.filter(p => p.id === filtroProyecto) }))
+      .map(e => ({
+        ...e,
+        proyectos: e.proyectos.filter(p =>
+          (!filtroProyecto || p.id === filtroProyecto) && (!soloLoMio || misProyectoIds.has(p.id))
+        ),
+      }))
       .filter(e => e.proyectos.length > 0);
-  }, [mapaData, filtroProyecto]);
+  }, [mapaData, filtroProyecto, soloLoMio, misProyectoIds]);
 
   const estadosMap = useMemo(
     () => Object.fromEntries(mapaDataFiltrada.map(e => [e.cve_ent, e])),
@@ -650,11 +834,16 @@ export default function MapaTerritorial() {
   // hover de ZM siempre buscaba en estadosMap (que solo tiene claves de
   // estado), por eso siempre mostraba "Sin actividad".
   const mapaDataZmFiltrada = useMemo(() => {
-    if (!filtroProyecto) return mapaDataZm;
+    if (!filtroProyecto && !soloLoMio) return mapaDataZm;
     return mapaDataZm
-      .map(z => ({ ...z, proyectos: z.proyectos.filter(p => p.id === filtroProyecto) }))
+      .map(z => ({
+        ...z,
+        proyectos: z.proyectos.filter(p =>
+          (!filtroProyecto || p.id === filtroProyecto) && (!soloLoMio || misProyectoIds.has(p.id))
+        ),
+      }))
       .filter(z => z.proyectos.length > 0);
-  }, [mapaDataZm, filtroProyecto]);
+  }, [mapaDataZm, filtroProyecto, soloLoMio, misProyectoIds]);
   const zmMap = useMemo(
     () => Object.fromEntries(mapaDataZmFiltrada.map(z => [String(z.gid), z])),
     [mapaDataZmFiltrada]
@@ -666,6 +855,26 @@ export default function MapaTerritorial() {
   const zmIntensidad = useCallback(
     (gid) => (zmMap[gid] ? (zmMap[gid].proyectos?.length || 0) / maxProyZm : 0),
     [zmMap, maxProyZm]
+  );
+
+  // Modo "Urgencia": color fijo por semáforo en vez del degradado por
+  // cantidad — mismos colores que ya usa Seguimiento (COLORES_SEMAFORO,
+  // SemaforoDot.jsx), no un modelo nuevo.
+  const urgenciaEstadoMap = useMemo(
+    () => Object.fromEntries(urgenciaPorEstado.map(e => [e.cve_ent, e.semaforo_peor])),
+    [urgenciaPorEstado]
+  );
+  const urgenciaZmMap = useMemo(
+    () => Object.fromEntries(urgenciaPorZm.map(z => [String(z.gid), z.semaforo_peor])),
+    [urgenciaPorZm]
+  );
+  const estadoColorUrgencia = useCallback(
+    (cve) => (urgenciaEstadoMap[cve] ? COLORES_SEMAFORO[urgenciaEstadoMap[cve]] : null),
+    [urgenciaEstadoMap]
+  );
+  const zmColorUrgencia = useCallback(
+    (gid) => (urgenciaZmMap[gid] ? COLORES_SEMAFORO[urgenciaZmMap[gid]] : null),
+    [urgenciaZmMap]
   );
 
   const municipiosActivosSet = useMemo(
@@ -696,6 +905,55 @@ export default function MapaTerritorial() {
       .sort((a, b) => a.nombre.localeCompare(b.nombre)),
     [zmGeoJSON]
   );
+
+  // ─── "Solo lo mío"/"Solo lo vencido" sobre el detalle de estado/ZM ────
+  // Filtro de cliente sobre lo que el backend ya mandó para este estado/ZM
+  // (no pide nada nuevo). Recalcula proyectos/num_proyectos/num_etapas/
+  // avance_promedio A PARTIR del subconjunto filtrado de `etapas` — igual
+  // que el fix del punto 1.2, un contador nunca debe decir algo distinto
+  // de lo que la lista de abajo realmente tiene. indicadores y riesgos no
+  // se tocan: "vencido" no les aplica (no tienen fecha límite propia) y
+  // "mío" sobre indicadores necesitaría un id_proyecto que esa consulta no
+  // trae todavía — queda fuera de este alcance, ver reporte.
+  const detalleFiltrado = useMemo(() => {
+    if (!detalle || (!soloLoMio && !soloLoVencido)) return detalle;
+    const etapas = detalle.etapas.filter(n =>
+      (!soloLoMio || misProyectoIds.has(n.id_proyecto)) && (!soloLoVencido || n.vencido)
+    );
+    const idsProyectoAqui = new Set(etapas.map(n => n.id_proyecto));
+    const proyectos = detalle.proyectos
+      .filter(p => idsProyectoAqui.has(p.id))
+      .map(p => {
+        const nodosDe = etapas.filter(n => n.id_proyecto === p.id);
+        const avance = nodosDe.length ? Math.round(nodosDe.reduce((s, n) => s + n.avance, 0) / nodosDe.length) : 0;
+        return { ...p, avance, num_etapas_aqui: nodosDe.length };
+      });
+    const filtroMio = v => !soloLoMio || misProyectoIds.has(v.id_proyecto);
+    const riesgos = soloLoMio ? detalle.riesgos.filter(r => idsProyectoAqui.has(r.id_proyecto)) : detalle.riesgos;
+    return {
+      ...detalle,
+      proyectos, etapas, riesgos,
+      num_proyectos: proyectos.length,
+      num_etapas: etapas.length,
+      num_riesgos: riesgos.length,
+      avance_promedio: proyectos.length ? Math.round(proyectos.reduce((s, p) => s + p.avance, 0) / proyectos.length) : 0,
+      vencidos: detalle.vencidos.filter(filtroMio),
+      // "por vencer" (próximos 14 días) no es "vencido" — con el filtro
+      // activo no tiene sentido mostrarlo mezclado.
+      por_vencer: soloLoVencido ? [] : detalle.por_vencer.filter(filtroMio),
+    };
+  }, [detalle, soloLoMio, soloLoVencido, misProyectoIds]);
+
+  // Mismo criterio para el detalle de Municipio (armado en cliente, ver
+  // SidebarDetalleMunicipio) — ahí no hay `proyectos`/`num_etapas` del
+  // backend que recalcular, los deriva el propio componente desde `etapas`.
+  const municipioSeleccionadoFiltrado = useMemo(() => {
+    if (!municipioSeleccionado || (!soloLoMio && !soloLoVencido)) return municipioSeleccionado;
+    const etapas = municipioSeleccionado.etapas.filter(n =>
+      (!soloLoMio || misProyectoIds.has(n.id_proyecto)) && (!soloLoVencido || n.vencido)
+    );
+    return { ...municipioSeleccionado, etapas };
+  }, [municipioSeleccionado, soloLoMio, soloLoVencido, misProyectoIds]);
 
   // ─── Cargar detalle + municipios al seleccionar un estado ─────
   async function cargarDetalleEstado(cve_ent, nombre, bounds) {
@@ -744,6 +1002,39 @@ export default function MapaTerritorial() {
     // simplemente se muestra su detalle vacío.
     const actividad = municipiosActividadMap[cvegeo];
     setMunicipioSeleccionado({ cvegeo, nombre, etapas: actividad?.etapas || [] });
+  }
+
+  // Tras guardar un avance desde "Registrar avance" del panel (Parte 5):
+  // vuelve a pedir exactamente lo que ya está en pantalla — detalle de
+  // estado/ZM, municipios-actividad si hay un municipio seleccionado, y la
+  // urgencia si ese es el modo de coloreado activo — sin pasar por
+  // cargarDetalleEstado/ZM (esas limpian y vuelven a mostrar el spinner de
+  // carga; aquí el panel debe actualizarse sin ese parpadeo, "sin recargar
+  // la página" en espíritu, no solo en la letra).
+  async function refrescarDetalleActual() {
+    const params = filtroProyecto ? { proyecto_id: filtroProyecto } : {};
+    try {
+      if (seleccion?.tipo === 'estado') {
+        const [detRes, muniActRes] = await Promise.all([
+          client.get(`/geo/territorio/estado/${seleccion.clave}/detalle`, { params }),
+          client.get(`/geo/territorio/estado/${seleccion.clave}/municipios-actividad`, { params }),
+        ]);
+        setDetalle(detRes.data.datos);
+        const nuevaActividad = muniActRes.data.datos || [];
+        setMunicipiosActividad(nuevaActividad);
+        setMunicipioSeleccionado(prev => {
+          if (!prev) return prev;
+          const actividad = nuevaActividad.find(m => m.cvegeo === prev.cvegeo);
+          return { ...prev, etapas: actividad?.etapas || [] };
+        });
+      } else if (seleccion?.tipo === 'zm') {
+        const res = await client.get(`/geo/territorio/zm/${seleccion.clave}/detalle`, { params });
+        setDetalle(res.data.datos);
+      }
+    } catch (e) {
+      console.error('Error refrescando el detalle tras registrar avance:', e);
+    }
+    if (modoColor === 'urgencia') await cargarUrgencia();
   }
 
   function seleccionarEstadoDesdeSelect(cve_ent) {
@@ -874,6 +1165,10 @@ export default function MapaTerritorial() {
         zmOpciones={zmOpciones}
         zmClaveSel={seleccion?.tipo === 'zm' ? seleccion.clave : ''}
         onSeleccionarZm={seleccionarZmDesdeSelect}
+        soloLoMio={soloLoMio}
+        onSoloLoMio={toggleSoloLoMio}
+        soloLoVencido={soloLoVencido}
+        onSoloLoVencido={toggleSoloLoVencido}
       />
 
       {/* Body: map + sidebar */}
@@ -887,6 +1182,7 @@ export default function MapaTerritorial() {
               propEstado={propEstado}
               estadoActivo={seleccion?.tipo !== 'municipio' ? { cve_ent: seleccion?.clave, bounds: seleccion?.bounds } : null}
               estadoIntensidad={scale === 'estados' ? estadoIntensidad : scale === 'zm' ? zmIntensidad : () => 0.3}
+              estadoColor={modoColor === 'urgencia' ? (scale === 'estados' ? estadoColorUrgencia : zmColorUrgencia) : undefined}
               onClickEstado={(clave, nombre, layer) => {
                 if (scale === 'zm') cargarDetalleZM(clave, nombre, layer.getBounds());
                 else cargarDetalleEstado(clave, nombre, layer.getBounds());
@@ -956,15 +1252,33 @@ export default function MapaTerritorial() {
             </div>
           )}
 
-          {/* Leyenda */}
-          <div className="absolute bottom-3 left-3 z-[1000] bg-white/90 backdrop-blur-sm rounded-md px-2.5 py-1.5 border border-gray-200 text-[10px]">
-            <p className="font-semibold text-gray-600 mb-1">{scale === 'zm' ? 'Zonas metropolitanas' : 'Proyectos por estado'}</p>
-            <div className="flex items-center gap-1">
-              {[0.15, 0.35, 0.55, 0.75].map((op, i) => (
-                <div key={i} className="w-4 h-3 rounded-sm" style={{ backgroundColor: GUINDA, opacity: op }} />
+          {/* Selector de coloreado + leyenda. El selector vive junto a la
+              leyenda (no en el toolbar, ya saturado): ambos describen lo
+              mismo, el color que está pintado en el mapa en este momento. */}
+          <div className="absolute bottom-3 left-3 z-[1000] bg-white/90 backdrop-blur-sm rounded-md px-2.5 py-1.5 border border-gray-200 text-[10px] max-w-[230px]">
+            <div className="flex items-center bg-gray-100 rounded-full p-0.5 mb-1.5 text-[10px]">
+              {[{ id: 'proyectos', label: 'Proyectos' }, { id: 'urgencia', label: 'Urgencia' }].map(o => (
+                <button key={o.id} onClick={() => setModoColor(o.id)}
+                  className={`px-2 py-0.5 rounded-full font-medium transition-colors ${modoColor === o.id ? 'bg-[#7B1C3E] text-white' : 'text-gray-500 hover:text-gray-700'}`}>
+                  {o.label}
+                </button>
               ))}
-              {scale !== 'zm' && <span className="ml-1 text-gray-400">1 → {maxProy}</span>}
             </div>
+            {modoColor === 'urgencia' ? (
+              cargandoUrgencia
+                ? <p className="text-gray-400">Calculando urgencia…</p>
+                : <LeyendaSemaforo />
+            ) : (
+              <>
+                <p className="font-semibold text-gray-600 mb-1">{scale === 'zm' ? 'Zonas metropolitanas' : 'Proyectos por estado'}</p>
+                <div className="flex items-center gap-1">
+                  {[0.15, 0.35, 0.55, 0.75].map((op, i) => (
+                    <div key={i} className="w-4 h-3 rounded-sm" style={{ backgroundColor: GUINDA, opacity: op }} />
+                  ))}
+                  {scale !== 'zm' && <span className="ml-1 text-gray-400">1 → {maxProy}</span>}
+                </div>
+              </>
+            )}
             {scale === 'estados' && municipiosGeoJSON && (
               <div className="flex items-center gap-1 mt-1 pt-1 border-t border-gray-100">
                 <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: VERDE_MUNICIPIO, opacity: 0.7 }} />
@@ -981,23 +1295,36 @@ export default function MapaTerritorial() {
               <div className="animate-spin w-4 h-4 border-2 border-[#7B1C3E] border-t-transparent rounded-full" />
               <span className="text-sm">Cargando detalle…</span>
             </div>
-            : municipioSeleccionado
+            : municipioSeleccionadoFiltrado
               ? <SidebarDetalleMunicipio
-                  municipio={municipioSeleccionado}
+                  municipio={municipioSeleccionadoFiltrado}
                   onVolver={volverAEstado}
                   breadcrumb={`Volver a ${seleccion?.nombre}`}
+                  onRegistrarAvance={abrirRegistrarAvance}
                 />
-              : detalle
+              : detalleFiltrado
                 ? <SidebarDetalleEstadoZM
-                    detalle={detalle}
+                    detalle={detalleFiltrado}
                     tipo={seleccion?.tipo}
                     onVolver={volverANacional}
                     breadcrumb="Volver a vista nacional"
+                    filtrosActivos={soloLoMio || soloLoVencido}
+                    onRegistrarAvance={abrirRegistrarAvance}
                   />
                 : <SidebarVacia />
           }
         </div>
       </div>
+
+      {nodoAvance && (
+        <ModalRegistrarAvance
+          tipo={nodoAvance.tipo}
+          nodo={nodoAvance.nodo}
+          esContenedor={nodoAvance.esContenedor}
+          onGuardado={refrescarDetalleActual}
+          onCerrar={() => setNodoAvance(null)}
+        />
+      )}
     </div>
   );
 }

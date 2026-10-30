@@ -5,6 +5,42 @@
 const pool = require('../pool');
 const { semaforoEfectivo } = require('../../utils/avance-semaforo');
 
+// Mismo criterio que la lista de Vencimientos de obtenerDetalleEstado/ZM
+// (fecha límite ya pasada y el nodo no se cerró) — centralizado aquí para
+// que el filtro "Solo lo vencido" del mapa (frontend) pueda leerlo desde
+// cualquier nivel (estado, ZM o municipio) con la misma regla.
+function esVencido(estado, fechaLimite) {
+  if (['Completada', 'Cancelada'].includes(estado) || !fechaLimite) return false;
+  return new Date(fechaLimite) < new Date(new Date().toDateString());
+}
+
+// es_contenedor por nodo — para que el panel del mapa sepa si "Registrar
+// avance" debe abrir con el avance bloqueado (se calcula de las partes) o
+// editable, MISMO criterio que ya usa Seguimiento (PanelDetalle.jsx:
+// `tipo === 'etapa' || data.es_hoja === false`, con es_hoja viniendo de
+// esNodoHoja en avance-semaforo.js). Etapa es contenedor siempre, por
+// definición del dominio; Tarea nunca lo es; Acción depende de si tiene
+// subacciones o tareas propias — eso es lo único que hace falta
+// averiguar aquí, en una sola consulta por lote en vez de una por nodo
+// (esNodoHoja ya existe pero es por id, uno a la vez).
+async function obtenerAccionesConHijos(accionIds) {
+  if (!accionIds.length) return new Set();
+  const { rows } = await pool.query(`
+    SELECT DISTINCT id_padre FROM (
+      SELECT id_accion_padre AS id_padre FROM acciones WHERE id_accion_padre = ANY($1)
+      UNION ALL
+      SELECT id_accion AS id_padre FROM tareas WHERE id_accion = ANY($1)
+    ) x
+  `, [accionIds]);
+  return new Set(rows.map(r => r.id_padre));
+}
+
+function esContenedorNodo(tipo, id, accionesConHijos) {
+  if (tipo === 'etapa') return true;
+  if (tipo === 'accion') return accionesConHijos.has(id);
+  return false;
+}
+
 // ─── Catálogo ─────────────────────────────────────────────────
 
 async function obtenerEstados() {
@@ -554,6 +590,76 @@ async function obtenerMapaIncidenciaGeoZM(proyectoIds) {
   return rows;
 }
 
+// Severidad para "el peor semáforo de este estado/ZM" — no existe en
+// ningún otro lugar del backend (se buscó antes de escribirla), así que
+// vive aquí junto a quien la usa. No reemplaza ni reinterpreta
+// semaforoEfectivo (ese sigue siendo el único cálculo real): solo ordena
+// sus 4 resultados posibles para quedarse con el más urgente del grupo.
+const SEVERIDAD_SEMAFORO = { rojo: 3, ambar: 2, verde: 1, gris: 0 };
+
+function peorSemaforo(nodos) {
+  let peor = null;
+  for (const n of nodos) {
+    const sem = semaforoEfectivo({
+      estado: n.estado, semaforo: n.semaforo, semaforo_override: n.semaforo_override,
+      prioridad: n.prioridad, fecha_limite: n.fecha_limite, fecha_fin: n.fecha_limite,
+    });
+    if (!peor || SEVERIDAD_SEMAFORO[sem] > SEVERIDAD_SEMAFORO[peor]) peor = sem;
+  }
+  return peor || 'gris';
+}
+
+// Mismo alcance de nodos que obtenerMapaIncidenciaGeo (etapas/acciones con
+// cve_ent directo o vía municipio) pero trayendo lo necesario para calcular
+// el semáforo de cada uno con la MISMA función que ya usa todo lo demás
+// (semaforoEfectivo, avance-semaforo.js) — sin tocarla ni reimplementar su
+// regla en SQL. Para el selector de coloreado del mapa en modo "Urgencia"
+// (ver MapaTerritorial.jsx) — alternativa a "Proyectos por estado", que
+// hoy no distingue un estado con 4 proyectos a tiempo de uno con 4
+// proyectos vencidos.
+async function obtenerUrgenciaPorEstado(proyectoIds) {
+  if (!proyectoIds || proyectoIds.length === 0) return [];
+  const { rows } = await pool.query(`
+    SELECT cve_ent, estado, semaforo, semaforo_override, prioridad, fecha_limite FROM (
+      SELECT e.cve_ent, e.estado, e.semaforo, e.semaforo_override, e.prioridad, e.fecha_fin AS fecha_limite
+      FROM etapas e WHERE e.id_proyecto = ANY($1) AND e.cve_ent IS NOT NULL
+      UNION ALL
+      SELECT LEFT(em.cve_mun, 2), e.estado, e.semaforo, e.semaforo_override, e.prioridad, e.fecha_fin
+      FROM etapa_municipios em JOIN etapas e ON e.id = em.etapa_id WHERE e.id_proyecto = ANY($1)
+      UNION ALL
+      SELECT a.cve_ent, a.estado, a.semaforo, a.semaforo_override, a.prioridad, COALESCE(a.fecha_limite, a.fecha_fin)
+      FROM acciones a WHERE a.id_proyecto = ANY($1) AND a.cve_ent IS NOT NULL
+      UNION ALL
+      SELECT LEFT(am.cve_mun, 2), a.estado, a.semaforo, a.semaforo_override, a.prioridad, COALESCE(a.fecha_limite, a.fecha_fin)
+      FROM accion_municipios am JOIN acciones a ON a.id = am.accion_id WHERE a.id_proyecto = ANY($1)
+    ) n
+  `, [proyectoIds]);
+
+  const porEstado = {};
+  for (const r of rows) (porEstado[r.cve_ent] ||= []).push(r);
+  return Object.entries(porEstado).map(([cve_ent, nodos]) => ({ cve_ent, semaforo_peor: peorSemaforo(nodos) }));
+}
+
+// Mismo criterio que obtenerUrgenciaPorEstado pero por ZM — mismo alcance
+// de nodos que obtenerMapaIncidenciaGeoZM (solo id_zm directo, sin
+// expandir por municipio: ver esa función).
+async function obtenerUrgenciaPorZM(proyectoIds) {
+  if (!proyectoIds || proyectoIds.length === 0) return [];
+  const { rows } = await pool.query(`
+    SELECT id_zm, estado, semaforo, semaforo_override, prioridad, fecha_limite FROM (
+      SELECT e.id_zm, e.estado, e.semaforo, e.semaforo_override, e.prioridad, e.fecha_fin AS fecha_limite
+      FROM etapas e WHERE e.id_proyecto = ANY($1) AND e.id_zm IS NOT NULL
+      UNION ALL
+      SELECT a.id_zm, a.estado, a.semaforo, a.semaforo_override, a.prioridad, COALESCE(a.fecha_limite, a.fecha_fin)
+      FROM acciones a WHERE a.id_proyecto = ANY($1) AND a.id_zm IS NOT NULL
+    ) n
+  `, [proyectoIds]);
+
+  const porZm = {};
+  for (const r of rows) (porZm[r.id_zm] ||= []).push(r);
+  return Object.entries(porZm).map(([gid, nodos]) => ({ gid, semaforo_peor: peorSemaforo(nodos) }));
+}
+
 async function obtenerMunicipiosPorEstadoClave(claveEstado) {
   const { rows } = await pool.query(
     `SELECT id, clave, clave_mun AS cve_mun, nombre FROM cat_municipios
@@ -650,7 +756,6 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
   // 3. Métricas por proyecto — SOLO de lo que ese proyecto tiene EN ESTE ESTADO,
   // no el avance/semáforo global del proyecto. Se deriva de `nodos` (ya
   // filtrado por cve_ent) en vez de leer porcentaje_calculado del proyecto.
-  const etapaIdsAqui = nodos.filter(n => n.tipo === 'etapa').map(n => n.id);
   const porProyectoAqui = {};
   for (const n of nodos) {
     if (!porProyectoAqui[n.id_proyecto]) {
@@ -659,7 +764,11 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
     const p = porProyectoAqui[n.id_proyecto];
     p.suma += Number(n.avance);
     p.cuenta++;
-    if (n.tipo === 'etapa') p.num_etapas_aqui++;
+    // Antes solo contaba tipo==='etapa': el encabezado "Etapas/Acc." y esta
+    // cifra por proyecto decían "aquí" pero dejaban fuera acciones y tareas
+    // que SÍ aparecen en la lista de abajo (ver FilaNodo/BloqueEtapas) —
+    // el contador no coincidía con lo que el usuario veía listado.
+    p.num_etapas_aqui++;
   }
   const proyMetrics = Object.values(porProyectoAqui)
     .map(p => {
@@ -672,26 +781,30 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
     })
     .sort((a, b) => a.nombre.localeCompare(b.nombre));
 
-  // 4. Indicadores de este estado: los ligados a una etapa de aquí (atribución
-  // precisa) MÁS los de alcance global (sin id_etapa) de los proyectos que
-  // SÍ operan en este estado — es la mejor atribución posible dado que la
-  // mayoría de los indicadores no se capturan por etapa, solo por proyecto.
-  const { rows: indicadores } = await pool.query(`
-    SELECT i.nombre, i.unidad, i.unidad_personalizada,
-           COALESCE(i.meta_global, 0) AS meta_global,
-           COALESCE(i.valor_actual, 0) AS realizado,
-           CASE WHEN i.meta_global > 0
-                THEN ROUND((i.valor_actual / i.meta_global * 100)::numeric, 1)
-                ELSE NULL END AS pct_meta
-    FROM indicadores i
-    WHERE i.activo = true
-      AND (i.id_etapa = ANY($1) OR (i.id_etapa IS NULL AND i.id_proyecto = ANY($2)))
+  // 4. Indicadores reportados desde un nodo con cobertura en este estado:
+  // suma de indicador_movimientos cuyo id_nodo_origen es una etapa/acción/
+  // tarea de `nodos` (arriba). A diferencia de la versión anterior (que
+  // mostraba indicadores.valor_actual, el total DEL PROYECTO COMPLETO, para
+  // cualquier estado donde el proyecto tuviera presencia) esto es lo
+  // genuinamente atribuible a este estado: un indicador sin ningún
+  // movimiento reportado desde un nodo de aquí simplemente no aparece, en
+  // vez de aparecer con el total nacional del proyecto como si fuera local.
+  // pct_meta se deja siempre en null a propósito: comparar un numerador
+  // parcial (solo este estado) contra la meta_global (todo el proyecto)
+  // sería otra forma de atribución engañosa.
+  const nodoIdsAqui = nodos.map(n => n.id);
+  const { rows: indicadores } = nodoIdsAqui.length ? await pool.query(`
+    SELECT i.id::text, i.nombre, i.unidad_personalizada, i.unidad,
+           COALESCE(SUM(m.cantidad), 0) AS realizado_aqui
+    FROM indicador_movimientos m
+    JOIN indicadores i ON i.id = m.id_indicador AND i.activo = true
+    WHERE m.id_nodo_origen = ANY($1::uuid[]) AND m.anulado_en IS NULL
+    GROUP BY i.id, i.nombre, i.unidad_personalizada, i.unidad
     ORDER BY i.nombre
-  `, [etapaIdsAqui, proyectoIdsEncontrados]);
+  `, [nodoIdsAqui]) : { rows: [] };
 
   // 5. Riesgos abiertos — solo los ligados directamente a una etapa/acción
   // presente en este estado (no riesgos de alcance "Proyecto" completo).
-  const nodoIdsAqui = nodos.map(n => n.id);
   const { rows: riesgos } = nodoIdsAqui.length ? await pool.query(`
     SELECT r.titulo, r.descripcion, r.nivel, r.estado AS estado_riesgo,
            p.id::text AS id_proyecto
@@ -707,12 +820,14 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
     LIMIT 20
   `, [nodoIdsAqui, proyectoIdsEncontrados]) : { rows: [] };
 
-  // 6. Vencidos y por vencer (próximos 14 días)
+  // 6. Vencidos y por vencer (próximos 14 días). id_proyecto viaja desde aquí
+  // (antes solo nombre_proyecto) para que el panel pueda enlazar cada
+  // vencimiento a su nodo en Seguimiento.
   const { rows: venc } = await pool.query(`
-    SELECT n.dias, n.nombre, n.id::text AS id_nodo, n.nombre_proyecto
+    SELECT n.dias, n.nombre, n.id::text AS id_nodo, n.nombre_proyecto, n.id_proyecto
     FROM (
       SELECT (e.fecha_fin::date - CURRENT_DATE)::int AS dias, e.nombre, e.id,
-             p.nombre AS nombre_proyecto
+             p.nombre AS nombre_proyecto, p.id::text AS id_proyecto
       FROM etapas e JOIN proyectos p ON p.id = e.id_proyecto
       WHERE (e.cve_ent = $1 OR EXISTS (
               SELECT 1 FROM etapa_municipios em WHERE em.etapa_id = e.id AND LEFT(em.cve_mun, 2) = $1
@@ -720,7 +835,7 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
         AND e.estado NOT IN ('Completada','Cancelada') AND e.id_proyecto = ANY($2)
       UNION ALL
       SELECT (COALESCE(a.fecha_limite,a.fecha_fin)::date - CURRENT_DATE)::int,
-             a.nombre, a.id, p.nombre
+             a.nombre, a.id, p.nombre, p.id::text
       FROM acciones a JOIN proyectos p ON p.id = a.id_proyecto
       WHERE (a.cve_ent = $1 OR EXISTS (
               SELECT 1 FROM accion_municipios am WHERE am.accion_id = a.id AND LEFT(am.cve_mun, 2) = $1
@@ -731,6 +846,8 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
     ORDER BY n.dias
   `, [cveEnt, proyectoIdsEncontrados]);
 
+  const accionesConHijos = await obtenerAccionesConHijos(nodos.filter(n => n.tipo === 'accion').map(n => n.id));
+
   const avancePromedio = proyMetrics.length
     ? Math.round(proyMetrics.reduce((s, p) => s + Number(p.avance), 0) / proyMetrics.length)
     : 0;
@@ -739,7 +856,10 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
     cve_ent: cveEnt,
     nombre: nombreEstado,
     num_proyectos: proyMetrics.length,
-    num_etapas: nodos.filter(n => n.tipo === 'etapa').length,
+    // Antes solo contaba etapas (misma falla que num_etapas_aqui arriba);
+    // ahora coincide con la lista `etapas` de abajo, que ya incluye acciones
+    // y tareas.
+    num_etapas: nodos.length,
     num_riesgos: riesgos.length,
     avance_promedio: avancePromedio,
     proyectos: proyMetrics.map(p => ({
@@ -748,12 +868,14 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
       num_etapas_aqui: Number(p.num_etapas_aqui) || 0,
       semaforo: p.semaforo,
     })),
+    // realizado_aqui en vez de realizado+meta_global+pct_meta: ver nota en
+    // el punto 4 de arriba sobre por qué esta vista nunca compara contra la
+    // meta global del proyecto.
     indicadores: indicadores.map(i => ({
+      id: i.id,
       nombre: i.nombre,
       unidad: i.unidad_personalizada || i.unidad,
-      meta_global: Number(i.meta_global),
-      realizado: Number(i.realizado),
-      pct_meta: i.pct_meta !== null ? Number(i.pct_meta) : null,
+      realizado_aqui: Number(i.realizado_aqui),
     })),
     etapas: nodos.map(n => ({
       id: n.id, tipo: n.tipo, nombre: n.nombre, nombre_padre: n.nombre_padre,
@@ -765,6 +887,8 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
         estado: n.estado, semaforo: n.semaforo, semaforo_override: n.semaforo_override,
         prioridad: n.prioridad, fecha_limite: n.fecha_limite, fecha_fin: n.fecha_limite,
       }),
+      vencido: esVencido(n.estado, n.fecha_limite),
+      es_contenedor: esContenedorNodo(n.tipo, n.id, accionesConHijos),
     })),
     riesgos: riesgos.map(r => ({
       titulo: r.titulo,
@@ -775,11 +899,11 @@ async function obtenerDetalleEstado(cveEnt, proyectoIds) {
     })),
     vencidos: venc.filter(v => v.dias < 0).map(v => ({
       dias: v.dias, nombre: v.nombre,
-      id_nodo: v.id_nodo, nombre_proyecto: v.nombre_proyecto,
+      id_nodo: v.id_nodo, nombre_proyecto: v.nombre_proyecto, id_proyecto: v.id_proyecto,
     })),
     por_vencer: venc.filter(v => v.dias >= 0).map(v => ({
       dias: v.dias, nombre: v.nombre,
-      id_nodo: v.id_nodo, nombre_proyecto: v.nombre_proyecto,
+      id_nodo: v.id_nodo, nombre_proyecto: v.nombre_proyecto, id_proyecto: v.id_proyecto,
     })),
   };
 }
@@ -843,6 +967,8 @@ async function obtenerMunicipiosActividadEstado(cveEnt, proyectoIds) {
     ORDER BY nombre
   `, params);
 
+  const accionesConHijos = await obtenerAccionesConHijos(rows.filter(r => r.tipo === 'accion').map(r => r.id));
+
   const porMunicipio = {};
   for (const r of rows) {
     if (!porMunicipio[r.cvegeo]) {
@@ -857,6 +983,10 @@ async function obtenerMunicipiosActividadEstado(cveEnt, proyectoIds) {
       id_etapa: r.id_etapa, etapa_nombre: r.etapa_nombre,
       estatus: r.estado, semaforo: r.semaforo, semaforo_efectivo: semaforoEfectivo(r), avance: Number(r.avance),
       id_proyecto: r.id_proyecto, nombre_proyecto: r.nombre_proyecto,
+      // Aquí no existía ningún campo de fecha — sin esto, el filtro "Solo
+      // lo vencido" del mapa no tenía de dónde leer a nivel municipio.
+      vencido: esVencido(r.estado, r.fecha_limite || r.fecha_fin),
+      es_contenedor: esContenedorNodo(r.tipo, r.id, accionesConHijos),
     });
   }
 
@@ -925,7 +1055,6 @@ async function obtenerDetalleZM(gidZm, proyectoIds) {
   // Métricas por proyecto, indicadores y riesgos SOLO de lo que cae dentro de
   // esta ZM — mismo criterio de alcance que obtenerDetalleEstado (no se usa
   // el avance/semáforo global del proyecto).
-  const etapaIdsAqui = nodos.filter(n => n.tipo === 'etapa').map(n => n.id);
   const porProyectoAqui = {};
   for (const n of nodos) {
     if (!porProyectoAqui[n.id_proyecto]) {
@@ -934,7 +1063,8 @@ async function obtenerDetalleZM(gidZm, proyectoIds) {
     const p = porProyectoAqui[n.id_proyecto];
     p.suma += Number(n.avance);
     p.cuenta++;
-    if (n.tipo === 'etapa') p.num_etapas_aqui++;
+    // Antes solo contaba tipo==='etapa' — ver el mismo fix en obtenerDetalleEstado.
+    p.num_etapas_aqui++;
   }
   const proyMetrics = Object.values(porProyectoAqui)
     .map(p => {
@@ -947,20 +1077,20 @@ async function obtenerDetalleZM(gidZm, proyectoIds) {
     })
     .sort((a, b) => a.nombre.localeCompare(b.nombre));
 
-  const { rows: indicadores } = await pool.query(`
-    SELECT i.nombre, i.unidad, i.unidad_personalizada,
-           COALESCE(i.meta_global, 0) AS meta_global,
-           COALESCE(i.valor_actual, 0) AS realizado,
-           CASE WHEN i.meta_global > 0
-                THEN ROUND((i.valor_actual / i.meta_global * 100)::numeric, 1)
-                ELSE NULL END AS pct_meta
-    FROM indicadores i
-    WHERE i.activo = true
-      AND (i.id_etapa = ANY($1) OR (i.id_etapa IS NULL AND i.id_proyecto = ANY($2)))
-    ORDER BY i.nombre
-  `, [etapaIdsAqui, proyectoIdsEncontrados]);
-
+  // Indicadores atribuidos a esta ZM: mismo criterio que obtenerDetalleEstado
+  // (sumar indicador_movimientos reportados desde un nodo de aquí, sin
+  // comparar contra la meta global) — ver la nota ahí.
   const nodoIdsAqui = nodos.map(n => n.id);
+  const { rows: indicadores } = nodoIdsAqui.length ? await pool.query(`
+    SELECT i.id::text, i.nombre, i.unidad_personalizada, i.unidad,
+           COALESCE(SUM(m.cantidad), 0) AS realizado_aqui
+    FROM indicador_movimientos m
+    JOIN indicadores i ON i.id = m.id_indicador AND i.activo = true
+    WHERE m.id_nodo_origen = ANY($1::uuid[]) AND m.anulado_en IS NULL
+    GROUP BY i.id, i.nombre, i.unidad_personalizada, i.unidad
+    ORDER BY i.nombre
+  `, [nodoIdsAqui]) : { rows: [] };
+
   const { rows: riesgos } = nodoIdsAqui.length ? await pool.query(`
     SELECT r.titulo, r.descripcion, r.nivel, r.estado AS estado_riesgo,
            p.id::text AS id_proyecto
@@ -977,16 +1107,16 @@ async function obtenerDetalleZM(gidZm, proyectoIds) {
   `, [nodoIdsAqui, proyectoIdsEncontrados]) : { rows: [] };
 
   const { rows: venc } = await pool.query(`
-    SELECT n.dias, n.nombre, n.id::text AS id_nodo, n.nombre_proyecto
+    SELECT n.dias, n.nombre, n.id::text AS id_nodo, n.nombre_proyecto, n.id_proyecto
     FROM (
       SELECT (e.fecha_fin::date - CURRENT_DATE)::int AS dias, e.nombre, e.id,
-             p.nombre AS nombre_proyecto
+             p.nombre AS nombre_proyecto, p.id::text AS id_proyecto
       FROM etapas e JOIN proyectos p ON p.id = e.id_proyecto
       WHERE e.id_zm = $1 AND e.fecha_fin IS NOT NULL
         AND e.estado NOT IN ('Completada','Cancelada') AND e.id_proyecto = ANY($2)
       UNION ALL
       SELECT (COALESCE(a.fecha_limite,a.fecha_fin)::date - CURRENT_DATE)::int,
-             a.nombre, a.id, p.nombre
+             a.nombre, a.id, p.nombre, p.id::text
       FROM acciones a JOIN proyectos p ON p.id = a.id_proyecto
       WHERE a.id_zm = $1 AND COALESCE(a.fecha_limite,a.fecha_fin) IS NOT NULL
         AND a.estado NOT IN ('Completada','Cancelada') AND a.id_proyecto = ANY($2)
@@ -995,6 +1125,8 @@ async function obtenerDetalleZM(gidZm, proyectoIds) {
     ORDER BY n.dias
   `, [gidZm, proyectoIdsEncontrados]);
 
+  const accionesConHijos = await obtenerAccionesConHijos(nodos.filter(n => n.tipo === 'accion').map(n => n.id));
+
   const avancePromedio = proyMetrics.length
     ? Math.round(proyMetrics.reduce((s, p) => s + Number(p.avance), 0) / proyMetrics.length)
     : 0;
@@ -1002,7 +1134,7 @@ async function obtenerDetalleZM(gidZm, proyectoIds) {
   return {
     cve_met: cveMet, gid: gidZm, nombre: nombreZm,
     num_proyectos: proyMetrics.length,
-    num_etapas: nodos.filter(n => n.tipo === 'etapa').length,
+    num_etapas: nodos.length,
     num_riesgos: riesgos.length,
     avance_promedio: avancePromedio,
     proyectos: proyMetrics.map(p => ({
@@ -1010,9 +1142,9 @@ async function obtenerDetalleZM(gidZm, proyectoIds) {
       num_etapas_aqui: Number(p.num_etapas_aqui) || 0, semaforo: p.semaforo,
     })),
     indicadores: indicadores.map(i => ({
+      id: i.id,
       nombre: i.nombre, unidad: i.unidad_personalizada || i.unidad,
-      meta_global: Number(i.meta_global), realizado: Number(i.realizado),
-      pct_meta: i.pct_meta !== null ? Number(i.pct_meta) : null,
+      realizado_aqui: Number(i.realizado_aqui),
     })),
     etapas: nodos.map(n => ({
       id: n.id, tipo: n.tipo, nombre: n.nombre, nombre_padre: n.nombre_padre,
@@ -1024,16 +1156,18 @@ async function obtenerDetalleZM(gidZm, proyectoIds) {
         estado: n.estado, semaforo: n.semaforo, semaforo_override: n.semaforo_override,
         prioridad: n.prioridad, fecha_limite: n.fecha_limite, fecha_fin: n.fecha_limite,
       }),
+      vencido: esVencido(n.estado, n.fecha_limite),
+      es_contenedor: esContenedorNodo(n.tipo, n.id, accionesConHijos),
     })),
     riesgos: riesgos.map(r => ({
       titulo: r.titulo, descripcion: r.descripcion, nivel: r.nivel,
       estado: r.estado_riesgo, id_proyecto: r.id_proyecto,
     })),
     vencidos: venc.filter(v => v.dias < 0).map(v => ({
-      dias: v.dias, nombre: v.nombre, id_nodo: v.id_nodo, nombre_proyecto: v.nombre_proyecto,
+      dias: v.dias, nombre: v.nombre, id_nodo: v.id_nodo, nombre_proyecto: v.nombre_proyecto, id_proyecto: v.id_proyecto,
     })),
     por_vencer: venc.filter(v => v.dias >= 0).map(v => ({
-      dias: v.dias, nombre: v.nombre, id_nodo: v.id_nodo, nombre_proyecto: v.nombre_proyecto,
+      dias: v.dias, nombre: v.nombre, id_nodo: v.id_nodo, nombre_proyecto: v.nombre_proyecto, id_proyecto: v.id_proyecto,
     })),
   };
 }
@@ -1069,6 +1203,8 @@ module.exports = {
   obtenerMapaTerritorialProyecto,
   obtenerMapaIncidenciaGeo,
   obtenerMapaIncidenciaGeoZM,
+  obtenerUrgenciaPorEstado,
+  obtenerUrgenciaPorZM,
   buscarEstadoPorNombre,
   buscarMunicipioPorNombre,
   buscarEstadosFuzzy,

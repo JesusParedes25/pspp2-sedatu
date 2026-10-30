@@ -305,6 +305,8 @@ router.get('/inicio', inicioController.obtenerInicio);
 router.get('/inicio/resumen-tarjetas', inicioController.obtenerResumenTarjetas);
 router.get('/inicio/mapa', geoController.obtenerMapaInicio);
 router.get('/inicio/mapa/zm', geoController.obtenerMapaZmInicio);
+router.get('/inicio/mapa/urgencia', geoController.obtenerUrgenciaMapaInicio);
+router.get('/inicio/mapa/zm/urgencia', geoController.obtenerUrgenciaMapaZmInicio);
 router.get('/inicio/filtros/proyectos', inicioController.obtenerProyectosFiltro);
 router.get('/inicio/filtros/carteras', inicioController.obtenerCarterasFiltro);
 
