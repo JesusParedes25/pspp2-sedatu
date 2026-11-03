@@ -9,12 +9,18 @@
  *            sí definida la sobreescribe, para que ninguno de los dos
  *            vuelva a quedar hardcodeado sin que se note.
  *
+ * jsonwebtoken y bcryptjs están mockeados en todo el archivo: ningún valor
+ * de aquí abajo (password_hash, JWT_SECRET, password) se usa para firmar
+ * ni comparar nada de verdad, son solo para que el código no tropiece con
+ * un campo vacío. Por eso los nombres evitan a propósito parecer una
+ * contraseña real, para que un escaneo de secretos no los marque.
+ *
  * Ejecutar: npm test
  */
 const USUARIO = {
   id: '00000000-0000-0000-0000-00000000c001',
   correo: 'persona@sedatu.gob.mx',
-  password_hash: 'hash-no-importa-porque-bcrypt-esta-mockeado',
+  password_hash: 'no-se-usa-bcrypt-esta-mockeado',
   rol: 'enlace',
   id_dg: null,
   id_direccion_area: null,
@@ -44,10 +50,10 @@ const JWT_SECRET_ORIGINAL = process.env.JWT_SECRET;
 beforeEach(() => {
   jest.clearAllMocks();
   pool.query.mockResolvedValue({ rows: [USUARIO] });
-  // jwt.sign está mockeado (no firma de verdad), pero se le pasa un
-  // secreto real para que la prueba no dependa de que process.env.JWT_SECRET
-  // ya esté definido en el entorno donde corre.
-  process.env.JWT_SECRET = 'secreto-de-prueba';
+  // jwt.sign está mockeado (no firma de verdad): este valor no es una
+  // credencial, solo evita que la prueba dependa de que
+  // process.env.JWT_SECRET ya esté definido en el entorno donde corre.
+  process.env.JWT_SECRET = 'valor-no-usado-jwt-mockeado';
 });
 
 afterEach(() => {
@@ -59,7 +65,7 @@ afterEach(() => {
 
 test('sin JWT_EXPIRES_IN en el entorno, firma el token con 48h por omisión', async () => {
   delete process.env.JWT_EXPIRES_IN;
-  const req = { body: { correo: USUARIO.correo, password: 'lo-que-sea' } };
+  const req = { body: { correo: USUARIO.correo, password: 'no-aplica-no-se-valida' } };
   const res = crearRes();
 
   await login(req, res, jest.fn());
@@ -73,7 +79,7 @@ test('sin JWT_EXPIRES_IN en el entorno, firma el token con 48h por omisión', as
 
 test('con JWT_EXPIRES_IN definida, la usa en vez del valor por omisión', async () => {
   process.env.JWT_EXPIRES_IN = '2h';
-  const req = { body: { correo: USUARIO.correo, password: 'lo-que-sea' } };
+  const req = { body: { correo: USUARIO.correo, password: 'no-aplica-no-se-valida' } };
   const res = crearRes();
 
   await login(req, res, jest.fn());
