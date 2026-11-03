@@ -32,7 +32,7 @@ export function usarCapturaCategorias(indicador, categoriasConAportacion = new S
     setValores(v => ({ ...v, [idCategoria]: valor }));
   }
 
-  // Ya no hay a dónde guardar (ver mini-clase arriba) — devuelve false de
+  // Ya no hay a dónde guardar (ver nota técnica arriba) — devuelve false de
   // inmediato con una explicación, sin intentar ninguna llamada de red.
   async function guardar() {
     setError('La captura por categoría ya no está disponible. Registra el valor total del indicador en conjunto, desde "Valor".');

@@ -2,7 +2,7 @@
  * ARCHIVO: FiltrosProyectos.jsx
  * PROPÓSITO: Barra de filtros para el listado de proyectos.
  *
- * MINI-CLASE: Filtros como chips seleccionables
+ * NOTA TÉCNICA: Filtros como chips seleccionables
  * ─────────────────────────────────────────────────────────────────
  * Los filtros se presentan como chips clickeables que alternan
  * entre activo e inactivo. Al seleccionar un filtro, se llama a

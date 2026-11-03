@@ -2,7 +2,7 @@
  * ARCHIVO: evidencias.js
  * PROPÓSITO: Funciones de API para evidencias (subida, listado, descarga).
  *
- * MINI-CLASE: Subida de archivos con FormData
+ * NOTA TÉCNICA: Subida de archivos con FormData
  * ─────────────────────────────────────────────────────────────────
  * Para subir archivos, el navegador usa multipart/form-data en lugar
  * de JSON. FormData es la API nativa del navegador para construir

@@ -3,7 +3,7 @@
  * PROPÓSITO: Dejar que quien ve algo y no participa en ello pida entrar,
  *            sin tener que averiguar por fuera a quién pedírselo.
  *
- * MINI-CLASE: pedir exactamente lo que se necesita
+ * NOTA TÉCNICA: pedir exactamente lo que se necesita
  * ─────────────────────────────────────────────────────────────────
  * Todos ven todos los proyectos, pero solo captura quien está escrito en
  * ellos. Eso deja un caso muy común sin resolver: alguien abre un

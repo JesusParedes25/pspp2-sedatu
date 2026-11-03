@@ -4,7 +4,7 @@
  *            acción → tarea) usando d3-hierarchy, respetando qué ramas
  *            están colapsadas.
  *
- * MINI-CLASE: por qué un "root" virtual
+ * NOTA TÉCNICA: por qué un "root" virtual
  * ─────────────────────────────────────────────────────────────────
  * d3.hierarchy() espera UN solo nodo raíz, pero el proyecto tiene varias
  * etapas raíz (un bosque, no un árbol). Se envuelven todas bajo un nodo

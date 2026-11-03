@@ -3,7 +3,7 @@
  * PROPÓSITO: Hilo de comentarios estilo Facebook embebible en cualquier entidad
  *            (etapa, acción, proyecto). Permite crear hilos de debate inline.
  *
- * MINI-CLASE: Comentarios polimórficos inline
+ * NOTA TÉCNICA: Comentarios polimórficos inline
  * ─────────────────────────────────────────────────────────────────
  * Este componente recibe entidad_tipo ("Etapa", "Accion", "Proyecto")
  * y entidad_id, y carga/muestra los comentarios de esa entidad.

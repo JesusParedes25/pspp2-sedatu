@@ -3,7 +3,7 @@
  * PROPÓSITO: Endpoints genéricos para cambio de estado y conteo de
  *            descendientes. Delega toda la lógica a validaciones-estado.js.
  *
- * MINI-CLASE: Controller delgado con transacción explícita
+ * NOTA TÉCNICA: Controller delgado con transacción explícita
  * ─────────────────────────────────────────────────────────────────
  * El cambio de estado puede involucrar múltiples tablas (cascada,
  * bloqueos, auditoría). Todo ocurre dentro de una transacción.

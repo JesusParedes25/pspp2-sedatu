@@ -2,7 +2,7 @@
  * ARCHIVO: ModalRiesgo.jsx
  * PROPÓSITO: Modal reutilizable para crear o editar un riesgo/problema.
  *
- * MINI-CLASE: Formularios con modo crear/editar
+ * NOTA TÉCNICA: Formularios con modo crear/editar
  * ─────────────────────────────────────────────────────────────────
  * Si recibe prop `riesgo`, entra en modo edición y pre-rellena
  * los campos. Si no, entra en modo creación. El formulario valida

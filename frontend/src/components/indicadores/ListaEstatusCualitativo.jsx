@@ -4,7 +4,7 @@
  *            libre por etapa/acción/tarea, migración 047— en Tablero,
  *            Resumen de cartera y Panorama del proyecto.
  *
- * MINI-CLASE: el dato cualitativo junto al cuantitativo
+ * NOTA TÉCNICA: el dato cualitativo junto al cuantitativo
  * ─────────────────────────────────────────────────────────────────
  * El avance dice "17%"; el estatus cualitativo dice por qué. Vivía
  * escondido: en el Tablero solo aparecía si el usuario pasaba el mouse

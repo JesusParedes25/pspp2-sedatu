@@ -3,7 +3,7 @@
  * PROPÓSITO: Endpoints de solicitudes de participación — pedir entrar a un
  *            proyecto, y aceptarlas o declinarlas.
  *
- * MINI-CLASE: quién puede hacer qué aquí
+ * NOTA TÉCNICA: quién puede hacer qué aquí
  * ─────────────────────────────────────────────────────────────────
  * Solicitar lo puede hacer cualquiera que vea el proyecto —o sea, casi
  * todos, porque la visibilidad es total— salvo quien ya participa o ya

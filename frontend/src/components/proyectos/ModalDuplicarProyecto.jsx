@@ -4,7 +4,7 @@
  *            varios proyectos repiten el mismo armazón de etapas y
  *            acciones, y capturarlo de cero cada vez es trabajo mecánico.
  *
- * MINI-CLASE: qué se copia y qué no, dicho en la propia interfaz
+ * NOTA TÉCNICA: qué se copia y qué no, dicho en la propia interfaz
  * ─────────────────────────────────────────────────────────────────
  * La duda de quien duplica siempre es la misma: "¿se va a llevar el
  * avance del proyecto viejo?". Por eso la respuesta está a la vista y

@@ -3,7 +3,7 @@
  * PROPÓSITO: Funciones de API para el endpoint genérico de cambio de estado
  *            y conteo de descendientes.
  *
- * MINI-CLASE: Endpoint genérico vs endpoints por recurso
+ * NOTA TÉCNICA: Endpoint genérico vs endpoints por recurso
  * ─────────────────────────────────────────────────────────────────
  * PUT /estado permite cambiar el estado de cualquier entidad
  * (Proyecto, Etapa, Accion, Subaccion) desde un solo punto.

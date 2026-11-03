@@ -4,7 +4,7 @@
  *            vista de calendario (predeterminada — Mes/Semana/Día) y vista
  *            de lista (agrupada por urgencia).
  *
- * MINI-CLASE: Agenda como vista personal de pendientes
+ * NOTA TÉCNICA: Agenda como vista personal de pendientes
  * ─────────────────────────────────────────────────────────────────
  * La agenda muestra las acciones asignadas al usuario autenticado. Tiene
  * dos "modelos de contenido" intercambiables (Lista/Calendario, botón

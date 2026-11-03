@@ -2,7 +2,7 @@
  * ARCHIVO: riesgos.queries.js
  * PROPÓSITO: Queries SQL para la tabla riesgos.
  *
- * MINI-CLASE: Riesgos polimórficos con entidad_tipo + entidad_id
+ * NOTA TÉCNICA: Riesgos polimórficos con entidad_tipo + entidad_id
  * ─────────────────────────────────────────────────────────────────
  * Un riesgo puede vivir en cualquier nivel de la jerarquía:
  * Proyecto, Subproyecto, Etapa o Acción. En lugar de tener 4

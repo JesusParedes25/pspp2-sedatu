@@ -2,7 +2,7 @@
  * ARCHIVO: ActividadReciente.jsx
  * PROPÓSITO: Feed de actividad reciente del proyecto (tipo timeline).
  *
- * MINI-CLASE: Feed de actividad como auditoría visual
+ * NOTA TÉCNICA: Feed de actividad como auditoría visual
  * ─────────────────────────────────────────────────────────────────
  * La actividad reciente muestra los últimos eventos del proyecto:
  * cambios de estado, avances de porcentaje, evidencias subidas,

@@ -2,7 +2,7 @@
  * ARCHIVO: main.jsx
  * PROPÓSITO: Punto de entrada de la app React. Monta el árbol de componentes.
  *
- * MINI-CLASE: React.StrictMode y el árbol de providers
+ * NOTA TÉCNICA: React.StrictMode y el árbol de providers
  * ─────────────────────────────────────────────────────────────────
  * StrictMode ejecuta efectos y renders dos veces en desarrollo para
  * detectar bugs sutiles (no afecta producción). BrowserRouter

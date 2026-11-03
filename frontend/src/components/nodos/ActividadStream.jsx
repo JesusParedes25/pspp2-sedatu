@@ -11,7 +11,7 @@
  *            indicadores, que solo tienen sentido agregados a nivel
  *            proyecto, en Bitácora.
  *
- * MINI-CLASE: por qué se agrupan varias filas en una sola entrada de
+ * NOTA TÉCNICA: por qué se agrupan varias filas en una sola entrada de
  * historial en otros lugares (ModalRegistrarAvance.jsx)
  * ─────────────────────────────────────────────────────────────────
  * "Registrar avance" (ver ModalRegistrarAvance) guarda Estatus + Avance
@@ -52,7 +52,7 @@ const VENTANA_AGRUPACION_MS = 15000;
 
 // Junta filas del mismo autor, de tipos agrupables, separadas por menos de
 // VENTANA_AGRUPACION_MS, en una sola tarjeta — usada hoy por el historial
-// de ModalRegistrarAvance.jsx (ver mini-clase arriba), no por esta pantalla.
+// de ModalRegistrarAvance.jsx (ver nota técnica arriba), no por esta pantalla.
 export function agruparParaLinea(items) {
   const grupos = [];
   for (const item of items) {

@@ -2,7 +2,7 @@
  * ARCHIVO: SeccionMiembrosNodo.jsx
  * PROPÓSITO: Quién trabaja en esta etapa, acción o tarea, y con qué función.
  *
- * MINI-CLASE: función, estado de la invitación y la función "lectura"
+ * NOTA TÉCNICA: función, estado de la invitación y la función "lectura"
  * ─────────────────────────────────────────────────────────────────
  * FUNCIÓN es lo que la persona hace aquí: responsable, captura (rol en
  * nodo_miembros, mostrado como "Colaborador") o —solo para gente ajena

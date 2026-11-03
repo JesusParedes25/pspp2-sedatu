@@ -2,7 +2,7 @@
  * ARCHIVO: EmptyState.jsx
  * PROPÓSITO: Componente para mostrar estado vacío con ícono y acción.
  *
- * MINI-CLASE: Empty states como guía para el usuario
+ * NOTA TÉCNICA: Empty states como guía para el usuario
  * ─────────────────────────────────────────────────────────────────
  * Un empty state bien diseñado no solo dice "no hay datos", sino
  * que guía al usuario sobre qué hacer: "No hay proyectos aún.

@@ -2,7 +2,7 @@
  * ARCHIVO: bloqueos.routes.js
  * PROPÓSITO: Rutas REST para bloqueos.
  *
- * MINI-CLASE: Rutas de consulta y resolución
+ * NOTA TÉCNICA: Rutas de consulta y resolución
  * ─────────────────────────────────────────────────────────────────
  * GET /bloqueos          → historial por entidad (query params)
  * GET /bloqueos/activo   → bloqueo activo de una entidad

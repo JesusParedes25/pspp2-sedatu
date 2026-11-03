@@ -2,7 +2,7 @@
  * ARCHIVO: evidencias.routes.js
  * PROPÓSITO: Rutas de evidencias (descarga y eliminación por ID).
  *
- * MINI-CLASE: Rutas de archivos y streaming
+ * NOTA TÉCNICA: Rutas de archivos y streaming
  * ─────────────────────────────────────────────────────────────────
  * Las rutas de subida están anidadas bajo acciones y riesgos (en
  * routes/index.js) porque necesitan el ID del padre. Las rutas de

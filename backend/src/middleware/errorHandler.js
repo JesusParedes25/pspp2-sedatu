@@ -2,7 +2,7 @@
  * ARCHIVO: errorHandler.js
  * PROPÓSITO: Middleware centralizado de manejo de errores para Express.
  *
- * MINI-CLASE: Error handling middleware en Express
+ * NOTA TÉCNICA: Error handling middleware en Express
  * ─────────────────────────────────────────────────────────────────
  * Express reconoce un middleware de error por tener 4 parámetros:
  * (err, req, res, next). Cuando cualquier ruta hace throw o llama

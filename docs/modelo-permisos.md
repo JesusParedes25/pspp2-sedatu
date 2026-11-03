@@ -1,25 +1,17 @@
 # Modelo de permisos de PSPP v2.0
 
-> **Este documento corresponde al commit `d47b152cb7a6f903002bf7380b9284a8de53891e`
-> (2026-10-15, Fase 4, parte A — la matriz de capacidades completa,
-> sección 13 — + Fase 4, parte B v1 — transferencia de administración de
-> proyecto exclusiva de superadmin, sección 15.1) + Fase 4, parte B v2 —
-> corrige un hueco real de la v1: el cambio de función ahora avisa, en
-> correo y en notificación dentro de la plataforma; dos cuentas de
-> EmailJS independientes (sin ningún valor compartido) para "Invitación
-> a la plataforma" y "Asignación de participación"; 8 variables de
-> contenido en vez de 6, armadas por la plataforma; la etiqueta visible
-> de función (nunca el valor crudo) en ambos canales — descrito en este
-> mismo PR (sección 15.2).**
-> Regenerado por completo (no es un parche del documento anterior), porque
-> la versión previa describía el modelo PRE-Fase-1: el CHECK de 2 valores
-> de `proyecto_usuarios.rol`, el CHECK de 3 valores con `'invitado'` de
-> `nodo_miembros.rol`, y funciones de autorización escritas como cadenas
-> de OR hechas a mano — arquitectura que la migración 079 y la reescritura
-> de `funcion-efectiva.js`/`autorizacion.js` ya reemplazaron por completo,
-> aunque este archivo seguía sin decirlo. Si quien lea esto más adelante
-> encuentra código que ya no coincide con lo descrito aquí, el código
-> manda — y toca regenerar este documento otra vez, no parchearlo.
+> **Versión: Fase 4, parte B v2. 2026-10-15.**
+> Cubre la matriz de capacidades completa (sección 13), la transferencia
+> de administración de proyecto exclusiva de superadmin (sección 15.1) y
+> el aviso de cambio de función: correo y notificación dentro de la
+> plataforma, dos cuentas de EmailJS independientes (sin ningún valor
+> compartido) para "Invitación a la plataforma" y "Asignación de
+> participación", 8 variables de contenido armadas por la plataforma, y
+> la etiqueta visible de función (nunca el valor crudo) en ambos canales
+> (sección 15.2). El modelo de autorización vigente es una sola función,
+> `funcionEfectiva` (`backend/src/utils/funcion-efectiva.js`), comparada
+> contra un mínimo por `backend/src/utils/autorizacion.js`; si el código
+> y este documento no coinciden, manda el código.
 
 ## 0. Resumen ejecutivo
 

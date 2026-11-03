@@ -2,7 +2,7 @@
  * ARCHIVO: acciones.queries.js
  * PROPÓSITO: Todas las queries SQL de la tabla acciones.
  *
- * MINI-CLASE: SQL parametrizado con pg ($1, $2...)
+ * NOTA TÉCNICA: SQL parametrizado con pg ($1, $2...)
  * ─────────────────────────────────────────────────────────────────
  * NUNCA concatenar valores en SQL:
  *   `WHERE id = '${id}'`  ← SQL injection, muy peligroso

@@ -2,7 +2,7 @@
  * ARCHIVO: auth.routes.js
  * PROPÓSITO: Rutas de autenticación (login y obtener usuario actual).
  *
- * MINI-CLASE: Rutas públicas vs protegidas
+ * NOTA TÉCNICA: Rutas públicas vs protegidas
  * ─────────────────────────────────────────────────────────────────
  * POST /auth/login es la ÚNICA ruta pública de toda la API. No
  * requiere token porque es donde el usuario obtiene su token.

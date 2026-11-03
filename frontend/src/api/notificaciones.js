@@ -2,7 +2,7 @@
  * ARCHIVO: notificaciones.js
  * PROPÓSITO: Funciones de API para notificaciones del usuario.
  *
- * MINI-CLASE: tiempo real (SSE) con polling como respaldo
+ * NOTA TÉCNICA: tiempo real (SSE) con polling como respaldo
  * ─────────────────────────────────────────────────────────────────
  * suscribirEnVivo() abre la conexión SSE de /notificaciones/stream y
  * llama a `onAviso` cada vez que el backend indica que algo cambió —

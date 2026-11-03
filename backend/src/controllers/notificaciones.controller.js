@@ -2,7 +2,7 @@
  * ARCHIVO: notificaciones.controller.js
  * PROPÓSITO: Manejar las peticiones HTTP de notificaciones del usuario.
  *
- * MINI-CLASE: tiempo real con SSE, no con más polling
+ * NOTA TÉCNICA: tiempo real con SSE, no con más polling
  * ─────────────────────────────────────────────────────────────────
  * El frontend sigue consultando por polling (GET /notificaciones,
  * GET /notificaciones/resumen) como respaldo, pero ya no es la única

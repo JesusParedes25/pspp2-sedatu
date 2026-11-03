@@ -3,7 +3,7 @@
  * PROPÓSITO: Credenciales de servicio para que otra plataforma consuma
  *            la API de indicadores.
  *
- * MINI-CLASE: por qué solo se guarda el hash
+ * NOTA TÉCNICA: por qué solo se guarda el hash
  * ─────────────────────────────────────────────────────────────────
  * El token se genera aleatorio y se guarda hasheado con SHA-256. Ni
  * siquiera un superadmin puede volver a verlo: si se pierde, se

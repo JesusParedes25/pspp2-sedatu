@@ -5,7 +5,7 @@
  *            filtra por rol: superadmin/ejecutivo ven todo, dirección ve
  *            su DG, el resto solo donde colabora o es responsable).
  *
- * MINI-CLASE: Master-detail en vez de fila-con-todo
+ * NOTA TÉCNICA: Master-detail en vez de fila-con-todo
  * ─────────────────────────────────────────────────────────────────
  * La versión anterior metía nombre + categoría + autor + proyecto +
  * etapa + DG + fecha + descarga en una sola fila flex — en pantallas

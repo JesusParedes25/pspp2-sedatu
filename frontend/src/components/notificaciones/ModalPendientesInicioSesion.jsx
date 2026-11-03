@@ -4,7 +4,7 @@
  *            esperando respuesta, mostrarlas de entrada en un modal que
  *            se puede resolver ahí mismo o posponer.
  *
- * MINI-CLASE: interrumpir solo cuando de verdad conviene
+ * NOTA TÉCNICA: interrumpir solo cuando de verdad conviene
  * ─────────────────────────────────────────────────────────────────
  * Antes, un pendiente solo se veía si la persona entraba a Notificaciones
  * por su cuenta — con la campanita sin contarlo bien (ver useCentroNotifi-
@@ -21,7 +21,7 @@
  * señal para el resto de la sesión. Nada queda sin resolver por esto —
  * sigue todo disponible en Notificaciones.
  *
- * MINI-CLASE: jerarquía de un modal con dos acciones distintas
+ * NOTA TÉCNICA: jerarquía de un modal con dos acciones distintas
  * ─────────────────────────────────────────────────────────────────
  * Resolver un pendiente (Aceptar/Declinar, dentro de cada tarjeta) es la
  * acción que este modal existe para ofrecer; posponerlo es la salida,

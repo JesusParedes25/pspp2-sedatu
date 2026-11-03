@@ -2,7 +2,7 @@
  * ARCHIVO: pool.js
  * PROPÓSITO: Gestiona el pool de conexiones a PostgreSQL para toda la app.
  *
- * MINI-CLASE: Pool de conexiones (node-postgres)
+ * NOTA TÉCNICA: Pool de conexiones (node-postgres)
  * ─────────────────────────────────────────────────────────────────
  * Abrir una conexión nueva a PostgreSQL por cada petición HTTP cuesta
  * ~50ms solo en el handshake. Un pool mantiene N conexiones abiertas

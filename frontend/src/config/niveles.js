@@ -8,7 +8,7 @@
  *            consumen este mismo objeto en vez de tener cada uno su propio
  *            "si es etapa entonces..." disperso por el código.
  *
- * MINI-CLASE: dos codificaciones de color, dos lugares distintos
+ * NOTA TÉCNICA: dos codificaciones de color, dos lugares distintos
  * ─────────────────────────────────────────────────────────────────
  * El color de NIVEL (aquí) responde "¿qué tipo de cosa es esto?" y vive
  * solo en el ícono/chip de tipo. El color de URGENCIA (semáforo, ver

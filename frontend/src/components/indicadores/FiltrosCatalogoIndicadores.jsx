@@ -7,7 +7,7 @@
  *            ofrezcan exactamente los mismos filtros, no una versión
  *            reducida en ninguno.
  *
- * MINI-CLASE: filtrar por lo que el usuario reconoce, no por metadato
+ * NOTA TÉCNICA: filtrar por lo que el usuario reconoce, no por metadato
  * ─────────────────────────────────────────────────────────────────
  * La versión anterior reemplazaba, para PSEDATU, el buscador de texto
  * por selects de Objetivo/Estrategia por NÚMERO — datos correctos para

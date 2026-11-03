@@ -16,7 +16,7 @@
  * solo y pasa por cambiarEstado() (motivo de bloqueo, cascada, auditoría),
  * gobernanza que un CampoSelect de este formulario no tenía.
  *
- * MINI-CLASE: por qué es autosuficiente
+ * NOTA TÉCNICA: por qué es autosuficiente
  * ─────────────────────────────────────────────────────────────────
  * Solo recibe `nodo` ({tipo, id, data}), `permisos` y `onActualizado` —
  * carga sus propios catálogos y calcula por su cuenta (sem, esContenedor)

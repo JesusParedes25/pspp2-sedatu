@@ -2,7 +2,7 @@
  * ARCHIVO: recalculos.js
  * PROPÓSITO: Recalcular en cascada el % de avance cuando cambia una acción.
  *
- * MINI-CLASE: Recálculo en cascada explícito
+ * NOTA TÉCNICA: Recálculo en cascada explícito
  * ─────────────────────────────────────────────────────────────────
  * En lugar de hooks automáticos (que son difíciles de depurar),
  * estas funciones se llaman EXPLÍCITAMENTE desde el controller

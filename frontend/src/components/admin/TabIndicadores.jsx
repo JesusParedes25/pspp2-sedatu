@@ -3,7 +3,7 @@
  * PROPÓSITO: Administrar el catálogo de indicadores desde el panel de
  *            superadministrador (curar lo que los usuarios dan de alta).
  *
- * MINI-CLASE: curar, no vigilar
+ * NOTA TÉCNICA: curar, no vigilar
  * ─────────────────────────────────────────────────────────────────
  * Cualquier usuario puede agregar un indicador que le falte — si no,
  * lo capturaría suelto y el catálogo quedaría desactualizado. El

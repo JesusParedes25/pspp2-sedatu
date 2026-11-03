@@ -2,7 +2,7 @@
  * ARCHIVO: riesgos.js
  * PROPÓSITO: Funciones de API para riesgos y problemas.
  *
- * MINI-CLASE: CRUD estándar para riesgos
+ * NOTA TÉCNICA: CRUD estándar para riesgos
  * ─────────────────────────────────────────────────────────────────
  * Los riesgos se listan por proyecto (GET /proyectos/:id/riesgos)
  * pero se crean, leen, actualizan y eliminan de forma independiente

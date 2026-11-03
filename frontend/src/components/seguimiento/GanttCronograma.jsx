@@ -4,7 +4,7 @@
  *            → subacciones/tareas como barras horizontales sobre una
  *            línea de tiempo con meses.
  *
- * MINI-CLASE: Gantt jerárquico con carga bajo demanda
+ * NOTA TÉCNICA: Gantt jerárquico con carga bajo demanda
  * ─────────────────────────────────────────────────────────────────
  * Un Gantt es una tabla donde el eje Y son las tareas y el eje X
  * es el tiempo. Las etapas se expanden para mostrar acciones, y las

@@ -2,7 +2,7 @@
  * ARCHIVO: 02_usuarios.js
  * PROPÓSITO: Insertar los 6 usuarios de demostración con contraseñas hasheadas.
  *
- * MINI-CLASE: bcrypt y hashing de contraseñas
+ * NOTA TÉCNICA: bcrypt y hashing de contraseñas
  * ─────────────────────────────────────────────────────────────────
  * NUNCA se almacena la contraseña en texto plano. bcrypt aplica un
  * algoritmo de hashing irreversible con un "salt" aleatorio. El

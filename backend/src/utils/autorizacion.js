@@ -4,7 +4,7 @@
  *            etapas/acciones, agregar/quitar miembros) sobre un proyecto
  *            o un nodo (etapa/acción/tarea) dentro de él.
  *
- * MINI-CLASE: Fase 1 del modelo de permisos — una sola función resuelve,
+ * NOTA TÉCNICA: Fase 1 del modelo de permisos — una sola función resuelve,
  * el resto solo compara
  * ─────────────────────────────────────────────────────────────────
  * Hasta antes de esta reescritura, cada función de este archivo tenía su

@@ -2,7 +2,7 @@
  * ARCHIVO: proyectos.stats.queries.js
  * PROPÓSITO: Queries de estadísticas/métricas para el resumen del proyecto.
  *
- * MINI-CLASE: Estadísticas agregadas del proyecto
+ * NOTA TÉCNICA: Estadísticas agregadas del proyecto
  * ─────────────────────────────────────────────────────────────────
  * Estas queries calculan métricas en la BD (no en JS) usando COUNT
  * con GROUP BY para eficiencia. Se usan en el endpoint de resumen

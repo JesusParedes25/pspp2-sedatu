@@ -3,7 +3,7 @@
  * PROPÓSITO: Utilidades para formatear/comparar campos tipo DATE (sin hora)
  *            que vienen del backend — fecha_inicio, fecha_fin, fecha_limite.
  *
- * MINI-CLASE: por qué "new Date('2026-07-20')" desfasa un día
+ * NOTA TÉCNICA: por qué "new Date('2026-07-20')" desfasa un día
  * ─────────────────────────────────────────────────────────────────
  * Una fecha sin hora ("2026-07-20") o un ISO con hora en punto que
  * llega serializado como "2026-07-20T00:00:00.000Z" se interpreta

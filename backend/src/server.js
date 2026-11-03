@@ -3,7 +3,7 @@
  * PROPÓSITO: Punto de entrada del backend. Configura Express, middlewares
  *            globales y levanta el servidor HTTP.
  *
- * MINI-CLASE: Express Application
+ * NOTA TÉCNICA: Express Application
  * ─────────────────────────────────────────────────────────────────
  * Express es un framework minimalista para Node.js que maneja peticiones
  * HTTP. app.use() registra middlewares que se ejecutan en orden para

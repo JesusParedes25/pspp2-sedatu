@@ -7,7 +7,7 @@
  *            datos personalizado (eso es Tablero.jsx, en /tablero) —
  *            Inicio es orientación, Tablero es información.
  *
- * MINI-CLASE: "reusar la fuente", no reescribirla
+ * NOTA TÉCNICA: "reusar la fuente", no reescribirla
  * ─────────────────────────────────────────────────────────────────
  * Cada tarjeta muestra un número, y ese número tiene que salir de la
  * MISMA consulta que alimenta la pantalla a la que lleva — nunca de una
@@ -44,7 +44,7 @@
  *     distintos es el mismo problema de fondo que el bloque 1 vino a
  *     corregir en los otros cinco.
  *
- * MINI-CLASE: equilibrio visual — una acción arriba, un atajo abajo
+ * NOTA TÉCNICA: equilibrio visual — una acción arriba, un atajo abajo
  * ─────────────────────────────────────────────────────────────────
  * Antes "Da de alta un proyecto" y "Guía de uso" eran dos franjas
  * punteadas del mismo tamaño, una debajo de otra, al fondo de la

@@ -4,7 +4,7 @@
  *            consume el tablero ejecutivo externo — sin tocar código
  *            ni variables de entorno para dar, rotar o revocar uno.
  *
- * MINI-CLASE: el token se muestra una sola vez
+ * NOTA TÉCNICA: el token se muestra una sola vez
  * ─────────────────────────────────────────────────────────────────
  * En la base solo vive el hash del token, nunca el valor. Eso
  * significa que ni esta pantalla puede recuperarlo después: se

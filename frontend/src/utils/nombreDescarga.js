@@ -4,7 +4,7 @@
  *            cuando la descarga se hace por blob (axios) y no por
  *            navegación directa del navegador.
  *
- * MINI-CLASE: por qué esto no lo resuelve el navegador solo
+ * NOTA TÉCNICA: por qué esto no lo resuelve el navegador solo
  * ─────────────────────────────────────────────────────────────────
  * Si el navegador navegara directo a la URL del archivo (un <a href>
  * normal), él mismo leería el Content-Disposition y elegiría el nombre

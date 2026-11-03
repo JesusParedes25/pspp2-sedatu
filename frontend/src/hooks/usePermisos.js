@@ -3,7 +3,7 @@
  * PROPÓSITO: Decirle a la interfaz qué puede hacer el usuario en un
  *            proyecto y en cada nodo suyo.
  *
- * MINI-CLASE: perfil, función y quién manda de verdad
+ * NOTA TÉCNICA: perfil, función y quién manda de verdad
  * ─────────────────────────────────────────────────────────────────
  * Dos cosas distintas, con dos nombres distintos:
  *
@@ -27,7 +27,7 @@
  *
  * Regla corta: el perfil dice DÓNDE alcanza, la función dice QUÉ hace.
  *
- * MINI-CLASE: por qué este hook le pregunta al servidor
+ * NOTA TÉCNICA: por qué este hook le pregunta al servidor
  * ─────────────────────────────────────────────────────────────────
  * Se puede invitar a alguien a una etapa suelta en vez de al proyecto
  * entero. Desde entonces "¿puede editar?" no tiene una sola respuesta

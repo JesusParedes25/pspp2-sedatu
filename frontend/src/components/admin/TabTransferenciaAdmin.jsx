@@ -3,7 +3,7 @@
  * PROPÓSITO: Transferir la administración de un proyecto a otro miembro
  *            — exclusivo de superadmin (ver docs/modelo-permisos.md).
  *
- * MINI-CLASE: por qué no vive en Configuración del proyecto
+ * NOTA TÉCNICA: por qué no vive en Configuración del proyecto
  * ─────────────────────────────────────────────────────────────────
  * Es una decisión de producto, no un descuido: hoy solo un superadmin
  * puede transferir la administración (el propio administrador cediéndola

@@ -2,7 +2,7 @@
  * ARCHIVO: RiesgoCard.jsx
  * PROPÓSITO: Card individual de un riesgo o problema del proyecto.
  *
- * MINI-CLASE: Riesgos con nivel de severidad visual
+ * NOTA TÉCNICA: Riesgos con nivel de severidad visual
  * ─────────────────────────────────────────────────────────────────
  * El borde izquierdo del card usa el color del nivel de severidad:
  * verde (Bajo), amarillo (Medio), naranja (Alto), rojo (Crítico).

@@ -4,7 +4,7 @@
  *            declinando), para después de que la tarjeta pendiente
  *            desaparece de la bandeja.
  *
- * MINI-CLASE: por qué hace falta esto además de SolicitudesPorResolver
+ * NOTA TÉCNICA: por qué hace falta esto además de SolicitudesPorResolver
  * ─────────────────────────────────────────────────────────────────
  * En cuanto se resuelve una solicitud, sale de la lista de pendientes —
  * es justo lo que se espera de una bandeja de "por resolver". Pero eso

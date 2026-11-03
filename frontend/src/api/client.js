@@ -2,7 +2,7 @@
  * ARCHIVO: client.js
  * PROPÓSITO: Instancia central de axios con JWT y manejo de errores.
  *
- * MINI-CLASE: Interceptores de Axios
+ * NOTA TÉCNICA: Interceptores de Axios
  * ─────────────────────────────────────────────────────────────────
  * Los interceptores son middlewares del lado del cliente: funciones
  * que se ejecutan automáticamente antes de cada request o después

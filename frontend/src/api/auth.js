@@ -2,7 +2,7 @@
  * ARCHIVO: auth.js
  * PROPÓSITO: Funciones de API para autenticación.
  *
- * MINI-CLASE: Capa de API como abstracción
+ * NOTA TÉCNICA: Capa de API como abstracción
  * ─────────────────────────────────────────────────────────────────
  * Cada archivo en api/ exporta funciones que encapsulan una petición
  * HTTP específica. Los componentes nunca llaman a axios directamente;

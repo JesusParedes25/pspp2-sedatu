@@ -3,7 +3,7 @@
  * PROPÓSITO: Bus de eventos en memoria para avisar en tiempo real a un
  *            usuario conectado que su buzón de notificaciones cambió.
  *
- * MINI-CLASE: por qué un EventEmitter y no Redis/WebSockets
+ * NOTA TÉCNICA: por qué un EventEmitter y no Redis/WebSockets
  * ─────────────────────────────────────────────────────────────────
  * El backend corre como un solo proceso (un contenedor `backend`, sin
  * réplicas — ver docker-compose.prod.yml), así que no hace falta un

@@ -6,7 +6,7 @@
  *            PanelDetalle. Lo consume tanto "Detalle" como la futura
  *            vista "Diagrama".
  *
- * MINI-CLASE: envoltorio delgado, no lógica nueva
+ * NOTA TÉCNICA: envoltorio delgado, no lógica nueva
  * ─────────────────────────────────────────────────────────────────
  * Cada método aquí llama exactamente la misma función de
  * etapasApi/accionesApi/tareasApi que ya se llamaba en cada sitio antes

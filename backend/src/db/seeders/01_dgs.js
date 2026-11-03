@@ -3,7 +3,7 @@
  * PROPÓSITO: Insertar la estructura organizacional de SEDATU conforme
  *            al Reglamento Interior (DOF 17/01/2025), Art. 2.
  *
- * MINI-CLASE: Jerarquía organizacional de SEDATU
+ * NOTA TÉCNICA: Jerarquía organizacional de SEDATU
  * ─────────────────────────────────────────────────────────────────
  * SEDATU se organiza en niveles jerárquicos (Art. 2 del RI):
  *

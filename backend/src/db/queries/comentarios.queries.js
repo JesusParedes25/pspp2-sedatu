@@ -2,7 +2,7 @@
  * ARCHIVO: comentarios.queries.js
  * PROPÓSITO: Queries SQL para la tabla comentarios (inmutables).
  *
- * MINI-CLASE: Comentarios inmutables y hilos
+ * NOTA TÉCNICA: Comentarios inmutables y hilos
  * ─────────────────────────────────────────────────────────────────
  * Los comentarios en PSPP son INMUTABLES: una vez creados, no se
  * pueden editar ni eliminar. Esto garantiza la integridad del

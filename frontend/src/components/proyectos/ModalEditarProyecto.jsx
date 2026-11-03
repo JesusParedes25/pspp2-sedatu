@@ -3,7 +3,7 @@
  * PROPÓSITO: Modal completo para editar todos los campos de un proyecto,
  *            incluyendo indicadores propios (crear/editar/eliminar) y etiquetas.
  *
- * MINI-CLASE: Edición completa de proyecto
+ * NOTA TÉCNICA: Edición completa de proyecto
  * ─────────────────────────────────────────────────────────────────
  * Pre-carga todos los campos del proyecto existente. Permite modificar
  * información general, clasificación, DG líder, programa, fechas,

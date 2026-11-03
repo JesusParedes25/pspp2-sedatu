@@ -2,7 +2,7 @@
  * ARCHIVO: vite.config.js
  * PROPÓSITO: Configuración de Vite para el frontend React de PSPP.
  *
- * MINI-CLASE: Vite como bundler de desarrollo
+ * NOTA TÉCNICA: Vite como bundler de desarrollo
  * ─────────────────────────────────────────────────────────────────
  * Vite usa ES modules nativos del navegador en desarrollo, lo que
  * hace que el servidor arranque en milisegundos (vs webpack que

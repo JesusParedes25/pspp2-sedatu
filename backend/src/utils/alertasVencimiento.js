@@ -2,7 +2,7 @@
  * ARCHIVO: alertasVencimiento.js
  * PROPÓSITO: Detectar acciones próximas a vencer y generar notificaciones.
  *
- * MINI-CLASE: Alertas programadas (cron-like)
+ * NOTA TÉCNICA: Alertas programadas (cron-like)
  * ─────────────────────────────────────────────────────────────────
  * En lugar de usar un cron externo, este módulo expone una función
  * que se puede llamar periódicamente (por ejemplo cada hora desde

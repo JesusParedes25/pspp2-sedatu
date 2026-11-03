@@ -4,7 +4,7 @@
  *            Reutiliza MapaDrillDown (el mismo componente del módulo
  *            Territorio) con datos y sidebar ligero propios del proyecto.
  *
- * MINI-CLASE: dos escalas, un mismo dibujo
+ * NOTA TÉCNICA: dos escalas, un mismo dibujo
  * ─────────────────────────────────────────────────────────────────
  * Un nodo se territorializa en Modo A (Estado + Municipios) o Modo B
  * (Zona Metropolitana) — son excluyentes, nunca los dos a la vez

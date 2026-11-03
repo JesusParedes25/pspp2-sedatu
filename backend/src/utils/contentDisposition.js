@@ -3,7 +3,7 @@
  * PROPÓSITO: Construir el header Content-Disposition sin corromper
  *            nombres de archivo con acentos, ñ o signos como ¿/¡.
  *
- * MINI-CLASE: por qué "filename=" solo no basta
+ * NOTA TÉCNICA: por qué "filename=" solo no basta
  * ─────────────────────────────────────────────────────────────────
  * Los headers HTTP solo admiten Latin-1 puro (RFC 7230). Node no lo
  * valida al escribir el header: si el string tiene un carácter fuera de

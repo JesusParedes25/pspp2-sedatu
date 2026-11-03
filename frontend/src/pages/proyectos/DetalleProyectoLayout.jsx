@@ -7,7 +7,7 @@
  *            pestaña activa como estado local (`?tab=`) en vez de rutas
  *            reales.
  *
- * MINI-CLASE: de pestañas-en-estado a rutas anidadas
+ * NOTA TÉCNICA: de pestañas-en-estado a rutas anidadas
  * ─────────────────────────────────────────────────────────────────
  * Antes: una sola página montaba las 4 pestañas y las ocultaba con
  * `hidden` (para no perder su estado/datos al cambiar). Con rutas

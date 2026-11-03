@@ -6,7 +6,7 @@
  *            carteras — un proyecto sin cartera se ve únicamente en
  *            "Todos los proyectos").
  *
- * MINI-CLASE: Paginación del lado del servidor
+ * NOTA TÉCNICA: Paginación del lado del servidor
  * ─────────────────────────────────────────────────────────────────
  * La paginación se hace en el servidor (LIMIT/OFFSET en SQL) para
  * no cargar todos los proyectos a la vez. El frontend envía los
@@ -16,7 +16,7 @@
  * paginación para consultas eficientes.
  * ─────────────────────────────────────────────────────────────────
  *
- * MINI-CLASE: Vista recordada en localStorage + URL
+ * NOTA TÉCNICA: Vista recordada en localStorage + URL
  * ─────────────────────────────────────────────────────────────────
  * El modo de vista (identificador interno 'agrupado'/'todos', sin
  * relación con el orden en que se muestran los botones) se guarda en

@@ -5,7 +5,7 @@
  *            Es la lista que alimenta el desplegable "Programa
  *            presupuestario" al crear o editar un proyecto.
  *
- * MINI-CLASE: catálogo institucional ≠ datos de demostración
+ * NOTA TÉCNICA: catálogo institucional ≠ datos de demostración
  * ─────────────────────────────────────────────────────────────────
  * Los seeders (01_dgs, 02_usuarios, 03_programas, 04_proyectos_ejemplo)
  * solo corren fuera de producción: insertan usuarios de demo con

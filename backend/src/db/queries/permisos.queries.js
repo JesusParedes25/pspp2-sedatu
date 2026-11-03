@@ -4,7 +4,7 @@
  *            concretos puede capturar — para que la interfaz muestre
  *            editable exactamente lo que el servidor va a aceptar.
  *
- * MINI-CLASE: por qué esto tiene que existir
+ * NOTA TÉCNICA: por qué esto tiene que existir
  * ─────────────────────────────────────────────────────────────────
  * Desde que se puede invitar a alguien a una etapa suelta (y no al
  * proyecto entero), "¿puede editar?" dejó de tener una sola respuesta

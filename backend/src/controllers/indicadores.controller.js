@@ -2,7 +2,7 @@
  * ARCHIVO: indicadores.controller.js
  * PROPÓSITO: Controlador REST para indicadores de proyecto.
  *
- * MINI-CLASE: Controllers y la capa de transporte
+ * NOTA TÉCNICA: Controllers y la capa de transporte
  * ─────────────────────────────────────────────────────────────────
  * Un controller recibe la petición HTTP (req), extrae los datos,
  * llama a la capa de queries (lógica de datos), y devuelve la
@@ -38,7 +38,7 @@ async function listarMios(req, res, next) {
   try {
     // El recorte a "participación real" solo aplica a superadmin/
     // ejecutivo (cuyo alcance normal ya es "todos los proyectos", ver
-    // mini-clase arriba) — para cualquier otro rol se deja el alcance de
+    // nota técnica arriba) — para cualquier otro rol se deja el alcance de
     // siempre (direccion conserva su bono de DG; enlace, lo de siempre),
     // pasando null para que resolverProyectoIdsFiltro use su default.
     const esRolAmplio = ROLES_CON_TOTAL_PLATAFORMA.includes(req.usuario.rol);

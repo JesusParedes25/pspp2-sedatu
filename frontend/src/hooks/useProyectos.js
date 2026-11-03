@@ -2,7 +2,7 @@
  * ARCHIVO: useProyectos.js
  * PROPÓSITO: Hook personalizado para gestionar el estado de proyectos.
  *
- * MINI-CLASE: Custom hooks en React
+ * NOTA TÉCNICA: Custom hooks en React
  * ─────────────────────────────────────────────────────────────────
  * Un custom hook encapsula lógica reutilizable con estado. En lugar
  * de repetir useState + useEffect + manejo de errores en cada

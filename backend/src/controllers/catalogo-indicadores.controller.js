@@ -2,7 +2,7 @@
  * ARCHIVO: catalogo-indicadores.controller.js
  * PROPÓSITO: API del catálogo de indicadores.
  *
- * MINI-CLASE: quién puede qué
+ * NOTA TÉCNICA: quién puede qué
  * ─────────────────────────────────────────────────────────────────
  * Leer el catálogo lo puede hacer cualquier usuario autenticado: sin
  * eso no podría elegir indicadores al capturar su proyecto.

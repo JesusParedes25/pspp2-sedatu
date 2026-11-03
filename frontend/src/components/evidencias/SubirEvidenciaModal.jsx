@@ -2,7 +2,7 @@
  * ARCHIVO: SubirEvidenciaModal.jsx
  * PROPÓSITO: Modal para subir evidencias a una acción o riesgo.
  *
- * MINI-CLASE: Subida de archivos con drag & drop
+ * NOTA TÉCNICA: Subida de archivos con drag & drop
  * ─────────────────────────────────────────────────────────────────
  * Este modal permite seleccionar un archivo desde el explorador o
  * arrastrarlo sobre la zona de drop. Al seleccionar, el usuario

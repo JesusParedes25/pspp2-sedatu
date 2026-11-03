@@ -3,7 +3,7 @@
  * PROPÓSITO: Cómo se ve UN indicador en cualquier vista de consulta
  *            (Tablero, Resumen de cartera y Panorama del proyecto).
  *
- * MINI-CLASE: el número antes que el porcentaje
+ * NOTA TÉCNICA: el número antes que el porcentaje
  * ─────────────────────────────────────────────────────────────────
  * Antes, un indicador con meta mostraba solo "19%". Ese dato no
  * responde la pregunta que la gente hace de verdad: ¿19% de cuánto?

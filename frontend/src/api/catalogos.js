@@ -2,7 +2,7 @@
  * ARCHIVO: catalogos.js
  * PROPÓSITO: Funciones de API para catálogos del sistema.
  *
- * MINI-CLASE: Catálogos como datos de referencia cacheables
+ * NOTA TÉCNICA: Catálogos como datos de referencia cacheables
  * ─────────────────────────────────────────────────────────────────
  * Los catálogos son datos que rara vez cambian (DGs, programas,
  * usuarios). El frontend los carga una vez al iniciar la app y

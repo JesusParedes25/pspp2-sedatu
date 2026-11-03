@@ -3,7 +3,7 @@
  * PROPÓSITO: Elegir un indicador del catálogo al capturar o editar un
  *            proyecto, o darlo de alta ahí mismo si no existe.
  *
- * MINI-CLASE: por qué se elige en vez de teclear
+ * NOTA TÉCNICA: por qué se elige en vez de teclear
  * ─────────────────────────────────────────────────────────────────
  * Cuando cada proyecto escribía el nombre a mano, el mismo indicador
  * terminaba capturado de tres formas distintas y era imposible sumarlo

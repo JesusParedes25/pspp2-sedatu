@@ -2,7 +2,7 @@
  * ARCHIVO: Header.jsx
  * PROPÓSITO: Barra superior con breadcrumb, búsqueda y badge de notificaciones.
  *
- * MINI-CLASE: useLocation de React Router
+ * NOTA TÉCNICA: useLocation de React Router
  * ─────────────────────────────────────────────────────────────────
  * useLocation() devuelve el objeto de la URL actual con pathname,
  * search y hash. Lo usamos para generar el breadcrumb dinámicamente:

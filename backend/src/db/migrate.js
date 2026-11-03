@@ -2,7 +2,7 @@
  * ARCHIVO: migrate.js
  * PROPÓSITO: Ejecutar las migraciones SQL pendientes contra PostgreSQL.
  *
- * MINI-CLASE: Migraciones con registro de estado
+ * NOTA TÉCNICA: Migraciones con registro de estado
  * ─────────────────────────────────────────────────────────────────
  * Mantiene una tabla `schema_migrations` con los nombres de cada
  * archivo .sql ya aplicado. En cada arranque solo ejecuta los

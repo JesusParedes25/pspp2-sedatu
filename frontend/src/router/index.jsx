@@ -2,7 +2,7 @@
  * ARCHIVO: router/index.jsx
  * PROPÓSITO: Definición de todas las rutas de la aplicación con React Router.
  *
- * MINI-CLASE: React Router y SPA navigation
+ * NOTA TÉCNICA: React Router y SPA navigation
  * ─────────────────────────────────────────────────────────────────
  * En una SPA (Single Page Application), el navegador no recarga la
  * página al cambiar de ruta. React Router intercepta los clicks en

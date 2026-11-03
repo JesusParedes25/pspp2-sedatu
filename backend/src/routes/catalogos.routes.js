@@ -2,7 +2,7 @@
  * ARCHIVO: catalogos.routes.js
  * PROPÓSITO: Rutas de catálogos del sistema (solo lectura).
  *
- * MINI-CLASE: Endpoints de catálogos
+ * NOTA TÉCNICA: Endpoints de catálogos
  * ─────────────────────────────────────────────────────────────────
  * Todos los endpoints de catálogos son GET de solo lectura. El
  * frontend los consume al cargar la aplicación para poblar selects,

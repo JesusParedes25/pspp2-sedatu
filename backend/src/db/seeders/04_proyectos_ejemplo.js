@@ -3,7 +3,7 @@
  * PROPÓSITO: Insertar los 2 proyectos de ejemplo con etapas, acciones,
  *            evidencias, riesgos y comentarios completos y realistas.
  *
- * MINI-CLASE: Transacciones en PostgreSQL
+ * NOTA TÉCNICA: Transacciones en PostgreSQL
  * ─────────────────────────────────────────────────────────────────
  * Todo este seeder se ejecuta dentro de una transacción (BEGIN/COMMIT).
  * Si cualquier INSERT falla, ROLLBACK deshace TODOS los cambios.

@@ -5,7 +5,7 @@
  *            generales y direcciones de área) exista en CUALQUIER
  *            entorno, producción incluida — agregando solo lo que falte.
  *
- * MINI-CLASE: completar un catálogo sin pisar lo que ya está capturado
+ * NOTA TÉCNICA: completar un catálogo sin pisar lo que ya está capturado
  * ─────────────────────────────────────────────────────────────────
  * Es el mismo caso que los programas presupuestarios: la estructura del
  * Reglamento Interior (DOF 17/01/2025) vivía únicamente en un seeder

@@ -5,7 +5,7 @@
  *            etapas/acciones/tareas y capturarlo de cero cada vez es
  *            trabajo mecánico.
  *
- * MINI-CLASE: copiar estructura, no historia
+ * NOTA TÉCNICA: copiar estructura, no historia
  * ─────────────────────────────────────────────────────────────────
  * El proyecto nuevo arranca EN BLANCO en todo lo que representa
  * trabajo ya hecho: estado Pendiente, avance 0, sin semáforo, sin

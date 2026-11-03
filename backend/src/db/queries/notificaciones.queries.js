@@ -2,7 +2,7 @@
  * ARCHIVO: notificaciones.queries.js
  * PROPÓSITO: Queries SQL para la tabla notificaciones.
  *
- * MINI-CLASE: Sistema de notificaciones internas
+ * NOTA TÉCNICA: Sistema de notificaciones internas
  * ─────────────────────────────────────────────────────────────────
  * Las notificaciones son un buzón por usuario. Se crean cuando
  * ocurren eventos relevantes (vencimiento, mención, riesgo nuevo).

@@ -5,7 +5,7 @@
  *            reciente" (un widget chico de 50 filas), esta es la vista
  *            completa, paginada y filtrable del proyecto entero.
  *
- * MINI-CLASE: por qué se combinan 5 fuentes sin duplicar nada
+ * NOTA TÉCNICA: por qué se combinan 5 fuentes sin duplicar nada
  * ─────────────────────────────────────────────────────────────────
  * PSPP tiene dos sistemas de bitácora en paralelo, cada uno completo
  * para lo que cubre pero no para todo:

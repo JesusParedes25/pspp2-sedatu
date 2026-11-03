@@ -3,7 +3,7 @@
  * PROPÓSITO: Botón "+ Etapa/Acción/Tarea" con input inline (clic → nombre →
  *            Enter/Esc) reutilizado en el árbol y en el panel de detalle.
  *
- * MINI-CLASE: dos variantes, mismo mecanismo
+ * NOTA TÉCNICA: dos variantes, mismo mecanismo
  * ─────────────────────────────────────────────────────────────────
  * 'sutil' (default) es el enlace junto al encabezado de la lista de
  * hijos — mismo peso visual que los demás botones de ícono de esa

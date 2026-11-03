@@ -2,7 +2,7 @@
  * ARCHIVO: acciones.js
  * PROPÓSITO: Funciones de API para acciones.
  *
- * MINI-CLASE: Acciones como nivel atómico de seguimiento
+ * NOTA TÉCNICA: Acciones como nivel atómico de seguimiento
  * ─────────────────────────────────────────────────────────────────
  * Las acciones son el único nivel donde el porcentaje se edita
  * manualmente. actualizarAccion() es la función más crítica porque

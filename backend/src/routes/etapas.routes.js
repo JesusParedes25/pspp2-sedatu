@@ -2,7 +2,7 @@
  * ARCHIVO: etapas.routes.js
  * PROPÓSITO: Rutas CRUD de etapas.
  *
- * MINI-CLASE: Rutas anidadas vs independientes
+ * NOTA TÉCNICA: Rutas anidadas vs independientes
  * ─────────────────────────────────────────────────────────────────
  * Las etapas tienen dos tipos de rutas: anidadas bajo proyectos
  * (GET/POST /proyectos/:id/etapas) para listar y crear dentro de
