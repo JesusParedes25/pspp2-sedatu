@@ -4,9 +4,26 @@
  */
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Eye, EyeOff, Lock, Mail, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, Loader2, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useUI } from '../context/UIContext';
+
+// Si el interceptor de respuestas 401 (api/client.js) acaba de mandar aquí
+// por un token vencido, deja esta marca antes de recargar la página. Se lee
+// y se borra de una vez, en el primer render — no en un useEffect, para que
+// no aparezca ni un instante el formulario sin el aviso y luego "salte".
+function leerYLimpiarAvisoExpirada() {
+  try {
+    if (sessionStorage.getItem('pspp_sesion_expirada') === '1') {
+      sessionStorage.removeItem('pspp_sesion_expirada');
+      return true;
+    }
+  } catch {
+    // sessionStorage puede no estar disponible (modo privado estricto) —
+    // sin el aviso no pasa nada grave, solo se pierde ese mensaje.
+  }
+  return false;
+}
 
 export default function Login() {
   const { login } = useAuth();
@@ -16,10 +33,15 @@ export default function Login() {
   const [mostrarPass, setMostrarPass] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
+  // Distinto de `error`: no es que la persona se haya equivocado, es que la
+  // sesión venció sola. Mismo aviso para token vencido o inválido — en
+  // ambos casos la acción es la misma, volver a entrar.
+  const [sesionExpirada, setSesionExpirada] = useState(leerYLimpiarAvisoExpirada);
 
   async function manejarSubmit(e) {
     e.preventDefault();
     setError('');
+    setSesionExpirada(false);
     setCargando(true);
     try {
       await login(correo, password);
@@ -93,6 +115,14 @@ export default function Login() {
           </div>
 
           <form onSubmit={manejarSubmit} className="space-y-5">
+
+            {/* Sesión expirada — informativo, no un error de la persona */}
+            {sesionExpirada && !error && (
+              <div className="flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+                <Clock size={15} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-amber-800">Tu sesión expiró, vuelve a entrar.</p>
+              </div>
+            )}
 
             {/* Error */}
             {error && (

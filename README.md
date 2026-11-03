@@ -49,7 +49,7 @@ docker-compose exec backend npm run seed
 | `DB_PASSWORD`      | Contraseña de PostgreSQL                       | ✅          |
 | `DB_PORT`          | Puerto interno de PostgreSQL (normalmente `5432`) | ✅       |
 | `JWT_SECRET`       | Secreto para firmar tokens JWT (mín. 64 chars) | ✅          |
-| `JWT_EXPIRES_IN`   | Tiempo de expiración del token (ej: `8h`)      | ✅          |
+| `JWT_EXPIRES_IN`   | Duración de la sesión (ej: `48h`). Si no se define, el backend usa `48h` por omisión | ❌ |
 | `SUPERADMIN_EMAIL` | Correo de la cuenta de superadministrador      | ✅          |
 | `PASSWORD_USER`    | Contraseña de esa cuenta. **Se reaplica en cada arranque** | ✅ |
 | `MINIO_USER`       | Usuario administrador de MinIO                 | ✅          |

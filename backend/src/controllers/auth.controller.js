@@ -76,8 +76,12 @@ async function login(req, res, next) {
       nombre_completo: usuario.nombre_completo
     };
 
+    // Duración leída de JWT_EXPIRES_IN (documentada en README.md junto a las
+    // demás variables de entorno) para que DGTIC pueda ajustarla en su
+    // infraestructura sin tocar código. 48h por omisión si la variable no
+    // está definida.
     const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, {
-      expiresIn: process.env.JWT_EXPIRES_IN || '8h'
+      expiresIn: process.env.JWT_EXPIRES_IN || '48h'
     });
 
     // Devolver token y datos del usuario (sin password_hash)

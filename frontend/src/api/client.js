@@ -35,6 +35,12 @@ client.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('pspp_token');
       localStorage.removeItem('pspp_usuario');
+      // sessionStorage (no localStorage) porque es una señal de un solo
+      // uso para la próxima carga de /login, no un dato de sesión — Login.jsx
+      // la lee y la borra de inmediato al mostrar el aviso. window.location.href
+      // hace una recarga completa, así que no hay forma de pasar esto por
+      // estado de React.
+      sessionStorage.setItem('pspp_sesion_expirada', '1');
       window.location.href = '/login';
     }
     return Promise.reject(error);
