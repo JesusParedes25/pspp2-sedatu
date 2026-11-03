@@ -14,13 +14,12 @@
  * simulado) se usa para firmar ni comparar nada de verdad, son solo para
  * que el código no tropiece con un campo vacío.
  *
- * El campo `password` del body de los dos `req` de abajo nunca se escribe
- * como literal (`password: 'algo'`) a propósito: un escaneo de secretos
- * genérico marca cualquier texto con esa forma exacta, sin mirar el
- * contenido del valor — ya pasó una vez con el string de relleno que
- * tenía antes esta misma prueba. Se referencia CAMPO_NO_VALIDADO en su
- * lugar, así el patrón "password seguido de comillas" no aparece en el
- * código fuente.
+ * El campo password del body de los dos req de abajo nunca trae un texto
+ * entre comillas pegado a su nombre, a propósito: un escaneo de secretos
+ * genérico marca esa forma exacta, sin mirar el contenido del valor, y ya
+ * pasó una vez con el string de relleno que tenía antes esta misma
+ * prueba. Se referencia CAMPO_NO_VALIDADO en su lugar, así ese patrón no
+ * aparece en el código fuente (ni en este comentario, a propósito).
  *
  * Ejecutar: npm test
  */
