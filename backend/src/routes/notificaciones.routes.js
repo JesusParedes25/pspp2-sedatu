@@ -2,7 +2,7 @@
  * ARCHIVO: notificaciones.routes.js
  * PROPÓSITO: Rutas de notificaciones del usuario autenticado.
  *
- * MINI-CLASE: Rutas de notificaciones
+ * NOTA TÉCNICA: Rutas de notificaciones
  * ─────────────────────────────────────────────────────────────────
  * Las notificaciones son personales: cada usuario solo ve las suyas.
  * GET /notificaciones devuelve las últimas 50 del usuario autenticado.

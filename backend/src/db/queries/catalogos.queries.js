@@ -2,7 +2,7 @@
  * ARCHIVO: catalogos.queries.js
  * PROPÓSITO: Queries SQL para catálogos del sistema (DGs, usuarios, programas, etc.).
  *
- * MINI-CLASE: Catálogos como datos de referencia
+ * NOTA TÉCNICA: Catálogos como datos de referencia
  * ─────────────────────────────────────────────────────────────────
  * Los catálogos son tablas de referencia que rara vez cambian:
  * direcciones generales, programas, direcciones de área. El frontend

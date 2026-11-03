@@ -2,7 +2,7 @@
  * ARCHIVO: bloqueos.queries.js
  * PROPÓSITO: Queries para la tabla polimórfica de bloqueos.
  *
- * MINI-CLASE: Bloqueos como historial auditable
+ * NOTA TÉCNICA: Bloqueos como historial auditable
  * ─────────────────────────────────────────────────────────────────
  * Cada bloqueo tiene fecha_bloqueo y fecha_desbloqueo. Mientras
  * fecha_desbloqueo sea NULL, el bloqueo está activo. El unique

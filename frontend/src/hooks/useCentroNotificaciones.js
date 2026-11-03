@@ -5,7 +5,7 @@
  *            la campanita del header, el badge de la barra lateral y el
  *            modal de inicio de sesión.
  *
- * MINI-CLASE: por qué esto no es lo mismo que useNotificaciones
+ * NOTA TÉCNICA: por qué esto no es lo mismo que useNotificaciones
  * ─────────────────────────────────────────────────────────────────
  * useNotificaciones trae la LISTA completa de avisos (para pintar la
  * página de Notificaciones). Este hook solo trae CONTADORES — un objeto

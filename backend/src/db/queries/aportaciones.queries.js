@@ -2,7 +2,7 @@
  * ARCHIVO: aportaciones.queries.js
  * PROPÓSITO: Consultas SQL para aportaciones de nodos a indicadores.
  *
- * MINI-CLASE: de "recalcular todo" a "procesar lo que cambió"
+ * NOTA TÉCNICA: de "recalcular todo" a "procesar lo que cambió"
  * ─────────────────────────────────────────────────────────────────
  * Hasta la migración 084, `recalcularAportacionesProyecto` barría TODO
  * el proyecto cada vez que cualquier nodo cambiaba de estado/avance, y

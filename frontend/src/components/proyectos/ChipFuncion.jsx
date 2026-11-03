@@ -3,7 +3,7 @@
  * PROPÓSITO: Decirle al usuario, en la propia tarjeta o ficha del
  *            proyecto, qué función tiene ahí y qué puede hacer.
  *
- * MINI-CLASE: no hacer que el usuario deduzca sus permisos
+ * NOTA TÉCNICA: no hacer que el usuario deduzca sus permisos
  * ─────────────────────────────────────────────────────────────────
  * Todos ven todos los proyectos, que es lo que se busca. El problema
  * era que nada distinguía "este lo puedo editar" de "este solo lo

@@ -6,7 +6,7 @@
  *            es una sola línea que se abre bajo demanda, para recuperar
  *            espacio vertical en el encabezado del proyecto.
  *
- * MINI-CLASE: Vista por DG y modo solo lectura
+ * NOTA TÉCNICA: Vista por DG y modo solo lectura
  * ─────────────────────────────────────────────────────────────────
  * En proyectos con múltiples DGs (ej: DGOTU lider + DGOMR y DGPV
  * colaboradoras), este selector permite cambiar la vista para ver

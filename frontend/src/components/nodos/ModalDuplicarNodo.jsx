@@ -5,7 +5,7 @@
  *            la misma estructura y capturarla a mano una por una es
  *            laborioso.
  *
- * MINI-CLASE: copia independiente, no referencia compartida
+ * NOTA TÉCNICA: copia independiente, no referencia compartida
  * ─────────────────────────────────────────────────────────────────
  * "Duplicar" crea filas NUEVAS e independientes (mismo nombre/
  * descripción/tipo/prioridad) en cada destino elegido — cada copia

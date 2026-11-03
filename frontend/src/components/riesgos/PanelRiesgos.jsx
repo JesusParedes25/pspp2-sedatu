@@ -3,7 +3,7 @@
  * PROPÓSITO: Panel reutilizable que lista riesgos de cualquier entidad
  *            con botón para crear nuevos y editar existentes.
  *
- * MINI-CLASE: Panel polimórfico de riesgos
+ * NOTA TÉCNICA: Panel polimórfico de riesgos
  * ─────────────────────────────────────────────────────────────────
  * Recibe entidadTipo + entidadId y carga los riesgos correspondientes
  * usando el endpoint correcto según el nivel jerárquico. Muestra

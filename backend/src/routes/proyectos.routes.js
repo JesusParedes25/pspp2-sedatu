@@ -2,7 +2,7 @@
  * ARCHIVO: proyectos.routes.js
  * PROPÓSITO: Rutas CRUD de proyectos y gestión de DGs participantes.
  *
- * MINI-CLASE: RESTful routes y convenciones de nombres
+ * NOTA TÉCNICA: RESTful routes y convenciones de nombres
  * ─────────────────────────────────────────────────────────────────
  * Cada recurso tiene rutas estándar: GET (listar/obtener), POST
  * (crear), PUT (actualizar), DELETE (eliminar). Las rutas anidadas

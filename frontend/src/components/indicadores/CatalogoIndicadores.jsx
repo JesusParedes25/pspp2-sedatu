@@ -4,7 +4,7 @@
  *            abierto a lectura para cualquiera, con curaduría (editar,
  *            dar de baja, eliminar) exclusiva de superadmin.
  *
- * MINI-CLASE: eliminar vs. dar de baja
+ * NOTA TÉCNICA: eliminar vs. dar de baja
  * ─────────────────────────────────────────────────────────────────
  * Dar de baja (cambiarActivo) nunca borra nada: un proyecto que ya usa
  * esa entrada conserva su referencia y su historial. Eliminar sí borra
@@ -14,7 +14,7 @@
  * de borrar, no solo el frontend: un DELETE directo a una entrada en
  * uso responde 409, nunca borra.
  *
- * MINI-CLASE: fichas, no filas — mismo criterio que TarjetaIndicador.jsx
+ * NOTA TÉCNICA: fichas, no filas — mismo criterio que TarjetaIndicador.jsx
  * ─────────────────────────────────────────────────────────────────
  * Cada entrada es una ficha en una grilla que enlaza de lleno al
  * detalle (`/indicadores/catalogo/:id`, DetalleCatalogo.jsx) — ahí es

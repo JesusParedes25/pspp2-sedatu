@@ -3,7 +3,7 @@
  * PROPÓSITO: Buzón del usuario: pendientes por responder en una pestaña,
  *            historial de avisos ya vistos/resueltos en otra.
  *
- * MINI-CLASE: avisos que se leen vs. avisos que hay que contestar
+ * NOTA TÉCNICA: avisos que se leen vs. avisos que hay que contestar
  * ─────────────────────────────────────────────────────────────────
  * Las notificaciones son un buzón de solo lectura: se generan por
  * eventos (vencimientos, riesgos, menciones), se leen y se olvidan.
@@ -12,7 +12,7 @@
  * Por eso viven en su propia pestaña ("Pendientes"), separada de todo
  * lo que ya es solo historial ("Historial").
  *
- * MINI-CLASE: por qué un filtro de proyecto y categoría en vez de
+ * NOTA TÉCNICA: por qué un filtro de proyecto y categoría en vez de
  * secciones apiladas
  * ─────────────────────────────────────────────────────────────────
  * La primera versión apilaba una sección por categoría (Riesgos,

@@ -2,7 +2,7 @@
  * ARCHIVO: routes/index.js
  * PROPÓSITO: Enrutador principal que monta todas las rutas de la API bajo /api/v1.
  *
- * MINI-CLASE: Montaje de rutas en Express
+ * NOTA TÉCNICA: Montaje de rutas en Express
  * ─────────────────────────────────────────────────────────────────
  * Express permite montar routers hijos con router.use(prefijo, hijo).
  * Esto crea una jerarquía de rutas: /api/v1/proyectos monta el

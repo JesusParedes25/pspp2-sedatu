@@ -2,7 +2,7 @@
  * ARCHIVO: roles.middleware.js
  * PROPÓSITO: Restringir acceso a rutas según el rol del usuario autenticado.
  *
- * MINI-CLASE: Autorización basada en roles (RBAC)
+ * NOTA TÉCNICA: Autorización basada en roles (RBAC)
  * ─────────────────────────────────────────────────────────────────
  * Autenticación = "¿quién eres?" (lo resuelve auth.middleware.js).
  * Autorización = "¿puedes hacer esto?" (lo resuelve este archivo).

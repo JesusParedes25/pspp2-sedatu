@@ -3,7 +3,7 @@
  * PROPÓSITO: Catálogo único de indicadores — la definición canónica que
  *            los proyectos eligen en vez de teclear el nombre a mano.
  *
- * MINI-CLASE: por qué la clave no se edita
+ * NOTA TÉCNICA: por qué la clave no se edita
  * ─────────────────────────────────────────────────────────────────
  * `clave` es el identificador que va a consumir la plataforma externa
  * cuando se exponga el avance por API. Si se pudiera cambiar, un
@@ -402,7 +402,7 @@ async function crear(datos, usuarioId) {
   return rows[0];
 }
 
-// `clave` queda deliberadamente fuera: ver la mini-clase de arriba.
+// `clave` queda deliberadamente fuera: ver la nota técnica de arriba.
 const CAMPOS_EDITABLES = [
   'nombre', 'descripcion', 'tipo', 'unidad', 'unidad_personalizada',
   'etiqueta_unidad', 'definicion', 'fuente',

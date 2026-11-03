@@ -2,7 +2,7 @@
  * ARCHIVO: NuevoProyecto.jsx
  * PROPÓSITO: Formulario de 4 pasos para crear un nuevo proyecto.
  *
- * MINI-CLASE: Formularios multi-paso con estado local
+ * NOTA TÉCNICA: Formularios multi-paso con estado local
  * ─────────────────────────────────────────────────────────────────
  * Un formulario multi-paso divide un formulario largo en secciones
  * manejables. El estado de TODOS los campos se mantiene en un solo

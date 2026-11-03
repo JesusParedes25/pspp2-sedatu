@@ -2,7 +2,7 @@
  * ARCHIVO: AuthContext.jsx
  * PROPÓSITO: Contexto global de autenticación (usuario, login, logout).
  *
- * MINI-CLASE: React Context para estado global
+ * NOTA TÉCNICA: React Context para estado global
  * ─────────────────────────────────────────────────────────────────
  * React Context permite compartir datos entre componentes sin pasar
  * props manualmente en cada nivel. AuthContext almacena el usuario

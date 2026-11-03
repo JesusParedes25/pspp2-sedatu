@@ -4,7 +4,7 @@
  *            el único caso donde el alcance de lectura NO es total: un
  *            usuario `externo`.
  *
- * MINI-CLASE: por qué esto casi no cambia nada para nadie
+ * NOTA TÉCNICA: por qué esto casi no cambia nada para nadie
  * ─────────────────────────────────────────────────────────────────
  * Modelo de alcance decidido (ver docs/modelo-permisos.md): cualquier
  * perfil interno (superadmin, ejecutivo, direccion, enlace) puede LEER

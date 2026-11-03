@@ -2,7 +2,7 @@
  * ARCHIVO: proyectos.stats.controller.js
  * PROPÓSITO: Endpoint de estadísticas/métricas del proyecto para el dashboard de resumen.
  *
- * MINI-CLASE: Endpoint de estadísticas agregadas
+ * NOTA TÉCNICA: Endpoint de estadísticas agregadas
  * ─────────────────────────────────────────────────────────────────
  * GET /proyectos/:id/stats devuelve en una sola llamada todas las
  * métricas que necesita el dashboard de resumen:

@@ -2,7 +2,7 @@
  * ARCHIVO: bloqueos.controller.js
  * PROPÓSITO: Endpoints HTTP para consultar y resolver bloqueos.
  *
- * MINI-CLASE: Bloqueos como recurso independiente
+ * NOTA TÉCNICA: Bloqueos como recurso independiente
  * ─────────────────────────────────────────────────────────────────
  * La creación de bloqueos ocurre automáticamente dentro de
  * cambiarEstado() (validaciones-estado.js) al pasar a 'Bloqueada'.

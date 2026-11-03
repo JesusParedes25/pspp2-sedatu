@@ -2,7 +2,7 @@
  * ARCHIVO: BarraEtapas.jsx
  * PROPÓSITO: Barra visual horizontal que muestra el progreso de todas las etapas.
  *
- * MINI-CLASE: Visualización de progreso multi-etapa
+ * NOTA TÉCNICA: Visualización de progreso multi-etapa
  * ─────────────────────────────────────────────────────────────────
  * Esta barra divide el ancho disponible entre las etapas del proyecto.
  * Cada segmento tiene un color según el estado de la etapa: verde

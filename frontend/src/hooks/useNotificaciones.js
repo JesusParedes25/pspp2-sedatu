@@ -2,7 +2,7 @@
  * ARCHIVO: useNotificaciones.js
  * PROPÓSITO: Hook para la lista de notificaciones, en tiempo real.
  *
- * MINI-CLASE: SSE con polling de respaldo
+ * NOTA TÉCNICA: SSE con polling de respaldo
  * ─────────────────────────────────────────────────────────────────
  * Además de la carga inicial y el polling de respaldo (intervalo
  * largo, por si la conexión de tiempo real no se pudo abrir), este

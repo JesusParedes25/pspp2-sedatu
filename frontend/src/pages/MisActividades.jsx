@@ -4,7 +4,7 @@
  *            usuario es responsable/asignado) y Agenda (el módulo de Agenda
  *            existente, embebido tal cual).
  *
- * MINI-CLASE: dos ejes distintos, dos grupos distintos
+ * NOTA TÉCNICA: dos ejes distintos, dos grupos distintos
  * ─────────────────────────────────────────────────────────────────
  * "Por estado" y "Alertas" miden cosas diferentes y no son comparables
  * entre sí — por eso van en grupos separados, con encabezado, en vez de
@@ -211,7 +211,7 @@ export default function MisActividades() {
 
           {/* Total — encabeza, no es un filtro ni se mezcla con los grupos
               de abajo. "Por estado" y "Alertas" son dos ejes distintos (ver
-              mini-clase arriba): cada uno con su propio encabezado, para
+              nota técnica arriba): cada uno con su propio encabezado, para
               que no vuelvan a leerse como una sola serie de números que
               "debería" sumar. */}
           <div className="card p-4 flex items-center gap-2.5">

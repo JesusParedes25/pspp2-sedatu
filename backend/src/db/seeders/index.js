@@ -2,7 +2,7 @@
  * ARCHIVO: index.js (seeders)
  * PROPÓSITO: Orquesta la ejecución de migraciones y seeders en orden.
  *
- * MINI-CLASE: Seeders y el orden de ejecución
+ * NOTA TÉCNICA: Seeders y el orden de ejecución
  * ─────────────────────────────────────────────────────────────────
  * Los seeders insertan datos iniciales en la BD. Deben ejecutarse
  * en orden porque hay dependencias: las DGs deben existir antes de

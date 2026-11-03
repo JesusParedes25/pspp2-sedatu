@@ -4,7 +4,7 @@
  *            Permite modificar nombre, descripción, responsable, DG,
  *            dependencia, indicadores asociados e indicadores propios.
  *
- * MINI-CLASE: Reutilización del formulario de etapa
+ * NOTA TÉCNICA: Reutilización del formulario de etapa
  * ─────────────────────────────────────────────────────────────────
  * Comparte la misma estructura visual que ModalNuevaEtapa pero
  * pre-carga los datos existentes de la etapa y llama a PUT /etapas/:id

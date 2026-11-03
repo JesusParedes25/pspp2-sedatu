@@ -7,7 +7,7 @@
  *            "Detalle" para no chocar con el nombre de la subpestaña
  *            "Detalle" de al lado.
  *
- * MINI-CLASE: por qué el header aquí es distinto al de Detalle
+ * NOTA TÉCNICA: por qué el header aquí es distinto al de Detalle
  * ─────────────────────────────────────────────────────────────────
  * FichaNodo ya trae su propio encabezado (lineage + chips + título) — este
  * drawer solo necesita, arriba de eso, la barra de pestañas Propiedades/

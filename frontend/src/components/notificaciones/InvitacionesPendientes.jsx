@@ -3,7 +3,7 @@
  * PROPÓSITO: Mostrar las invitaciones que el usuario tiene sin responder
  *            y dejarlo aceptarlas o rechazarlas.
  *
- * MINI-CLASE: por qué no basta con la notificación
+ * NOTA TÉCNICA: por qué no basta con la notificación
  * ─────────────────────────────────────────────────────────────────
  * Antes, invitar metía a la persona en el proyecto y le mandaba un aviso
  * informándola. Ahora invitar propone: hasta que no responda, no tiene

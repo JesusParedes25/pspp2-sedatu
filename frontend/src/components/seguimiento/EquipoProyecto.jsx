@@ -2,7 +2,7 @@
  * ARCHIVO: EquipoProyecto.jsx
  * PROPÓSITO: Sección de equipo del proyecto — DGs participantes y responsables.
  *
- * MINI-CLASE: Equipo como vista transversal de responsables
+ * NOTA TÉCNICA: Equipo como vista transversal de responsables
  * ─────────────────────────────────────────────────────────────────
  * El equipo se compone de: (1) DG líder del proyecto, (2) DGs
  * participantes, (3) responsables de etapas, (4) responsables de

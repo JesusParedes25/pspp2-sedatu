@@ -2,7 +2,7 @@
  * ARCHIVO: useEtapas.js
  * PROPÓSITO: Hook personalizado para gestionar etapas de un proyecto.
  *
- * MINI-CLASE: Hooks con dependencias dinámicas
+ * NOTA TÉCNICA: Hooks con dependencias dinámicas
  * ─────────────────────────────────────────────────────────────────
  * Este hook recibe proyectoId y opcionalmente idDg como parámetros.
  * Cuando cualquiera cambia, useEffect se re-ejecuta y recarga las

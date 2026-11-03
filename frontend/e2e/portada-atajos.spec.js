@@ -5,7 +5,7 @@
  *            que hacer clic dos veces", reproducido también al cambiar de
  *            apartado en la subnavegación de Configuración.
  *
- * MINI-CLASE: por qué este archivo no "reproduce" el bug
+ * NOTA TÉCNICA: por qué este archivo no "reproduce" el bug
  * ─────────────────────────────────────────────────────────────────
  * Se investigó a fondo antes de escribir esto: clic normal, clic con
  * coordenadas crudas (sin el auto-wait de estabilidad de Playwright),

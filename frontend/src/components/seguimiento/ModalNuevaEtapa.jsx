@@ -5,7 +5,7 @@
  *            y (B) crear indicadores propios de la etapa que pueden o no
  *            estar relacionados con los del proyecto.
  *
- * MINI-CLASE: Jerarquía de indicadores
+ * NOTA TÉCNICA: Jerarquía de indicadores
  * ─────────────────────────────────────────────────────────────────
  * Nivel proyecto: KPIs globales (ej: "92 ZMs analizadas").
  * Nivel etapa: indicadores específicos (ej: "# municipios con

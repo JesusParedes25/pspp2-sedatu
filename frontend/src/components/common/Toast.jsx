@@ -2,7 +2,7 @@
  * ARCHIVO: Toast.jsx
  * PROPÓSITO: Notificación temporal flotante (éxito, error, info).
  *
- * MINI-CLASE: Toasts como feedback efímero
+ * NOTA TÉCNICA: Toasts como feedback efímero
  * ─────────────────────────────────────────────────────────────────
  * Un toast es un mensaje breve que aparece y desaparece sin
  * intervención del usuario. Se usa para confirmar acciones

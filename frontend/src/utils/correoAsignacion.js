@@ -7,7 +7,7 @@
  * AdminCatalogos.jsx, enviarCorreoInvitacion, disparado al crear el
  * usuario, no al asignarlo a algo).
  *
- * MINI-CLASE: por qué esta plantilla vive en SU PROPIA cuenta de EmailJS
+ * NOTA TÉCNICA: por qué esta plantilla vive en SU PROPIA cuenta de EmailJS
  * ─────────────────────────────────────────────────────────────────
  * El plan gratuito de EmailJS da 2 plantillas por cuenta. Con la de
  * invitación ya ocupando una, esta ("asignación de participación")

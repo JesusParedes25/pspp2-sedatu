@@ -2,7 +2,7 @@
  * ARCHIVO: auth.middleware.js
  * PROPÓSITO: Verificar que cada petición protegida traiga un JWT válido.
  *
- * MINI-CLASE: JWT (JSON Web Token)
+ * NOTA TÉCNICA: JWT (JSON Web Token)
  * ─────────────────────────────────────────────────────────────────
  * Un JWT es un string codificado en Base64 con tres partes separadas
  * por puntos: header.payload.signature. El payload contiene datos del

@@ -2,7 +2,7 @@
  * ARCHIVO: validaciones.js
  * PROPÓSITO: Funciones de validación reutilizables para los controllers.
  *
- * MINI-CLASE: Validación en el backend
+ * NOTA TÉCNICA: Validación en el backend
  * ─────────────────────────────────────────────────────────────────
  * Aunque el frontend también valida, el backend SIEMPRE debe validar
  * de nuevo. Un atacante puede enviar peticiones directamente con curl

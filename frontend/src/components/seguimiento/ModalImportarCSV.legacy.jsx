@@ -4,7 +4,7 @@
  *            un archivo CSV/TSV. El peso % se calcula automáticamente
  *            en el backend.
  *
- * MINI-CLASE: Parseo de CSV en el navegador
+ * NOTA TÉCNICA: Parseo de CSV en el navegador
  * ─────────────────────────────────────────────────────────────────
  * El archivo se lee con FileReader.readAsText(). Se separa por líneas,
  * luego por tabulador (TSV) o coma (CSV). La primera fila se usa como

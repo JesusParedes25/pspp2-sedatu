@@ -16,7 +16,7 @@
  *            Es el MISMO componente que monta tanto el rail de "Detalle"
  *            como el drawer de "Diagrama".
  *
- * MINI-CLASE: por qué NO incluye Actividad
+ * NOTA TÉCNICA: por qué NO incluye Actividad
  * ─────────────────────────────────────────────────────────────────
  * En "Detalle" el feed de Actividad vive al fondo de la columna central
  * (sigue a la selección, no al foco). En "Diagrama" vive en su propia

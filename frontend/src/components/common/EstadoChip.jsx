@@ -2,7 +2,7 @@
  * ARCHIVO: EstadoChip.jsx
  * PROPÓSITO: Chip visual que muestra el estado de una entidad con color semántico.
  *
- * MINI-CLASE: Mapeo de estados a colores
+ * NOTA TÉCNICA: Mapeo de estados a colores
  * ─────────────────────────────────────────────────────────────────
  * Cada estado del sistema tiene un color asociado que comunica
  * visualmente su significado: verde = completado, amarillo = en

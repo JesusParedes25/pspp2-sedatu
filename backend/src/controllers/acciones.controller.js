@@ -2,7 +2,7 @@
  * ARCHIVO: acciones.controller.js
  * PROPÓSITO: Manejar las peticiones HTTP de acciones.
  *
- * MINI-CLASE: Acciones y el recálculo en cascada
+ * NOTA TÉCNICA: Acciones y el recálculo en cascada
  * ─────────────────────────────────────────────────────────────────
  * Las acciones son el ÚNICO nivel donde el porcentaje se edita
  * manualmente. Cuando se actualiza porcentaje_avance de una acción,

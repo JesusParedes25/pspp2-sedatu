@@ -2,7 +2,7 @@
  * ARCHIVO: proyectos.controller.js
  * PROPÓSITO: Manejar las peticiones HTTP de proyectos y proyecto_dgs.
  *
- * MINI-CLASE: Controllers en Express
+ * NOTA TÉCNICA: Controllers en Express
  * ─────────────────────────────────────────────────────────────────
  * Un controller es la función que recibe la petición HTTP (req),
  * ejecuta la lógica de negocio (llamando a queries), y devuelve

@@ -2,7 +2,7 @@
  * ARCHIVO: acciones.routes.js
  * PROPÓSITO: Rutas CRUD de acciones e independientes.
  *
- * MINI-CLASE: Acciones como nivel atómico de seguimiento
+ * NOTA TÉCNICA: Acciones como nivel atómico de seguimiento
  * ─────────────────────────────────────────────────────────────────
  * Las acciones son el nivel más granular del seguimiento. Solo aquí
  * se edita el porcentaje manualmente. Las rutas de creación están

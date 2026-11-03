@@ -3,7 +3,7 @@
  * PROPÓSITO: Dashboard personalizado del usuario con sus proyectos,
  *            acciones vencidas/por vencer, riesgos, indicadores y actividad.
  *
- * MINI-CLASE: por qué este archivo se separó de Inicio.jsx
+ * NOTA TÉCNICA: por qué este archivo se separó de Inicio.jsx
  * ─────────────────────────────────────────────────────────────────
  * Hasta antes de "PSPP v2.0 · Pantalla de Inicio" este mismo componente
  * vivía en Inicio.jsx y ocupaba la ruta raíz ("/"). Ese nombre quedó

@@ -4,7 +4,7 @@
  *            que el arranque del backend no vuelva a insertar lo que el
  *            superadministrador ya decidió quitar desde el panel.
  *
- * MINI-CLASE: sembrar una vez, no en cada arranque
+ * NOTA TÉCNICA: sembrar una vez, no en cada arranque
  * ─────────────────────────────────────────────────────────────────
  * Un catálogo institucional tiene que existir desde el primer arranque
  * —si no, una instalación nueva nace vacía y no se puede ni dar de alta

@@ -4,7 +4,7 @@
  *            estructura completa de un proyecto: Etapa → Acción →
  *            Subacción → Tarea.
  *
- * MINI-CLASE: exportar no es el espejo de importar
+ * NOTA TÉCNICA: exportar no es el espejo de importar
  * ─────────────────────────────────────────────────────────────────
  * El importador lee 3 hojas (Etapas/Acciones/Tareas) porque esa es la
  * jerarquía mínima que necesita para crear un proyecto. Pero el árbol

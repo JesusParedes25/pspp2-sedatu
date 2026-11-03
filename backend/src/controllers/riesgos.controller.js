@@ -2,7 +2,7 @@
  * ARCHIVO: riesgos.controller.js
  * PROPÓSITO: Manejar las peticiones HTTP de riesgos y problemas.
  *
- * MINI-CLASE: Riesgos vs Problemas en gestión de proyectos
+ * NOTA TÉCNICA: Riesgos vs Problemas en gestión de proyectos
  * ─────────────────────────────────────────────────────────────────
  * Un RIESGO es algo que PODRÍA ocurrir y afectar al proyecto.
  * Un PROBLEMA es algo que YA ocurrió y está afectando. Ambos se

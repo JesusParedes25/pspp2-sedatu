@@ -2,7 +2,7 @@
  * ARCHIVO: etapas.queries.js
  * PROPÓSITO: Todas las queries SQL de la tabla etapas.
  *
- * MINI-CLASE: Etapas y su relación con proyectos
+ * NOTA TÉCNICA: Etapas y su relación con proyectos
  * ─────────────────────────────────────────────────────────────────
  * Una etapa agrupa acciones dentro de un proyecto. Sus fechas y
  * porcentaje se CALCULAN automáticamente desde sus acciones hijas

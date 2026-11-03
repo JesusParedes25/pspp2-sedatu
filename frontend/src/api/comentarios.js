@@ -2,7 +2,7 @@
  * ARCHIVO: comentarios.js
  * PROPÓSITO: Funciones de API para comentarios (inmutables).
  *
- * MINI-CLASE: Comentarios polimórficos
+ * NOTA TÉCNICA: Comentarios polimórficos
  * ─────────────────────────────────────────────────────────────────
  * Los comentarios se vinculan a cualquier entidad del sistema
  * (Proyecto, Etapa, Acción, Riesgo) mediante entidad_tipo y

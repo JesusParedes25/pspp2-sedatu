@@ -100,28 +100,21 @@ de Docker), nginx se queda apuntando a la IP vieja → **502 en todo
 `/api/`** hasta reiniciarlo. `nginx`/`postgres`/`minio`/`geoserver` nunca
 necesitan rebuild, solo restart si dependen de algo que cambió.
 
-## Convenciones de layout aprendidas esta sesión (no repetir los mismos errores)
+## Convenciones de layout
 
-- **La app usa scroll de página normal, NO paneles de viewport fijo.**
-  Se intentó una vez acotar el shell (`Layout.jsx`) a `h-screen
-  overflow-hidden` con paneles internos de scroll independiente — el
-  usuario lo rechazó explícitamente por sentirse "rígido"/"encapsulado
-  en un rectángulo" comparado con una página que fluye. `Layout.jsx` usa
-  `min-h-screen` (no `h-screen`), sin `overflow-hidden`. No reintroducir
-  ese patrón sin que se pida explícitamente.
+- **La app usa scroll de página normal, no paneles de viewport fijo.**
+  `Layout.jsx` usa `min-h-screen` (no `h-screen`), sin `overflow-hidden`.
+  No usar un shell de viewport fijo con paneles internos de scroll
+  independiente sin que se pida explícitamente.
 - **Alturas de contenedores**: los componentes que necesitan una altura
   explícita porque envuelven una librería de canvas/mapa (`ReactFlow` en
   Diagrama, Leaflet en `MapaProyecto`) usan un **valor fijo en px**
-  (`height: 650`, `height: 440`) — no medido con JS, no calculado contra
+  (`height: 650`, `height: 440`), no medido con JS ni calculado contra
   el viewport. Los componentes sin librería de canvas (Detalle/árbol,
-  Vista lista, Cronograma) **no fijan altura en absoluto** — el
-  contenido decide, igual que cualquier sección más de la página. Esto
-  costó varias iteraciones (incluyendo un hook `useAlturaHastaFinal`
-  creado y luego eliminado dos veces) — no reinventar una "altura
-  medida contra el viewport", el criterio ya decidido es el de arriba.
+  Vista lista, Cronograma) no fijan altura en absoluto: el contenido
+  decide, igual que cualquier otra sección de la página.
 - **Gotcha de flexbox**: `min-h-0`/`min-w-0` en hijos flex es necesario
-  para que `overflow-auto` funcione y para truncar texto — apareció más
-  de una vez.
+  para que `overflow-auto` funcione y para truncar texto.
 
 ## Arquitectura / convenciones del dominio
 

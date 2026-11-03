@@ -6,7 +6,7 @@
  *            restaurarlo desde la Papelera durante 30 días, tras los
  *            cuales se purga de forma permanente e irreversible.
  *
- * MINI-CLASE: cuánta fricción merece una acción destructiva
+ * NOTA TÉCNICA: cuánta fricción merece una acción destructiva
  * ─────────────────────────────────────────────────────────────────
  * Este modal pedía además escribir el nombre exacto del proyecto. Se
  * quitó: los nombres aquí son títulos largos de proyectos de gobierno

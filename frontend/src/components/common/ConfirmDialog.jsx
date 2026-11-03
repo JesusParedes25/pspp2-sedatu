@@ -2,7 +2,7 @@
  * ARCHIVO: ConfirmDialog.jsx
  * PROPÓSITO: Diálogo modal de confirmación reutilizable.
  *
- * MINI-CLASE: Modales con portales y backdrop
+ * NOTA TÉCNICA: Modales con portales y backdrop
  * ─────────────────────────────────────────────────────────────────
  * Un modal se compone de: (1) backdrop oscuro que cubre toda la
  * pantalla, (2) contenedor blanco centrado con el contenido, y

@@ -4,7 +4,7 @@
  *            cancelación, bloqueos, validación de completitud y auditoría
  *            en los 4 niveles jerárquicos: Proyecto, Etapa, Acción, Subacción.
  *
- * MINI-CLASE: Máquina de estados centralizada
+ * NOTA TÉCNICA: Máquina de estados centralizada
  * ─────────────────────────────────────────────────────────────────
  * En vez de dispersar la lógica de "¿puedo pasar de Pendiente a
  * Bloqueada?" en cada controller, este módulo la centraliza.

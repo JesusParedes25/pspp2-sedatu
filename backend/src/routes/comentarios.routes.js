@@ -2,7 +2,7 @@
  * ARCHIVO: comentarios.routes.js
  * PROPÓSITO: Rutas de comentarios (inmutables — solo GET y POST).
  *
- * MINI-CLASE: Endpoints inmutables
+ * NOTA TÉCNICA: Endpoints inmutables
  * ─────────────────────────────────────────────────────────────────
  * A diferencia de otros recursos, los comentarios NO tienen PUT ni
  * DELETE. Son registros inmutables por diseño institucional. Las

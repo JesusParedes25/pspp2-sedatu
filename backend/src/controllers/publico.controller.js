@@ -4,7 +4,7 @@
  *            Autenticada con token de servicio (api_tokens), NO con la
  *            sesión de un usuario.
  *
- * MINI-CLASE: qué contrato se le promete al consumidor
+ * NOTA TÉCNICA: qué contrato se le promete al consumidor
  * ─────────────────────────────────────────────────────────────────
  * Un consumidor externo no puede depender de nuestros nombres, que
  * cambian. La respuesta se organiza alrededor de dos identificadores
@@ -17,7 +17,7 @@
  * escribe. Cualquier escritura entraría por la app, con un usuario
  * real detrás y su registro de actividad.
  *
- * MINI-CLASE: `actualizado_en` vs. `fecha_corte` vs. `fecha_aporte`
+ * NOTA TÉCNICA: `actualizado_en` vs. `fecha_corte` vs. `fecha_aporte`
  * ─────────────────────────────────────────────────────────────────
  * `actualizado_en` es `indicadores.updated_at`: se mueve con CUALQUIER
  * edición de la fila (renombrar, cambiar la meta, re-vincular el
@@ -27,7 +27,7 @@
  * mismo pero acotado a ESE nodo — pueden ser distintas si varios
  * nodos aportan al mismo indicador en fechas distintas.
  *
- * MINI-CLASE: la meta es acumulada, no anual
+ * NOTA TÉCNICA: la meta es acumulada, no anual
  * ─────────────────────────────────────────────────────────────────
  * `indicador_metas_anuales` existe en el esquema pero está vacía en
  * producción (confirmado — ver el reporte del PR que agregó este

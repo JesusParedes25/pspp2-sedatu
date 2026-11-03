@@ -7,7 +7,7 @@
  *            también con categorías y con el tipo de gráfica que el
  *            usuario eligió por indicador (tipo_grafico: barras/dona).
  *
- * MINI-CLASE: por qué la dona no muestra "meta"
+ * NOTA TÉCNICA: por qué la dona no muestra "meta"
  * ─────────────────────────────────────────────────────────────────
  * Una dona representa partes de un todo — funciona bien para "cuánto
  * aporta cada fila al total realizado", pero no para comparar meta

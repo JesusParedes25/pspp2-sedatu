@@ -11,7 +11,7 @@
  *            oración completa o la palabra sola con mayúscula/acento)
  *            sí se cuenta como visible y hace fallar la prueba.
  *
- * MINI-CLASE: por qué un escaneo de texto y no solo pruebas de render
+ * NOTA TÉCNICA: por qué un escaneo de texto y no solo pruebas de render
  * ─────────────────────────────────────────────────────────────────
  * Esta regla puede reaparecer en CUALQUIER archivo nuevo que alguien
  * escriba después (un export a PDF, un tooltip, una leyenda) sin que

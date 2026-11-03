@@ -5,7 +5,7 @@
  *            importar un Excel institucional nuevo sin duplicar lo ya
  *            cargado y sin chocar con entradas reales de producción.
  *
- * MINI-CLASE: siembra versionada, no de una sola vez
+ * NOTA TÉCNICA: siembra versionada, no de una sola vez
  * ─────────────────────────────────────────────────────────────────
  * asegurarEstructura()/asegurarProgramas() siembran UNA vez para
  * siempre (una sola marca fija en siembra_inicial). Esto es distinto:

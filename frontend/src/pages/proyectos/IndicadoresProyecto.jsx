@@ -23,7 +23,7 @@
  * al detalle completo si hay más — nunca se vuelcan decenas de
  * renglones dentro de una fila desplegada).
  *
- * MINI-CLASE: tres vistas de indicadores, tres alcances distintos
+ * NOTA TÉCNICA: tres vistas de indicadores, tres alcances distintos
  * ─────────────────────────────────────────────────────────────────
  * "Mis indicadores" (menú lateral, Indicadores.jsx): todos los
  * indicadores de todos los proyectos donde participa el usuario — para

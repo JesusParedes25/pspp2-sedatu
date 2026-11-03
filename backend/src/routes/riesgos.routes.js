@@ -2,7 +2,7 @@
  * ARCHIVO: riesgos.routes.js
  * PROPÓSITO: Rutas CRUD de riesgos (independientes por ID).
  *
- * MINI-CLASE: Riesgos como recurso independiente
+ * NOTA TÉCNICA: Riesgos como recurso independiente
  * ─────────────────────────────────────────────────────────────────
  * Aunque los riesgos se listan por proyecto (GET /proyectos/:id/riesgos
  * montado en routes/index.js), las operaciones individuales (GET, PUT,

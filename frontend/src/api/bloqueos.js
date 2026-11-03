@@ -2,7 +2,7 @@
  * ARCHIVO: bloqueos.js
  * PROPÓSITO: Funciones de API para bloqueos.
  *
- * MINI-CLASE: Bloqueos polimórficos
+ * NOTA TÉCNICA: Bloqueos polimórficos
  * ─────────────────────────────────────────────────────────────────
  * Los bloqueos viven en una tabla independiente con entidad_tipo +
  * entidad_id. Cada entidad puede tener máximo un bloqueo activo.

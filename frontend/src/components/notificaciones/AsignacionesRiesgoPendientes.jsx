@@ -3,7 +3,7 @@
  * PROPÓSITO: Riesgos donde te proponen como responsable, con lo necesario
  *            para aceptar o declinar sin salir de aquí.
  *
- * MINI-CLASE: la misma forma que una solicitud de participación
+ * NOTA TÉCNICA: la misma forma que una solicitud de participación
  * ─────────────────────────────────────────────────────────────────
  * Aceptar/declinar una asignación de riesgo es, en la forma, la misma
  * decisión que aceptar/declinar una solicitud de participación: alguien te

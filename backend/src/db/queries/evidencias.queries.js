@@ -2,7 +2,7 @@
  * ARCHIVO: evidencias.queries.js
  * PROPÓSITO: Queries SQL para la tabla evidencias y la integración con MinIO.
  *
- * MINI-CLASE: MinIO y almacenamiento de archivos
+ * NOTA TÉCNICA: MinIO y almacenamiento de archivos
  * ─────────────────────────────────────────────────────────────────
  * MinIO es un servidor de almacenamiento compatible con Amazon S3.
  * Los archivos se guardan en "buckets" (como carpetas raíz). La BD

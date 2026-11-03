@@ -4,7 +4,7 @@
  *            invitación: alguien pide entrar a un proyecto y quien manda
  *            ahí la acepta o la declina.
  *
- * MINI-CLASE: dos direcciones, dos tablas
+ * NOTA TÉCNICA: dos direcciones, dos tablas
  * ─────────────────────────────────────────────────────────────────
  * Invitación y solicitud terminan en lo mismo (una fila en
  * proyecto_usuarios), pero no son lo mismo mientras están abiertas:

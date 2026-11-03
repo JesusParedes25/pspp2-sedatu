@@ -16,7 +16,7 @@ const router = Router();
 
 router.get('/', ctrl.listar);
 router.post('/', ctrl.crear);
-// Para quien no puede crear (rol 'externo', ver mini-clase arriba): pide
+// Para quien no puede crear (rol 'externo', ver nota técnica arriba): pide
 // que un superadmin lo agregue, en vez de un 403 sin salida. Abierta a
 // cualquier autenticado, igual que el resto de la lectura/alta del
 // catálogo — el frontend solo ofrece este botón a quien no puede crear.

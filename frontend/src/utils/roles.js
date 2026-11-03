@@ -4,7 +4,7 @@
  *            plataforma: cuáles hay, de qué color se pintan y qué puede
  *            hacer cada uno.
  *
- * MINI-CLASE: el nombre visible es el mismo que el guardado (a propósito)
+ * NOTA TÉCNICA: el nombre visible es el mismo que el guardado (a propósito)
  * ─────────────────────────────────────────────────────────────────
  * Se probó traducir los roles a nombres descriptivos en pantalla
  * ('ejecutivo' → "Institucional") y se descartó: en una plataforma

@@ -2,7 +2,7 @@
  * ARCHIVO: proyectos.queries.js
  * PROPÓSITO: Todas las queries SQL de la tabla proyectos y proyecto_dgs.
  *
- * MINI-CLASE: Soft delete y filtrado con deleted_at
+ * NOTA TÉCNICA: Soft delete y filtrado con deleted_at
  * ─────────────────────────────────────────────────────────────────
  * En lugar de borrar proyectos con DELETE, marcamos deleted_at con
  * la fecha actual. Esto preserva el historial para auditoría.

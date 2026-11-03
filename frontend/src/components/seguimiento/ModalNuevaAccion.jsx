@@ -5,7 +5,7 @@
  *            y documentos quedan listos desde el momento en que la acción
  *            nace, en vez de tener que volver después a completarlos.
  *
- * MINI-CLASE: Acciones y su vínculo con indicadores
+ * NOTA TÉCNICA: Acciones y su vínculo con indicadores
  * ─────────────────────────────────────────────────────────────────
  * Una acción es la unidad atómica de trabajo. Es el ÚNICO nivel
  * donde el porcentaje se edita manualmente. Cada acción puede
@@ -19,7 +19,7 @@
  * (disponible / 1) porque se crea una acción a la vez. El backend
  * valida que la suma nunca supere meta_global.
  *
- * MINI-CLASE: modal autocontenido, no "onGuardar(datos)"
+ * NOTA TÉCNICA: modal autocontenido, no "onGuardar(datos)"
  * ─────────────────────────────────────────────────────────────────
  * A diferencia de la versión anterior (que delegaba el POST a quien
  * abría el modal), este hace la creación completa él mismo —

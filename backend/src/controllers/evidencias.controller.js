@@ -2,7 +2,7 @@
  * ARCHIVO: evidencias.controller.js
  * PROPÓSITO: Manejar subida, listado y descarga de evidencias con MinIO.
  *
- * MINI-CLASE: Subida de archivos con Multer + MinIO
+ * NOTA TÉCNICA: Subida de archivos con Multer + MinIO
  * ─────────────────────────────────────────────────────────────────
  * El flujo de subida es: (1) Multer recibe el archivo multipart y
  * lo guarda temporalmente en memoria (memoryStorage). (2) El

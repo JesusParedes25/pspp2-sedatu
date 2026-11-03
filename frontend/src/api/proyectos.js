@@ -2,7 +2,7 @@
  * ARCHIVO: proyectos.js
  * PROPÓSITO: Funciones de API para proyectos y proyecto_dgs.
  *
- * MINI-CLASE: Parámetros de query en GET requests
+ * NOTA TÉCNICA: Parámetros de query en GET requests
  * ─────────────────────────────────────────────────────────────────
  * axios convierte el objeto { params } en query string automáticamente:
  * { estado: 'En_proceso', pagina: 1 } → ?estado=En_proceso&pagina=1

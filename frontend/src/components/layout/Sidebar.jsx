@@ -2,7 +2,7 @@
  * ARCHIVO: Sidebar.jsx
  * PROPÓSITO: Barra lateral de navegación con menú principal de PSPP.
  *
- * MINI-CLASE: Navegación con NavLink de React Router, y subsecciones
+ * NOTA TÉCNICA: Navegación con NavLink de React Router, y subsecciones
  * ─────────────────────────────────────────────────────────────────
  * NavLink es como Link pero con awareness de la ruta activa: agrega
  * automáticamente una clase CSS cuando la URL coincide con su "to".

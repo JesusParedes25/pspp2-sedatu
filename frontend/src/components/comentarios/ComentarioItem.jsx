@@ -2,7 +2,7 @@
  * ARCHIVO: ComentarioItem.jsx
  * PROPÓSITO: Renderiza un comentario individual con avatar, autor y fecha.
  *
- * MINI-CLASE: Comentarios inmutables con hilos
+ * NOTA TÉCNICA: Comentarios inmutables con hilos
  * ─────────────────────────────────────────────────────────────────
  * Cada comentario muestra: avatar con iniciales de la DG del autor,
  * nombre completo, cargo, DG, fecha en formato relativo, y el

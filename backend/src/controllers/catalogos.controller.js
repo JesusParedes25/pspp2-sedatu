@@ -2,7 +2,7 @@
  * ARCHIVO: catalogos.controller.js
  * PROPÓSITO: Manejar las peticiones HTTP de catálogos del sistema.
  *
- * MINI-CLASE: Catálogos como endpoints de solo lectura
+ * NOTA TÉCNICA: Catálogos como endpoints de solo lectura
  * ─────────────────────────────────────────────────────────────────
  * Los catálogos son datos de referencia que el frontend necesita
  * para poblar selects, filtros y autocompletados. Son endpoints

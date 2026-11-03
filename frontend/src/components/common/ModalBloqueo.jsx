@@ -2,7 +2,7 @@
  * ARCHIVO: ModalBloqueo.jsx
  * PROPÓSITO: Modal reutilizable para capturar el motivo de un bloqueo.
  *
- * MINI-CLASE: Modales como barrera de validación
+ * NOTA TÉCNICA: Modales como barrera de validación
  * ─────────────────────────────────────────────────────────────────
  * En vez de usar prompt() nativo (que es feo y no se puede estilizar),
  * usamos un modal propio que valida que el motivo no esté vacío antes

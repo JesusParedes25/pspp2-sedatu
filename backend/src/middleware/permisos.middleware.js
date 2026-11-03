@@ -4,7 +4,7 @@
  *            controller, en las rutas que escriben la estructura de un
  *            proyecto (etapas, acciones, subacciones y tareas).
  *
- * MINI-CLASE: por qué middleware y no un if dentro de cada controller
+ * NOTA TÉCNICA: por qué middleware y no un if dentro de cada controller
  * ─────────────────────────────────────────────────────────────────
  * Estos endpoints —PUT /etapas/:id, PATCH /acciones/:id, POST
  * /acciones/:id/tareas y compañía— no verificaban nada: la interfaz

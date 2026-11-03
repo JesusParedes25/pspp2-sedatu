@@ -2,7 +2,7 @@
  * ARCHIVO: indicadores.js
  * PROPÓSITO: Funciones de API para indicadores de proyecto.
  *
- * MINI-CLASE: CRUD de indicadores
+ * NOTA TÉCNICA: CRUD de indicadores
  * ─────────────────────────────────────────────────────────────────
  * Los indicadores pueden ser de nivel proyecto (id_etapa IS NULL)
  * o de nivel etapa (id_etapa = uuid). Se crean bajo el proyecto,

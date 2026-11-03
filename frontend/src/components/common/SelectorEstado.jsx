@@ -2,7 +2,7 @@
  * ARCHIVO: SelectorEstado.jsx
  * PROPÓSITO: Selector reutilizable de estado para cualquier nivel jerárquico.
  *
- * MINI-CLASE: Selector con popover y confirmación
+ * NOTA TÉCNICA: Selector con popover y confirmación
  * ─────────────────────────────────────────────────────────────────
  * Muestra el EstadoChip actual como botón. Al clicar, despliega un
  * popover con las opciones de estado disponibles. Si el usuario

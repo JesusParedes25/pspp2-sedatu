@@ -3,7 +3,7 @@
  * PROPÓSITO: Las peticiones de gente que quiere entrar a tus proyectos,
  *            con lo necesario para decidir sin salir de aquí.
  *
- * MINI-CLASE: qué necesita ver quien decide
+ * NOTA TÉCNICA: qué necesita ver quien decide
  * ─────────────────────────────────────────────────────────────────
  * La pregunta real no es "¿acepto o no?" sino "¿quién es esta persona y
  * por qué la quiero adentro?". Por eso la tarjeta muestra el área y el

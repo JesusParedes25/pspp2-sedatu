@@ -2,7 +2,7 @@
  * ARCHIVO: comentarios.controller.js
  * PROPÓSITO: Manejar las peticiones HTTP de comentarios (inmutables).
  *
- * MINI-CLASE: Comentarios como registro inmutable
+ * NOTA TÉCNICA: Comentarios como registro inmutable
  * ─────────────────────────────────────────────────────────────────
  * Los comentarios en PSPP son inmutables por diseño institucional:
  * una vez publicados, no se pueden editar ni eliminar. Esto

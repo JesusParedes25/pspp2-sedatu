@@ -3,7 +3,7 @@
  * PROPÓSITO: Candado de doble-submit — sincrónico, a diferencia de un
  *            guard basado solo en useState.
  *
- * MINI-CLASE: por qué un guard de useState no basta
+ * NOTA TÉCNICA: por qué un guard de useState no basta
  * ─────────────────────────────────────────────────────────────────
  * El patrón `if (guardando) return; ... setGuardando(true)` es
  * vulnerable a una carrera: React actualiza el estado de forma

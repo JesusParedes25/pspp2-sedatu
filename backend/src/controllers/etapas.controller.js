@@ -2,7 +2,7 @@
  * ARCHIVO: etapas.controller.js
  * PROPÓSITO: Manejar las peticiones HTTP de etapas.
  *
- * MINI-CLASE: Etapas como contenedores de acciones
+ * NOTA TÉCNICA: Etapas como contenedores de acciones
  * ─────────────────────────────────────────────────────────────────
  * Las etapas organizan las acciones de un proyecto en fases lógicas.
  * El porcentaje de una etapa se CALCULA automáticamente como promedio

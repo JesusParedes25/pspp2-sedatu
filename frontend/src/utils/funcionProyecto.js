@@ -4,7 +4,7 @@
  *            pregunta que la gente se hace: "¿qué soy yo aquí y qué
  *            puedo hacer?".
  *
- * MINI-CLASE: por qué esto vive en un solo lugar
+ * NOTA TÉCNICA: por qué esto vive en un solo lugar
  * ─────────────────────────────────────────────────────────────────
  * Hasta ahora, saber si podías editar un proyecto exigía resolver
  * mentalmente cuatro cosas: tu rol global, si tu DG coincide con la

@@ -2,7 +2,7 @@
  * ARCHIVO: notificaciones.js
  * PROPÓSITO: Crear notificaciones en la BD cuando ocurren eventos relevantes.
  *
- * MINI-CLASE: Notificaciones internas
+ * NOTA TÉCNICA: Notificaciones internas
  * ─────────────────────────────────────────────────────────────────
  * Las notificaciones son registros en la tabla `notificaciones`. Son
  * un sistema de "buzón": cuando algo relevante ocurre (vencimiento,

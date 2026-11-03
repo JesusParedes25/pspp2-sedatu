@@ -2,7 +2,7 @@
  * ARCHIVO: TarjetaProyecto.jsx
  * PROPÓSITO: Card resumen de un proyecto para el grid de ListadoProyectos.
  *
- * MINI-CLASE: Cards como unidad visual de información
+ * NOTA TÉCNICA: Cards como unidad visual de información
  * ─────────────────────────────────────────────────────────────────
  * Cada tarjeta muestra un resumen compacto del proyecto: imagen
  * representativa (o gradiente por tipo), nombre, DG líder, estado,

@@ -2,7 +2,7 @@
  * ARCHIVO: AvatarGroup.jsx
  * PROPÓSITO: Grupo de avatares apilados para mostrar equipos de DGs.
  *
- * MINI-CLASE: Avatares con iniciales
+ * NOTA TÉCNICA: Avatares con iniciales
  * ─────────────────────────────────────────────────────────────────
  * En lugar de fotos de perfil (que requerirían gestión de imágenes),
  * usamos avatares con las iniciales de la DG o del usuario. Los

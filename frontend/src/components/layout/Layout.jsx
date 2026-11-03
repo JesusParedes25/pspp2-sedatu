@@ -2,7 +2,7 @@
  * ARCHIVO: Layout.jsx
  * PROPÓSITO: Layout principal con sidebar y header que envuelve todas las páginas.
  *
- * MINI-CLASE: Outlet de React Router
+ * NOTA TÉCNICA: Outlet de React Router
  * ─────────────────────────────────────────────────────────────────
  * React Router v6 usa <Outlet /> para renderizar la ruta hija activa
  * dentro de un layout compartido. El Layout define la estructura
@@ -10,7 +10,7 @@
  * dinámicamente por la página correspondiente a la URL actual.
  * Esto evita duplicar sidebar y header en cada página.
  *
- * MINI-CLASE: una sola fuente para el contador de la campanita
+ * NOTA TÉCNICA: una sola fuente para el contador de la campanita
  * ─────────────────────────────────────────────────────────────────
  * El resumen de pendientes (useCentroNotificaciones) se pide UNA vez
  * aquí, no dentro de Header. Si cada quien lo pidiera por su cuenta, al

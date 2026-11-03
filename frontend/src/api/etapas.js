@@ -2,7 +2,7 @@
  * ARCHIVO: etapas.js
  * PROPÓSITO: Funciones de API para etapas de proyectos.
  *
- * MINI-CLASE: Rutas anidadas en la API
+ * NOTA TÉCNICA: Rutas anidadas en la API
  * ─────────────────────────────────────────────────────────────────
  * Las etapas se listan y crean bajo /proyectos/:id/etapas (anidadas),
  * pero se leen, actualizan y eliminan bajo /etapas/:id (independientes).

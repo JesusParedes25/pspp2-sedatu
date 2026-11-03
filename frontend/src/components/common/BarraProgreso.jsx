@@ -2,7 +2,7 @@
  * ARCHIVO: BarraProgreso.jsx
  * PROPÓSITO: Barra de progreso visual con porcentaje y color dinámico.
  *
- * MINI-CLASE: Progreso visual con Tailwind
+ * NOTA TÉCNICA: Progreso visual con Tailwind
  * ─────────────────────────────────────────────────────────────────
  * La barra cambia de color según el porcentaje: rojo (<25%),
  * naranja (25-50%), amarillo (50-75%), verde (>75%). También puede

@@ -2,7 +2,7 @@
  * ARCHIVO: UIContext.jsx
  * PROPÓSITO: Contexto global de UI (toasts, sidebar, loading global).
  *
- * MINI-CLASE: Estado de UI compartido
+ * NOTA TÉCNICA: Estado de UI compartido
  * ─────────────────────────────────────────────────────────────────
  * Algunos estados de UI necesitan ser globales: los toasts (mensajes
  * temporales de éxito/error), el estado del sidebar (abierto/cerrado

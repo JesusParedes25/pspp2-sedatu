@@ -4,7 +4,7 @@
  *            Ramo 15 —la lista que se ofrece al crear o editar un
  *            proyecto— desde el panel de superadministrador.
  *
- * MINI-CLASE: retirar no es borrar
+ * NOTA TÉCNICA: retirar no es borrar
  * ─────────────────────────────────────────────────────────────────
  * Un Pp que deja de operar no se elimina: se desactiva. Desactivado
  * deja de aparecer en el desplegable de proyectos nuevos, pero los

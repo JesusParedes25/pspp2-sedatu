@@ -5,7 +5,7 @@
  *            vibra verticalmente, muy rápido, en bucle" (solo con el árbol
  *            izquierdo contraído).
  *
- * MINI-CLASE: la causa real (no era CSS/flexbox)
+ * NOTA TÉCNICA: la causa real (no era CSS/flexbox)
  * ─────────────────────────────────────────────────────────────────
  * Investigado primero por descarte: sin ResizeObserver en todo el
  * frontend, el único IntersectionObserver (histéresis del header
@@ -80,7 +80,7 @@ async function irAlPrimerProyecto(page) {
 }
 
 // Latencia artificial ESCALONADA por endpoint — sin esto el bug no se
-// reproduce (ver mini-clase de cabecera): las 4 pestañas con contador
+// reproduce (ver nota técnica de cabecera): las 4 pestañas con contador
 // arrancan su fetch casi al mismo tiempo, y si las 4 respuestas llegan
 // dentro del mismo tick de React (como en dev, latencia ~0), React las
 // agrupa en un solo render y la cascada nunca se dispara. Un delay fijo
@@ -142,7 +142,7 @@ test.describe('Detalle de Seguimiento — sin tormenta de refetch al abrir una p
     // que puede parpadear más rápido de lo que un polling por intervalos
     // alcanza a ver) — más directo y sin carreras: con la tormenta de
     // refetch (sin el fix: 5+ rondas, escalonadas ~60ms entre sí, ver
-    // mini-clase de cabecera) cambiar de nodo dispara muchas más de 2
+    // nota técnica de cabecera) cambiar de nodo dispara muchas más de 2
     // peticiones a ese endpoint.
     let peticionesDocumentos = 0;
     page.on('request', req => {

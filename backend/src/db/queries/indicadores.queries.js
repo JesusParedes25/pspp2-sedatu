@@ -3,7 +3,7 @@
  * PROPÓSITO: Consultas SQL para el CRUD de indicadores de proyecto,
  *            incluyendo metas anuales y lectura agregada.
  *
- * MINI-CLASE: Indicadores presupuestarios en proyectos SEDATU
+ * NOTA TÉCNICA: Indicadores presupuestarios en proyectos SEDATU
  * ─────────────────────────────────────────────────────────────────
  * Un proyecto puede tener N indicadores (avance físico, financiero,
  * monto, cobertura, etc.). Cada indicador tiene una meta global y

@@ -2,7 +2,7 @@
  * ARCHIVO: tailwind.config.js
  * PROPÓSITO: Configuración de Tailwind CSS con la paleta oficial de SEDATU.
  *
- * MINI-CLASE: Paleta institucional de SEDATU
+ * NOTA TÉCNICA: Paleta institucional de SEDATU
  * ─────────────────────────────────────────────────────────────────
  * Los colores oficiales de SEDATU son guinda (#9f2241) y verde
  * (#235b4e). Esta configuración extiende la paleta de Tailwind

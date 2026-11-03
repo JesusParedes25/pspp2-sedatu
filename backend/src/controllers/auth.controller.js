@@ -2,7 +2,7 @@
  * ARCHIVO: auth.controller.js
  * PROPÓSITO: Manejar login y obtención del usuario autenticado.
  *
- * MINI-CLASE: Flujo de autenticación con JWT
+ * NOTA TÉCNICA: Flujo de autenticación con JWT
  * ─────────────────────────────────────────────────────────────────
  * 1. Usuario envía correo + password al endpoint POST /auth/login
  * 2. Buscamos al usuario por correo en la BD

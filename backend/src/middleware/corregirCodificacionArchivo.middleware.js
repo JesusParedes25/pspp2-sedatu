@@ -4,7 +4,7 @@
  *            que suba un archivo — corrige req.file.originalname cuando
  *            llegó con acentos corrompidos.
  *
- * MINI-CLASE: por qué "validación.pdf" llega como "validaciÃ³n.pdf"
+ * NOTA TÉCNICA: por qué "validación.pdf" llega como "validaciÃ³n.pdf"
  * ─────────────────────────────────────────────────────────────────
  * El navegador manda el nombre de archivo como UTF-8 dentro del header
  * multipart, pero busboy (la librería que usa multer para parsear

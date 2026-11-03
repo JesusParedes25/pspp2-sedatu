@@ -4,7 +4,7 @@
  *            un proyecto o un nodo (etapa/acción/tarea) — la escalera
  *            única de función (docs/modelo-permisos.md).
  *
- * MINI-CLASE: por qué una sola función y no una cadena de OR por facultad
+ * NOTA TÉCNICA: por qué una sola función y no una cadena de OR por facultad
  * ─────────────────────────────────────────────────────────────────
  * Antes de esto, cada facultad (editar, eliminar, capturar, invitar)
  * resolvía su propia cadena de condiciones en utils/autorizacion.js, cada
