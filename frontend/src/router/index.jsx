@@ -13,7 +13,7 @@
  * silencio al inicio, sin avisar que el enlace no lleva a ningún lado.
  * ─────────────────────────────────────────────────────────────────
  */
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import Inicio from '../pages/Inicio';
 import Tablero from '../pages/Tablero';
@@ -47,6 +47,14 @@ export default function AppRouter() {
     <Routes>
       {/* Ruta pública fuera del layout autenticado */}
       <Route path="activar-cuenta" element={<ActivarCuenta />} />
+      {/* /login no es una pantalla propia de la app autenticada — App.jsx ya
+          decide mostrar <Login/> en vez de este router cuando no hay sesión.
+          Esta ruta solo existe para el caso en que SÍ hay sesión y aun así se
+          llega a /login (justo después de iniciar sesión, cuando App.jsx
+          cambia de <Login/> a este router sin que cambie la URL, o por
+          entrar a mano estando ya autenticado): antes caía en el comodín "*"
+          de abajo y mostraba Página no encontrada. */}
+      <Route path="login" element={<Navigate to="/" replace />} />
       <Route element={<Layout />}>
         <Route index element={<Inicio />} />
         <Route path="tablero" element={<Tablero />} />
