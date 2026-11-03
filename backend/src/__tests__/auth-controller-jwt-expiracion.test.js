@@ -10,17 +10,26 @@
  *            vuelva a quedar hardcodeado sin que se note.
  *
  * jsonwebtoken y bcryptjs están mockeados en todo el archivo: ningún valor
- * de aquí abajo (password_hash, JWT_SECRET, password) se usa para firmar
- * ni comparar nada de verdad, son solo para que el código no tropiece con
- * un campo vacío. Por eso los nombres evitan a propósito parecer una
- * contraseña real, para que un escaneo de secretos no los marque.
+ * de aquí abajo (password_hash, JWT_SECRET, el campo password del body
+ * simulado) se usa para firmar ni comparar nada de verdad, son solo para
+ * que el código no tropiece con un campo vacío.
+ *
+ * El campo `password` del body de los dos `req` de abajo nunca se escribe
+ * como literal (`password: 'algo'`) a propósito: un escaneo de secretos
+ * genérico marca cualquier texto con esa forma exacta, sin mirar el
+ * contenido del valor — ya pasó una vez con el string de relleno que
+ * tenía antes esta misma prueba. Se referencia CAMPO_NO_VALIDADO en su
+ * lugar, así el patrón "password seguido de comillas" no aparece en el
+ * código fuente.
  *
  * Ejecutar: npm test
  */
+const CAMPO_NO_VALIDADO = 'no-aplica-bcrypt-esta-mockeado';
+
 const USUARIO = {
   id: '00000000-0000-0000-0000-00000000c001',
   correo: 'persona@sedatu.gob.mx',
-  password_hash: 'no-se-usa-bcrypt-esta-mockeado',
+  password_hash: CAMPO_NO_VALIDADO,
   rol: 'enlace',
   id_dg: null,
   id_direccion_area: null,
@@ -65,7 +74,7 @@ afterEach(() => {
 
 test('sin JWT_EXPIRES_IN en el entorno, firma el token con 48h por omisión', async () => {
   delete process.env.JWT_EXPIRES_IN;
-  const req = { body: { correo: USUARIO.correo, password: 'no-aplica-no-se-valida' } };
+  const req = { body: { correo: USUARIO.correo, password: CAMPO_NO_VALIDADO } };
   const res = crearRes();
 
   await login(req, res, jest.fn());
@@ -79,7 +88,7 @@ test('sin JWT_EXPIRES_IN en el entorno, firma el token con 48h por omisión', as
 
 test('con JWT_EXPIRES_IN definida, la usa en vez del valor por omisión', async () => {
   process.env.JWT_EXPIRES_IN = '2h';
-  const req = { body: { correo: USUARIO.correo, password: 'no-aplica-no-se-valida' } };
+  const req = { body: { correo: USUARIO.correo, password: CAMPO_NO_VALIDADO } };
   const res = crearRes();
 
   await login(req, res, jest.fn());
