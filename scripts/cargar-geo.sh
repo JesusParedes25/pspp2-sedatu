@@ -152,25 +152,7 @@ $PSQL -c "
 " > /dev/null 2>&1
 echo "  ✓ cat_municipios sincronizada"
 
-# ─── 6. Crear vistas para GeoServer ──────────────────────────
-echo ""
-echo "► Creando vistas para GeoServer..."
-$PSQL -c "
-  DROP VIEW IF EXISTS vw_geo_estados;
-  CREATE VIEW vw_geo_estados AS
-    SELECT gid, cve_ent, nombre, geom FROM geo_estados;
-
-  DROP VIEW IF EXISTS vw_geo_municipios;
-  CREATE VIEW vw_geo_municipios AS
-    SELECT gid, cvegeo, cve_ent, cve_mun, nombre, geom FROM geo_municipios;
-
-  DROP VIEW IF EXISTS vw_geo_zm;
-  CREATE VIEW vw_geo_zm AS
-    SELECT gid, cve_met, nombre, tipo, geom FROM geo_zm;
-" > /dev/null 2>&1
-echo "  ✓ Vistas creadas"
-
-# ─── 7. Verificar ────────────────────────────────────────────
+# ─── 6. Verificar ────────────────────────────────────────────
 echo ""
 echo "══════════════════════════════════════════════════"
 echo "  Resumen:"

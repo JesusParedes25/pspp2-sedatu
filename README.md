@@ -278,6 +278,8 @@ tenga contenido, precisamente para no repoblar una base en uso.
 | Token JWT expirado          | Hacer login nuevamente; ajustar `JWT_EXPIRES_IN` en `.env`      |
 | Tras reconstruir el backend, login falla o no cargan proyectos (sin errores en `docker logs pspp-backend`) | Nginx quedó apuntando a la IP interna vieja del contenedor recreado. Reiniciar Nginx: `docker compose -f docker-compose.prod.yml restart nginx` |
 
+ℹ️ Una base de datos de una instalación anterior puede tener las vistas `vw_geo_estados`, `vw_geo_municipios`, `vw_geo_zm` y la tabla `capas_geo`, heredadas de cuando existía GeoServer; ninguna la usa el código actual y se pueden eliminar sin consecuencia.
+
 ⚠️ **Regla importante**: cada vez que se reconstruye `backend` (o `frontend`) con `--build`, Docker le asigna una IP interna nueva al contenedor. Nginx no se entera solo — hay que reiniciarlo también o seguirá intentando hablar con el contenedor viejo (login y toda la API dejan de responder, sin ningún error visible en los logs del backend). Por eso, después de cualquier rebuild:
 ```bash
 docker compose -f docker-compose.prod.yml up --build -d backend   # o frontend/frontend-build
