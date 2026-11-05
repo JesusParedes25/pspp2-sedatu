@@ -1,5 +1,5 @@
 # PSPP v2.0 — Docker Compose (Desarrollo)
-# Levanta los 5 servicios necesarios para desarrollo local.
+# Levanta los 4 servicios necesarios para desarrollo local.
 
 services:
 
@@ -37,22 +37,6 @@ services:
     volumes:
       - minio_data:/data
 
-  # GeoServer: servidor de capas WMS/WFS para el módulo cartográfico
-  geoserver:
-    image: kartoza/geoserver:2.23.0
-    container_name: pspp_geoserver
-    restart: unless-stopped
-    environment:
-      GEOSERVER_ADMIN_USER: ${GEOSERVER_USER}
-      GEOSERVER_ADMIN_PASSWORD: ${GEOSERVER_PASSWORD}
-    ports:
-      - "8080:8080"
-    volumes:
-      - geoserver_data:/opt/geoserver/data_dir
-    depends_on:
-      postgres:
-        condition: service_healthy
-
   backend:
     build:
       context: ./backend
@@ -74,7 +58,6 @@ services:
       MINIO_USER: ${MINIO_USER}
       MINIO_PASSWORD: ${MINIO_PASSWORD}
       MINIO_BUCKET: ${MINIO_BUCKET}
-      GEOSERVER_URL: http://geoserver:8080/geoserver
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
@@ -114,4 +97,3 @@ services:
 volumes:
   postgres_data:
   minio_data:
-  geoserver_data:

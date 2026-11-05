@@ -38,18 +38,6 @@ services:
     networks:
       - pspp-network
 
-  # ─── GeoServer (WMS/WFS) ──────────────────────────────────────
-  geoserver:
-    image: kartoza/geoserver:2.23.0
-    container_name: pspp-geoserver
-    restart: always
-    environment:
-      GEOSERVER_ADMIN_PASSWORD: ${GEOSERVER_ADMIN_PASSWORD}
-    volumes:
-      - geoserver_prod:/opt/geoserver/data_dir
-    networks:
-      - pspp-network
-
   # ─── Backend API ───────────────────────────────────────────────
   backend:
     build:
@@ -73,7 +61,6 @@ services:
       MINIO_USER: ${MINIO_USER}
       MINIO_PASSWORD: ${MINIO_PASSWORD}
       MINIO_BUCKET: ${MINIO_BUCKET}
-      GEOSERVER_URL: http://geoserver:8080/geoserver
       FRONTEND_URL: ${FRONTEND_URL}
       PORT: 3000
       PASSWORD_USER: ${PASSWORD_USER}
@@ -120,7 +107,6 @@ services:
 volumes:
   pgdata_prod:
   minio_prod:
-  geoserver_prod:
   frontend_build:
 
 networks:
