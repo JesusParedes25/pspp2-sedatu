@@ -13,15 +13,9 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const { Router } = require('express');
-const multer = require('multer');
 const { verificarToken } = require('../middleware/auth.middleware');
 const corregirCodificacionArchivo = require('../middleware/corregirCodificacionArchivo.middleware');
-
-// Multer en memoria para archivos (max 200MB para shapefiles grandes)
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 200 * 1024 * 1024 }
-});
+const { upload } = require('../middleware/subidaArchivo.middleware');
 
 // Permiso de captura para las rutas anidadas que escriben estructura
 // (las rutas independientes lo aplican en su propio archivo de rutas).

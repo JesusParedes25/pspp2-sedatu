@@ -4,18 +4,23 @@
  *
  * NOTA TÉCNICA: Subida de archivos con Multer + MinIO
  * ─────────────────────────────────────────────────────────────────
- * El flujo de subida es: (1) Multer recibe el archivo multipart y
- * lo guarda temporalmente en memoria (memoryStorage). (2) El
- * controller toma el buffer y lo sube a MinIO con putObject().
- * (3) Se inserta un registro en la tabla evidencias con la ruta
- * en MinIO. Para la descarga, getObject() devuelve un stream que
- * se pipea directamente al response HTTP sin cargar todo en memoria.
+ * El flujo de subida es: (1) Multer recibe el archivo multipart y lo
+ * escribe conforme llega a un temporal en disco (diskStorage, ver
+ * middleware/subidaArchivo.middleware.js). (2) El controller abre un
+ * stream de lectura de ese temporal y lo sube a MinIO con putObject().
+ * (3) Se inserta un registro en la tabla evidencias con la ruta en
+ * MinIO. (4) El temporal se borra siempre, haya salido bien o mal, en
+ * el finally de cada función. Para la descarga, getObject() devuelve
+ * un stream que se pipea directamente al response HTTP sin cargar
+ * todo en memoria.
  * ─────────────────────────────────────────────────────────────────
  */
+const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const evidenciasQueries = require('../db/queries/evidencias.queries');
 const { registrarActividad } = require('../utils/actividad-log');
 const { alcanceProyectosUsuarioONull } = require('../utils/alcanceProyectos');
+const { limpiarArchivoTemporal } = require('../middleware/subidaArchivo.middleware');
 const pool = require('../db/pool');
 
 // Resuelve a qué proyectos tiene acceso el usuario para el módulo global de
@@ -130,7 +135,7 @@ async function subirParaEtapa(req, res, next) {
       const archivo = req.file;
       const nombreUnico = `${uuidv4()}_${archivo.originalname}`;
       const rutaMinio = `evidencias/etapas/${req.params.id}/${nombreUnico}`;
-      await minioClient.putObject(BUCKET, rutaMinio, archivo.buffer, archivo.size, { 'Content-Type': archivo.mimetype });
+      await minioClient.putObject(BUCKET, rutaMinio, fs.createReadStream(archivo.path), archivo.size, { 'Content-Type': archivo.mimetype });
       datosEvidencia.nombre_archivo = nombreUnico;
       datosEvidencia.nombre_original = archivo.originalname;
       datosEvidencia.ruta_minio = rutaMinio;
@@ -144,6 +149,8 @@ async function subirParaEtapa(req, res, next) {
     res.status(201).json({ datos: evidencia, mensaje: tipoMedio === 'link' ? 'Link registrado exitosamente' : 'Evidencia subida exitosamente' });
   } catch (err) {
     next(err);
+  } finally {
+    await limpiarArchivoTemporal(req);
   }
 }
 
@@ -172,7 +179,7 @@ async function subirParaSubaccion(req, res, next) {
     const nombreUnico = `${uuidv4()}_${archivo.originalname}`;
     const rutaMinio = `evidencias/subacciones/${req.params.id}/${nombreUnico}`;
 
-    await minioClient.putObject(BUCKET, rutaMinio, archivo.buffer, archivo.size, {
+    await minioClient.putObject(BUCKET, rutaMinio, fs.createReadStream(archivo.path), archivo.size, {
       'Content-Type': archivo.mimetype
     });
 
@@ -191,6 +198,8 @@ async function subirParaSubaccion(req, res, next) {
     res.status(201).json({ datos: evidencia, mensaje: 'Evidencia subida exitosamente' });
   } catch (err) {
     next(err);
+  } finally {
+    await limpiarArchivoTemporal(req);
   }
 }
 
@@ -246,7 +255,7 @@ async function subirParaAccion(req, res, next) {
       const archivo = req.file;
       const nombreUnico = `${uuidv4()}_${archivo.originalname}`;
       const rutaMinio = `evidencias/acciones/${req.params.id}/${nombreUnico}`;
-      await minioClient.putObject(BUCKET, rutaMinio, archivo.buffer, archivo.size, { 'Content-Type': archivo.mimetype });
+      await minioClient.putObject(BUCKET, rutaMinio, fs.createReadStream(archivo.path), archivo.size, { 'Content-Type': archivo.mimetype });
       datosEvidencia.nombre_archivo = nombreUnico;
       datosEvidencia.nombre_original = archivo.originalname;
       datosEvidencia.ruta_minio = rutaMinio;
@@ -260,6 +269,8 @@ async function subirParaAccion(req, res, next) {
     res.status(201).json({ datos: evidencia, mensaje: tipoMedio === 'link' ? 'Link registrado exitosamente' : 'Evidencia subida exitosamente' });
   } catch (err) {
     next(err);
+  } finally {
+    await limpiarArchivoTemporal(req);
   }
 }
 
@@ -278,7 +289,7 @@ async function subirParaRiesgo(req, res, next) {
     const nombreUnico = `${uuidv4()}_${archivo.originalname}`;
     const rutaMinio = `evidencias/riesgos/${req.params.id}/${nombreUnico}`;
 
-    await minioClient.putObject(BUCKET, rutaMinio, archivo.buffer, archivo.size, {
+    await minioClient.putObject(BUCKET, rutaMinio, fs.createReadStream(archivo.path), archivo.size, {
       'Content-Type': archivo.mimetype
     });
 
@@ -297,6 +308,8 @@ async function subirParaRiesgo(req, res, next) {
     res.status(201).json({ datos: evidencia, mensaje: 'Evidencia subida exitosamente' });
   } catch (err) {
     next(err);
+  } finally {
+    await limpiarArchivoTemporal(req);
   }
 }
 

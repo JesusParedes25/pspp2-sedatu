@@ -28,8 +28,10 @@ const statsQueries = require('../db/queries/proyectos.stats.queries');
 const pool = require('../db/pool');
 const { cambiarEstado: cambiarEstadoUtil } = require('../utils/validaciones-estado');
 const { recalcularProyecto } = require('../utils/recalculos');
+const fs = require('fs');
 const { Client: MinioClient } = require('minio');
 const { v4: uuidv4 } = require('uuid');
+const { limpiarArchivoTemporal } = require('../middleware/subidaArchivo.middleware');
 
 const minioClient = new MinioClient({
   endPoint: process.env.MINIO_ENDPOINT || 'minio',
@@ -370,7 +372,7 @@ async function subirImagen(req, res, next) {
     const nombreUnico = `${uuidv4()}_${archivo.originalname}`;
     const rutaMinio = `proyectos/${req.params.id}/portada/${nombreUnico}`;
 
-    await minioClient.putObject(BUCKET, rutaMinio, archivo.buffer, archivo.size, {
+    await minioClient.putObject(BUCKET, rutaMinio, fs.createReadStream(archivo.path), archivo.size, {
       'Content-Type': archivo.mimetype,
     });
 
@@ -385,6 +387,8 @@ async function subirImagen(req, res, next) {
     res.json({ datos: { imagen_url: imagenUrl }, mensaje: 'Imagen subida exitosamente' });
   } catch (err) {
     next(err);
+  } finally {
+    await limpiarArchivoTemporal(req);
   }
 }
 

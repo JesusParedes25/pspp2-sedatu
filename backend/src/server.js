@@ -27,6 +27,7 @@ const asegurarProgramas = require('./db/seeders/00_programas');
 const asegurarCatalogoIndicadoresV1 = require('./db/seeders/00_catalogo_indicadores_v1_sedatu');
 const { iniciarPurgaAutomatica } = require('./utils/purgarProyectos');
 const { iniciarAlertasAutomaticas } = require('./utils/alertasVencimiento');
+const { verificarDirectorioSubidas, DIRECTORIO_TEMPORAL } = require('./middleware/subidaArchivo.middleware');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -86,6 +87,13 @@ app.use(errorHandler);
 
 // ─── Inicializar BD y levantar servidor ──────────────────────
 async function iniciar() {
+  try {
+    verificarDirectorioSubidas();
+  } catch (err) {
+    console.error(`✗ No se pudo preparar el directorio temporal de subidas (${DIRECTORIO_TEMPORAL}):`, err.message);
+    process.exit(1);
+  }
+
   try {
     await ejecutarMigraciones();
     await asegurarSuperAdmin();
