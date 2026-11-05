@@ -9,8 +9,21 @@
  * Ejecutar: npm test
  */
 
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
 const UUID_1 = '00000000-0000-0000-0000-000000000001';
 const UUID_2 = '00000000-0000-0000-0000-000000000002';
+
+// subirImagen ahora lee el archivo de un temporal en disco (diskStorage,
+// no memoryStorage), así que req.file trae .path en vez de .buffer — se
+// necesita un archivo real para que fs.createReadStream no truene.
+function crearArchivoTemporalDePrueba() {
+  const ruta = path.join(os.tmpdir(), `prueba-subir-imagen-${Date.now()}-${Math.random()}`);
+  fs.writeFileSync(ruta, '');
+  return ruta;
+}
 
 function crearRes() {
   return {
@@ -42,7 +55,22 @@ jest.mock('../db/pool', () => ({ connect: jest.fn(), query: jest.fn() }));
 jest.mock('../utils/validaciones-estado', () => ({ cambiarEstado: jest.fn() }));
 jest.mock('../utils/recalculos', () => ({ recalcularProyecto: jest.fn() }));
 
-const mockPutObject = jest.fn().mockResolvedValue();
+// putObject real solo resuelve cuando terminó de leer el stream que se le
+// da (sube el archivo mientras lo lee). El mock imita eso: si el 3er
+// argumento es un stream (diskStorage, no memoryStorage), lo drena antes
+// de resolver — si no, controller y mock se desincronizan sobre cuándo el
+// archivo temporal ya se leyó, y el finally que lo borra podría ganarle
+// la carrera a la apertura real del archivo.
+const mockPutObject = jest.fn((bucket, key, dataOrStream) => {
+  if (dataOrStream && typeof dataOrStream.resume === 'function') {
+    return new Promise((resolve, reject) => {
+      dataOrStream.on('error', reject);
+      dataOrStream.on('end', resolve);
+      dataOrStream.resume();
+    });
+  }
+  return Promise.resolve();
+});
 jest.mock('minio', () => ({
   Client: jest.fn().mockImplementation(() => ({ putObject: (...a) => mockPutObject(...a) })),
 }));
@@ -89,7 +117,7 @@ describe('proyectos.controller.js::subirImagen', () => {
     const req = {
       usuario: { id: UUID_1, rol: 'enlace' },
       params: { id: UUID_2 },
-      file: { originalname: 'foto.png', buffer: Buffer.from(''), size: 0, mimetype: 'image/png' },
+      file: { originalname: 'foto.png', path: crearArchivoTemporalDePrueba(), size: 0, mimetype: 'image/png' },
     };
     const res = crearRes();
     const next = jest.fn();
@@ -111,7 +139,7 @@ describe('proyectos.controller.js::subirImagen', () => {
     const req = {
       usuario: { id: UUID_1, rol: 'enlace' },
       params: { id: UUID_2 },
-      file: { originalname: 'foto.png', buffer: Buffer.from(''), size: 0, mimetype: 'image/png' },
+      file: { originalname: 'foto.png', path: crearArchivoTemporalDePrueba(), size: 0, mimetype: 'image/png' },
     };
     const res = crearRes();
     const next = jest.fn();

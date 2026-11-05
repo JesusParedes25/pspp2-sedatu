@@ -56,6 +56,8 @@ docker-compose exec backend npm run seed
 | `MINIO_PASSWORD`   | Contraseña de MinIO                            | ✅          |
 | `MINIO_BUCKET`     | Nombre del bucket para evidencias              | ✅          |
 | `MINIO_PORT`       | Puerto interno de MinIO (normalmente `9000`)   | ✅          |
+| `UPLOAD_TMP_DIR`   | Carpeta donde el backend escribe el temporal de cada archivo subido antes de mandarlo a MinIO. Si no se define, usa una carpeta dentro del directorio temporal del sistema | ❌ |
+| `UPLOAD_MAX_SIZE_MB` | Tamaño máximo por archivo, en MB, para evidencias/imagen de proyecto/shapefile. Si no se define, el backend usa `200` | ❌ |
 | `FRONTEND_URL`     | URL pública del frontend (links de activación) | ✅          |
 | `GEOSERVER_USER`   | Usuario admin de GeoServer (solo desarrollo)   | ✅          |
 | `GEOSERVER_PASSWORD` | Contraseña de GeoServer (solo desarrollo)    | ✅          |

@@ -4,9 +4,11 @@
  *            reportados desde las tarjetas expandibles) para cualquier nodo.
  *            Reusa el mismo cliente MinIO que evidencias.controller.js.
  */
+const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const { minioClient, BUCKET } = require('../utils/minio');
 const { setContentDisposition } = require('../utils/contentDisposition');
+const { limpiarArchivoTemporal } = require('../middleware/subidaArchivo.middleware');
 const actividadQueries = require('../db/queries/actividad.queries');
 
 const TIPOS_NODO = ['etapa', 'accion', 'tarea'];
@@ -56,7 +58,7 @@ async function crear(req, res, next) {
         const archivo = req.file;
         const nombreUnico = `${uuidv4()}_${archivo.originalname}`;
         const rutaMinio = `actividad/${tipo_nodo}/${id_nodo}/${nombreUnico}`;
-        await minioClient.putObject(BUCKET, rutaMinio, archivo.buffer, archivo.size, { 'Content-Type': archivo.mimetype });
+        await minioClient.putObject(BUCKET, rutaMinio, fs.createReadStream(archivo.path), archivo.size, { 'Content-Type': archivo.mimetype });
         archivoUrl = rutaMinio;
         archivoNombre = archivo.originalname;
       }
@@ -68,7 +70,9 @@ async function crear(req, res, next) {
       archivoUrl, archivoNombre, metadata,
     });
     res.status(201).json({ datos: entrada, mensaje: 'Actividad registrada' });
-  } catch (err) { next(err); }
+  } catch (err) { next(err); } finally {
+    await limpiarArchivoTemporal(req);
+  }
 }
 
 // GET /actividad/:id/descargar — stream del archivo adjunto de una entrada

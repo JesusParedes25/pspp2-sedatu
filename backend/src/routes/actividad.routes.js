@@ -11,13 +11,11 @@
  * viven en el body multipart, que solo existe una vez que multer lo parseó.
  */
 const { Router } = require('express');
-const multer = require('multer');
 const actividadController = require('../controllers/actividad.controller');
 const corregirCodificacionArchivo = require('../middleware/corregirCodificacionArchivo.middleware');
 const { exigirEdicionDeNodoEnCuerpo } = require('../middleware/permisos.middleware');
 const { exigirVisibilidadActividadPorId, exigirVisibilidadNodoEnParams } = require('../utils/alcance-lectura');
-
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
+const { upload } = require('../middleware/subidaArchivo.middleware');
 
 const router = Router();
 

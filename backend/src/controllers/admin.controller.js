@@ -8,6 +8,7 @@ const pool = require('../db/pool');
 const XLSX = require('xlsx');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const { limpiarArchivoTemporal } = require('../middleware/subidaArchivo.middleware');
 
 // ─── CATÁLOGOS ─────────────────────────────────────────────────
 
@@ -120,7 +121,7 @@ async function reemplazarShapefile(req, res, next) {
     }
 
     const AdmZip = require('adm-zip');
-    const zip = new AdmZip(req.file.buffer);
+    const zip = new AdmZip(req.file.path);
     const entries = zip.getEntries();
 
     // Determinar si es geojson o shapefile
@@ -220,7 +221,9 @@ async function reemplazarShapefile(req, res, next) {
     } finally {
       client.release();
     }
-  } catch (err) { next(err); }
+  } catch (err) { next(err); } finally {
+    await limpiarArchivoTemporal(req);
+  }
 }
 
 // GET /admin/geo/zonas-metropolitanas — Lista ZMs para selector

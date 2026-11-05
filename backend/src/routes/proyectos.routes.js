@@ -13,12 +13,11 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const { Router } = require('express');
-const multer = require('multer');
 const proyectosController = require('../controllers/proyectos.controller');
 const { requiereRol } = require('../middleware/roles.middleware');
+const { upload } = require('../middleware/subidaArchivo.middleware');
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 router.get('/', proyectosController.listar);
 router.post('/', proyectosController.crear);
