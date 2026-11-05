@@ -13,19 +13,17 @@
 │  :5173      │     │  :3000      │     │  :5432          │
 └─────────────┘     └──────┬──────┘     └─────────────────┘
                            │
-                    ┌──────┴──────┐
-                    │             │
-              ┌─────▼─────┐ ┌────▼──────┐
-              │   MinIO   │ │ GeoServer │
-              │  :9000    │ │  :8080    │
-              │  :9001    │ │           │
-              └───────────┘ └───────────┘
+                     ┌─────▼─────┐
+                     │   MinIO   │
+                     │  :9000    │
+                     │  :9001    │
+                     └───────────┘
 ```
 
 ## Requisitos
 
 - Docker Engine 24+ y Docker Compose v2+
-- Puertos libres: **5173**, **3000**, **5432**, **9000**, **9001**, **8080**
+- Puertos libres: **5173**, **3000**, **5432**, **9000**, **9001**
 
 ## Inicio rápido
 
@@ -59,9 +57,6 @@ docker-compose exec backend npm run seed
 | `UPLOAD_TMP_DIR`   | Carpeta donde el backend escribe el temporal de cada archivo subido antes de mandarlo a MinIO. Si no se define, usa una carpeta dentro del directorio temporal del sistema | ❌ |
 | `UPLOAD_MAX_SIZE_MB` | Tamaño máximo por archivo, en MB, para evidencias/imagen de proyecto/shapefile. Si no se define, el backend usa `200` | ❌ |
 | `FRONTEND_URL`     | URL pública del frontend (links de activación) | ✅          |
-| `GEOSERVER_USER`   | Usuario admin de GeoServer (solo desarrollo)   | ✅          |
-| `GEOSERVER_PASSWORD` | Contraseña de GeoServer (solo desarrollo)    | ✅          |
-| `GEOSERVER_ADMIN_PASSWORD` | Contraseña de GeoServer (solo producción) | ✅       |
 | `SMTP_HOST`        | Servidor SMTP para correos                     | ❌          |
 | `SMTP_PORT`        | Puerto SMTP (por defecto 587)                  | ❌          |
 | `SMTP_USER`        | Usuario SMTP                                   | ❌          |
@@ -244,7 +239,6 @@ decir *"la administra el panel (siembra inicial ya hecha)"*.
 | Qué | Dónde vive | Cómo se mueve |
 |-----|------------|---------------|
 | Evidencias y adjuntos | Volumen `minio_prod` | `scripts/backup.sh` lo empaqueta; paso 5 de arriba |
-| Capas y estilos de GeoServer | Volumen `geoserver_prod` | Copiar el volumen, o volver a publicar las capas |
 | Secretos y configuración | `.env` (no está en el repo) | Copiar a mano |
 
 Ojo con `SUPERADMIN_EMAIL` y `PASSWORD_USER`: en **cada** arranque el
@@ -281,7 +275,6 @@ tenga contenido, precisamente para no repoblar una base en uso.
 | Puerto ocupado              | Verificar con `netstat -tlnp` y detener el servicio conflictivo |
 | Postgres no responde        | `docker-compose restart postgres` y esperar healthcheck         |
 | MinIO bucket no existe      | Se crea automáticamente en el seed; o crear manualmente en :9001 |
-| GeoServer sin capas         | Módulo cartográfico es segunda fase (TODO)                      |
 | Token JWT expirado          | Hacer login nuevamente; ajustar `JWT_EXPIRES_IN` en `.env`      |
 | Tras reconstruir el backend, login falla o no cargan proyectos (sin errores en `docker logs pspp-backend`) | Nginx quedó apuntando a la IP interna vieja del contenedor recreado. Reiniciar Nginx: `docker compose -f docker-compose.prod.yml restart nginx` |
 

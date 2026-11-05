@@ -9,7 +9,8 @@ federal mexicana de ordenamiento territorial). Uso interno.
   v12 (lienzo de Diagrama), `d3-hierarchy`. Carpeta `frontend/`.
 - **Backend**: Node/Express, **SQL crudo vía `pg`, sin ORM**. Carpeta `backend/`.
 - **Base de datos**: PostgreSQL + PostGIS.
-- **Archivos**: MinIO. **Mapas**: GeoServer (WMS/WFS).
+- **Archivos**: MinIO. **Mapas**: PostGIS vía la API de PSPP, Leaflet en
+  el frontend (no se usa GeoServer).
 - Migraciones en `backend/src/db/migrations/`, numeradas secuencialmente
   (`NNN_descripcion.sql`). Estilo idempotente establecido: bloques
   `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns ...) THEN ALTER TABLE ... END IF; END$$;`
@@ -97,8 +98,8 @@ del servicio directo (sin variable + `resolver`), así que nginx resuelve
 ese hostname a una IP **una sola vez al arrancar** y la cachea. Cuando se
 recrea el contenedor `backend` (nueva imagen, nueva IP interna en la red
 de Docker), nginx se queda apuntando a la IP vieja → **502 en todo
-`/api/`** hasta reiniciarlo. `nginx`/`postgres`/`minio`/`geoserver` nunca
-necesitan rebuild, solo restart si dependen de algo que cambió.
+`/api/`** hasta reiniciarlo. `nginx`/`postgres`/`minio` nunca necesitan
+rebuild, solo restart si dependen de algo que cambió.
 
 ## Convenciones de layout
 
