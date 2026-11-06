@@ -1,0 +1,21 @@
+[Unit]
+Description=PSPP v2.0 Backend API
+After=network-online.target postgresql-15.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pspp
+Group=pspp
+WorkingDirectory=/opt/pspp/backend
+EnvironmentFile=/etc/pspp/pspp.env
+ExecStart=/usr/bin/node src/server.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/pspp
+
+[Install]
+WantedBy=multi-user.target
