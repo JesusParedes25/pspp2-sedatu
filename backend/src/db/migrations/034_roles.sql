@@ -15,10 +15,10 @@ UPDATE usuarios SET rol = 'enlace'    WHERE rol IN ('Responsable', 'Operativo');
 -- migrados manualmente a 'externo' antes de que este cambio quedara versionado.
 -- Se realinean a 'enlace' para ser consistentes con la regla Operativo→enlace anterior.
 UPDATE usuarios SET rol = 'enlace' WHERE rol = 'externo' AND correo IN (
-  'carlos.hernandez@sedatu.gob.mx',
-  'maria.torres@sedatu.gob.mx',
-  'patricia.olvera@sedatu.gob.mx',
-  'laura.jimenez@sedatu.gob.mx'
+  'carlos.hernandez@example.org',
+  'maria.torres@example.org',
+  'patricia.olvera@example.org',
+  'laura.jimenez@example.org'
 );
 
 -- 3. Agregar el constraint nuevo

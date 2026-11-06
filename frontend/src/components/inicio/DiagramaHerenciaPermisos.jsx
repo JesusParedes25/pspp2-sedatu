@@ -10,7 +10,7 @@
  *            la plataforma (ver docs/modelo-permisos.md): un permiso
  *            baja, nunca sube ni se reparte entre hermanos.
  */
-import { TREE_X0, INDENT, BOX_W, BOX_H, calcularFilas, primeraFilaPorTipo } from './arbolEjemplo';
+import { INDENT, BOX_W, BOX_H, calcularFilas, primeraFilaPorTipo } from './arbolEjemplo';
 
 const GUINDA = '#7B1C3E';
 const GRIS = '#9ca3af';

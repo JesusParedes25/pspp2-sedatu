@@ -115,50 +115,15 @@ export default function NuevoProyecto() {
     cargarCatalogos();
   }, []);
 
-  function carteraCreada(nuevaCartera) {
-    setCarteras(prev => [...prev, nuevaCartera]);
-    actualizar('cartera_id', nuevaCartera.id);
-    setMostrarNuevaCartera(false);
-  }
-
-  // Operativo no puede crear proyectos
-  if (!puedeCrearProyecto) return <Navigate to="/proyectos" replace />;
-
-  // Actualizar un campo del formulario
-  function actualizar(campo, valor) {
-    setDatos(prev => ({ ...prev, [campo]: valor }));
-  }
-
-  // Navegar entre pasos. El paso 0 (Información general) no se puede
-  // saltar sin nombre — antes cualquier paso avanzaba sin validar nada,
-  // así que se podía llegar a "Revisión y crear" con el nombre en blanco.
-  function siguiente() {
-    if (pasoActual === 0 && !datos.nombre.trim()) {
-      setErrores(prev => ({ ...prev, nombre: 'El nombre del proyecto es obligatorio' }));
-      return;
-    }
-    if (pasoActual < PASOS.length - 1) setPasoActual(prev => prev + 1);
-  }
-  function anterior() {
-    if (pasoActual > 0) setPasoActual(prev => prev - 1);
-  }
-
-  function seleccionarImagen(e) {
-    const archivo = e.target.files[0];
-    if (!archivo) return;
-    setImagenPortada(archivo);
-    setPreviewPortada(URL.createObjectURL(archivo));
-  }
-
-  function quitarImagen() {
-    setImagenPortada(null);
-    setPreviewPortada(null);
-    if (refImagen.current) refImagen.current.value = '';
-  }
-
   // Enviar formulario — sin este candado, un doble clic en "Crear
   // proyecto" duplicaba TODO: el proyecto, la cartera, la portada y cada
   // etapa/acción planificada.
+  //
+  // Declarado antes del "return <Navigate>" de abajo a propósito: un Hook
+  // no puede quedar después de un return condicional — si puedeCrearProyecto
+  // cambia entre renders (p. ej. al terminar de cargar el usuario), este
+  // componente llamaría un número distinto de Hooks según el render,
+  // lo que corrompe el estado de todos los Hooks declarados aquí.
   const [crearProyecto, enviando] = useEnvioUnico(async () => {
     // Última defensa: el botón ya viene deshabilitado sin nombre, pero si
     // se llegó aquí de cualquier otra forma, no se manda la petición.
@@ -223,6 +188,47 @@ export default function NuevoProyecto() {
       mostrarToast(err.response?.data?.mensaje || 'Error al crear proyecto', 'error');
     }
   });
+
+  function carteraCreada(nuevaCartera) {
+    setCarteras(prev => [...prev, nuevaCartera]);
+    actualizar('cartera_id', nuevaCartera.id);
+    setMostrarNuevaCartera(false);
+  }
+
+  // Operativo no puede crear proyectos
+  if (!puedeCrearProyecto) return <Navigate to="/proyectos" replace />;
+
+  // Actualizar un campo del formulario
+  function actualizar(campo, valor) {
+    setDatos(prev => ({ ...prev, [campo]: valor }));
+  }
+
+  // Navegar entre pasos. El paso 0 (Información general) no se puede
+  // saltar sin nombre — antes cualquier paso avanzaba sin validar nada,
+  // así que se podía llegar a "Revisión y crear" con el nombre en blanco.
+  function siguiente() {
+    if (pasoActual === 0 && !datos.nombre.trim()) {
+      setErrores(prev => ({ ...prev, nombre: 'El nombre del proyecto es obligatorio' }));
+      return;
+    }
+    if (pasoActual < PASOS.length - 1) setPasoActual(prev => prev + 1);
+  }
+  function anterior() {
+    if (pasoActual > 0) setPasoActual(prev => prev - 1);
+  }
+
+  function seleccionarImagen(e) {
+    const archivo = e.target.files[0];
+    if (!archivo) return;
+    setImagenPortada(archivo);
+    setPreviewPortada(URL.createObjectURL(archivo));
+  }
+
+  function quitarImagen() {
+    setImagenPortada(null);
+    setPreviewPortada(null);
+    if (refImagen.current) refImagen.current.value = '';
+  }
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">

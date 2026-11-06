@@ -10,7 +10,7 @@
  * Produce un columnMap JSON para el backend.
  */
 import { useState, useEffect, useMemo } from 'react';
-import { ChevronRight, Info, CheckCircle2, Plus, Loader2 } from 'lucide-react';
+import { ChevronRight, Info, CheckCircle2, Loader2 } from 'lucide-react';
 import client from '../../api/client';
 
 // ─── Propiedades universales (hardcoded) ─────────────────────────
@@ -41,15 +41,6 @@ const ETIQUETAS_NIVEL = {
 
 export default function PasoMapeo({ headers, superHeaders, sampleRows, config, totalDataRows: totalDataRowsProp, totalDataRowsValidas, onCambiar, onAvanzar, proyectoId }) {
   const [columnMap, setColumnMap] = useState(() => config.columnMap || {});
-  const [extraNames, setExtraNames] = useState(() => {
-    const names = {};
-    for (const [k, v] of Object.entries(config.columnMap || {})) {
-      if (String(v).startsWith('_extra:') && !PROPIEDADES_UNIVERSALES.some(p => p.value === v)) {
-        names[k] = v.replace('_extra:', '');
-      }
-    }
-    return names;
-  });
   const [newPropInputs, setNewPropInputs] = useState({});
   const [errorValidacion, setErrorValidacion] = useState(null);
 
@@ -127,7 +118,6 @@ export default function PasoMapeo({ headers, superHeaders, sampleRows, config, t
     if (valor === '') {
       delete nuevo[colIdx];
       setNewPropInputs(prev => { const n = { ...prev }; delete n[colIdx]; return n; });
-      setExtraNames(prev => { const n = { ...prev }; delete n[colIdx]; return n; });
     } else if (valor === '__nueva_propiedad__') {
       // Mostrar input para nombre de la nueva propiedad, default al header
       const defaultName = headers[colIdx] || '';
@@ -136,7 +126,6 @@ export default function PasoMapeo({ headers, superHeaders, sampleRows, config, t
     } else {
       nuevo[colIdx] = valor;
       setNewPropInputs(prev => { const n = { ...prev }; delete n[colIdx]; return n; });
-      setExtraNames(prev => { const n = { ...prev }; delete n[colIdx]; return n; });
     }
     setColumnMap(nuevo);
     setErrorValidacion(null);

@@ -27,7 +27,7 @@ const CAMPO_NO_VALIDADO = 'no-aplica-bcrypt-esta-mockeado';
 
 const USUARIO = {
   id: '00000000-0000-0000-0000-00000000c001',
-  correo: 'persona@sedatu.gob.mx',
+  correo: 'persona@example.org',
   password_hash: CAMPO_NO_VALIDADO,
   rol: 'enlace',
   id_dg: null,

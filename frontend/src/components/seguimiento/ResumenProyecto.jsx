@@ -16,7 +16,7 @@ import { calcularColorSemaforo } from '../../utils/semaforoColor';
 import { createPortal } from 'react-dom';
 import {
   Calendar, AlertTriangle, Shield, ChevronDown, BarChart3,
-  Lock, Paperclip, Tag, Users, Clock,
+  Lock, Paperclip, Tag, Clock,
   Target, CheckCircle2, Info, Zap, MessageSquare, User, GitBranch, Layers
 } from 'lucide-react';
 import client from '../../api/client';
@@ -186,7 +186,6 @@ function TarjetaAccion({ accion, numero }) {
       if (refTarjeta.current) {
         const rect = refTarjeta.current.getBoundingClientRect();
         const spaceBelow = window.innerHeight - rect.bottom;
-        const spaceRight = window.innerWidth - rect.left;
         setPosicion({
           top: spaceBelow < 260 ? rect.top - 8 : rect.bottom + 8,
           left: Math.min(rect.left, window.innerWidth - 300),
@@ -528,7 +527,7 @@ function FilaMetrica({ icono: Icono, label, valor, color = 'gray', alerta }) {
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
-export default function ResumenProyecto({ proyecto, etapas = [], proyectoId, onIrSeguimiento, refreshKey = 0 }) {
+export default function ResumenProyecto({ proyecto, etapas = [], proyectoId, refreshKey = 0 }) {
   const [stats, setStats] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [datosAbiertos, setDatosAbiertos] = useState(false);

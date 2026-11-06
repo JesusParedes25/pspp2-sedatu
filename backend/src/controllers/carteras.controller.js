@@ -76,7 +76,7 @@ async function actualizar(req, res, next) {
 async function eliminar(req, res, next) {
   try {
     if (!(await exigirAdministrador(req, res))) return;
-    const cartera = await carterasQueries.eliminarCartera(req.params.id);
+    await carterasQueries.eliminarCartera(req.params.id);
     res.json({ mensaje: 'Cartera eliminada' });
   } catch (err) { next(err); }
 }

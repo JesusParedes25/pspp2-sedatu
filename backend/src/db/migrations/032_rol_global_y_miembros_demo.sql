@@ -7,13 +7,13 @@
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS rol_global VARCHAR(20);
 
 -- 2. Asignar rol_global por correo
-UPDATE usuarios SET rol_global = 'superadmin' WHERE correo = 'jesus.paredes@sedatu.gob.mx';
-UPDATE usuarios SET rol_global = 'ejecutivo'  WHERE correo = 'subsecretario@sedatu.gob.mx';
+UPDATE usuarios SET rol_global = 'superadmin' WHERE correo = 'usuario.demo@example.org';
+UPDATE usuarios SET rol_global = 'ejecutivo'  WHERE correo = 'subsecretario@example.org';
 UPDATE usuarios SET rol_global = 'direccion'  WHERE correo IN (
-  'pablo.director@sedatu.gob.mx',
-  'ana.garcia@sedatu.gob.mx'
+  'pablo.director@example.org',
+  'ana.garcia@example.org'
 );
-UPDATE usuarios SET rol_global = 'externo'    WHERE correo = 'fernando.castillo@sedatu.gob.mx';
+UPDATE usuarios SET rol_global = 'externo'    WHERE correo = 'fernando.castillo@example.org';
 -- Todo lo que no tenga rol_global aún → enlace
 UPDATE usuarios SET rol_global = 'enlace' WHERE rol_global IS NULL;
 

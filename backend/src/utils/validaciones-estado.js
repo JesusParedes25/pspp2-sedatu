@@ -282,7 +282,7 @@ async function cascadaCancelacion(entidadTipo, entidadId, idUsuario, auditoriaOr
 
     // Registrar auditoría para cada hijo cancelado
     for (const fila of res.rows) {
-      const subAudId = await registrarAuditoria(
+      await registrarAuditoria(
         hijo.tabla, fila.id, fila.estado, 'Cancelada',
         idUsuario, auditoriaOrigenId, db
       );

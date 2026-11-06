@@ -78,7 +78,7 @@ function ItemMenu({ icono: Icono, label, onClick, disabled, title, destructivo }
 }
 
 export default function FilaAcciones({
-  tipo, nodo, id, proyectoId, permisos, permisosProyecto, esContenedor,
+  tipo, nodo, id, proyectoId, permisos,
   onCambiado, mostrarToast, onEditarFicha, onEliminado, onAbrirAvance, onAccionRapida, onCambiarEstado,
 }) {
   const soloLectura = permisos?.esSoloLectura ?? true;

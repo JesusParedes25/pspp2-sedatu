@@ -64,9 +64,9 @@ async function seedProyectosEjemplo() {
     const daot = (await client.query("SELECT id FROM direcciones_area WHERE siglas = 'DAOT'")).rows[0].id;
 
     const jesus = (await client.query("SELECT id FROM usuarios WHERE correo = 'usuario.demo@example.org'")).rows[0].id;
-    const enlaceRAN = (await client.query("SELECT id FROM usuarios WHERE correo = 'enlace.ran@sedatu.gob.mx'")).rows[0].id;
-    const enlaceDGPV = (await client.query("SELECT id FROM usuarios WHERE correo = 'enlace.dgpv@sedatu.gob.mx'")).rows[0].id;
-    const enlaceDGOMR = (await client.query("SELECT id FROM usuarios WHERE correo = 'enlace.dgomr@sedatu.gob.mx'")).rows[0].id;
+    const enlaceRAN = (await client.query("SELECT id FROM usuarios WHERE correo = 'enlace.ran@example.org'")).rows[0].id;
+    const enlaceDGPV = (await client.query("SELECT id FROM usuarios WHERE correo = 'enlace.dgpv@example.org'")).rows[0].id;
+    const enlaceDGOMR = (await client.query("SELECT id FROM usuarios WHERE correo = 'enlace.dgomr@example.org'")).rows[0].id;
 
     const programaVivienda = (await client.query("SELECT id FROM programas WHERE clave = 'U050'")).rows[0].id;
     const programaConectada = (await client.query("SELECT id FROM programas WHERE clave = 'K049'")).rows[0].id;

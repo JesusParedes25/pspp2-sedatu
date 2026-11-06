@@ -1,12 +1,12 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import L from 'leaflet';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  Map, AlertTriangle, TrendingUp, Clock, ChevronLeft, ChevronRight,
+  Map, AlertTriangle, TrendingUp, Clock, ChevronLeft,
   Layers, Target, Activity, Search, X, Building2, User,
 } from 'lucide-react';
 import client from '../api/client';
-import MapaDrillDown, { MEXICO_CENTER, MEXICO_ZOOM, VERDE_MUNICIPIO } from '../components/mapa/MapaDrillDown';
+import MapaDrillDown, { VERDE_MUNICIPIO } from '../components/mapa/MapaDrillDown';
 import EtiquetaFiltroInput from '../components/common/EtiquetaFiltroInput';
 import { COLORES_SEMAFORO } from '../components/common/SemaforoDot';
 import LeyendaSemaforo from '../components/common/LeyendaSemaforo';

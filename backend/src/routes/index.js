@@ -20,8 +20,8 @@ const { upload } = require('../middleware/subidaArchivo.middleware');
 // Permiso de captura para las rutas anidadas que escriben estructura
 // (las rutas independientes lo aplican en su propio archivo de rutas).
 const {
-  exigirEdicionNodo, exigirEdicionProyecto, exigirEdicionDeEntidadEnCuerpo,
-  exigirEdicionComentario, exigirEdicionRiesgo, exigirEdicionEvidencia,
+  exigirEdicionNodo, exigirEdicionProyecto,
+  exigirEdicionRiesgo,
   exigirEdicionIndicador, exigirEdicionMovimientoIndicador, exigirEdicionAportacion, exigirEdicionAportacionNueva,
   exigirResponsableNodo, exigirResponsableProyecto,
 } = require('../middleware/permisos.middleware');
@@ -63,7 +63,6 @@ const evidenciasController = require('../controllers/evidencias.controller');
 const riesgosController = require('../controllers/riesgos.controller');
 const indicadoresController = require('../controllers/indicadores.controller');
 const proyectosStatsController = require('../controllers/proyectos.stats.controller');
-const bloqueosController = require('../controllers/bloqueos.controller');
 const estadoController = require('../controllers/estado.controller');
 const geografiaController = require('../controllers/geografia.controller');
 const geoController = require('../controllers/geo.controller');

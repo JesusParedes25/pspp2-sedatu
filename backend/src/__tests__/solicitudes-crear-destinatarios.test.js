@@ -75,9 +75,9 @@ function req(overrides = {}) {
 
 test('reusa destinatariosDe para notificar y para la respuesta — filtra al propio solicitante de ambos', async () => {
   solicitudesQueries.destinatariosDe.mockResolvedValue([
-    { id_usuario: SOLICITANTE, nombre_completo: 'Quien solicita', correo: 'solicitante@sedatu.gob.mx' },
-    { id_usuario: DESTINATARIO_1, nombre_completo: 'Destinatario Uno', correo: 'd1@sedatu.gob.mx' },
-    { id_usuario: DESTINATARIO_2, nombre_completo: 'Destinatario Dos', correo: 'd2@sedatu.gob.mx' },
+    { id_usuario: SOLICITANTE, nombre_completo: 'Quien solicita', correo: 'solicitante@example.org' },
+    { id_usuario: DESTINATARIO_1, nombre_completo: 'Destinatario Uno', correo: 'd1@example.org' },
+    { id_usuario: DESTINATARIO_2, nombre_completo: 'Destinatario Dos', correo: 'd2@example.org' },
   ]);
   const res = crearRes();
 
@@ -96,8 +96,8 @@ test('reusa destinatariosDe para notificar y para la respuesta — filtra al pro
   const payload = res.json.mock.calls[0][0];
   expect(payload.destinatarios).toHaveLength(2);
   expect(payload.destinatarios).toEqual(expect.arrayContaining([
-    expect.objectContaining({ id_usuario: DESTINATARIO_1, nombre_completo: 'Destinatario Uno', correo: 'd1@sedatu.gob.mx' }),
-    expect.objectContaining({ id_usuario: DESTINATARIO_2, nombre_completo: 'Destinatario Dos', correo: 'd2@sedatu.gob.mx' }),
+    expect.objectContaining({ id_usuario: DESTINATARIO_1, nombre_completo: 'Destinatario Uno', correo: 'd1@example.org' }),
+    expect.objectContaining({ id_usuario: DESTINATARIO_2, nombre_completo: 'Destinatario Dos', correo: 'd2@example.org' }),
   ]));
   expect(payload.datos).toEqual(expect.objectContaining({ id: 'sol-1' }));
 });
@@ -118,7 +118,7 @@ test('sin ningún destinatario: no notifica, no truena, responde con destinatari
 
 test('único destinatario además del propio solicitante: 1 notificación, 1 destinatario en la respuesta', async () => {
   solicitudesQueries.destinatariosDe.mockResolvedValue([
-    { id_usuario: DESTINATARIO_1, nombre_completo: 'Destinatario Uno', correo: 'd1@sedatu.gob.mx' },
+    { id_usuario: DESTINATARIO_1, nombre_completo: 'Destinatario Uno', correo: 'd1@example.org' },
   ]);
   const res = crearRes();
 

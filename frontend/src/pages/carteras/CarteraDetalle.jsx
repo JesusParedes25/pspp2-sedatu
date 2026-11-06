@@ -14,7 +14,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Briefcase, Pencil, Trash2, AlertTriangle, Clock,
   LayoutDashboard, FolderKanban, Plus, Star, X, Loader2, Building2,
-  Calendar, Map, Activity, Shield, Target, MessageSquare, Layers,
+  Calendar, Map, Activity, Shield, Target, Layers,
 } from 'lucide-react';
 import { useCartera } from '../../hooks/useCarteras';
 import { useUI } from '../../context/UIContext';
@@ -54,8 +54,6 @@ function MetricaCard({ icono: Icono, titulo, valor, color }) {
     </div>
   );
 }
-
-const GUINDA = '#7B1C3E';
 
 // Misma tarjeta de indicadores que el Tablero (IndicadoresResumen en
 // Inicio.jsx) — agrupa por tipo, muestra barra de meta si tiene meta_global

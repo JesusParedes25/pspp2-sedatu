@@ -4,7 +4,7 @@
  * vincular indicadores del proyecto y definir el valor de aportación.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { BarChart3, Plus, Trash2, Loader2, AlertTriangle } from 'lucide-react';
+import { BarChart3, Loader2, AlertTriangle } from 'lucide-react';
 import * as indicadoresApi from '../../api/indicadores';
 import { useUI } from '../../context/UIContext';
 import { tieneCantidadValida } from '../indicadores/ChipAportacion';
@@ -19,7 +19,7 @@ const MODOS = [
 // Indicadores del proyecto — ver la nota en cada una de esas pantallas.
 const NIVEL_LABEL = { etapa: 'esta etapa', accion: 'esta acción', tarea: 'esta tarea' };
 
-export default function SeccionAportaciones({ tipo, nodoId, proyectoId, avanceEfectivo, soloLectura }) {
+export default function SeccionAportaciones({ tipo, nodoId, proyectoId, soloLectura }) {
   const { mostrarToast } = useUI();
   const [indicadores, setIndicadores] = useState([]);
   const [aportaciones, setAportaciones] = useState([]);

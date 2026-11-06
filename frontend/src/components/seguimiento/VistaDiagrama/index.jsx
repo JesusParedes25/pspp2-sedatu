@@ -15,7 +15,7 @@ import {
   ReactFlow, ReactFlowProvider, Background, MiniMap, Panel, useReactFlow, useStore,
 } from '@xyflow/react';
 import '@xyflow/react/dist/base.css';
-import { Search, ZoomIn, ZoomOut, Maximize2, ChevronsDownUp, Loader2, X, CheckCircle2 } from 'lucide-react';
+import { Search, ZoomIn, ZoomOut, Maximize2, ChevronsDownUp, ChevronsUpDown, Loader2, X, CheckCircle2 } from 'lucide-react';
 import * as etapasApi from '../../../api/etapas';
 import { useUI } from '../../../context/UIContext';
 import { useJerarquiaProyecto } from '../../../hooks/useJerarquiaProyecto';
@@ -334,6 +334,10 @@ function VistaDiagramaInterna({ proyectoId, permisos }) {
           <button onClick={colapsarTodo} title="Colapsar todo" className="p-1.5 text-gray-500 hover:text-[#7B1C3E] hover:bg-gray-50 rounded flex items-center gap-1">
             <ChevronsDownUp size={14} />
             <span className="text-[10px] font-medium hidden sm:inline">Colapsar todo</span>
+          </button>
+          <button onClick={expandirTodo} title="Expandir todo" className="p-1.5 text-gray-500 hover:text-[#7B1C3E] hover:bg-gray-50 rounded flex items-center gap-1">
+            <ChevronsUpDown size={14} />
+            <span className="text-[10px] font-medium hidden sm:inline">Expandir todo</span>
           </button>
 
           {permisos.puedeCrearEtapa && (

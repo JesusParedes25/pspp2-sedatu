@@ -11,7 +11,7 @@
  *   className  — Clases adicionales para el contenedor
  */
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Check, X } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import * as catalogosApi from '../../api/catalogos';
 
 const TIPOS_FIJOS = ['prioridad', 'estatus'];

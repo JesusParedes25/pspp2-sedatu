@@ -19,7 +19,6 @@ const {
   cascadaCancelacion,
   validarCompletitud,
   crearBloqueo,
-  cerrarBloqueoActivo,
   validarReactivacion,
   registrarAuditoria,
   contarDescendientes,

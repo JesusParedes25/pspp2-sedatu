@@ -140,7 +140,9 @@ export default function ActividadStream({ tipo, id, titulo, proyectoId, soloLect
     const raw = evento.raw;
     if (raw.tipo_evento === 'archivo') { setDetalleItem(raw); return; }
     if (raw.tipo_evento === 'riesgo' && raw.metadata?.riesgo_id && !soloLectura) {
-      abrirRiesgo(raw.metadata.riesgo_id);
+      // Evita una segunda carga mientras la primera (misma fila u otra)
+      // todavía no resuelve.
+      if (!cargandoRiesgo) abrirRiesgo(raw.metadata.riesgo_id);
       return;
     }
     setHoveredId(evento.id);

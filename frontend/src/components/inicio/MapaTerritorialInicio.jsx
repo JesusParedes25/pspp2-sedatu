@@ -7,7 +7,6 @@
  *            Panel ligero (no el sidebar rico del módulo Territorio).
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import L from 'leaflet';
 import { Link } from 'react-router-dom';
 import { MapPin, X, ChevronRight, ChevronLeft } from 'lucide-react';
 import client from '../../api/client';

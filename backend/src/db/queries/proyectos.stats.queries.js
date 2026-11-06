@@ -142,7 +142,7 @@ async function obtenerActividadReciente(proyectoId) {
       -- (migración 031), a diferencia de comentarios/evidencias arriba
       -- que se leen directo de su tabla legacy. Se usa "titulo" como
       -- descripción porque ya trae el resumen legible del evento
-      -- ("Indicador \"X\" actualizado"); "descripcion" queda vacío en
+      -- ("Indicador "X" actualizado"); "descripcion" queda vacío en
       -- la mayoría de estos eventos.
       SELECT
         'indicador' AS tipo,

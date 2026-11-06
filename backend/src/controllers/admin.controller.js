@@ -5,7 +5,6 @@
  * - Reemplazo transaccional de shapefiles geográficos
  */
 const pool = require('../db/pool');
-const XLSX = require('xlsx');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { limpiarArchivoTemporal } = require('../middleware/subidaArchivo.middleware');

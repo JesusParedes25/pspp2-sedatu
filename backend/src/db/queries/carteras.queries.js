@@ -47,9 +47,9 @@ const COND_PROYECTO_VENCIDO = `(
 async function listarCarteras({ busqueda } = {}) {
   const condiciones = [];
   const parametros = [];
-  let i = 1;
+  const i = 1;
   if (busqueda) {
-    condiciones.push(`c.nombre ILIKE $${i++}`);
+    condiciones.push(`c.nombre ILIKE $${i}`);
     parametros.push(`%${busqueda}%`);
   }
   const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';

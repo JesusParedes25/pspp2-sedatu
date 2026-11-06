@@ -3,7 +3,7 @@
  * PROPÓSITO: Paso 0 del wizard — subir archivo CSV/XLSX.
  */
 import { useState, useRef } from 'react';
-import { Upload, FileSpreadsheet, AlertCircle } from 'lucide-react';
+import { FileSpreadsheet, AlertCircle } from 'lucide-react';
 import * as importarApi from '../../api/importar';
 
 const FORMATOS_ACEPTADOS = '.csv,.tsv,.txt,.xlsx,.xls';
