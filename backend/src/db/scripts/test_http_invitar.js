@@ -26,7 +26,7 @@ async function main() {
   const proyectoId = '9bfb7864-0c35-427e-b6e1-64e732e84b8a';
 
   // 1. Login
-  const login = await req('POST', '/api/v1/auth/login', { correo: 'jesus.paredes@sedatu.gob.mx', password: 'demo2026' });
+  const login = await req('POST', '/api/v1/auth/login', { correo: 'usuario.demo@example.org', password: 'demo2026' });
   const token = login.body.datos?.token;
   console.log('1. Login:', login.status === 200 ? 'OK' : 'FAIL', '| rol:', login.body.datos?.usuario?.rol);
 

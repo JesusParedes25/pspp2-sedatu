@@ -6,16 +6,17 @@
  *            su contraseña y rol, jamás crea duplicados.
  *
  * Variables requeridas en .env:
- *   SUPERADMIN_EMAIL    (default: jesus.paredes@sedatu.gob.mx)
- *   SUPERADMIN_NOMBRE   (default: Jesús Paredes)
+ *   SUPERADMIN_EMAIL    (default: superadmin@example.org — ficticio a
+ *                        propósito, nunca una cuenta ni un dominio real)
+ *   SUPERADMIN_NOMBRE   (default: Usuario Administrador — ficticio)
  *   PASSWORD_USER       contraseña en texto plano — se hashea con bcrypt
  */
 const pool = require('../pool');
 const bcrypt = require('bcryptjs');
 
 async function asegurarSuperAdmin() {
-  const correo  = process.env.SUPERADMIN_EMAIL  || 'jesus.paredes@sedatu.gob.mx';
-  const nombre  = process.env.SUPERADMIN_NOMBRE || 'Jesús Paredes';
+  const correo  = process.env.SUPERADMIN_EMAIL  || 'superadmin@example.org';
+  const nombre  = process.env.SUPERADMIN_NOMBRE || 'Usuario Administrador';
   const password = process.env.PASSWORD_USER;
 
   if (!password) {

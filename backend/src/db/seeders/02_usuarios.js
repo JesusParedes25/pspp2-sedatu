@@ -59,8 +59,8 @@ async function seedUsuarios() {
     const usuarios = [
       // ─── Usuarios originales ───────────────────────────────────
       {
-        nombre_completo: 'Jesús Paredes',
-        correo: 'jesus.paredes@sedatu.gob.mx',
+        nombre_completo: 'Usuario Demo',
+        correo: 'usuario.demo@example.org',
         cargo: 'Subdirector de Tecnologías para la Sistematización y Análisis Territorial',
         rol: 'superadmin',
         id_dg: idDGOTU,

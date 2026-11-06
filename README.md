@@ -20,7 +20,24 @@
                      └───────────┘
 ```
 
-## Requisitos
+## Dos caminos de despliegue
+
+El código y el comportamiento de la plataforma son los mismos en los
+dos; lo que cambia es cómo se instalan y conectan las piezas.
+
+- **Docker** (el que describe el resto de este documento, y el que usa
+  producción hoy): `docker-compose.prod.yml` en la raíz del repositorio.
+  Usarlo cuando quien opera la infraestructura ya trabaja con Docker.
+- **Nativo, sin Docker** (`deploy/`): systemd para el backend, nginx
+  sirviendo el frontend compilado directamente sobre el sistema
+  operativo. Usarlo cuando la infraestructura que recibe la plataforma
+  no opera Docker. Ver `deploy/README.md` para la guía completa,
+  probada de punta a punta en Rocky Linux 9.
+
+Los dos caminos conviven: ninguno depende de que el otro no exista, y
+ningún archivo de uno se mueve ni se borra por tener el otro.
+
+## Requisitos (despliegue con Docker)
 
 - Docker Engine 24+ y Docker Compose v2+
 - Puertos libres: **5173**, **3000**, **5432**, **9000**, **9001**
@@ -35,10 +52,17 @@ docker-compose up --build
 # Esperar ~30 segundos
 docker-compose exec backend npm run seed
 # Abrir http://localhost:5173
-# Email: jesus.paredes@sedatu.gob.mx | Password: demo2026
+# Email: usuario.demo@example.org | Password: demo2026
 ```
 
 ## Variables de entorno
+
+Dos grupos distintos: las que lee el backend en tiempo de ejecución
+(cambiarlas solo exige reiniciar el backend) y las que lee Vite solo al
+compilar el frontend (cambiarlas exige correr `npm run build` otra vez;
+tocarlas después de que `dist/` ya existe no tiene ningún efecto).
+
+### Ejecución del backend
 
 | Variable           | Descripción                                    | Obligatoria |
 |--------------------|------------------------------------------------|:-----------:|
@@ -56,12 +80,18 @@ docker-compose exec backend npm run seed
 | `MINIO_PORT`       | Puerto interno de MinIO (normalmente `9000`)   | ✅          |
 | `UPLOAD_TMP_DIR`   | Carpeta donde el backend escribe el temporal de cada archivo subido antes de mandarlo a MinIO. Si no se define, usa una carpeta dentro del directorio temporal del sistema | ❌ |
 | `UPLOAD_MAX_SIZE_MB` | Tamaño máximo por archivo, en MB, para evidencias/imagen de proyecto/shapefile. Si no se define, el backend usa `200` | ❌ |
-| `FRONTEND_URL`     | URL pública del frontend (links de activación) | ✅          |
-| `SMTP_HOST`        | Servidor SMTP para correos                     | ❌          |
-| `SMTP_PORT`        | Puerto SMTP (por defecto 587)                  | ❌          |
-| `SMTP_USER`        | Usuario SMTP                                   | ❌          |
-| `SMTP_PASSWORD`    | Contraseña SMTP                                | ❌          |
-| `SMTP_FROM`        | Dirección de remitente                         | ❌          |
+| `FRONTEND_URL`     | URL pública del frontend. Controla la lista blanca de CORS y las ligas de activación/invitación | ✅          |
+
+### Compilación del frontend
+
+| Variable              | Descripción                                 | Obligatoria |
+|------------------------|----------------------------------------------|:-----------:|
+| `VITE_API_URL`         | A dónde apunta el frontend compilado para llamar a la API. Por omisión, `/api/v1` (ruta relativa: el mismo build sirve para cualquier dominio) | ❌ |
+| `VITE_CARTO_API_KEY`   | Llave del proveedor de mapas base (CARTO). Si falta, el mapa base no carga, el resto de la plataforma funciona igual | ❌ |
+
+`SMTP_*` no aparece en esta lista a propósito: el correo (invitaciones,
+asignaciones) lo manda EmailJS desde el navegador, no el backend por
+SMTP — ningún archivo del código lee esas variables.
 
 ## Comandos útiles
 

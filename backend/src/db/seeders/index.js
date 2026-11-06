@@ -43,7 +43,7 @@ async function ejecutarSeeders() {
   }
 
   console.log('\n═══ Seeders completados ═══');
-  console.log('  Usuario de prueba: jesus.paredes@sedatu.gob.mx / demo2026\n');
+  console.log('  Usuario de prueba: usuario.demo@example.org / demo2026\n');
 }
 
 // Si se ejecuta directamente: node src/db/seeders/index.js

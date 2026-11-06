@@ -63,7 +63,7 @@ async function seedProyectosEjemplo() {
     const dgpv = (await client.query("SELECT id FROM direcciones_generales WHERE siglas = 'DGPV'")).rows[0].id;
     const daot = (await client.query("SELECT id FROM direcciones_area WHERE siglas = 'DAOT'")).rows[0].id;
 
-    const jesus = (await client.query("SELECT id FROM usuarios WHERE correo = 'jesus.paredes@sedatu.gob.mx'")).rows[0].id;
+    const jesus = (await client.query("SELECT id FROM usuarios WHERE correo = 'usuario.demo@example.org'")).rows[0].id;
     const enlaceRAN = (await client.query("SELECT id FROM usuarios WHERE correo = 'enlace.ran@sedatu.gob.mx'")).rows[0].id;
     const enlaceDGPV = (await client.query("SELECT id FROM usuarios WHERE correo = 'enlace.dgpv@sedatu.gob.mx'")).rows[0].id;
     const enlaceDGOMR = (await client.query("SELECT id FROM usuarios WHERE correo = 'enlace.dgomr@sedatu.gob.mx'")).rows[0].id;

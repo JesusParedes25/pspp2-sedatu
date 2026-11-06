@@ -18,7 +18,7 @@
  */
 import { test, expect } from '@playwright/test';
 
-const CORREO = process.env.PSPP_E2E_CORREO || 'jesus.paredes@sedatu.gob.mx';
+const CORREO = process.env.PSPP_E2E_CORREO || 'usuario.demo@example.org';
 const PASSWORD = process.env.PSPP_E2E_PASSWORD || 'demo2026';
 
 async function login(page) {
