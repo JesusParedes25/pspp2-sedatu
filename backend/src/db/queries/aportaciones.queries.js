@@ -77,7 +77,7 @@ async function listarPorNodo(tipo, nodoId, incluirHijos = false) {
   let idx = 1;
   if (etapaIds.length) { condiciones.push(`ia.id_etapa = ANY($${idx++})`); params.push(etapaIds); }
   if (accionIds.length) { condiciones.push(`ia.id_accion = ANY($${idx++})`); params.push(accionIds); }
-  if (tareaIds.length) { condiciones.push(`ia.id_tarea = ANY($${idx++})`); params.push(tareaIds); }
+  if (tareaIds.length) { condiciones.push(`ia.id_tarea = ANY($${idx})`); params.push(tareaIds); }
   if (!condiciones.length) return [];
 
   const res = await pool.query(`

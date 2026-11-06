@@ -7,7 +7,7 @@ import { ChevronRight } from 'lucide-react';
 
 const ESTADOS_PSPP = ['Pendiente', 'En_proceso', 'Bloqueada', 'Completada', 'Cancelada'];
 
-export default function PasoValores({ config, headers, sampleRows, onCambiar, onAvanzar }) {
+export default function PasoValores({ config, sampleRows, onCambiar, onAvanzar }) {
   const [valueMap, setValueMap] = useState(config.valueMap || {});
 
   // Detectar valores únicos de columnas mapeadas como "estado"

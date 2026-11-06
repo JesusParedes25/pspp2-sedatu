@@ -43,7 +43,7 @@ async function obtenerActividadNodo(tipoNodo, idNodo, limite = 1000) {
   let idx = 1;
   if (etapaIds.length) { condicionesAct.push(`id_etapa = ANY($${idx++})`); paramsAct.push(etapaIds); }
   if (accionIds.length) { condicionesAct.push(`id_accion = ANY($${idx++})`); paramsAct.push(accionIds); }
-  if (tareaIds.length) { condicionesAct.push(`id_tarea = ANY($${idx++})`); paramsAct.push(tareaIds); }
+  if (tareaIds.length) { condicionesAct.push(`id_tarea = ANY($${idx})`); paramsAct.push(tareaIds); }
 
   const promesas = [];
 
@@ -84,7 +84,7 @@ async function obtenerActividadNodo(tipoNodo, idNodo, limite = 1000) {
   const paramsEv = [];
   let idxEv = 1;
   if (etapaIds.length) { condicionesEv.push(`ev.id_etapa = ANY($${idxEv++})`); paramsEv.push(etapaIds); }
-  if (accionIds.length) { condicionesEv.push(`(ev.id_accion = ANY($${idxEv++}) OR ev.id_subaccion = ANY($${idxEv++}))`); paramsEv.push(accionIds, accionIds); }
+  if (accionIds.length) { condicionesEv.push(`(ev.id_accion = ANY($${idxEv++}) OR ev.id_subaccion = ANY($${idxEv}))`); paramsEv.push(accionIds, accionIds); }
   promesas.push(
     condicionesEv.length
       ? pool.query(`

@@ -94,7 +94,7 @@ function encabezadoPagina(doc, titulo, proyecto, paginaNum, totalPaginas) {
 }
 
 // Pie
-function piePagina(doc, proyecto) {
+function piePagina(doc) {
   const PW = 210, PH = 297;
   doc.setFillColor(...C.grisClaro);
   doc.rect(0, PH - 10, PW, 10, 'F');
@@ -109,7 +109,7 @@ function piePagina(doc, proyecto) {
 
 // ─── PORTADA ───────────────────────────────────────────────────
 async function portada(doc, proyecto, logoDataURL) {
-  const PW = 210, PH = 297;
+  const PW = 210;
 
   // Fondo banda superior guinda (100mm)
   doc.setFillColor(...C.guindaOsc);
@@ -245,7 +245,6 @@ function paginaResumen(doc, proyecto, etapas, stats, totalPaginas) {
   // Avance global — barra
   y = seccionTitulo(doc, 'Avance global del proyecto', y);
   const pct = parseFloat(proyecto.porcentaje_calculado) || 0;
-  const semColor_ = { verde:C.verde, ambar:C.ambar, rojo:C.rojo, gris:C.grisNeutro }[proyecto.semaforo] || C.grisNeutro;
 
   doc.setFontSize(26);
   doc.setFont('helvetica', 'bold');
@@ -256,7 +255,7 @@ function paginaResumen(doc, proyecto, etapas, stats, totalPaginas) {
   doc.setFillColor(...C.grisClaro);
   doc.rect(55, y, 130, 8, 'F');
   if (pct > 0) {
-    doc.setFillColor(...semColor_);
+    doc.setFillColor(...semColor(proyecto.semaforo));
     doc.rect(55, y, Math.min(130, 130 * pct / 100), 8, 'F');
   }
   doc.setFontSize(8);

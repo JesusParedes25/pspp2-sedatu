@@ -11,7 +11,6 @@ export default function PasoEncabezados({
   config,
   headers,
   superHeaders,
-  sampleRows,
   totalDataRows,
   onCambiar,
   onAvanzar,

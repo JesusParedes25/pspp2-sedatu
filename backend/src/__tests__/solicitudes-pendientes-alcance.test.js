@@ -32,7 +32,7 @@ const { pendientesQuePuedeResolver } = require('../db/queries/solicitudes.querie
 const SOLICITUD_ETAPA_A = {
   id: 'sol-1', estado: 'pendiente', id_usuario: SOLICITANTE,
   id_proyecto: PROYECTO, id_nodo: ETAPA_A, tipo_nodo: 'etapa',
-  nombre_completo: 'Quien pide', correo: 'x@sedatu.gob.mx', cargo: null, perfil: 'enlace',
+  nombre_completo: 'Quien pide', correo: 'x@example.org', cargo: null, perfil: 'enlace',
   dg_siglas: null, nombre_proyecto: 'Proyecto de prueba', id_dg_lider: ID_DG,
   nombre_nodo: 'Etapa A', created_at: new Date(),
 };

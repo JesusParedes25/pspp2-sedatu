@@ -316,8 +316,6 @@ async function actualizarProyecto(proyectoId, datos, externalClient) {
   try {
     if (gestionaTransaccion) await client.query('BEGIN');
 
-    const tieneIndicadores = Array.isArray(datos.indicadores) && datos.indicadores.length > 0;
-
     const resultado = await client.query(`
       UPDATE proyectos SET
         nombre                  = COALESCE($1, nombre),

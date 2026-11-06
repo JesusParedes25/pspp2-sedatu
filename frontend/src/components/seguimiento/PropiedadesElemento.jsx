@@ -126,7 +126,6 @@ export default function PropiedadesElemento({ nodo, permisos: permisosProyecto, 
   }, [])
 
   const sem = data.semaforo_efectivo || 'gris';
-  const avance = data.avance_efectivo ?? (tipo === 'etapa' ? parseFloat(data.porcentaje_calculado || 0) : parseFloat(data.porcentaje_avance || 0));
   const esContenedor = tipo === 'etapa' || (data.es_hoja === false);
 
   // Hijos — mismo cómputo que PanelDetalle, para poder sugerir fecha límite

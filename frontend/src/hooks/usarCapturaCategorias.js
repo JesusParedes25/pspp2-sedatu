@@ -14,12 +14,14 @@
  */
 import { useState, useEffect } from 'react';
 
-export function usarCapturaCategorias(indicador, categoriasConAportacion = new Set()) {
+export function usarCapturaCategorias(indicador) {
   const categorias = indicador.categorias || [];
   const sinCategorias = categorias.length === 0;
 
   const [valores, setValores] = useState(() => Object.fromEntries(categorias.map(c => [c.id, c.valor_actual ?? ''])));
-  const [guardando, setGuardando] = useState(false);
+  // Nunca pasa de false: guardar() de abajo ya no hace ninguna llamada
+  // async que justifique un estado de "guardando".
+  const guardando = false;
   const [error, setError] = useState('');
 
   // Si se recarga el indicador (tras guardar, o desde otra pantalla), el

@@ -218,10 +218,6 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
     setMostrarCatalogoInd(false);
   }
 
-  function agregarIndicador() {
-    setDatos(prev => ({ ...prev, indicadores: [...prev.indicadores, INDICADOR_NUEVO()] }));
-  }
-
   function actualizarIndicador(key, patch) {
     setDatos(prev => ({
       ...prev,

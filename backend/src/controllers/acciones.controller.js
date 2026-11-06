@@ -221,19 +221,6 @@ async function crearSubaccion(req, res, next) {
   }
 }
 
-// PUT /subacciones/:id/toggle — Alternar subacción Completada/Pendiente
-async function toggleSubaccion(req, res, next) {
-  try {
-    const resultado = await accionesQueries.toggleSubaccion(req.params.id);
-    res.json({ datos: resultado, mensaje: 'Subacción actualizada' });
-  } catch (err) {
-    if (err.message.includes('no encontrada') || err.message.includes('no es una')) {
-      return res.status(400).json({ error: true, mensaje: err.message, codigo: 'VALIDACION_NEGOCIO' });
-    }
-    next(err);
-  }
-}
-
 // POST /proyectos/:id/importar-csv — Importar estructura desde CSV
 async function importarCSV(req, res, next) {
   try {

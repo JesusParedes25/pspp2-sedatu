@@ -22,7 +22,6 @@ import {
   FolderKanban, Activity, AlertTriangle, TrendingUp,
   MapPin, ChevronRight, Clock, Target, Shield, Calendar, Layers, MessageSquare
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import { obtenerInicio, obtenerProyectosFiltroInicio, obtenerCarterasFiltroInicio } from '../api/inicio';
 import client from '../api/client';
@@ -34,8 +33,6 @@ import { breadcrumbInternoEstatusCualitativo } from '../utils/estatusCualitativo
 import ArbolPorProyecto from '../components/common/ArbolPorProyecto';
 import { COLORES_SEMAFORO } from '../components/common/SemaforoDot';
 import { formatearEstado } from '../utils/estados';
-
-const GUINDA = '#7B1C3E';
 
 export default function Tablero() {
   const { usuario } = useAuth();
@@ -97,7 +94,7 @@ export default function Tablero() {
     );
   }
 
-  const { proyectos = [], vencidos = [], por_vencer = [], riesgos = [], mapa_incidencia = [], indicadores = [], actividad = [], estatus_cualitativo = [] } = data || {};
+  const { proyectos = [], vencidos = [], por_vencer = [], riesgos = [], indicadores = [], actividad = [], estatus_cualitativo = [] } = data || {};
 
   return (
     <div className="space-y-6">

@@ -143,7 +143,7 @@ async function preview(req, res, next) {
     }
 
     // Extraer headers y datos según config
-    const { headers, superHeaders, sampleRows, totalDataRows } = parser.extraerConConfig(rawData, config);
+    const { headers, superHeaders, totalDataRows } = parser.extraerConConfig(rawData, config);
     const dataRows = parser.obtenerFilasDatos(rawData, config);
 
     // Generar preview

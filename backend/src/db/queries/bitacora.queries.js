@@ -222,7 +222,7 @@ async function obtenerBitacoraProyecto(proyectoId, opciones = {}) {
   } else if (accionId) {
     const tareaIdsAccion = await obtenerTareasDeAccion(accionId);
     const idxAccion = ++idx;
-    const idxTareas = ++idx;
+    const idxTareas = idx + 1;
     condiciones.push(`(
       (nodo_tipo = 'accion' AND nodo_id = $${idxAccion})
       OR (nodo_tipo = 'tarea' AND nodo_id = ANY($${idxTareas}))
@@ -232,7 +232,7 @@ async function obtenerBitacoraProyecto(proyectoId, opciones = {}) {
     const { accionIds: accionIdsEtapa, tareaIds: tareaIdsEtapa } = await obtenerSubarbolEtapa(etapaId);
     const idxEtapa = ++idx;
     const idxAcciones = ++idx;
-    const idxTareas = ++idx;
+    const idxTareas = idx + 1;
     condiciones.push(`(
       (nodo_tipo = 'etapa' AND nodo_id = $${idxEtapa})
       OR (nodo_tipo = 'accion' AND nodo_id = ANY($${idxAcciones}))

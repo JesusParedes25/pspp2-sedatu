@@ -50,7 +50,7 @@ describe('obtenerTodosParticipantes — responsable directo sin nodo_miembros', 
   it('devuelve al responsable directo de una acción como participante con rol "responsable"', async () => {
     pool.query.mockResolvedValue({
       rows: [{
-        id_usuario: 'u1', nombre_completo: 'Juan Pérez', correo: 'juan@sedatu.gob.mx',
+        id_usuario: 'u1', nombre_completo: 'Juan Pérez', correo: 'juan@example.org',
         cargo: 'Director', usuario_activo: true, perfil: 'direccion',
         dg_siglas: null, da_siglas: null,
         rol: 'responsable', alcance: 'accion', nodo_nombre: 'Acción con responsable directo',

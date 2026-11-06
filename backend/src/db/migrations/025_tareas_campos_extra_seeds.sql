@@ -97,14 +97,14 @@ ON CONFLICT DO NOTHING;
 
 -- 6. Seed usuarios ficticios para selector de responsable
 INSERT INTO usuarios (id, nombre_completo, correo, password_hash, cargo, rol, activo, id_dg) VALUES
-  ('a0000001-0000-0000-0000-000000000001', 'Ana García López', 'ana.garcia@sedatu.gob.mx', '$2b$10$dummyhash000000000000000000000000000000000000000', 'Directora de Área', 'Directivo', true, (SELECT id FROM direcciones_generales LIMIT 1 OFFSET 0)),
-  ('a0000001-0000-0000-0000-000000000002', 'Carlos Hernández Ruiz', 'carlos.hernandez@sedatu.gob.mx', '$2b$10$dummyhash000000000000000000000000000000000000000', 'Subdirector', 'Operativo', true, (SELECT id FROM direcciones_generales LIMIT 1 OFFSET 1)),
-  ('a0000001-0000-0000-0000-000000000003', 'María Fernanda Torres', 'maria.torres@sedatu.gob.mx', '$2b$10$dummyhash000000000000000000000000000000000000000', 'Jefa de Departamento', 'Operativo', true, (SELECT id FROM direcciones_generales LIMIT 1 OFFSET 2)),
-  ('a0000001-0000-0000-0000-000000000004', 'Roberto Sánchez Medina', 'roberto.sanchez@sedatu.gob.mx', '$2b$10$dummyhash000000000000000000000000000000000000000', 'Director General', 'Ejecutivo', true, (SELECT id FROM direcciones_generales LIMIT 1 OFFSET 3)),
-  ('a0000001-0000-0000-0000-000000000005', 'Patricia Olvera Díaz', 'patricia.olvera@sedatu.gob.mx', '$2b$10$dummyhash000000000000000000000000000000000000000', 'Subdirectora', 'Operativo', true, (SELECT id FROM direcciones_generales LIMIT 1 OFFSET 4)),
-  ('a0000001-0000-0000-0000-000000000006', 'Miguel Ángel Reyes', 'miguel.reyes@sedatu.gob.mx', '$2b$10$dummyhash000000000000000000000000000000000000000', 'Director de Área', 'Directivo', true, (SELECT id FROM direcciones_generales LIMIT 1 OFFSET 5)),
-  ('a0000001-0000-0000-0000-000000000007', 'Laura Jiménez Vega', 'laura.jimenez@sedatu.gob.mx', '$2b$10$dummyhash000000000000000000000000000000000000000', 'Enlace', 'Operativo', true, (SELECT id FROM direcciones_generales LIMIT 1 OFFSET 6)),
-  ('a0000001-0000-0000-0000-000000000008', 'Fernando Castillo Mora', 'fernando.castillo@sedatu.gob.mx', '$2b$10$dummyhash000000000000000000000000000000000000000', 'Jefe de Departamento', 'Operativo', true, (SELECT id FROM direcciones_generales LIMIT 1 OFFSET 7))
+  ('a0000001-0000-0000-0000-000000000001', 'Ana García López', 'ana.garcia@example.org', '$2b$10$dummyhash000000000000000000000000000000000000000', 'Directora de Área', 'Directivo', true, (SELECT id FROM direcciones_generales LIMIT 1 OFFSET 0)),
+  ('a0000001-0000-0000-0000-000000000002', 'Carlos Hernández Ruiz', 'carlos.hernandez@example.org', '$2b$10$dummyhash000000000000000000000000000000000000000', 'Subdirector', 'Operativo', true, (SELECT id FROM direcciones_generales LIMIT 1 OFFSET 1)),
+  ('a0000001-0000-0000-0000-000000000003', 'María Fernanda Torres', 'maria.torres@example.org', '$2b$10$dummyhash000000000000000000000000000000000000000', 'Jefa de Departamento', 'Operativo', true, (SELECT id FROM direcciones_generales LIMIT 1 OFFSET 2)),
+  ('a0000001-0000-0000-0000-000000000004', 'Roberto Sánchez Medina', 'roberto.sanchez@example.org', '$2b$10$dummyhash000000000000000000000000000000000000000', 'Director General', 'Ejecutivo', true, (SELECT id FROM direcciones_generales LIMIT 1 OFFSET 3)),
+  ('a0000001-0000-0000-0000-000000000005', 'Patricia Olvera Díaz', 'patricia.olvera@example.org', '$2b$10$dummyhash000000000000000000000000000000000000000', 'Subdirectora', 'Operativo', true, (SELECT id FROM direcciones_generales LIMIT 1 OFFSET 4)),
+  ('a0000001-0000-0000-0000-000000000006', 'Miguel Ángel Reyes', 'miguel.reyes@example.org', '$2b$10$dummyhash000000000000000000000000000000000000000', 'Director de Área', 'Directivo', true, (SELECT id FROM direcciones_generales LIMIT 1 OFFSET 5)),
+  ('a0000001-0000-0000-0000-000000000007', 'Laura Jiménez Vega', 'laura.jimenez@example.org', '$2b$10$dummyhash000000000000000000000000000000000000000', 'Enlace', 'Operativo', true, (SELECT id FROM direcciones_generales LIMIT 1 OFFSET 6)),
+  ('a0000001-0000-0000-0000-000000000008', 'Fernando Castillo Mora', 'fernando.castillo@example.org', '$2b$10$dummyhash000000000000000000000000000000000000000', 'Jefe de Departamento', 'Operativo', true, (SELECT id FROM direcciones_generales LIMIT 1 OFFSET 7))
 ON CONFLICT (id) DO NOTHING;
 
 -- 7. Add id_etapa to evidencias if not exists (to support etapa-level attachments)

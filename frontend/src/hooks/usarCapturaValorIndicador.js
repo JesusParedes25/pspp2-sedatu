@@ -27,7 +27,9 @@ export function usarCapturaValorIndicador(indicador) {
   const periodos = [];
   const sinPeriodos = false;
 
-  const [idPeriodo, setIdPeriodo] = useState(null);
+  // El selector de periodo queda sin usarse a propósito (ver nota técnica
+  // arriba) — nunca cambia de null.
+  const idPeriodo = null;
   const periodoActual = null;
 
   const valorInicial = indicador.valor_actual ?? '';

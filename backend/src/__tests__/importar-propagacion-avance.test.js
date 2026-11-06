@@ -26,11 +26,6 @@ const ACCION_ID = '00000000-0000-0000-0000-000000000002';
 const PROYECTO_ID = '00000000-0000-0000-0000-0000000000f1';
 const ACCION_NOMBRE = 'Acción contenedora de prueba';
 
-function normalizarTextoLocal(s) {
-  return String(s || '').trim().toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '');
-}
-
 function dispatchQuery(sqlRaw) {
   const s = sqlRaw.replace(/\s+/g, ' ').trim();
 

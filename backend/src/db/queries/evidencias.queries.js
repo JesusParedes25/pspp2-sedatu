@@ -46,7 +46,7 @@ async function obtenerDocumentosAgregados(tipoNodo, idNodo, incluirHijos = true)
   const params = [];
   let idx = 1;
   if (etapaIds.length) { condiciones.push(`ev.id_etapa = ANY($${idx++})`); params.push(etapaIds); }
-  if (accionIds.length) { condiciones.push(`(ev.id_accion = ANY($${idx++}) OR ev.id_subaccion = ANY($${idx++}))`); params.push(accionIds, accionIds); }
+  if (accionIds.length) { condiciones.push(`(ev.id_accion = ANY($${idx++}) OR ev.id_subaccion = ANY($${idx}))`); params.push(accionIds, accionIds); }
 
   const promesaEvidencias = condiciones.length
     ? pool.query(`
@@ -291,7 +291,7 @@ async function obtenerTodasEvidencias(filtros = {}, proyectoIds = null) {
   }
   if (filtros.etiqueta) {
     condiciones.push(`EXISTS (
-      SELECT 1 FROM etiquetas et2 WHERE et2.id_proyecto = p.id AND LOWER(et2.nombre) = LOWER($${idx++})
+      SELECT 1 FROM etiquetas et2 WHERE et2.id_proyecto = p.id AND LOWER(et2.nombre) = LOWER($${idx})
     )`);
     params.push(filtros.etiqueta);
   }

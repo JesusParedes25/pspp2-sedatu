@@ -24,7 +24,7 @@ function formatoFechaRelativa(iso) {
 }
 
 export default function PortadaProyecto() {
-  const { proyecto, permisos, proyectoId } = useOutletContext();
+  const { permisos, proyectoId } = useOutletContext();
   const [resumen, setResumen] = useState(null);
   const [cargandoResumen, setCargandoResumen] = useState(true);
   const [errorResumen, setErrorResumen] = useState(false);

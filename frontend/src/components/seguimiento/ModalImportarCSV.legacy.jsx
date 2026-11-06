@@ -197,7 +197,6 @@ function parsearCSV(texto) {
 export default function ModalImportarCSV({ proyectoId, onImportado, onCerrar }) {
   const [archivo, setArchivo] = useState(null);
   const [filas, setFilas] = useState([]);
-  const [encabezados, setEncabezados] = useState([]);
   const [importando, setImportando] = useState(false);
   const [resultado, setResultado] = useState(null);
   const [error, setError] = useState(null);
@@ -228,7 +227,6 @@ export default function ModalImportarCSV({ proyectoId, onImportado, onCerrar }) 
           setError(`Columnas faltantes: ${faltantes.join(', ')}. Revisa los encabezados.`);
           return;
         }
-        setEncabezados(enc);
         setFilas(f);
       } catch (err) {
         setError('Error al leer el archivo: ' + err.message);

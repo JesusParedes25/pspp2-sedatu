@@ -604,7 +604,6 @@ async function ejecutarImportacion(dataRows, config, headers, proyectoId, skipDu
     };
 
     const dupSet = new Set(duplicados.map(d => `${d.nivel}:${normalizarTexto(d.nombre)}`));
-    const rowLevel = (config.rowLevel || 'etapa').toLowerCase();
 
     // Pre-cargar etapas y acciones existentes para resolver padres por nombre
     const { rows: etapasExistentes } = await client.query(
@@ -1165,21 +1164,26 @@ async function ejecutarImportacionMultiHoja(hojas, configMultiHoja, proyectoId, 
       const fechaFin = toDate(valorMapeado(fila, m1, 'fecha_final'));
       const { estado } = traducirEstatus(valorMapeado(fila, m1, 'estatus'));
       const prioridad = truncar(emptyToNull(valorMapeado(fila, m1, 'prioridad')), 50);
-      const categoria = emptyToNull(valorMapeado(fila, m1, 'categoria'));
       const instrumento = emptyToNull(valorMapeado(fila, m1, 'instrumento'));
       const escalaTerritorial = emptyToNull(valorMapeado(fila, m1, 'escala_territorial'));
       const enlaceResponsable = emptyToNull(valorMapeado(fila, m1, 'enlace_responsable'));
       const observaciones = emptyToNull(valorMapeado(fila, m1, 'comentarios'));
 
       ordenEtapa++;
+      // instrumento/escala_territorial se leían de la fila pero no se
+      // guardaban: el INSERT no las traía, así que una etapa importada
+      // desde Excel siempre quedaba con esos dos campos vacíos aunque el
+      // archivo sí los tuviera (sí existen en la tabla — ver migración 025
+      // — y sí se guardan al editar la etapa desde la UI).
       const { rows } = await client.query(`
         INSERT INTO etapas (nombre, descripcion, orden, tipo_meta, id_proyecto,
-          fecha_inicio, fecha_fin, estado, prioridad, enlace_responsable, observaciones,
+          fecha_inicio, fecha_fin, estado, prioridad, instrumento, escala_territorial,
+          enlace_responsable, observaciones,
           lote_importacion_id, importado_en, importado_por, archivo_origen)
-        VALUES ($1, $2, $3, 'Sin_meta', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        VALUES ($1, $2, $3, 'Sin_meta', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         RETURNING id
       `, [nombre, descripcion, ordenEtapa, proyectoId, fechaInicio, fechaFin, estado,
-          prioridad, enlaceResponsable, observaciones,
+          prioridad, instrumento, escalaTerritorial, enlaceResponsable, observaciones,
           loteImportacionId, importadoEn, userId, archivoOrigen]);
 
       etapaIdMap[idLocal] = rows[0].id;
@@ -1205,7 +1209,6 @@ async function ejecutarImportacionMultiHoja(hojas, configMultiHoja, proyectoId, 
         const { estado } = traducirEstatus(valorMapeado(fila, m2, 'estatus'));
         const prioridad = truncar(emptyToNull(valorMapeado(fila, m2, 'prioridad')), 50);
         const tipo = traducirTipoAccion(valorMapeado(fila, m2, 'tipo'));
-        const responsable = emptyToNull(valorMapeado(fila, m2, 'responsable'));
         const fechaInicio = toDate(valorMapeado(fila, m2, 'fecha_inicio')) || new Date().toISOString().split('T')[0];
         const fechaFin = toDate(valorMapeado(fila, m2, 'fecha_limite')) || fechaInicio;
         const enlaceResponsable = emptyToNull(valorMapeado(fila, m2, 'enlace_responsable'));
@@ -1417,21 +1420,6 @@ async function listarLotes(proyectoId, limite = 20) {
      LIMIT $2
   `, [proyectoId, limite]);
   return rows;
-}
-
-/**
- * Extrae campos de una fila basándose en los headers, excluyendo ciertos campos.
- */
-function extraerCamposPorHeader(headers, fila, excluir = []) {
-  const campos = {};
-  const excluirSet = new Set(excluir.map(e => normalizarTexto(e)));
-  for (let i = 0; i < headers.length; i++) {
-    const h = normalizarTexto(headers[i]);
-    if (excluirSet.has(h) || !h) continue;
-    const valor = fila[i] != null ? String(fila[i]).trim() : '';
-    if (valor) campos[h] = valor;
-  }
-  return campos;
 }
 
 module.exports = {

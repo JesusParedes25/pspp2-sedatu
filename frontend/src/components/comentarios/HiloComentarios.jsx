@@ -14,7 +14,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useRef } from 'react';
-import { MessageSquare, Send, ChevronDown, ChevronUp } from 'lucide-react';
+import { MessageSquare, Send, ChevronUp } from 'lucide-react';
 import * as comentariosApi from '../../api/comentarios';
 import ComentarioItem from './ComentarioItem';
 import { useCandado } from '../../hooks/useEnvioUnico';

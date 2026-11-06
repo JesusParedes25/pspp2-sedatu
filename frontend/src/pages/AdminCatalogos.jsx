@@ -456,8 +456,6 @@ function TabAreas({ dgs, das, recargar }) {
   const [porEliminar, setPorEliminar] = useState(null);
   const [error, setError] = useState(null);
 
-  const urs = [...new Set(dgs.filter(d => d.ur_siglas).map(d => d.ur_siglas))];
-
   // Eliminar un área es definitivo y ya no se repone al reiniciar el
   // backend, así que el servidor primero revisa que nada la referencie;
   // si algo la usa responde diciendo qué, y eso es lo que se muestra.

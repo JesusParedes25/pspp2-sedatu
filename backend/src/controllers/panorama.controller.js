@@ -3,7 +3,6 @@
  * PROPÓSITO: Endpoint GET /proyectos/:id/panorama — datos completos del tab Panorama.
  */
 const pool = require('../db/pool');
-const miembrosQueries = require('../db/queries/miembros.queries');
 const statsQueries = require('../db/queries/proyectos.stats.queries');
 const etapasQueries = require('../db/queries/etapas.queries');
 const inicioQueries = require('../db/queries/inicio.queries');
@@ -299,7 +298,11 @@ async function obtenerPanoramaRapido(req, res, next) {
           // sin override casi siempre está vacío y este popover se veía
           // todo gris aunque las etapas tuvieran un semáforo real.
           semaforo_efectivo: semaforoEfectivo(e),
-          avance: e.avance_actual ?? Number(e.porcentaje_calculado) ?? 0,
+          // Number(...) nunca es null/undefined (con "" o undefined da NaN),
+          // así que un `?? 0` encadenado después nunca disparaba — con
+          // porcentaje_calculado undefined, avance terminaba en NaN en vez
+          // de 0. `|| 0` sí cubre NaN.
+          avance: e.avance_actual ?? (Number(e.porcentaje_calculado) || 0),
           total_acciones: Number(e.total_acciones) || 0,
           acciones_completadas: Number(e.acciones_completadas) || 0,
         })),

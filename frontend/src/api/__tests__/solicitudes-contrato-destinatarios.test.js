@@ -33,7 +33,7 @@ const { solicitarParticipacion, solicitarParticipacionNodo } = await import('../
 const RESPUESTA_BACKEND = {
   datos: { id: 'sol-1', funcion: 'captura', id_usuario: 'u-1', id_proyecto: 'p-1' },
   destinatarios: [
-    { id_usuario: 'admin-1', nombre_completo: 'Admin del Proyecto', correo: 'admin@sedatu.gob.mx' },
+    { id_usuario: 'admin-1', nombre_completo: 'Admin del Proyecto', correo: 'admin@example.org' },
   ],
   mensaje: 'Solicitud enviada',
 };
@@ -54,7 +54,7 @@ describe('contrato de respuesta: destinatarios es HERMANO de datos, no anidado d
     expect(solicitud).toEqual(RESPUESTA_BACKEND.datos);
     expect(destinatarios).toEqual(RESPUESTA_BACKEND.destinatarios);
     expect(destinatarios).toHaveLength(1);
-    expect(destinatarios[0].correo).toBe('admin@sedatu.gob.mx');
+    expect(destinatarios[0].correo).toBe('admin@example.org');
   });
 
   test('solicitarParticipacionNodo devuelve la misma forma', async () => {

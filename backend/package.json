@@ -9,7 +9,8 @@
     "seed": "node src/db/seeders/index.js",
     "seed:base": "node src/db/seeders/index.js --base",
     "migrate": "node src/db/migrate.js",
-    "test": "jest --verbose"
+    "test": "jest --verbose",
+    "lint": "eslint ."
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -26,6 +27,9 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.14.0",
+    "globals": "^17.14.0",
     "jest": "^30.3.0",
     "nodemon": "^3.0.2"
   }

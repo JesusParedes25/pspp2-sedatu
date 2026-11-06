@@ -33,11 +33,9 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
 
   // Estado global del wizard
   const [fileId, setFileId] = useState(null);
-  const [filename, setFilename] = useState('');
-  const [sheetNames, setSheetNames] = useState([]);
-  const [sheetIndex, setSheetIndex] = useState(0);
-  const [totalRows, setTotalRows] = useState(0);
-  const [vistaPrevia, setVistaPrevia] = useState([]);
+  // Siempre 0: el wizard clásico (de una sola hoja) nunca ofrece cambiar de
+  // hoja — un archivo con varias hojas se desvía al flujo multiHoja de abajo.
+  const [sheetIndex] = useState(0);
 
   // Config acumulada
   const [config, setConfig] = useState({
@@ -122,10 +120,6 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
   // Cuando se sube el archivo exitosamente — auto-detecta headers
   const onUploadExitoso = useCallback(async (resultado) => {
     setFileId(resultado.fileId);
-    setFilename(resultado.filename);
-    setSheetNames(resultado.sheetNames);
-    setTotalRows(resultado.totalRows);
-    setVistaPrevia(resultado.vistaPrevia);
     setError(null);
 
     // Si se detectó formato multi-hoja, activar flujo simplificado
@@ -145,6 +139,11 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
     const shRow = tieneSuperHeaders ? 1 : null;
     const dRow = tieneSuperHeaders ? 3 : 2;
 
+    // El upload mismo ya muestra su propio "Subiendo y parseando..."
+    // (PasoUpload.jsx) — este cargando cubre el tramo siguiente
+    // (extraerHeaders + sugerirPlantilla) para que la pantalla no se
+    // quede quieta sin avisar mientras se resuelve.
+    setCargando(true);
     try {
       const headersRes = await importarApi.extraerHeaders({
         fileId: resultado.fileId,
@@ -171,9 +170,10 @@ export default function ImportarWizard({ proyectoId, onImportado, onCerrar }) {
       } catch (_) {
         // No fatal — sin sugerencia, el wizard continúa normal
       }
-    } catch (e) {
+    } catch (_) {
       // No fatal — headers quedan vacíos pero el wizard sigue
     }
+    setCargando(false);
 
     avanzar();
   }, [avanzar, actualizarConfig]);

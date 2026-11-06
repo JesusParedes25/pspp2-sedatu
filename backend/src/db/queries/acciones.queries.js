@@ -895,28 +895,6 @@ async function importarEstructuraCSV(proyectoId, filas) {
   }
 }
 
-// Alterna una subacción entre Completada (100%) y Pendiente (0%),
-// luego recalcula el % de la acción padre como promedio ponderado.
-async function toggleSubaccion(subaccionId) {
-  const sub = await pool.query('SELECT * FROM acciones WHERE id = $1', [subaccionId]);
-  if (!sub.rows[0]) throw new Error('Subacción no encontrada');
-  const s = sub.rows[0];
-  if (!s.id_accion_padre) throw new Error('Esta acción no es una subacción');
-
-  const nuevoEstado = s.estado === 'Completada' ? 'Pendiente' : 'Completada';
-  const nuevoPct = nuevoEstado === 'Completada' ? 100 : 0;
-
-  await pool.query(
-    `UPDATE acciones SET estado = $1, porcentaje_avance = $2, updated_at = NOW() WHERE id = $3`,
-    [nuevoEstado, nuevoPct, subaccionId]
-  );
-
-  // Recalcular padre como promedio ponderado de subacciones
-  await recalcularAccionDesdeSubs(s.id_accion_padre);
-
-  return { id: subaccionId, estado: nuevoEstado, porcentaje_avance: nuevoPct };
-}
-
 // Recalcula el % de una acción padre desde sus subacciones (promedio ponderado).
 // Acepta client de transacción para uso atómico.
 async function recalcularAccionDesdeSubs(accionPadreId, client) {

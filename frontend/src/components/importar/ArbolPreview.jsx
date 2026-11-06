@@ -5,7 +5,7 @@
  * Muestra etapas → acciones → subacciones con indentación,
  * warnings en amarillo, errores en rojo.
  */
-import { ChevronRight, Layers, Zap, GitBranch, AlertTriangle } from 'lucide-react';
+import { Layers, Zap, GitBranch, AlertTriangle } from 'lucide-react';
 
 function EntidadNodo({ entidad, profundidad = 0 }) {
   const iconos = {

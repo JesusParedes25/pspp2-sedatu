@@ -16,7 +16,7 @@ import { COLORES_SEMAFORO, CHIP_BG, URGENCIA_SEMAFORO } from '../../common/Semaf
 // requerido: si se confirma vacío, revierte al valor anterior sin llamar
 // onGuardar (mismo camino que Escape) — evita mandar NULL a una columna
 // NOT NULL (nombre en etapas/acciones/tareas) y que el guardado truene.
-export function CampoTextoInline({ valor, campo, onGuardar, soloLectura, placeholder, className, multiline, maxLength, iconoEditar, requerido }) {
+export function CampoTextoInline({ valor, onGuardar, soloLectura, placeholder, className, multiline, maxLength, iconoEditar, requerido }) {
   const [editando, setEditando] = useState(false);
   const [texto, setTexto] = useState(valor || '');
   const ref = useRef(null);
@@ -78,7 +78,7 @@ export function CampoTextoInline({ valor, campo, onGuardar, soloLectura, placeho
 }
 
 // ─── Campos editables inline ───────────────────────────────────
-export function CampoEditable({ label, valor, soloLectura }) {
+export function CampoEditable({ label, valor }) {
   return (
     <div>
       <span className="text-[10px] text-gray-400 uppercase tracking-wider block mb-0.5">{label}</span>

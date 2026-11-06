@@ -314,7 +314,7 @@ async function obtenerEstatusCualitativo(proyectoIds) {
       JOIN proyectos p ON p.id = e.id_proyecto AND p.deleted_at IS NULL
       LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
      WHERE e.id_proyecto = ANY($1::uuid[])
-       AND e.estatus_cualitativo IS NOT NULL AND e.estatus_cualitativo <> \'\'
+       AND e.estatus_cualitativo IS NOT NULL AND e.estatus_cualitativo <> ''
 
     UNION ALL
 
@@ -329,7 +329,7 @@ async function obtenerEstatusCualitativo(proyectoIds) {
       LEFT JOIN acciones padre ON padre.id = a.id_accion_padre
       LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
      WHERE a.id_proyecto = ANY($1::uuid[])
-       AND a.estatus_cualitativo IS NOT NULL AND a.estatus_cualitativo <> \'\'
+       AND a.estatus_cualitativo IS NOT NULL AND a.estatus_cualitativo <> ''
 
     UNION ALL
 
@@ -344,7 +344,7 @@ async function obtenerEstatusCualitativo(proyectoIds) {
       LEFT JOIN etapas et ON et.id = a.id_etapa
       LEFT JOIN direcciones_generales dg ON dg.id = p.id_dg_lider
      WHERE a.id_proyecto = ANY($1::uuid[])
-       AND t.estatus_cualitativo IS NOT NULL AND t.estatus_cualitativo <> \'\'
+       AND t.estatus_cualitativo IS NOT NULL AND t.estatus_cualitativo <> ''
 
      ORDER BY estatus_cualitativo_fecha DESC NULLS LAST
      LIMIT 20

@@ -11,7 +11,7 @@
  * después de 4 segundos (controlado por UIContext).
  * ─────────────────────────────────────────────────────────────────
  */
-import { CheckCircle, AlertCircle, Info, X } from 'lucide-react';
+import { CheckCircle, AlertCircle, Info } from 'lucide-react';
 
 const estilosPorTipo = {
   exito:  { bg: 'bg-green-50 border-green-200', texto: 'text-green-800', icono: CheckCircle, iconColor: 'text-green-500' },

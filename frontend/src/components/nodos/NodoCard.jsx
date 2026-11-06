@@ -12,7 +12,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ChevronDown, ChevronRight, Lock, CheckCircle2, Circle, AlertTriangle,
-  MessageSquare, Paperclip, Shield, BarChart3, UserPlus, MapPin, Loader2, X, Send, Copy,
+  MessageSquare, Paperclip, Shield, BarChart3, UserPlus, MapPin, X, Send, Copy,
   TrendingUp, Trash2, Pencil, Plus,
 } from 'lucide-react';
 import ModalDuplicarNodo from './ModalDuplicarNodo';
@@ -178,7 +178,6 @@ export default function NodoCard({
   // El permiso puede ser parcial: quien fue invitado a una etapa suelta
   // captura ahí, no en todo el proyecto.
   const soloLectura = permisosDeNodo(permisos, tipo, nodo?.id)?.esSoloLectura ?? true;
-  const puedeActualizar = !soloLectura && !esContenedor;
 
   async function cargarActividad() {
     try {
@@ -373,7 +372,7 @@ export default function NodoCard({
       {/* ── Cabecera colapsada ── */}
       {!ocultarCabecera && (
       <div className="flex items-center gap-2.5 px-3 py-2.5">
-        <button onClick={toggleChecklist} disabled={esContenedor || soloLectura} title={completado ? 'Marcar pendiente' : 'Marcar completada'}
+        <button onClick={toggleChecklist} disabled={esContenedor || soloLectura || guardando} title={completado ? 'Marcar pendiente' : 'Marcar completada'}
           className="flex-shrink-0 disabled:cursor-not-allowed">
           {completado
             ? <CheckCircle2 size={18} className="text-green-500" />

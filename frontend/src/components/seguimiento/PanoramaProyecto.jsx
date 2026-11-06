@@ -24,8 +24,6 @@ import GraficaIndicador from '../indicadores/GraficaIndicador';
 import ListaEstatusCualitativo from '../indicadores/ListaEstatusCualitativo';
 import MapaTerritorialInicio from '../inicio/MapaTerritorialInicio';
 
-const GUINDA = '#7B1C3E';
-
 // ─── Helpers ──────────────────────────────────────────────────
 function fmt(f) {
   if (!f) return '-';
@@ -59,7 +57,7 @@ function SeccionCard({ titulo, icono: Icono, children, className = '' }) {
 }
 
 // ─── Componente principal ─────────────────────────────────────
-export default function PanoramaProyecto({ proyecto, etapas, proyectoId, refreshKey, onNavegarNodo }) {
+export default function PanoramaProyecto({ proyectoId, refreshKey, onNavegarNodo }) {
   const [datos, setDatos] = useState(null);
   const [cargando, setCargando] = useState(true);
 

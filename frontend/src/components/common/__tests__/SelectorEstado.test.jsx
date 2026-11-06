@@ -8,7 +8,7 @@
  *            control (ni `<button>`, ni chevron, ni cursor) — solo el
  *            badge estático que de verdad es.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import SelectorEstado from '../SelectorEstado';

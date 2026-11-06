@@ -68,7 +68,7 @@ async function seedUsuarios() {
       },
       {
         nombre_completo: 'Pablo Hernández Rivas',
-        correo: 'pablo.director@sedatu.gob.mx',
+        correo: 'pablo.director@example.org',
         cargo: 'Director de Análisis en Ordenamiento Territorial',
         rol: 'direccion',
         id_dg: idDGOTU,
@@ -76,7 +76,7 @@ async function seedUsuarios() {
       },
       {
         nombre_completo: 'Laura Méndez Castillo',
-        correo: 'enlace.dgomr@sedatu.gob.mx',
+        correo: 'enlace.dgomr@example.org',
         cargo: 'Subdirectora de Análisis Metropolitano',
         rol: 'enlace',
         id_dg: idDGOMR,
@@ -84,7 +84,7 @@ async function seedUsuarios() {
       },
       {
         nombre_completo: 'Roberto Sánchez Fuentes',
-        correo: 'enlace.dgpv@sedatu.gob.mx',
+        correo: 'enlace.dgpv@example.org',
         cargo: 'Analista de Política de Vivienda',
         rol: 'enlace',
         id_dg: idDGPV,
@@ -92,7 +92,7 @@ async function seedUsuarios() {
       },
       {
         nombre_completo: 'Mónica Torres Vega',
-        correo: 'enlace.ran@sedatu.gob.mx',
+        correo: 'enlace.ran@example.org',
         cargo: 'Técnico de Información Agraria',
         rol: 'enlace',
         id_dg: idDGOTU,
@@ -100,7 +100,7 @@ async function seedUsuarios() {
       },
       {
         nombre_completo: 'Alejandro Ríos Montoya',
-        correo: 'subsecretario@sedatu.gob.mx',
+        correo: 'subsecretario@example.org',
         cargo: 'Subsecretario de Ordenamiento Territorial, Urbano y Vivienda',
         rol: 'ejecutivo',
         id_dg: idDGOTU,
@@ -110,7 +110,7 @@ async function seedUsuarios() {
       // ─── Usuarios ficticios adicionales ────────────────────────
       {
         nombre_completo: 'Claudia Ramírez Ortega',
-        correo: 'c.ramirez@sedatu.gob.mx',
+        correo: 'c.ramirez@example.org',
         cargo: 'Directora General de Política Territorial y Movilidad',
         rol: 'direccion',
         id_dg: idDGPTM,
@@ -118,7 +118,7 @@ async function seedUsuarios() {
       },
       {
         nombre_completo: 'Fernando Espinoza Leal',
-        correo: 'f.espinoza@sedatu.gob.mx',
+        correo: 'f.espinoza@example.org',
         cargo: 'Subdirector de Gestión de Riesgos',
         rol: 'enlace',
         id_dg: idDGGIRD,
@@ -126,7 +126,7 @@ async function seedUsuarios() {
       },
       {
         nombre_completo: 'Adriana Vázquez Moreno',
-        correo: 'a.vazquez@sedatu.gob.mx',
+        correo: 'a.vazquez@example.org',
         cargo: 'Analista de Modernización Catastral',
         rol: 'enlace',
         id_dg: idDGIMRC,
@@ -134,7 +134,7 @@ async function seedUsuarios() {
       },
       {
         nombre_completo: 'Carlos Jiménez Peña',
-        correo: 'c.jimenez@sedatu.gob.mx',
+        correo: 'c.jimenez@example.org',
         cargo: 'Subdirector de Infraestructura y Equipamiento',
         rol: 'enlace',
         id_dg: idDGIE,
@@ -142,7 +142,7 @@ async function seedUsuarios() {
       },
       {
         nombre_completo: 'Sofía Gutiérrez Ávila',
-        correo: 's.gutierrez@sedatu.gob.mx',
+        correo: 's.gutierrez@example.org',
         cargo: 'Coordinadora de Tecnologías de la Información',
         rol: 'ejecutivo',
         id_dg: idDGTIC,
@@ -150,7 +150,7 @@ async function seedUsuarios() {
       },
       {
         nombre_completo: 'Diego Morales Ibáñez',
-        correo: 'd.morales@sedatu.gob.mx',
+        correo: 'd.morales@example.org',
         cargo: 'Analista de Programación y Presupuesto',
         rol: 'enlace',
         id_dg: idDGPP,
@@ -158,7 +158,7 @@ async function seedUsuarios() {
       },
       {
         nombre_completo: 'Valeria Campos Duarte',
-        correo: 'v.campos@sedatu.gob.mx',
+        correo: 'v.campos@example.org',
         cargo: 'Subdirectora de Concertación Agraria',
         rol: 'enlace',
         id_dg: idDGICAM,
@@ -166,7 +166,7 @@ async function seedUsuarios() {
       },
       {
         nombre_completo: 'Héctor Reyes Blanco',
-        correo: 'h.reyes@sedatu.gob.mx',
+        correo: 'h.reyes@example.org',
         cargo: 'Analista de Terrenos Nacionales',
         rol: 'enlace',
         id_dg: idDGTN,
@@ -174,7 +174,7 @@ async function seedUsuarios() {
       },
       {
         nombre_completo: 'Patricia Luna Serrano',
-        correo: 'p.luna@sedatu.gob.mx',
+        correo: 'p.luna@example.org',
         cargo: 'Directora de Resoluciones Presidenciales',
         rol: 'direccion',
         id_dg: idDGRPE,
@@ -182,7 +182,7 @@ async function seedUsuarios() {
       },
       {
         nombre_completo: 'Iván Castillo Domínguez',
-        correo: 'i.castillo@sedatu.gob.mx',
+        correo: 'i.castillo@example.org',
         cargo: 'Subdirector de Ordenamiento Regional',
         rol: 'enlace',
         id_dg: idDGOMR,

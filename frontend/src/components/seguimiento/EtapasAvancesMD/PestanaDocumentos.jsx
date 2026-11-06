@@ -34,7 +34,7 @@ function urlDoc(doc) {
   return evidenciasApi.obtenerUrlDescarga(doc.id);
 }
 
-export default function PestanaDocumentos({ tipo, id, permisos, permisosProyecto, onCambiado, mostrarToast, onContador, onNavegarNodo, altaSolicitada, onAltaConsumida }) {
+export default function PestanaDocumentos({ tipo, id, permisos, permisosProyecto, onCambiado, onContador, onNavegarNodo, altaSolicitada, onAltaConsumida }) {
   const [incluirHijos, setIncluirHijos] = useState(true);
   const [documentos, setDocumentos] = useState(null);
   const [cargando, setCargando] = useState(true);

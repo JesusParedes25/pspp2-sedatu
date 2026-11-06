@@ -40,7 +40,7 @@ const NIVELES_IMPACTO = ['Bajo', 'Medio', 'Alto', 'Critico'];
 const ESTADOS_ABIERTOS = ['Abierto', 'En_mitigacion'];
 
 export default function RiesgosProyecto() {
-  const { proyecto, proyectoId, permisos, incrementarStats } = useOutletContext();
+  const { proyectoId, permisos, incrementarStats } = useOutletContext();
   const { mostrarToast } = useUI();
   const [searchParams, setSearchParams] = useSearchParams();
   const [riesgos, setRiesgos] = useState([]);

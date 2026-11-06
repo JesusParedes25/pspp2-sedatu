@@ -12,7 +12,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Shield, AlertTriangle } from 'lucide-react';
+import { Shield, Plus } from 'lucide-react';
 import RiesgoCard from './RiesgoCard';
 import ModalRiesgo from './ModalRiesgo';
 import * as riesgosApi from '../../api/riesgos';
