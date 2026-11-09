@@ -28,7 +28,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Paperclip, Send, Loader2, X, FileText, Upload, Link2 } from 'lucide-react';
 import * as actividadApi from '../../api/actividad';
-import * as evidenciasApi from '../../api/evidencias';
+import * as archivosApi from '../../api/archivos';
+import { useDescargaArchivo } from '../../hooks/useDescargaArchivo';
 import * as riesgosApi from '../../api/riesgos';
 import FilePreviewModal from '../evidencias/FilePreviewModal';
 import ModalRiesgo from '../riesgos/ModalRiesgo';
@@ -41,16 +42,11 @@ import { useUI } from '../../context/UIContext';
 // evidencia del modelo viejo (trae metadata.evidencia_id), o un link externo
 // (metadata.tipo_medio === 'link') — cada uno resuelve su URL de descarga
 // distinto, y solo el primero (evidencia vieja) trae categoría de verdad.
-// modo: 'descarga' (attachment) o 'vista' (inline, para la vista previa).
-function urlArchivo(item, modo = 'descarga') {
-  if (item.metadata?.tipo_medio === 'link') return item.archivo_url;
-  const vista = modo === 'vista';
-  if (item.metadata?.evidencia_id) {
-    return vista
-      ? evidenciasApi.obtenerUrlVista(item.metadata.evidencia_id)
-      : evidenciasApi.obtenerUrlDescarga(item.metadata.evidencia_id);
-  }
-  return vista ? actividadApi.obtenerUrlVistaActividad(item.id) : actividadApi.obtenerUrlDescargaActividad(item.id);
+// Devuelve la `fuente` de api/archivos.js (null para un link externo).
+function fuenteArchivo(item) {
+  if (item.metadata?.tipo_medio === 'link') return null;
+  if (item.metadata?.evidencia_id) return archivosApi.fuenteEvidencia(item.metadata.evidencia_id);
+  return archivosApi.fuenteActividad(item.id);
 }
 
 const TIPOS_AGRUPABLES = new Set(['cambio_avance', 'cambio_estatus', 'estatus_cualitativo', 'comentario']);
@@ -91,6 +87,7 @@ export function agruparParaLinea(items) {
 // sin esto el compositor existía y la petición fallaba con 403.
 export default function ActividadStream({ tipo, id, titulo, proyectoId, soloLectura = false, onCambiado, riesgoIdInicial, onRiesgoConsumido }) {
   const { mostrarToast } = useUI();
+  const { descargar, descargando } = useDescargaArchivo();
   const [items, setItems] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [texto, setTexto] = useState('');
@@ -289,10 +286,10 @@ export default function ActividadStream({ tipo, id, titulo, proyectoId, soloLect
                         className="flex items-center gap-1 px-3 py-1.5 bg-guinda-600 text-white text-xs rounded-lg hover:bg-guinda-700">
                         <FileText size={12} /> Vista previa
                       </button>
-                      <a href={urlArchivo(detalleItem)} target="_blank" rel="noreferrer"
-                        className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 text-gray-700 text-xs rounded-lg hover:bg-gray-50">
+                      <button type="button" onClick={() => descargar(fuenteArchivo(detalleItem))} disabled={descargando}
+                        className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 text-gray-700 text-xs rounded-lg hover:bg-gray-50 disabled:opacity-60">
                         <Upload size={12} className="rotate-180" /> Descargar
-                      </a>
+                      </button>
                     </>
                   )}
                 </div>
@@ -310,8 +307,7 @@ export default function ActividadStream({ tipo, id, titulo, proyectoId, soloLect
             tipo_medio: previewItem.metadata?.tipo_medio,
             url: previewItem.metadata?.tipo_medio === 'link' ? previewItem.archivo_url : undefined,
           }}
-          urlOverride={previewItem.metadata?.tipo_medio === 'link' ? undefined : urlArchivo(previewItem, 'vista')}
-          urlDescargaOverride={previewItem.metadata?.tipo_medio === 'link' ? undefined : urlArchivo(previewItem)}
+          fuente={fuenteArchivo(previewItem) || undefined}
           onClose={() => setPreviewItem(null)}
         />
       )}

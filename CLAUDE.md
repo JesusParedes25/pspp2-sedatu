@@ -155,6 +155,14 @@ rebuild, solo restart si dependen de algo que cambió.
   Range, 404): nada de URLs prefirmadas ni de apuntar al almacén desde el
   frontend. Vista previa = `/:id/ver` (inline), descarga =
   `/:id/descargar` (attachment).
+- **Nunca el token de sesión en una URL** (`?token=` ya no se acepta en
+  ningún endpoint). Los endpoints de archivo (`routes/archivos.routes.js`,
+  montados antes de `verificarToken`) aceptan la cabecera o un boleto
+  efímero `?boleto=` (`utils/boletoArchivo.js`: firmado con clave
+  derivada, propósito propio, ligado a persona + objeto + acción, 60 s
+  por `BOLETO_ARCHIVO_TTL_SEGUNDOS`). En el frontend, `api/archivos.js`:
+  vista previa con axios a Blob (URL `blob:` para el visor), descarga con
+  boleto pedido al hacer clic (`hooks/useDescargaArchivo.js`).
 - **Despliegue SEDATU**: `deploy/docker-compose.sedatu.yml` +
   `backend/Dockerfile.sedatu` (solo backend, un puerto, BD y almacén
   externos, frontend nativo). Es independiente de

@@ -22,6 +22,8 @@ import { useState, useEffect } from 'react';
 import { FileText, Link2, Plus, Upload, Trash2, AlertTriangle, Loader2, ChevronRight, Paperclip } from 'lucide-react';
 import * as evidenciasApi from '../../api/evidencias';
 import * as actividadApi from '../../api/actividad';
+import * as archivosApi from '../../api/archivos';
+import { useDescargaArchivo } from '../../hooks/useDescargaArchivo';
 import FilePreviewModal from '../evidencias/FilePreviewModal';
 import FilaDocumentoPendiente from './FilaDocumentoPendiente';
 import { permisosDeNodo } from '../../hooks/usePermisos';
@@ -33,6 +35,7 @@ const idPendiente = () => `p${++contadorPendiente}`;
 
 export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, permisos: permisosProyecto, capturaPrimero = false }) {
   const { mostrarToast } = useUI();
+  const { descargar, descargando } = useDescargaArchivo();
   const permisos = permisosDeNodo(permisosProyecto, tipo, id);
   // Una tarea no tiene tabla de evidencias propia (nunca la tuvo) — sus
   // adjuntos viven en el stream unificado `actividad` (tipo_evento='archivo'),
@@ -197,10 +200,11 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
                   className="flex items-center gap-1 px-3 py-1 bg-[#7B1C3E] text-white text-xs rounded hover:bg-[#5a1430]">
                   <FileText size={12} /> Vista previa
                 </button>
-                <a href={esActividad ? actividadApi.obtenerUrlDescargaActividad(detalleEv.id) : evidenciasApi.obtenerUrlDescarga(detalleEv.id)} target="_blank" rel="noreferrer"
-                  className="flex items-center gap-1 px-3 py-1 border border-gray-300 text-gray-700 text-xs rounded hover:bg-gray-100">
+                <button type="button" disabled={descargando}
+                  onClick={() => descargar(esActividad ? archivosApi.fuenteActividad(detalleEv.id) : archivosApi.fuenteEvidencia(detalleEv.id))}
+                  className="flex items-center gap-1 px-3 py-1 border border-gray-300 text-gray-700 text-xs rounded hover:bg-gray-100 disabled:opacity-60">
                   <Upload size={12} className="rotate-180" /> Descargar
-                </a>
+                </button>
               </>
             )}
             {/* Eliminar solo para evidencias del modelo viejo (etapa/acción)
@@ -216,8 +220,7 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
           {previewEv && (
             <FilePreviewModal
               evidencia={previewEv}
-              urlOverride={esActividad && previewEv.tipo_medio !== 'link' ? actividadApi.obtenerUrlVistaActividad(previewEv.id) : undefined}
-              urlDescargaOverride={esActividad && previewEv.tipo_medio !== 'link' ? actividadApi.obtenerUrlDescargaActividad(previewEv.id) : undefined}
+              fuente={esActividad && previewEv.tipo_medio !== 'link' ? archivosApi.fuenteActividad(previewEv.id) : undefined}
               onClose={() => setPreviewEv(null)}
             />
           )}

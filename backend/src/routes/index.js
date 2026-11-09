@@ -81,6 +81,12 @@ const router = Router();
 // ─── Rutas públicas ────────────────────────────────────────────
 router.use('/auth', authRoutes);
 
+// Transmisión de archivos (evidencias y adjuntos de tareas). Antes de
+// verificarToken porque, además de la cabecera, aceptan un boleto efímero
+// en la URL; su propio autenticador no acepta nada más (ver
+// routes/archivos.routes.js y utils/boletoArchivo.js).
+router.use(require('./archivos.routes'));
+
 // Imagen de encabezado (pública porque <img src> no envía JWT)
 const proyectosController = require('../controllers/proyectos.controller');
 router.get('/proyectos/:id/imagen', proyectosController.servirImagen);
