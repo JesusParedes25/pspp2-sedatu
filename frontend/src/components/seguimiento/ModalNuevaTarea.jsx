@@ -21,6 +21,8 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, MapPin, Paperclip, Plus, Loader2 } from 'lucide-react';
+import { mensajeDeError } from '../../api/transferencias';
+import ProgresoSubida from '../common/ProgresoSubida';
 import * as catalogosApi from '../../api/catalogos';
 import * as tareasApi from '../../api/tareas';
 import * as actividadApi from '../../api/actividad';
@@ -62,6 +64,7 @@ export default function ModalNuevaTarea({ accionId, onCreado, onCreadoParcial, o
   const [datos, setDatos] = useState(datosIniciales);
 
   const [documentos, setDocumentos] = useState([]);
+  const [subida, setSubida] = useState(null); // { nombre, fraccion }
 
   useEffect(() => {
     catalogosApi.obtenerUsuarios().then(res => setUsuarios(res.datos || [])).catch(() => setUsuarios([]));
@@ -101,25 +104,48 @@ export default function ModalNuevaTarea({ accionId, onCreado, onCreadoParcial, o
       const res = await tareasApi.crearTarea(accionId, payload);
       const tarea = res.datos;
 
-      for (const doc of documentos) {
-        const metadatos = { categoria: doc.categoria, notas: doc.notas, titulo: doc.titulo?.trim() || null };
-        if (doc.modo === 'archivo') await actividadApi.subirArchivoActividad('tarea', tarea.id, doc.archivo, metadatos);
-        else if (doc.url.trim()) await actividadApi.registrarLinkActividad('tarea', tarea.id, doc.url.trim(), metadatos);
+      // Si un documento falla, la tarea YA existe: no se trata como error
+      // de creación (antes el modal quedaba abierto con "No se pudo crear" y
+      // un segundo clic creaba la tarea duplicada). Se avisa qué archivo
+      // falló y por qué, y el flujo sigue como si se hubiera creado. El
+      // aviso se muestra al FINAL: hay un solo toast a la vez y el de
+      // "creada" (propio o del caller) lo taparía.
+      let avisoDocumentos = null;
+      try {
+        for (const doc of documentos) {
+          const metadatos = { categoria: doc.categoria, notas: doc.notas, titulo: doc.titulo?.trim() || null };
+          if (doc.modo === 'archivo') {
+            setSubida({ nombre: doc.archivo.name, fraccion: 0 });
+            const opciones = { onProgreso: (fraccion) => setSubida({ nombre: doc.archivo.name, fraccion }) };
+            try {
+              await actividadApi.subirArchivoActividad('tarea', tarea.id, doc.archivo, metadatos, opciones);
+            } catch (errSubida) {
+              errSubida.archivoPspp = doc.archivo.name;
+              throw errSubida;
+            }
+          } else if (doc.url.trim()) await actividadApi.registrarLinkActividad('tarea', tarea.id, doc.url.trim(), metadatos);
+        }
+      } catch (errDocs) {
+        console.error('Error subiendo documentos:', errDocs);
+        avisoDocumentos = `La tarea se creó, pero no se pudo subir «${errDocs.archivoPspp || 'un documento'}». ${mensajeDeError(errDocs, 'Súbelo desde su pestaña Documentos.')}`;
+      } finally {
+        setSubida(null);
       }
 
       if (continuar) {
         // onCreadoParcial (no onCreado) — ver mismo criterio en
         // ModalNuevaAccion.jsx: evita un doble toast con el del caller.
         onCreadoParcial?.(tarea);
-        mostrarToast('Tarea creada: agrega la siguiente', 'exito');
+        if (!avisoDocumentos) mostrarToast('Tarea creada: agrega la siguiente', 'exito');
         setDatos(datosIniciales());
         setDocumentos([]);
       } else {
         onCreado?.(tarea);
         onCerrar?.();
       }
+      if (avisoDocumentos) mostrarToast(avisoDocumentos, 'error');
     } catch (err) {
-      setError(err.response?.data?.mensaje || 'No se pudo crear la tarea');
+      setError(mensajeDeError(err, 'No se pudo crear la tarea.'));
     }
   });
 
@@ -255,6 +281,7 @@ export default function ModalNuevaTarea({ accionId, onCreado, onCreadoParcial, o
             </div>
           )}
 
+          {subida && <ProgresoSubida nombre={subida.nombre} fraccion={subida.fraccion} />}
           {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded p-2 leading-snug">{error}</p>}
 
           <div className="flex justify-end gap-3 pt-2">

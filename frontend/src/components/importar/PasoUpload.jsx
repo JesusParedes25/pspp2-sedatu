@@ -4,6 +4,7 @@
  */
 import { useState, useRef } from 'react';
 import { FileSpreadsheet, AlertCircle } from 'lucide-react';
+import { mensajeDeError } from '../../api/transferencias';
 import * as importarApi from '../../api/importar';
 
 const FORMATOS_ACEPTADOS = '.csv,.tsv,.txt,.xlsx,.xls';
@@ -12,6 +13,7 @@ const MAX_SIZE_MB = 10;
 export default function PasoUpload({ onExito, error, setError }) {
   const [arrastrando, setArrastrando] = useState(false);
   const [subiendo, setSubiendo] = useState(false);
+  const [avance, setAvance] = useState(null);
   const inputRef = useRef(null);
 
   const procesarArchivo = async (file) => {
@@ -33,12 +35,14 @@ export default function PasoUpload({ onExito, error, setError }) {
     setSubiendo(true);
     setError(null);
     try {
-      const resultado = await importarApi.uploadArchivo(file);
+      setAvance(0);
+      const resultado = await importarApi.uploadArchivo(file, { onProgreso: setAvance });
       onExito(resultado.datos);
     } catch (e) {
-      setError(e.response?.data?.mensaje || 'Error al subir el archivo.');
+      setError(mensajeDeError(e, 'Error al subir el archivo.'));
     } finally {
       setSubiendo(false);
+      setAvance(null);
     }
   };
 
@@ -85,7 +89,9 @@ export default function PasoUpload({ onExito, error, setError }) {
         {subiendo ? (
           <div className="flex flex-col items-center gap-2">
             <div className="animate-spin h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full" />
-            <span className="text-sm text-gray-600">Subiendo y parseando archivo...</span>
+            <span className="text-sm text-gray-600">
+              {avance != null && avance < 1 ? `Subiendo archivo… ${Math.round(avance * 100)} %` : 'Leyendo el archivo...'}
+            </span>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-3">

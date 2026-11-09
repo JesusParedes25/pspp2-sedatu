@@ -9,6 +9,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FileText, X, Upload, Loader2, AlertTriangle, Link2 } from 'lucide-react';
 import * as archivosApi from '../../api/archivos';
+import { mensajeDeError } from '../../api/transferencias';
 import { useDescargaArchivo } from '../../hooks/useDescargaArchivo';
 
 // Vista previa de texto: solo el principio del archivo, pedido con Range
@@ -117,8 +118,7 @@ export default function FilePreviewModal({ evidencia, onClose, fuente: fuentePro
         setError(
           estado === 404 ? 'El archivo ya no está disponible en el almacenamiento.'
             : estado === 403 ? 'No tienes acceso a este archivo.'
-              : esGeo ? 'No se pudo cargar la vista previa geográfica.'
-                : 'No se pudo cargar la vista previa.'
+              : mensajeDeError(err, esGeo ? 'No se pudo cargar la vista previa geográfica.' : 'No se pudo cargar la vista previa.')
         );
       } finally {
         if (vigente) setLoading(false);

@@ -13,10 +13,14 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import axios from 'axios';
+import { TIEMPO_NORMAL_MS } from './limites';
 
+// TIEMPO_NORMAL_MS (30 s) es el límite de las peticiones normales. Las
+// subidas, descargas grandes y operaciones de proceso largo NO usan este
+// valor: ver api/limites.js y api/transferencias.js.
 const client = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api/v1',
-  timeout: 30000,
+  timeout: TIEMPO_NORMAL_MS,
 });
 
 // Antes de cada petición: inyectar el JWT si existe en localStorage

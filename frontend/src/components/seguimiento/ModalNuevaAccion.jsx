@@ -32,6 +32,8 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, BarChart3, Divide, PenLine, MapPin, Paperclip, Plus, Loader2 } from 'lucide-react';
+import { mensajeDeError } from '../../api/transferencias';
+import ProgresoSubida from '../common/ProgresoSubida';
 import * as catalogosApi from '../../api/catalogos';
 import * as etapasApi from '../../api/etapas';
 import * as indicadoresApi from '../../api/indicadores';
@@ -204,6 +206,7 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCrea
   // de crear la acción (necesitan su id). Mismo patrón que
   // ModalRegistrarAvance/SeccionArchivosNodo.
   const [documentos, setDocumentos] = useState([]);
+  const [subida, setSubida] = useState(null); // { nombre, fraccion }
 
   const [indicadoresEtapa, setIndicadoresEtapa] = useState([]);
   const [indicadoresProyecto, setIndicadoresProyecto] = useState([]);
@@ -340,10 +343,32 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCrea
 
       // Secuencial, no Promise.all: son peticiones multipart contra el
       // mismo nodo recién creado — igual que ModalRegistrarAvance.
-      for (const doc of documentos) {
-        const metadatos = { categoria: doc.categoria, notas: doc.notas, titulo: doc.titulo?.trim() || null };
-        if (doc.modo === 'archivo') await evidenciasApi.subirEvidenciaAccion(accion.id, doc.archivo, metadatos);
-        else if (doc.url.trim()) await evidenciasApi.registrarLinkAccion(accion.id, doc.url.trim(), metadatos);
+      // Si un documento falla, la accion YA existe: no se trata como error
+      // de creación (antes el modal quedaba abierto con "No se pudo crear" y
+      // un segundo clic creaba la accion duplicada). Se avisa qué archivo
+      // falló y por qué, y el flujo sigue como si se hubiera creado. El
+      // aviso se muestra al FINAL: hay un solo toast a la vez y el de
+      // "creada" (propio o del caller) lo taparía.
+      let avisoDocumentos = null;
+      try {
+        for (const doc of documentos) {
+          const metadatos = { categoria: doc.categoria, notas: doc.notas, titulo: doc.titulo?.trim() || null };
+          if (doc.modo === 'archivo') {
+            setSubida({ nombre: doc.archivo.name, fraccion: 0 });
+            const opciones = { onProgreso: (fraccion) => setSubida({ nombre: doc.archivo.name, fraccion }) };
+            try {
+              await evidenciasApi.subirEvidenciaAccion(accion.id, doc.archivo, metadatos, opciones);
+            } catch (errSubida) {
+              errSubida.archivoPspp = doc.archivo.name;
+              throw errSubida;
+            }
+          } else if (doc.url.trim()) await evidenciasApi.registrarLinkAccion(accion.id, doc.url.trim(), metadatos);
+        }
+      } catch (errDocs) {
+        console.error('Error subiendo documentos:', errDocs);
+        avisoDocumentos = `La acción se creó, pero no se pudo subir «${errDocs.archivoPspp || 'un documento'}». ${mensajeDeError(errDocs, 'Súbelo desde su pestaña Documentos.')}`;
+      } finally {
+        setSubida(null);
       }
 
       if (continuar) {
@@ -352,15 +377,16 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCrea
         // caller que ya toastea en su propio onCreado (ej. NodoCard)
         // duplicaría el aviso en cada "Guardar y agregar otra".
         onCreadoParcial?.(accion);
-        mostrarToast('Acción creada: agrega la siguiente', 'exito');
+        if (!avisoDocumentos) mostrarToast('Acción creada: agrega la siguiente', 'exito');
         setDatos(datosIniciales());
         setDocumentos([]);
       } else {
         onCreado?.(accion);
         onCerrar?.();
       }
+      if (avisoDocumentos) mostrarToast(avisoDocumentos, 'error');
     } catch (err) {
-      setError(err.response?.data?.mensaje || 'No se pudo crear la acción');
+      setError(mensajeDeError(err, 'No se pudo crear la acción.'));
     }
   });
 
@@ -587,6 +613,7 @@ export default function ModalNuevaAccion({ etapaId, proyectoId, onCreado, onCrea
             </div>
           )}
 
+          {subida && <ProgresoSubida nombre={subida.nombre} fraccion={subida.fraccion} />}
           {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded p-2 leading-snug">{error}</p>}
 
           {/* Botones */}

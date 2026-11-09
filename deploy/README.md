@@ -14,8 +14,9 @@ los pasos en sí aplican igual a cualquier RHEL 9 compatible.
 > **Infraestructura de SEDATU (DGTIC):** el modelo que definió la DGTIC
 > (backend en contenedor con un solo puerto, frontend nativo, base de
 > datos y almacén provistos) está en la sección
-> [11. Modelo SEDATU](#11-modelo-sedatu-dgtic) al final de este
-> documento.
+> [11. Modelo SEDATU](#11-modelo-sedatu-dgtic), y los valores mínimos que
+> debe tener cualquier servidor intermedio (nginx institucional, F5) en
+> [12. Requisitos del servidor web intermedio](#12-requisitos-del-servidor-web-intermedio).
 
 ## 1. Requisitos
 
@@ -432,9 +433,11 @@ nginx de la institución. Lo que necesita:
    Server-Sent Events): `proxy_buffering off` y `proxy_read_timeout`
    largo. Sin esto la campana de notificaciones deja de actualizarse
    sola, sin ningún error visible (sección 8).
-4. **Subidas**: `client_max_body_size` igual a `UPLOAD_MAX_SIZE_MB`
-   (200 MB por omisión) y `proxy_request_buffering off`, para que
-   nginx no escriba primero su propia copia del archivo en disco.
+4. **Subidas**: `client_max_body_size` un poco mayor que
+   `UPLOAD_MAX_SIZE_MB` (210M para 200 MB: nginx mide el cuerpo completo,
+   el backend solo el archivo) y `proxy_request_buffering off`, para que
+   nginx no escriba primero su propia copia del archivo en disco. Valores
+   mínimos y qué falla sin ellos: sección 12.
 5. **Descargas y vistas previas**: `proxy_max_temp_file_size 0`, para
    que nginx no guarde en disco una copia de los archivos grandes que
    transmite el backend. nginx deja pasar `Range` sin configurar nada:
@@ -478,7 +481,8 @@ location /pspp/api/ {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
-    client_max_body_size 200M;      # = UPLOAD_MAX_SIZE_MB
+    client_max_body_size 210M;      # > UPLOAD_MAX_SIZE_MB (cuerpo completo, no solo el archivo)
+    client_body_timeout 60s;        # >= 60 s sin recibir nada antes de cortar
     proxy_request_buffering off;    # subidas: sin copia en disco de nginx
     proxy_max_temp_file_size 0;     # descargas: sin copia en disco de nginx
     proxy_read_timeout 300s;
@@ -611,3 +615,103 @@ Igual que en el VPS: si el cambio toca frontend y backend, actualizar
 los dos. A diferencia del VPS, aquí nginx habla con el backend por
 `127.0.0.1:PSPP_PUERTO` (un puerto fijo, no la IP interna de un
 contenedor), así que recrear el contenedor **no** exige reiniciar nginx.
+
+## 12. Requisitos del servidor web intermedio
+
+Una subida pasa por todas las capas que hay entre el navegador y el
+backend: en SEDATU, el F5, el nginx institucional y el contenedor. **La
+más restrictiva decide.** Si una capa intermedia tiene un límite menor que
+los de la plataforma, la subida falla en esa capa, aunque todo lo demás
+esté bien, y casi siempre con un error que no dice cuál capa fue.
+
+Esta sección es el contrato con quien opere esas capas. La plataforma no
+las controla.
+
+### 12.1 Los límites de la cadena
+
+| Capa | Límite | Valor | Dónde se configura |
+|---|---|---|---|
+| Navegador | Petición normal | 30 s | `VITE_TIEMPO_ESPERA_MS` (`frontend/src/api/limites.js`) |
+| Navegador | Operación de proceso (exportar, duplicar, importar) | 5 min | `VITE_TIEMPO_ESPERA_PROCESO_MS` |
+| Navegador | Subida o descarga grande: se cancela si **deja de avanzar** | 60 s sin avance | `VITE_TRANSFERENCIA_SIN_AVANCE_MS` |
+| Navegador | Subida o descarga grande: tope total | 60 min | `VITE_TIEMPO_MAXIMO_TRANSFERENCIA_MS` |
+| Navegador | Tamaño de archivo (rechazo antes de subir) | 200 MB | `VITE_UPLOAD_MAX_SIZE_MB` |
+| nginx | Tamaño del cuerpo completo | 210M | `client_max_body_size` |
+| nginx | Espera entre dos lecturas del cuerpo | 60 s | `client_body_timeout` |
+| nginx | Espera de respuesta del backend | 300 s | `proxy_read_timeout` |
+| nginx | Espera entre dos envíos al backend | 300 s | `proxy_send_timeout` |
+| nginx | Copia del cuerpo en disco | desactivada | `proxy_request_buffering off` |
+| nginx | Copia de la respuesta en disco | desactivada | `proxy_max_temp_file_size 0` |
+| Backend | Tamaño de archivo (evidencias, adjuntos, portada) | 200 MB | `UPLOAD_MAX_SIZE_MB` (multer, solo el archivo) |
+| Backend | Archivo del importador de Excel/CSV | 10 MB | fijo en `backend/src/routes/importar.routes.js` |
+| Backend | Cuerpo JSON | 10 MB | fijo en `backend/src/server.js` (`express.json`) |
+| Backend | Cuerpo de formulario urlencoded | 100 KB | valor por omisión de Express; la plataforma no lo usa para archivos |
+| Backend | Recepción completa de una petición | 60 min | `TIEMPO_MAXIMO_PETICION_SEGUNDOS` (Node trae 300 s) |
+| Backend | Recepción de cabeceras | 60 s | valor por omisión de Node (`headersTimeout`) |
+
+Por qué la cadena es coherente:
+
+- **Tamaño**: el navegador rechaza más de 200 MB antes de subir nada. El
+  backend acepta hasta 200 MB de archivo. nginx deja pasar 210M de cuerpo,
+  que es el archivo más el sobre multipart.
+- **Tiempo de una subida**: no hay un límite total corto en ninguna capa.
+  Lo que corta es la falta de avance: 60 s en el navegador y 60 s en
+  `client_body_timeout`. Un archivo grande en un enlace lento termina
+  mientras siga avanzando, hasta el tope de 60 min, que es igual en el
+  navegador y en el backend.
+- **Después de subir**: el backend guarda el archivo en el almacén y
+  contesta. nginx espera hasta 300 s (`proxy_read_timeout`).
+- **Proceso largo**: el navegador espera 5 min, lo mismo que
+  `proxy_read_timeout`. Esperar más en el navegador no sirve, porque nginx
+  ya habría contestado 504.
+
+> El nginx del VPS actual (`nginx/default.conf`, el de
+> `docker-compose.prod.yml`) usa 200M y deja la copia en disco activada
+> (el comportamiento por omisión). Funciona, porque nginx junta el
+> archivo completo antes de pasarlo al backend. Lo único que no cabe es
+> un archivo de entre ~199.9 y 200 MB.
+
+### 12.2 Requisitos mínimos para cualquier servidor intermedio
+
+Aplican a cada capa entre el navegador y el backend: nginx institucional,
+F5, WAF, balanceador. Son mínimos: un valor mayor está bien.
+
+| # | Requisito | Valor mínimo | Qué falla si no se cumple |
+|---|---|---|---|
+| 1 | Tamaño máximo del cuerpo de la petición en `/api/` (`client_max_body_size` en nginx; límite de petición o de carga en el F5 o WAF) | **210 MB** | Las subidas grandes se rechazan con **413** antes de llegar al backend. El usuario ve "El archivo excede el tamaño máximo que acepta el servidor" aunque el archivo esté por debajo de 200 MB. |
+| 2 | Espera sin recibir datos del cliente (`client_body_timeout`; *idle timeout* del perfil TCP/HTTP en el F5) | **60 s** | Con enlaces lentos o con pausas de red, la subida se corta a media transferencia (408 o conexión reiniciada). |
+| 3 | Espera de la respuesta del backend (`proxy_read_timeout`; *idle timeout* del lado servidor en el F5) | **300 s** | Exportar a Excel, duplicar un proyecto con archivos o confirmar una importación grande responden **504**. Las descargas grandes se cortan si el navegador del usuario lee despacio. |
+| 4 | Espera al enviar datos al backend (`proxy_send_timeout`) | **300 s** | Las subidas largas se cortan cuando el backend tarda en aceptar datos. |
+| 5 | **Duración total** de una petición, si la capa impone una | **60 min** | Cualquier subida que dure más que ese límite falla, por mucho que avance. Mejor no imponer duración total en `/api/`. |
+| 6 | No guardar en disco una copia del cuerpo de la petición (`proxy_request_buffering off`) | desactivado | Con poco disco, nginx llena `client_body_temp` con cada subida (hasta 200 MB por subida simultánea) y empieza a responder 500 a todo. Además, la subida se mide dos veces: primero del usuario a nginx y luego de nginx al backend. |
+| 7 | No guardar en disco una copia de la respuesta (`proxy_max_temp_file_size 0`) | desactivado | Mismo problema con las descargas y vistas previas de archivos grandes, en `proxy_temp`. |
+| 8 | Ruta de notificaciones `/api/v1/notificaciones/stream` sin buffer de respuesta (`proxy_buffering off`) y con espera larga (`proxy_read_timeout 24h`) | buffer desactivado, 24 h | La campana de notificaciones deja de actualizarse sola. No hay error visible (sección 8). |
+| 9 | Dejar pasar sin modificar la cabecera `Authorization`, la cabecera `Range`, la *query string* (`?boleto=`) y las respuestas `206` | sin cambios | Sin `Authorization`, toda la API responde 401. Sin `?boleto=`, las descargas dan 401. Sin `Range` o sin 206, la vista previa de archivos de texto (que pide solo los primeros 2 MB) baja el archivo completo o falla. |
+| 10 | No almacenar en caché respuestas de `/api/` | sin caché | Un usuario podría recibir datos o archivos de otro. Las respuestas de boleto ya llevan `Cache-Control: no-store`. |
+| 11 | No inspeccionar ni bloquear por contenido los `multipart/form-data` de `/api/` (reglas de WAF sobre cargas de archivos) | sin bloqueo | El WAF rechaza evidencias legítimas (audio, ZIP de capas geográficas, PDF) con un error genérico de la institución, no de la plataforma. Si es obligatorio inspeccionarlos, el límite de tamaño de esa inspección también debe ser ≥ 210 MB. |
+
+Si se cambia `UPLOAD_MAX_SIZE_MB`, mover junto con él
+`VITE_UPLOAD_MAX_SIZE_MB` (recompilando el frontend) y el requisito 1
+(`UPLOAD_MAX_SIZE_MB` + 10 MB). Si se cambia
+`TIEMPO_MAXIMO_PETICION_SEGUNDOS`, mover junto con él
+`VITE_TIEMPO_MAXIMO_TRANSFERENCIA_MS` y el requisito 5.
+
+### 12.3 Cómo se ve cada falla desde la plataforma
+
+El navegador traduce cada falla a un mensaje
+(`frontend/src/api/transferencias.js`), que se muestra en el propio
+formulario o en un aviso:
+
+| Mensaje que ve el usuario | Causa probable |
+|---|---|
+| "El archivo pesa más de 200 MB, el máximo permitido." | El archivo de verdad excede el límite. No se subió nada. |
+| "El archivo excede el tamaño máximo que acepta el servidor (200 MB)." | 413: alguna capa tiene menos que el requisito 1, o el archivo excede el límite del backend. |
+| "La transferencia dejó de avanzar durante más de 60 segundos…" | Red del usuario caída o muy degradada, o una capa intermedia retiene la petición sin pasarla. |
+| "El servidor cortó la petición porque tardó demasiado en llegar." | 408: requisitos 2 o 5, o `TIEMPO_MAXIMO_PETICION_SEGUNDOS`. |
+| "El servidor tardó demasiado en responder…" | 504: requisito 3. |
+| "Se perdió la conexión con el servidor…" | Conexión reiniciada a media petición: requisitos 2, 4 o 5 en un F5 o WAF que corta sin responder. |
+
+Para probar la cadena completa, sube desde el navegador una evidencia de
+unos 190 MB con la red limitada a ~2 Mbps (herramientas de desarrollo →
+Red → limitación personalizada). Tarda unos 13 minutos y debe terminar
+con la barra al 100 % y "Documento guardado".

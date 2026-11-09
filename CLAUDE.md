@@ -163,6 +163,16 @@ rebuild, solo restart si dependen de algo que cambió.
   por `BOLETO_ARCHIVO_TTL_SEGUNDOS`). En el frontend, `api/archivos.js`:
   vista previa con axios a Blob (URL `blob:` para el visor), descarga con
   boleto pedido al hacer clic (`hooks/useDescargaArchivo.js`).
+- **Límites de tiempo del cliente HTTP** (`frontend/src/api/limites.js`):
+  peticiones normales 30 s; operaciones de proceso (exportar, duplicar,
+  importar) con `conTiempoDeProceso()` 5 min; subidas y descargas grandes
+  con `transferir()`/`subirArchivo()` de `api/transferencias.js`, que NO
+  tienen límite total corto: se cancelan si dejan de avanzar 60 s (tope 60
+  min). Toda subida nueva debe ir por `subirArchivo` con `onProgreso` +
+  `<ProgresoSubida>` y mostrar el error con `mensajeDeError()`. Del lado
+  del servidor, `TIEMPO_MAXIMO_PETICION_SEGUNDOS` (Node corta a 300 s si
+  no). La tabla completa de la cadena y los requisitos para nginx/F5
+  intermedios: sección 12 de `deploy/README.md`.
 - **Despliegue SEDATU**: `deploy/docker-compose.sedatu.yml` +
   `backend/Dockerfile.sedatu` (solo backend, un puerto, BD y almacén
   externos, frontend nativo). Es independiente de

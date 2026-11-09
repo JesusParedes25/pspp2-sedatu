@@ -8,6 +8,7 @@
 import { useCallback, useState } from 'react';
 import * as archivosApi from '../api/archivos';
 import { useUI } from '../context/UIContext';
+import { mensajeDeError } from '../api/transferencias';
 
 export function useDescargaArchivo() {
   const { mostrarToast } = useUI();
@@ -23,7 +24,7 @@ export function useDescargaArchivo() {
       mostrarToast(
         estado === 403 ? 'No tienes acceso a este archivo.'
           : estado === 404 ? 'El archivo ya no está disponible.'
-            : 'No se pudo iniciar la descarga. Inténtalo de nuevo.',
+            : mensajeDeError(err, 'No se pudo iniciar la descarga. Inténtalo de nuevo.'),
         'error'
       );
     } finally {

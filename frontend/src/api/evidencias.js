@@ -9,9 +9,13 @@
  * este tipo de petición. axios detecta automáticamente FormData y
  * configura el Content-Type correcto. El archivo se envía como
  * campo "archivo" y los metadatos como campos adicionales del form.
+ * Las subidas van por subirArchivo (api/transferencias.js): sin el límite
+ * de 30 s de las peticiones normales, con avance (opciones.onProgreso) y
+ * detección de "dejó de avanzar".
  * ─────────────────────────────────────────────────────────────────
  */
 import client from './client';
+import { subirArchivo } from './transferencias';
 
 export async function obtenerEvidenciasAccion(accionId) {
   const { data } = await client.get(`/acciones/${accionId}/evidencias`);
@@ -23,14 +27,13 @@ export async function obtenerEvidenciasEtapa(etapaId) {
   return data;
 }
 
-export async function subirEvidenciaEtapa(etapaId, archivo, metadatos = {}) {
+export async function subirEvidenciaEtapa(etapaId, archivo, metadatos = {}, opciones = {}) {
   const formData = new FormData();
   formData.append('archivo', archivo);
   if (metadatos.categoria) formData.append('categoria', metadatos.categoria);
   if (metadatos.notas) formData.append('notas', metadatos.notas);
   if (metadatos.titulo) formData.append('titulo', metadatos.titulo);
-  const { data } = await client.post(`/etapas/${etapaId}/evidencias`, formData);
-  return data;
+  return subirArchivo(`/etapas/${etapaId}/evidencias`, formData, archivo, opciones);
 }
 
 export async function registrarLinkEtapa(etapaId, url, metadatos = {}) {
@@ -53,15 +56,14 @@ export async function obtenerEvidenciasProyecto(proyectoId) {
   return data;
 }
 
-export async function subirEvidenciaAccion(accionId, archivo, metadatos = {}) {
+export async function subirEvidenciaAccion(accionId, archivo, metadatos = {}, opciones = {}) {
   const formData = new FormData();
   formData.append('archivo', archivo);
   if (metadatos.categoria) formData.append('categoria', metadatos.categoria);
   if (metadatos.notas) formData.append('notas', metadatos.notas);
   if (metadatos.fecha_generacion) formData.append('fecha_generacion', metadatos.fecha_generacion);
   if (metadatos.titulo) formData.append('titulo', metadatos.titulo);
-  const { data } = await client.post(`/acciones/${accionId}/evidencias`, formData);
-  return data;
+  return subirArchivo(`/acciones/${accionId}/evidencias`, formData, archivo, opciones);
 }
 
 export async function registrarLinkAccion(accionId, url, metadatos = {}) {
@@ -74,14 +76,13 @@ export async function registrarLinkAccion(accionId, url, metadatos = {}) {
   return data;
 }
 
-export async function subirEvidenciaRiesgo(riesgoId, archivo, metadatos = {}) {
+export async function subirEvidenciaRiesgo(riesgoId, archivo, metadatos = {}, opciones = {}) {
   const formData = new FormData();
   formData.append('archivo', archivo);
   if (metadatos.categoria) formData.append('categoria', metadatos.categoria);
   if (metadatos.notas) formData.append('notas', metadatos.notas);
 
-  const { data } = await client.post(`/riesgos/${riesgoId}/evidencias`, formData);
-  return data;
+  return subirArchivo(`/riesgos/${riesgoId}/evidencias`, formData, archivo, opciones);
 }
 
 export async function obtenerEvidenciasSubaccion(subaccionId) {
@@ -89,14 +90,13 @@ export async function obtenerEvidenciasSubaccion(subaccionId) {
   return data;
 }
 
-export async function subirEvidenciaSubaccion(subaccionId, archivo, metadatos = {}) {
+export async function subirEvidenciaSubaccion(subaccionId, archivo, metadatos = {}, opciones = {}) {
   const formData = new FormData();
   formData.append('archivo', archivo);
   if (metadatos.categoria) formData.append('categoria', metadatos.categoria);
   if (metadatos.notas) formData.append('notas', metadatos.notas);
 
-  const { data } = await client.post(`/subacciones/${subaccionId}/evidencias`, formData);
-  return data;
+  return subirArchivo(`/subacciones/${subaccionId}/evidencias`, formData, archivo, opciones);
 }
 
 // Pestaña "Documentos" de Detalle (Fase 4) — agrega documentos del nodo y,

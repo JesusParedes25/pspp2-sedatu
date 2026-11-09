@@ -21,6 +21,7 @@ import * as importarApi from '../../api/importar';
 import { exportarProyecto } from '../../api/proyectos';
 import { generarReportePDF } from '../../utils/generarReportePDF';
 import { useUI } from '../../context/UIContext';
+import { mensajeDeError } from '../../api/transferencias';
 
 function formatoFecha(iso) {
   if (!iso) return '-';
@@ -91,7 +92,7 @@ export default function MenuDatosReportes({ proyectoId, proyecto, onAbrirImporta
       await exportarProyecto(proyectoId, formato);
     } catch (err) {
       console.error('Error exportando proyecto:', err);
-      mostrarToast('No se pudo generar el archivo de exportación', 'error');
+      mostrarToast(`No se pudo generar el archivo de exportación. ${mensajeDeError(err, '')}`.trim(), 'error');
     } finally {
       setExportando(false);
     }

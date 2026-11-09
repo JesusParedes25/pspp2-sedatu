@@ -95,6 +95,12 @@ app.get('/health', (req, res) => {
 // ─── Manejo centralizado de errores ────────────────────────────
 app.use(errorHandler);
 
+// Ver servidor.requestTimeout en iniciar(). Inválido o vacío → 3600.
+const TIEMPO_MAXIMO_PETICION_SEGUNDOS = (() => {
+  const n = Number.parseInt(process.env.TIEMPO_MAXIMO_PETICION_SEGUNDOS, 10);
+  return Number.isFinite(n) && n > 0 ? n : 3600;
+})();
+
 // ─── Inicializar BD y levantar servidor ──────────────────────
 async function iniciar() {
   try {
@@ -144,10 +150,22 @@ async function iniciar() {
   iniciarPurgaAutomatica();
   iniciarAlertasAutomaticas();
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const servidor = app.listen(PORT, '0.0.0.0', () => {
     console.log(`✓ PSPP Backend corriendo en puerto ${PORT}`);
     console.log(`  Entorno: ${process.env.NODE_ENV || 'development'}`);
   });
+
+  // Tiempo máximo para RECIBIR una petición completa (cabeceras + cuerpo).
+  // Node 18+ trae 300 s por omisión y corta con 408 después. Con nginx en
+  // modo `proxy_request_buffering off` (deploy/nginx/pspp.conf y el nginx
+  // institucional de SEDATU) el cuerpo llega al ritmo del usuario, así que
+  // una subida de 200 MB por un enlace lento rebasaba esos 300 s y moría
+  // aquí aunque todo lo demás de la cadena la aceptara. Se alinea con el
+  // tope de transferencia del frontend (VITE_TIEMPO_MAXIMO_TRANSFERENCIA_MS,
+  // 60 min). Las cabeceras siguen limitadas a 60 s (headersTimeout), que
+  // es lo que protege contra conexiones que nunca terminan de presentarse.
+  servidor.requestTimeout = TIEMPO_MAXIMO_PETICION_SEGUNDOS * 1000;
+
 }
 
 iniciar();

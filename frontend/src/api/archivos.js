@@ -28,6 +28,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import client from './client';
+import { transferir } from './transferencias';
 
 const RUTA_POR_TIPO = { evidencia: 'evidencias', actividad: 'actividad' };
 
@@ -52,16 +53,16 @@ export async function obtenerUrlConBoleto(fuente, accion) {
  * (AbortController) y rango son opcionales.
  */
 export async function obtenerContenido(fuente, { onProgreso, signal, rango } = {}) {
-  const { data } = await client.get(`${rutaBase(fuente)}/ver`, {
+  // transferir(): un PDF o audio grande por un enlace lento tarda más de
+  // los 30 s de una petición normal; aquí solo falla si deja de avanzar.
+  const { data } = await transferir({
+    method: 'get',
+    url: `${rutaBase(fuente)}/ver`,
     responseType: 'blob',
-    signal,
     // rango: [inicio, fin] en bytes, inclusivo. El backend responde 206 con
     // solo ese tramo (o 200 completo si el archivo es más chico).
     headers: rango ? { Range: `bytes=${rango[0]}-${rango[1]}` } : undefined,
-    onDownloadProgress: onProgreso
-      ? (e) => onProgreso(e.total ? e.loaded / e.total : null)
-      : undefined,
-  });
+  }, { direccion: 'bajada', onProgreso, signal });
   return data;
 }
 
