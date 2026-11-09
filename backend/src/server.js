@@ -28,6 +28,7 @@ const asegurarCatalogoIndicadoresV1 = require('./db/seeders/00_catalogo_indicado
 const { iniciarPurgaAutomatica } = require('./utils/purgarProyectos');
 const { iniciarAlertasAutomaticas } = require('./utils/alertasVencimiento');
 const { verificarDirectorioSubidas, iniciarBarridoTemporales, DIRECTORIO_TEMPORAL } = require('./middleware/subidaArchivo.middleware');
+const { variablesObligatoriasFaltantes } = require('./utils/configuracion');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -103,6 +104,12 @@ const TIEMPO_MAXIMO_PETICION_SEGUNDOS = (() => {
 
 // ─── Inicializar BD y levantar servidor ──────────────────────
 async function iniciar() {
+  const faltantes = variablesObligatoriasFaltantes();
+  if (faltantes.length) {
+    console.error(`✗ Faltan variables de entorno obligatorias: ${faltantes.join(', ')}. Ver .env.example o deploy/pspp.env.example.`);
+    process.exit(1);
+  }
+
   try {
     verificarDirectorioSubidas();
     // Borra temporales que haya dejado un proceso anterior muerto a la

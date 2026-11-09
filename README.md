@@ -69,17 +69,28 @@ tocarlas después de que `dist/` ya existe no tiene ningún efecto).
 
 ### Ejecución del backend
 
+El `.env` de la raíz solo lo lee Docker Compose: una variable de esta
+tabla llega al backend en el VPS **solo si `docker-compose.prod.yml` la
+pasa**. Las que ese compose no pasa (`UPLOAD_TMP_DIR`,
+`UPLOAD_MAX_SIZE_MB`, `MINIO_PREFIX`, `BOLETO_ARCHIVO_TTL_SEGUNDOS`,
+`TIEMPO_MAXIMO_PETICION_SEGUNDOS`, `SUPERADMIN_NOMBRE`) rigen ahí con su
+valor por omisión. Cada línea de `.env.example` dice cuál es su caso.
+
 | Variable           | Descripción                                    | Obligatoria |
 |--------------------|------------------------------------------------|:-----------:|
+| `DB_HOST`          | Host de PostgreSQL. En Docker lo fija el compose (`postgres`) | ✅ (nativo) |
 | `DB_NAME`          | Nombre de la base de datos PostgreSQL          | ✅          |
 | `DB_USER`          | Usuario de PostgreSQL                          | ✅          |
 | `DB_PASSWORD`      | Contraseña de PostgreSQL                       | ✅          |
 | `DB_PORT`          | Puerto interno de PostgreSQL (normalmente `5432`) | ✅       |
-| `JWT_SECRET`       | Secreto para firmar tokens JWT (mín. 64 chars) | ✅          |
+| `JWT_SECRET`       | Secreto para firmar tokens JWT (mín. 64 chars). También firma, por derivación, los boletos de descarga. Sin él el backend no arranca | ✅          |
 | `JWT_EXPIRES_IN`   | Duración de la sesión (ej: `48h`). Si no se define, el backend usa `48h` por omisión | ❌ |
 | `BOLETO_ARCHIVO_TTL_SEGUNDOS` | Vigencia en segundos del boleto efímero para descargar un archivo (el token de sesión no va en URLs). Por omisión `60`, tope `900` | ❌ |
 | `SUPERADMIN_EMAIL` | Correo de la cuenta de superadministrador      | ✅          |
+| `SUPERADMIN_NOMBRE` | Nombre visible de esa cuenta. Por omisión `Usuario Administrador`. `docker-compose.prod.yml` no la pasa | ❌ |
 | `PASSWORD_USER`    | Contraseña de esa cuenta. **Se reaplica en cada arranque** | ✅ |
+| `MINIO_ENDPOINT`   | Host del almacén. Por omisión `minio`; en Docker lo fija el compose | ✅ (nativo) |
+| `MINIO_USE_SSL`    | `true` para hablar con el almacén por HTTPS; cualquier otro valor es HTTP. En Docker lo fija el compose (`false`) | ❌ |
 | `MINIO_USER`       | Usuario administrador de MinIO                 | ✅          |
 | `MINIO_PASSWORD`   | Contraseña de MinIO                            | ✅          |
 | `MINIO_BUCKET`     | Nombre del bucket para evidencias              | ✅          |
@@ -89,12 +100,15 @@ tocarlas después de que `dist/` ya existe no tiene ningún efecto).
 | `UPLOAD_MAX_SIZE_MB` | Tamaño máximo por archivo, en MB, para evidencias/imagen de proyecto/shapefile. Si no se define, el backend usa `200` | ❌ |
 | `TIEMPO_MAXIMO_PETICION_SEGUNDOS` | Tiempo máximo para que el backend reciba una petición completa (subidas lentas). Por omisión `3600`; Node trae 300 | ❌ |
 | `FRONTEND_URL`     | URL pública del frontend. Controla la lista blanca de CORS y las ligas de activación/invitación | ✅          |
+| `NODE_ENV`         | `production` apaga los datos de demostración. En Docker lo fija el compose | ✅ (nativo) |
+| `PORT`             | Puerto del backend. Por omisión `3000`; en Docker lo fija el compose | ❌ |
 
 ### Compilación del frontend
 
 | Variable              | Descripción                                 | Obligatoria |
 |------------------------|----------------------------------------------|:-----------:|
 | `VITE_API_URL`         | A dónde apunta el frontend compilado para llamar a la API. Por omisión, `/api/v1` (ruta relativa: el mismo build sirve para cualquier dominio) | ❌ |
+| `VITE_BASE_PATH`       | Ruta base donde se publica el frontend (`/pspp/`). Por omisión `/` | ❌ |
 | `VITE_CARTO_API_KEY`   | Llave del proveedor de mapas base (CARTO). Si falta, el mapa base no carga, el resto de la plataforma funciona igual | ❌ |
 | `VITE_TIEMPO_ESPERA_MS` / `VITE_TIEMPO_ESPERA_PROCESO_MS` / `VITE_TRANSFERENCIA_SIN_AVANCE_MS` / `VITE_TIEMPO_MAXIMO_TRANSFERENCIA_MS` / `VITE_UPLOAD_MAX_SIZE_MB` | Límites del cliente HTTP (30 s normal, 5 min proceso, 60 s sin avance, 60 min tope, 200 MB). Ver `deploy/README.md`, sección 12 | ❌ |
 

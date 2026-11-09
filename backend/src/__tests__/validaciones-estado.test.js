@@ -32,6 +32,7 @@ const mockRows = (rows) => ({ rows });
 const mockCount = (n) => ({ rows: [{ count: String(n) }] });
 const UUID_1 = '00000000-0000-0000-0000-000000000001';
 const UUID_2 = '00000000-0000-0000-0000-000000000002';
+const UUID_3 = '00000000-0000-0000-0000-000000000003';
 const UUID_USR = '00000000-0000-0000-0000-00000000000a';
 const UUID_AUD = '00000000-0000-0000-0000-00000000000b';
 
@@ -287,14 +288,47 @@ describe('cambiarEstado — cascada cancelación', () => {
     mockQuery.mockResolvedValueOnce(mockRows([]));
     // registrarAuditoria del hijo
     mockQuery.mockResolvedValueOnce(mockRows([{ id: 'aud-hijo' }]));
-    // cascada recursiva del hijo (Accion → Subaccion): obtener subacciones
+    // cascada recursiva del hijo. Una Acción tiene DOS tipos de hijos
+    // (MAPA_ENTIDAD.Accion): subacciones y tareas. Esta prueba se escribió
+    // cuando solo existían las subacciones y no simulaba la consulta de
+    // tareas, que se agregó después (567d035) para que cancelar una acción
+    // cancele también sus tareas; por eso fallaba con "reading 'rows'".
+    // 1) subacciones de la acción hija:
     mockQuery.mockResolvedValueOnce(mockRows([])); // sin subacciones
+    // 2) tareas de la acción hija:
+    mockQuery.mockResolvedValueOnce(mockRows([
+      { id: UUID_3, nombre: 'Tarea nieta', estado: 'En_proceso' }
+    ]));
+    // UPDATE tareas batch
+    mockQuery.mockResolvedValueOnce(mockRows([]));
+    // UPDATE bloqueos batch (de las tareas)
+    mockQuery.mockResolvedValueOnce(mockRows([]));
+    // registrarAuditoria de la tarea (Tarea no tiene hijos: no hay más consultas)
+    mockQuery.mockResolvedValueOnce(mockRows([{ id: 'aud-nieta' }]));
 
     const result = await cambiarEstado('Etapa', UUID_1, 'Cancelada', {
       idUsuario: UUID_USR
     });
 
     expect(result.estadoNuevo).toBe('Cancelada');
+
+    // La cascada llega hasta las tareas de las acciones de la etapa.
+    const updateTareas = mockQuery.mock.calls.find(call =>
+      typeof call[0] === 'string' &&
+      call[0].includes('UPDATE tareas') &&
+      call[0].includes("SET estado = 'Cancelada'")
+    );
+    expect(updateTareas).toBeDefined();
+    expect(updateTareas[1]).toEqual([[UUID_3]]);
+    // Y la auditoría de la tarea también apunta al evento raíz.
+    const auditTarea = mockQuery.mock.calls.find(call =>
+      typeof call[0] === 'string' &&
+      call[0].includes('INSERT INTO auditoria') &&
+      call[1] && call[1][0] === 'tareas' && call[1][1] === UUID_3
+    );
+    expect(auditTarea[1][5]).toBe(UUID_AUD);
+    // Exactamente las consultas esperadas: ninguna quedó sin simular.
+    expect(mockQuery).toHaveBeenCalledTimes(12);
 
     // Verify batch UPDATE acciones SET estado = 'Cancelada'
     const updateCall = mockQuery.mock.calls.find(call =>
@@ -439,6 +473,12 @@ describe('cambiarEstado — reactivación', () => {
     }]));
     // validarReactivacion: obtenerEntidad del padre (etapa)
     mockQuery.mockResolvedValueOnce(mockRows([{ id: UUID_2, estado: 'En_proceso' }]));
+    // Llevar un nodo a Pendiente revisa si es hoja para fijar su avance en 0
+    // (c832415: "al llevar un nodo hoja a Completada/Pendiente, también fija
+    // avance_actual 100/0"). Esta prueba es anterior a esa regla y no
+    // simulaba esa consulta, así que el UPDATE recibía la respuesta del
+    // conteo y fallaba con "reading 'c'". Aquí: acción sin hijos (hoja).
+    mockQuery.mockResolvedValueOnce(mockRows([{ c: 0 }]));
     // UPDATE estado
     mockQuery.mockResolvedValueOnce(mockRows([]));
     // registrarAuditoria
@@ -449,6 +489,33 @@ describe('cambiarEstado — reactivación', () => {
     });
     expect(result.estadoAnterior).toBe('Cancelada');
     expect(result.estadoNuevo).toBe('Pendiente');
+
+    // Hoja reactivada a Pendiente: avance a 0 con override, igual que
+    // cualquier otra transición a Pendiente.
+    const update = mockQuery.mock.calls.find(call =>
+      typeof call[0] === 'string' && call[0].startsWith('UPDATE acciones SET estado')
+    );
+    expect(update[0]).toContain('avance_actual = 0, avance_override = TRUE, porcentaje_avance = 0');
+    expect(update[1]).toEqual(['Pendiente', UUID_1]);
+    expect(mockQuery).toHaveBeenCalledTimes(5);
+  });
+
+  test('reactivar una acción CONTENEDOR a Pendiente no toca su avance (lo calculan los hijos)', async () => {
+    mockQuery.mockResolvedValueOnce(mockRows([{
+      id: UUID_1, estado: 'Cancelada',
+      id_etapa: UUID_2, id_proyecto: null, id_accion_padre: null
+    }]));
+    mockQuery.mockResolvedValueOnce(mockRows([{ id: UUID_2, estado: 'En_proceso' }]));
+    mockQuery.mockResolvedValueOnce(mockRows([{ c: 3 }])); // tiene hijos
+    mockQuery.mockResolvedValueOnce(mockRows([]));
+    mockQuery.mockResolvedValueOnce(mockRows([{ id: UUID_AUD }]));
+
+    await cambiarEstado('Accion', UUID_1, 'Pendiente', { idUsuario: UUID_USR });
+
+    const update = mockQuery.mock.calls.find(call =>
+      typeof call[0] === 'string' && call[0].startsWith('UPDATE acciones SET estado')
+    );
+    expect(update[0]).not.toContain('avance_actual');
   });
 
   test('rechaza reactivación si padre está cancelado', async () => {
