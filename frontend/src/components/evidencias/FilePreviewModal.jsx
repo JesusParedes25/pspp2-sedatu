@@ -10,10 +10,13 @@ import { createPortal } from 'react-dom';
 import { FileText, X, Upload, Loader2, AlertTriangle, Link2 } from 'lucide-react';
 import * as evidenciasApi from '../../api/evidencias';
 
-// urlOverride: para evidencias que no viven en la tabla `evidencias` (p. ej.
-// adjuntos de tarea, que usan el stream `actividad`) — evita que este
-// componente asuma siempre evidenciasApi.obtenerUrlDescarga(evidencia.id).
-export default function FilePreviewModal({ evidencia, onClose, urlOverride }) {
+// urlOverride / urlDescargaOverride: para evidencias que no viven en la
+// tabla `evidencias` (p. ej. adjuntos de tarea, que usan el stream
+// `actividad`), para que este componente no asuma siempre los endpoints de
+// evidencias. urlOverride es la URL de VISTA (inline: la que se incrusta en
+// el iframe/img/audio y la que se lee para las capas geográficas);
+// urlDescargaOverride la del botón "Descargar" (attachment).
+export default function FilePreviewModal({ evidencia, onClose, urlOverride, urlDescargaOverride }) {
   const [geoData, setGeoData] = useState(null);
   const [geoError, setGeoError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -26,7 +29,8 @@ export default function FilePreviewModal({ evidencia, onClose, urlOverride }) {
   const esLink = evidencia.tipo_medio === 'link' && !!evidencia.url;
   const nombre = evidencia.titulo || evidencia.nombre_original || evidencia.nombre_archivo || (esLink ? evidencia.url : '');
   const ext = esLink ? '' : nombre.split('.').pop().toLowerCase();
-  const url = esLink ? evidencia.url : (urlOverride || evidenciasApi.obtenerUrlDescarga(evidencia.id));
+  const url = esLink ? evidencia.url : (urlOverride || evidenciasApi.obtenerUrlVista(evidencia.id));
+  const urlDescarga = esLink ? evidencia.url : (urlDescargaOverride || evidenciasApi.obtenerUrlDescarga(evidencia.id));
 
   const esPdf = !esLink && ext === 'pdf';
   const esImagen = !esLink && ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
@@ -96,7 +100,7 @@ export default function FilePreviewModal({ evidencia, onClose, urlOverride }) {
             <span className="text-sm font-semibold text-gray-800 truncate">{nombre}</span>
           </div>
           <div className="flex items-center gap-2">
-            <a href={url} target="_blank" rel="noreferrer"
+            <a href={urlDescarga} target="_blank" rel="noreferrer"
               className="flex items-center gap-1 px-2.5 py-1 text-[10px] bg-[#7B1C3E] text-white rounded hover:bg-[#5a1430]">
               {esLink ? <Link2 size={10} /> : <Upload size={10} className="rotate-180" />}
               {esLink ? 'Abrir enlace' : 'Descargar'}
@@ -134,7 +138,7 @@ export default function FilePreviewModal({ evidencia, onClose, urlOverride }) {
             <div className="flex flex-col items-center justify-center h-64 gap-2">
               <AlertTriangle size={20} className="text-amber-500" />
               <p className="text-sm text-gray-500">{geoError}</p>
-              <a href={url} target="_blank" rel="noreferrer" className="text-xs text-[#7B1C3E] underline">Descargar archivo</a>
+              <a href={urlDescarga} target="_blank" rel="noreferrer" className="text-xs text-[#7B1C3E] underline">Descargar archivo</a>
             </div>
           )}
           {(esKml || esShp) && geoData && !loading && !geoError && (
@@ -152,7 +156,7 @@ export default function FilePreviewModal({ evidencia, onClose, urlOverride }) {
             <div className="flex flex-col items-center justify-center h-64 gap-3">
               <FileText size={40} className="text-gray-300" />
               <p className="text-sm text-gray-500">Vista previa no disponible para este tipo de archivo.</p>
-              <a href={url} target="_blank" rel="noreferrer"
+              <a href={urlDescarga} target="_blank" rel="noreferrer"
                 className="flex items-center gap-1 px-4 py-2 bg-[#7B1C3E] text-white text-sm rounded-lg hover:bg-[#5a1430]">
                 <Upload size={14} className="rotate-180" /> Descargar archivo
               </a>

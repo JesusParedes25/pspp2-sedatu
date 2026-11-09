@@ -167,4 +167,15 @@ async function crearActividad({ tipoNodo, idNodo, tipoEvento, idUsuario, conteni
   return rows[0];
 }
 
-module.exports = { resolverContextoNodo, obtenerActividadNodo, crearActividad };
+// Solo lo necesario para transmitir el adjunto de una entrada (ver
+// actividadController.ver/descargar). metadata va porque distingue una liga
+// externa (tipo_medio = 'link') de una clave del almacén.
+async function obtenerAdjuntoActividad(id) {
+  const { rows } = await pool.query(
+    'SELECT archivo_url, archivo_nombre, metadata FROM actividad WHERE id = $1',
+    [id]
+  );
+  return rows[0] || null;
+}
+
+module.exports = { resolverContextoNodo, obtenerActividadNodo, crearActividad, obtenerAdjuntoActividad };

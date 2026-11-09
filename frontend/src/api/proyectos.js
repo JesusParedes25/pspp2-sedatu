@@ -129,6 +129,17 @@ export async function obtenerPortadaResumen(id) {
   return data.datos;
 }
 
+// URL de la portada de un proyecto, o null si no tiene. El backend manda
+// `imagen_url` como "/api/v1/proyectos/:id/imagen" (ruta fija), que solo
+// sirve si la API vive en /api/v1 de la raíz del dominio. Se arma aquí
+// contra la misma base que usa el resto de las llamadas (VITE_API_URL),
+// para que funcione igual si la institución publica la API bajo otro
+// prefijo (p. ej. /pspp/api/v1). La imagen siempre pasa por el backend.
+export function urlImagenProyecto(proyecto) {
+  if (!proyecto?.imagen_url || !proyecto.id) return null;
+  return `${client.defaults.baseURL}/proyectos/${proyecto.id}/imagen`;
+}
+
 export async function subirImagenProyecto(id, archivo) {
   const formData = new FormData();
   formData.append('imagen', archivo);

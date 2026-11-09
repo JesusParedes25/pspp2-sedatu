@@ -1,0 +1,122 @@
+# ARCHIVO: deploy/docker-compose.sedatu.yml
+# PROPÓSITO: Despliegue de PSPP v2.0 en la infraestructura de SEDATU, con el
+#            modelo que definió la DGTIC en la reunión de transferencia.
+#
+# Archivo NUEVO e independiente. No reemplaza ni modifica a
+# docker-compose.prod.yml (el del VPS actual, que trae su propio Postgres,
+# MinIO y nginx); los dos conviven en el repositorio.
+#
+# Modelo:
+#   - Un solo servicio: el backend. Nada más se declara aquí.
+#   - Un solo puerto publicado en el servidor: PSPP_PUERTO, el que asigne
+#     la DGTIC. Nada más se expone.
+#   - Base de datos (PostgreSQL + PostGIS) y almacén de objetos
+#     (S3-compatible) son EXTERNOS, los provee la DGTIC. El backend llega a
+#     ellos por las variables DB_* y MINIO_*.
+#   - El frontend NO va en el contenedor: se compila (npm run build) y se
+#     sirve de forma nativa con el nginx de la institución, que además hace
+#     de proxy hacia PSPP_PUERTO. Ver deploy/README.md, sección "Modelo
+#     SEDATU".
+#   - Todas las variables vienen del entorno. Este archivo no contiene
+#     ningún valor sensible: las obligatorias usan ${VAR:?}, así que si
+#     falta una, compose se niega a arrancar y dice cuál.
+#
+# Uso (variables en un archivo fuera del repositorio, p. ej.
+# /etc/pspp/pspp-sedatu.env, a partir de deploy/pspp-sedatu.env.example):
+#
+#   docker compose -f deploy/docker-compose.sedatu.yml --env-file /etc/pspp/pspp-sedatu.env build
+#   docker compose -f deploy/docker-compose.sedatu.yml --env-file /etc/pspp/pspp-sedatu.env up -d
+#
+# Para tener QA y producción en el mismo servidor, cada uno con su propio
+# archivo de variables (puerto y MINIO_PREFIX distintos) y su propio
+# nombre de proyecto: `-p pspp-qa` / `-p pspp-prod`.
+
+name: pspp-sedatu
+
+services:
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.sedatu
+    image: ${PSPP_IMAGEN:-pspp-backend:sedatu}
+    restart: unless-stopped
+    # init como PID 1: reenvía SIGTERM a node y recoge procesos huérfanos.
+    init: true
+
+    # El ÚNICO puerto publicado. Por omisión solo en 127.0.0.1: el nginx de
+    # la institución corre en el mismo servidor y nadie más debe poder
+    # hablarle al backend sin pasar por él. Si su nginx estuviera en otro
+    # equipo, PSPP_BIND_IP=0.0.0.0 (o la IP de la interfaz interna).
+    ports:
+      - "${PSPP_BIND_IP:-127.0.0.1}:${PSPP_PUERTO:?Defina PSPP_PUERTO (puerto asignado por la DGTIC)}:3000"
+
+    environment:
+      NODE_ENV: production
+      # Puerto interno del contenedor; el publicado es PSPP_PUERTO.
+      PORT: "3000"
+
+      # ─── Base de datos (externa, provista por la DGTIC) ───────────
+      DB_HOST: ${DB_HOST:?Defina DB_HOST}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:?Defina DB_NAME}
+      DB_USER: ${DB_USER:?Defina DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD:?Defina DB_PASSWORD}
+
+      # ─── Sesión ───────────────────────────────────────────────────
+      JWT_SECRET: ${JWT_SECRET:?Defina JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-48h}
+
+      # ─── Almacén de objetos (externo, S3-compatible) ──────────────
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:?Defina MINIO_ENDPOINT}
+      MINIO_PORT: ${MINIO_PORT:-9000}
+      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+      MINIO_USER: ${MINIO_USER:?Defina MINIO_USER}
+      MINIO_PASSWORD: ${MINIO_PASSWORD:?Defina MINIO_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET:?Defina MINIO_BUCKET (el bucket asignado por la DGTIC)}
+      # Separa QA de producción dentro del mismo bucket (p. ej. "qa",
+      # "prod"). Vacío = sin prefijo.
+      MINIO_PREFIX: ${MINIO_PREFIX:-}
+
+      # ─── Frontend (CORS y ligas de activación/invitación) ─────────
+      FRONTEND_URL: ${FRONTEND_URL:?Defina FRONTEND_URL (URL pública del frontend, con protocolo)}
+
+      # ─── Subidas ──────────────────────────────────────────────────
+      UPLOAD_MAX_SIZE_MB: ${UPLOAD_MAX_SIZE_MB:-200}
+      # Dentro del contenedor; el backend borra cada temporal al terminar
+      # la petición (éxito, error o conexión cortada) y barre huérfanos.
+      UPLOAD_TMP_DIR: /tmp/pspp-uploads
+
+      # ─── Superadministrador (se asegura en cada arranque) ─────────
+      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-}
+      SUPERADMIN_NOMBRE: ${SUPERADMIN_NOMBRE:-}
+      PASSWORD_USER: ${PASSWORD_USER:-}
+
+    # Permite usar DB_HOST/MINIO_ENDPOINT=host.docker.internal cuando el
+    # servicio de la DGTIC escucha en el propio servidor (desde dentro del
+    # contenedor, 127.0.0.1 es el contenedor, no el servidor).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    healthcheck:
+      test: ["CMD", "node", "-e", "const r=require('http').get({host:'127.0.0.1',port:3000,path:'/health',timeout:4000},s=>process.exit(s.statusCode===200?0:1));r.on('error',()=>process.exit(1));r.on('timeout',()=>{r.destroy();process.exit(1);});"]
+      interval: 30s
+      timeout: 5s
+      start_period: 90s
+      retries: 3
+
+    # El proceso ya corre como `node` (Dockerfile.sedatu). Además: sin
+    # capacidades de Linux (escucha en 3000, no necesita ninguna) y sin
+    # posibilidad de ganar privilegios.
+    user: "node"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+    # Servidor con poco disco: los logs del contenedor rotan y no crecen
+    # sin límite (3 × 10 MB como máximo).
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

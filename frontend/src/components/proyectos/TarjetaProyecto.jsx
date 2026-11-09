@@ -15,6 +15,7 @@ import { Link } from 'react-router-dom';
 import EstadoChip from '../common/EstadoChip';
 import ChipFuncion from './ChipFuncion';
 import BarraProgreso from '../common/BarraProgreso';
+import { urlImagenProyecto } from '../../api/proyectos';
 import { Star, AlertTriangle, Building2, Map, FileText, Landmark, Wrench, Briefcase } from 'lucide-react';
 
 // Gradientes y íconos por tipo de proyecto (para cuando no hay imagen)
@@ -41,7 +42,7 @@ export default function TarjetaProyecto({ proyecto }) {
       {/* Imagen representativa o gradiente */}
       <div className={`h-24 relative bg-gradient-to-br ${estilo.gradiente}`}>
         {proyecto.imagen_url ? (
-          <img src={proyecto.imagen_url} alt="" className="w-full h-full object-cover" />
+          <img src={urlImagenProyecto(proyecto)} alt="" className="w-full h-full object-cover" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center opacity-20">
             <IconoTipo size={48} className="text-white" />

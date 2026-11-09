@@ -1,0 +1,11 @@
+# Exclusiones del contexto de construcción SOLO para Dockerfile.sedatu
+# (BuildKit usa <Dockerfile>.dockerignore cuando existe junto al
+# Dockerfile). No afecta a backend/Dockerfile ni a docker-compose.prod.yml.
+node_modules
+npm-debug.log
+.env
+.env.*
+test
+src/__tests__
+coverage
+*.log

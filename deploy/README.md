@@ -11,6 +11,12 @@ Este ejercicio se hizo y se probó de punta a punta en Rocky Linux 9.
 Los comandos específicos de paquetes asumen esa distribución (dnf);
 los pasos en sí aplican igual a cualquier RHEL 9 compatible.
 
+> **Infraestructura de SEDATU (DGTIC):** el modelo que definió la DGTIC
+> (backend en contenedor con un solo puerto, frontend nativo, base de
+> datos y almacén provistos) está en la sección
+> [11. Modelo SEDATU](#11-modelo-sedatu-dgtic) al final de este
+> documento.
+
 ## 1. Requisitos
 
 - **PostgreSQL 15** con **PostGIS 3.3** (o compatible).
@@ -131,7 +137,7 @@ chmod 640 /etc/pspp/pspp.env
 # Editar /etc/pspp/pspp.env con los valores reales
 ```
 
-Ver `deploy/pspp.env.example` para el detalle de cada una de las 21
+Ver `deploy/pspp.env.example` para el detalle de cada una de las 22
 variables que el backend lee, cuáles son obligatorias, y las dos
 advertencias importantes (`FRONTEND_URL` controla CORS;
 `UPLOAD_MAX_SIZE_MB` tiene que coincidir con `client_max_body_size` de
@@ -275,3 +281,309 @@ Si el paso 3 da 502: revisar que `PORT` en `/etc/pspp/pspp.env` sea
 `3100` (tiene que coincidir con `proxy_pass` de `pspp.conf`) y que
 `pspp-backend` esté activo. Si da 403 en el paso 2: revisar SELinux
 (punto 8).
+
+## 11. Modelo SEDATU (DGTIC)
+
+Modelo de despliegue acordado con la DGTIC en la reunión de
+transferencia. Comparte código con los otros dos caminos (Docker en el
+VPS con `docker-compose.prod.yml`, y nativo con systemd, secciones 1 a
+10); lo que cambia es qué pieza corre dónde:
+
+```
+                navegador
+                    │  HTTPS
+                    ▼
+   ┌──────────────────────────────────────┐
+   │ nginx institucional (DGTIC)          │
+   │  /pspp/       → frontend/dist (disco)│
+   │  /pspp/api/   → 127.0.0.1:PSPP_PUERTO│
+   └───────────────┬──────────────────────┘
+                   │ HTTP, solo local
+                   ▼
+   ┌──────────────────────────────────────┐
+   │ contenedor "backend"                 │
+   │  (deploy/docker-compose.sedatu.yml)  │
+   │  usuario sin privilegios, puerto 3000│
+   └──────┬────────────────────┬──────────┘
+          │                    │
+          ▼                    ▼
+   PostgreSQL + PostGIS   almacén S3 (interno,
+   (DGTIC)                no publicado; DGTIC)
+```
+
+| Pieza | Quién la provee | Cómo |
+|---|---|---|
+| Backend | PSPP | Imagen de `backend/Dockerfile.sedatu`, un solo servicio en `deploy/docker-compose.sedatu.yml` |
+| Frontend | PSPP (código) / DGTIC (servidor) | `npm run build` en el servidor; nginx sirve `frontend/dist` de forma nativa. No va en ningún contenedor |
+| Base de datos | DGTIC | PostgreSQL 15 + PostGIS 3.3 (ver sección 2). No se declara en el compose |
+| Almacén de objetos | DGTIC | Un bucket S3-compatible por proyecto; QA y producción separados con `MINIO_PREFIX`. No se declara en el compose ni se publica |
+| nginx / TLS | DGTIC | Ver 11.5 |
+
+### 11.1 Archivos del modelo
+
+- `deploy/docker-compose.sedatu.yml`: el compose. Un servicio
+  (`backend`), un puerto publicado (`PSPP_PUERTO`, por omisión solo en
+  `127.0.0.1`), healthcheck, `init`, sin capacidades de Linux,
+  `no-new-privileges`, logs rotados (máximo 30 MB). Ninguna credencial:
+  todo sale del entorno, y si falta una variable obligatoria compose se
+  niega a arrancar diciendo cuál.
+- `backend/Dockerfile.sedatu`: imagen de producción. Node 22, solo
+  dependencias de producción, el proceso corre como el usuario `node`
+  (uid 1000) y el código es de solo lectura para él, `HEALTHCHECK`
+  contra `/health`. No reemplaza a `backend/Dockerfile`, que sigue
+  siendo el de desarrollo y el del VPS actual.
+- `deploy/pspp-sedatu.env.example`: plantilla de variables.
+
+### 11.2 Variables
+
+```bash
+install -d -m 750 /etc/pspp
+cp deploy/pspp-sedatu.env.example /etc/pspp/pspp-sedatu.env
+chmod 600 /etc/pspp/pspp-sedatu.env
+# llenar /etc/pspp/pspp-sedatu.env
+```
+
+El archivo vive fuera del repositorio. Si el pipeline de la DGTIC
+inyecta las variables desde su bóveda de secretos, el archivo no hace
+falta: compose toma las variables del entorno del proceso. Puntos que
+cambian respecto a los otros despliegues:
+
+- `PSPP_PUERTO`: el puerto que asigne la DGTIC. El backend escucha en
+  el 3000 *dentro* del contenedor; no hay que tocar `PORT`.
+- `DB_HOST` / `MINIO_ENDPOINT`: si el servicio escucha en el mismo
+  servidor, usar `host.docker.internal` (ya está mapeado en el compose).
+  `127.0.0.1` dentro del contenedor es el contenedor.
+- `MINIO_BUCKET`: el bucket asignado. `MINIO_PREFIX`: `qa` en QA,
+  `prod` en producción (ver 11.6).
+- `FRONTEND_URL`: la URL pública completa, con su ruta si la tiene
+  (`https://sistemas.sedatu.gob.mx/pspp`). CORS se compara contra su
+  origen; las ligas de activación de cuenta usan la URL completa.
+
+### 11.3 Backend
+
+```bash
+cd /ruta/del/repositorio
+docker compose -f deploy/docker-compose.sedatu.yml --env-file /etc/pspp/pspp-sedatu.env build
+docker compose -f deploy/docker-compose.sedatu.yml --env-file /etc/pspp/pspp-sedatu.env up -d
+docker compose -f deploy/docker-compose.sedatu.yml --env-file /etc/pspp/pspp-sedatu.env ps
+```
+
+Al arrancar, el backend aplica sus migraciones (idempotentes, ver
+`backend/src/db/migrate.js`) y después empieza a escuchar; por eso el
+healthcheck tiene 90 s de gracia. `ps` debe mostrar `healthy`. El
+pipeline puede construir la imagen sin compose:
+
+```bash
+docker build -f backend/Dockerfile.sedatu -t pspp-backend:sedatu backend
+```
+
+y publicarla en su registro; en ese caso, `PSPP_IMAGEN` con la
+referencia completa y `up -d` sin `build`.
+
+QA y producción en el mismo servidor: dos archivos de variables (puerto
+y `MINIO_PREFIX` distintos) y dos nombres de proyecto:
+
+```bash
+docker compose -p pspp-qa   -f deploy/docker-compose.sedatu.yml --env-file /etc/pspp/pspp-qa.env   up -d
+docker compose -p pspp-prod -f deploy/docker-compose.sedatu.yml --env-file /etc/pspp/pspp-prod.env up -d
+```
+
+### 11.4 Frontend (nativo, compilado)
+
+Requiere Node.js 22 en el servidor (o en el equipo del pipeline que
+genera `dist/`). Las variables `VITE_*` se leen **solo al compilar**
+(sección 5): cambiarlas exige recompilar.
+
+```bash
+cd /ruta/del/repositorio/frontend
+npm ci
+VITE_BASE_PATH=/pspp/ VITE_API_URL=/pspp/api/v1 VITE_CARTO_API_KEY=... npm run build
+# el resultado es frontend/dist/; copiarlo a la raíz que sirve nginx
+```
+
+- `VITE_BASE_PATH`: ruta bajo la que nginx publica el frontend
+  (`/pspp/`, con ambas diagonales). Si la DGTIC asigna un dominio o
+  subdominio propio, `/`.
+- `VITE_API_URL`: ruta pública de la API, la que nginx manda al
+  backend (`/pspp/api/v1`). Si el frontend va en la raíz, se omite
+  (`/api/v1` por omisión).
+- Terminado el build, `node_modules` ya no hace falta.
+
+**Pendiente conocido para servir bajo `/pspp/`:** algunas imágenes y
+redirecciones del frontend usan rutas absolutas a la raíz
+(`/sedatu-logo.png`, `/logo_pspp2.png`, la redirección a `/login` al
+vencer la sesión, `/proyectos/nuevo`, `/docs/api-indicadores.md`) y no
+respetan `VITE_BASE_PATH`. Bajo un subdirectorio esos logos no cargan y
+esas redirecciones salen del subdirectorio. Con el frontend en la raíz
+de un (sub)dominio no ocurre. Se atiende aparte de este cambio.
+
+### 11.5 Qué espera encontrar el nginx institucional
+
+El backend no sirve archivos estáticos ni termina TLS; todo eso es del
+nginx de la institución. Lo que necesita:
+
+1. **Frontend**: servir `frontend/dist` bajo la ruta base, con
+   *fallback* a `index.html` (la aplicación usa rutas del lado del
+   navegador; sin el fallback, recargar cualquier pantalla da 404).
+2. **API**: `/pspp/api/` → `http://127.0.0.1:PSPP_PUERTO/api/`. La
+   diagonal final de `proxy_pass` quita el prefijo `/pspp`: el backend
+   solo conoce `/api/v1/...`.
+3. **Notificaciones en tiempo real** (`/pspp/api/v1/notificaciones/stream`,
+   Server-Sent Events): `proxy_buffering off` y `proxy_read_timeout`
+   largo. Sin esto la campana de notificaciones deja de actualizarse
+   sola, sin ningún error visible (sección 8).
+4. **Subidas**: `client_max_body_size` igual a `UPLOAD_MAX_SIZE_MB`
+   (200 MB por omisión) y `proxy_request_buffering off`, para que
+   nginx no escriba primero su propia copia del archivo en disco.
+5. **Descargas y vistas previas**: `proxy_max_temp_file_size 0`, para
+   que nginx no guarde en disco una copia de los archivos grandes que
+   transmite el backend. nginx deja pasar `Range` sin configurar nada:
+   el visor de PDF del navegador lo necesita y el backend responde 206.
+6. **Cabeceras**: `X-Forwarded-For` / `X-Forwarded-Proto` / `Host`, como
+   en cualquier proxy.
+7. **Nada del almacén**: ninguna `location` apunta al almacén de
+   objetos. El navegador nunca habla con él (11.6).
+8. `/health` no necesita publicarse: lo usa el healthcheck del
+   contenedor, desde dentro.
+
+Configuración de referencia (validar con `nginx -t`; ajustar
+`PSPP_PUERTO` y la ruta de `dist`):
+
+```nginx
+# dentro del server {} institucional (TLS ya configurado ahí)
+
+location = /pspp { return 301 /pspp/; }
+
+location /pspp/ {
+    alias /opt/pspp/frontend/dist/;
+    try_files $uri $uri/ /pspp/index.html;
+}
+
+location /pspp/api/v1/notificaciones/stream {
+    proxy_pass http://127.0.0.1:PSPP_PUERTO/api/v1/notificaciones/stream;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 24h;
+}
+
+location /pspp/api/ {
+    proxy_pass http://127.0.0.1:PSPP_PUERTO/api/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    client_max_body_size 200M;      # = UPLOAD_MAX_SIZE_MB
+    proxy_request_buffering off;    # subidas: sin copia en disco de nginx
+    proxy_max_temp_file_size 0;     # descargas: sin copia en disco de nginx
+    proxy_read_timeout 300s;
+    proxy_send_timeout 300s;
+}
+```
+
+Con SELinux en `Enforcing`, aplican los mismos ajustes de la sección 8
+(`httpd_sys_content_t` sobre `dist`, `httpd_can_network_connect`).
+
+### 11.6 Almacén de objetos
+
+**Nunca se publica.** La plataforma no genera URLs firmadas ni
+temporales, y el frontend nunca arma una URL hacia el almacén. Todo
+archivo pasa por el backend:
+
+| Endpoint | Uso | `Content-Disposition` |
+|---|---|---|
+| `GET /api/v1/evidencias/:id/ver` | Vista previa (iframe, `<img>`, capas geográficas) | `inline` |
+| `GET /api/v1/evidencias/:id/descargar` | Botón "Descargar" | `attachment` |
+| `GET /api/v1/actividad/:id/ver` | Vista previa de adjuntos de tareas | `inline` |
+| `GET /api/v1/actividad/:id/descargar` | Descarga de adjuntos de tareas | `attachment` |
+| `GET /api/v1/proyectos/:id/imagen` | Portada del proyecto | `inline` |
+
+El backend valida el permiso del usuario sobre la evidencia **antes**
+de abrir el flujo hacia el almacén; la clave del objeto sale de la base
+de datos, nunca de la petición, así que conocer el identificador de un
+objeto no basta para descargarlo. Transmite por flujo, sin cargar el
+archivo en memoria (las capas geográficas pesan cientos de MB), soporta
+`Range` (206/416), responde 404 si el objeto ya no está en el almacén y
+corta la lectura del almacén en cuanto el navegador cierra la
+conexión. Implementación: `backend/src/utils/transmitirObjeto.js`.
+
+**Prefijo por ambiente.** `MINIO_PREFIX` se antepone a toda clave al
+escribir, leer, copiar y borrar (`backend/src/utils/minio.js`); la base
+de datos guarda la clave sin prefijo. Con `MINIO_PREFIX=qa`, una
+evidencia queda en `<bucket>/qa/evidencias/...`.
+
+**Credencial del almacén.** Basta con permisos sobre los objetos del
+prefijo del ambiente (`GetObject`, `PutObject`, `DeleteObject`) más
+`ListBucket`/`HeadBucket` sobre el bucket (al arrancar se comprueba que
+existe). El bucket lo crea la DGTIC: si ya existe, el backend no
+intenta crearlo, y si no puede comprobarlo solo deja un aviso en el log.
+
+**Migrar archivos** desde la instalación anterior (que no usa prefijo)
+al bucket de la DGTIC, bajo el prefijo del ambiente:
+
+```bash
+mc alias set origen  https://endpoint-anterior ACCESS_KEY SECRET_KEY
+mc alias set destino https://endpoint-dgtic    ACCESS_KEY SECRET_KEY
+mc mirror origen/pspp-evidencias destino/<bucket-asignado>/prod
+```
+
+Las filas de la base no se tocan: guardan la clave sin prefijo.
+
+### 11.7 Disco
+
+El servidor tiene poco espacio; nada de la plataforma se acumula:
+
+- **Temporales de subida**: el backend escribe cada archivo a un
+  temporal mientras lo manda al almacén y lo borra siempre: al
+  terminar bien, si el almacén falla, si se rechaza la petición por
+  permisos y si el navegador corta la subida a la mitad. Al arrancar y
+  cada hora barre los que hubiera dejado un proceso muerto a la fuerza.
+  Viven dentro del contenedor (`/tmp/pspp-uploads`).
+- **Logs del contenedor**: rotan, 3 × 10 MB como máximo.
+- **nginx**: `proxy_request_buffering off` y `proxy_max_temp_file_size 0`
+  (11.5) evitan sus copias en disco.
+- **Imagen**: después de actualizar, `docker image prune -f` borra las
+  versiones anteriores sin uso.
+
+### 11.8 Verificación
+
+```bash
+# 1. Contenedor sano
+docker compose -f deploy/docker-compose.sedatu.yml --env-file /etc/pspp/pspp-sedatu.env ps
+curl -s http://127.0.0.1:PSPP_PUERTO/health
+
+# 2. Solo un puerto publicado, y solo en la interfaz esperada
+docker compose -f deploy/docker-compose.sedatu.yml --env-file /etc/pspp/pspp-sedatu.env port backend 3000
+
+# 3. El proceso no corre como root (debe decir "node")
+docker compose -f deploy/docker-compose.sedatu.yml --env-file /etc/pspp/pspp-sedatu.env exec backend whoami
+
+# 4. nginx → frontend y nginx → API
+curl -s -o /dev/null -w "%{http_code}\n" https://sistemas.sedatu.gob.mx/pspp/
+curl -s https://sistemas.sedatu.gob.mx/pspp/api/v1/auth/login -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"correo":"no-existe@ejemplo.org","password":"x"}'
+# Se espera 401 con JSON de error (no 502 ni 404; ver sección 10).
+```
+
+### 11.9 Actualizar
+
+```bash
+cd /ruta/del/repositorio
+git pull
+docker compose -f deploy/docker-compose.sedatu.yml --env-file /etc/pspp/pspp-sedatu.env build
+docker compose -f deploy/docker-compose.sedatu.yml --env-file /etc/pspp/pspp-sedatu.env up -d
+docker image prune -f
+# si cambió el frontend:
+cd frontend && npm ci && VITE_BASE_PATH=/pspp/ VITE_API_URL=/pspp/api/v1 VITE_CARTO_API_KEY=... npm run build
+```
+
+Igual que en el VPS: si el cambio toca frontend y backend, actualizar
+los dos. A diferencia del VPS, aquí nginx habla con el backend por
+`127.0.0.1:PSPP_PUERTO` (un puerto fijo, no la IP interna de un
+contenedor), así que recrear el contenedor **no** exige reiniciar nginx.

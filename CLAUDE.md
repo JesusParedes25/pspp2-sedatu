@@ -146,6 +146,19 @@ rebuild, solo restart si dependen de algo que cambió.
   `backend/src/utils/autorizacion.js` — basado en `proyecto_usuarios`
   (rol responsable/colaborador) + `proyectos.id_creador` + rol global del
   usuario (superadmin/ejecutivo). **No** depende de la DG del usuario.
+- **Almacén de objetos**: todo acceso pasa por `almacen` de
+  `backend/src/utils/minio.js`, que antepone `MINIO_PREFIX` (separación
+  QA/prod dentro de un solo bucket, requisito DGTIC). No llamar a
+  `minioClient` directo para operar sobre claves (hay una prueba que lo
+  detecta). La BD guarda la clave sin prefijo. Los archivos llegan al
+  navegador solo por el backend (`utils/transmitirObjeto.js`: flujo,
+  Range, 404): nada de URLs prefirmadas ni de apuntar al almacén desde el
+  frontend. Vista previa = `/:id/ver` (inline), descarga =
+  `/:id/descargar` (attachment).
+- **Despliegue SEDATU**: `deploy/docker-compose.sedatu.yml` +
+  `backend/Dockerfile.sedatu` (solo backend, un puerto, BD y almacén
+  externos, frontend nativo). Es independiente de
+  `docker-compose.prod.yml`; ver sección 11 de `deploy/README.md`.
 - **DGs (Direcciones Generales) de un proyecto**: se calculan
   automáticamente (`obtenerDGsProyecto` en
   `backend/src/db/queries/proyectos.queries.js`) a partir de quién es

@@ -27,7 +27,7 @@ const asegurarProgramas = require('./db/seeders/00_programas');
 const asegurarCatalogoIndicadoresV1 = require('./db/seeders/00_catalogo_indicadores_v1_sedatu');
 const { iniciarPurgaAutomatica } = require('./utils/purgarProyectos');
 const { iniciarAlertasAutomaticas } = require('./utils/alertasVencimiento');
-const { verificarDirectorioSubidas, DIRECTORIO_TEMPORAL } = require('./middleware/subidaArchivo.middleware');
+const { verificarDirectorioSubidas, iniciarBarridoTemporales, DIRECTORIO_TEMPORAL } = require('./middleware/subidaArchivo.middleware');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -46,7 +46,17 @@ app.use(helmet({ contentSecurityPolicy: false }));
 // que OTROS sitios llamen a esta API desde el navegador de alguien.
 // Sin Origin (Postman, scripts, server-to-server) siempre se permite,
 // igual que antes.
-const origenPermitido = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
+//
+// Se compara contra el ORIGEN de FRONTEND_URL (esquema + host + puerto),
+// no contra la URL completa: el header Origin nunca trae ruta. Con el
+// frontend en la raíz del dominio (https://pspp.geobint.com) da lo mismo,
+// pero servido bajo un subdirectorio (https://sistemas.sedatu.gob.mx/pspp)
+// la comparación literal rechazaba todo POST/PUT/DELETE del propio
+// frontend, porque esos sí mandan Origin aun siendo del mismo sitio.
+// FRONTEND_URL conserva la ruta para lo demás (ligas de activación).
+const urlFrontend = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
+let origenPermitido = urlFrontend;
+try { origenPermitido = new URL(urlFrontend).origin; } catch { /* valor no es URL: se compara tal cual, como antes */ }
 app.use(cors({
   origin(origin, callback) {
     if (!origin || origin === origenPermitido) {
@@ -89,6 +99,9 @@ app.use(errorHandler);
 async function iniciar() {
   try {
     verificarDirectorioSubidas();
+    // Borra temporales que haya dejado un proceso anterior muerto a la
+    // fuerza, y repite cada hora (ver subidaArchivo.middleware.js).
+    iniciarBarridoTemporales();
   } catch (err) {
     console.error(`✗ No se pudo preparar el directorio temporal de subidas (${DIRECTORIO_TEMPORAL}):`, err.message);
     process.exit(1);

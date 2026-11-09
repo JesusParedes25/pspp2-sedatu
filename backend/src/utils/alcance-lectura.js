@@ -171,10 +171,11 @@ const exigirVisibilidadIndicador = (param = 'id') =>
   });
 
 // GET /evidencias/:id/descargar.
+// GET /evidencias/:id/ver y /:id/descargar.
 const exigirVisibilidadEvidencia = (param = 'id') =>
   exigirVisibilidadResuelta((req) => obtenerProyectoIdDeEvidencia(req.params[param]));
 
-// GET /actividad/:id/descargar — actividad ya trae id_proyecto propio
+// GET /actividad/:id/ver y /:id/descargar: actividad ya trae id_proyecto propio
 // (migración 039), sin traversal.
 const exigirVisibilidadActividadPorId = (param = 'id') =>
   exigirVisibilidadResuelta(async (req) => {

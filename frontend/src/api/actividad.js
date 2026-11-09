@@ -61,8 +61,19 @@ export async function registrarLinkActividad(tipo, id, url, metadatos = {}) {
   return data;
 }
 
-export function obtenerUrlDescargaActividad(id) {
+// Mismo esquema que api/evidencias.js: /ver (inline) para la vista
+// previa, /descargar (attachment) para el botón "Descargar". Siempre a la
+// API, nunca al almacén.
+function urlAdjuntoActividad(id, accion) {
   const baseURL = client.defaults.baseURL;
   const token = localStorage.getItem('pspp_token');
-  return `${baseURL}/actividad/${id}/descargar?token=${token}`;
+  return `${baseURL}/actividad/${id}/${accion}?token=${encodeURIComponent(token || '')}`;
+}
+
+export function obtenerUrlDescargaActividad(id) {
+  return urlAdjuntoActividad(id, 'descargar');
+}
+
+export function obtenerUrlVistaActividad(id) {
+  return urlAdjuntoActividad(id, 'ver');
 }
