@@ -17,7 +17,8 @@ import { Link } from 'react-router-dom';
 import {
   Download, FolderKanban, Link2, Trash2, Eye, Layers, User, Calendar, HardDrive,
 } from 'lucide-react';
-import * as evidenciasApi from '../../api/evidencias';
+import { fuenteEvidencia } from '../../api/archivos';
+import { useDescargaArchivo } from '../../hooks/useDescargaArchivo';
 
 function formatearTamano(bytes) {
   if (!bytes) return null;
@@ -27,6 +28,7 @@ function formatearTamano(bytes) {
 
 // onEliminar: opcional — si no se pasa (solo-lectura), el botón "Eliminar" no se muestra.
 export default function EvidenciaDetallePanel({ evidencia: ev, onPreview, onEliminar }) {
+  const { descargar, descargando } = useDescargaArchivo();
   const esLink = ev.tipo_medio === 'link';
   const tamano = formatearTamano(ev.tamano_bytes);
   const hayUbicacion = ev.proyecto_nombre || ev.etapa_nombre || ev.accion_nombre || ev.riesgo_titulo;
@@ -125,10 +127,10 @@ export default function EvidenciaDetallePanel({ evidencia: ev, onPreview, onElim
             <button onClick={onPreview} className="flex items-center gap-1.5 px-3 py-1.5 bg-[#7B1C3E] text-white text-xs rounded-lg hover:bg-[#5a1430]">
               <Eye size={13} /> Vista previa
             </button>
-            <a href={evidenciasApi.obtenerUrlDescarga(ev.id)} target="_blank" rel="noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-gray-700 text-xs rounded-lg hover:bg-gray-100">
+            <button type="button" onClick={() => descargar(fuenteEvidencia(ev.id))} disabled={descargando}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-gray-700 text-xs rounded-lg hover:bg-gray-100 disabled:opacity-60">
               <Download size={13} /> Descargar
-            </a>
+            </button>
           </>
         )}
         {onEliminar && (

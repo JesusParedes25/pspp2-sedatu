@@ -497,11 +497,35 @@ archivo pasa por el backend:
 
 | Endpoint | Uso | `Content-Disposition` |
 |---|---|---|
-| `GET /api/v1/evidencias/:id/ver` | Vista previa (iframe, `<img>`, capas geográficas) | `inline` |
+| `GET /api/v1/evidencias/:id/ver` | Vista previa (PDF, imagen, audio, texto, capas geográficas) | `inline` |
 | `GET /api/v1/evidencias/:id/descargar` | Botón "Descargar" | `attachment` |
 | `GET /api/v1/actividad/:id/ver` | Vista previa de adjuntos de tareas | `inline` |
 | `GET /api/v1/actividad/:id/descargar` | Descarga de adjuntos de tareas | `attachment` |
 | `GET /api/v1/proyectos/:id/imagen` | Portada del proyecto | `inline` |
+
+**Ninguna URL lleva el token de sesión.** En SEDATU la petición cruza el
+F5, el nginx institucional y el contenedor, tres capas que registran
+URLs; un token de sesión de 48 h en la query habría quedado en las tres
+bitácoras. Los cuatro endpoints de archivo aceptan exactamente dos vías:
+
+1. La cabecera `Authorization: Bearer <sesión>`. La usa la vista previa:
+   el frontend pide el archivo con axios y entrega al visor una URL
+   `blob:` local, que no viaja por la red ni caduca mientras el visor de
+   PDF termina de cargar.
+2. `?boleto=<boleto>`, para lo que el navegador abre por su cuenta (la
+   descarga). El boleto se pide justo antes con
+   `POST /api/v1/evidencias/:id/boleto` o `POST /api/v1/actividad/:id/boleto`
+   y `{"accion": "ver" | "descargar"}`, **con la cabecera**, nunca por
+   URL. Va firmado (sin tabla), ligado a la persona, al objeto y a la
+   acción, y dura `BOLETO_ARCHIVO_TTL_SEGUNDOS` (60 s por omisión). Se
+   firma con una clave distinta de la de sesión y lleva un propósito
+   propio: un boleto no sirve como sesión en ningún otro endpoint, y una
+   sesión puesta en la URL (`?token=` o `?boleto=`) se rechaza. Vencido,
+   de otro objeto o de otra acción, responde 401. Se valida al empezar
+   la petición: una descarga larga termina aunque caduque a la mitad.
+
+Lo que sí puede aparecer en las bitácoras es un boleto: sirve para un
+solo archivo, una sola acción y una sola persona, y caduca al minuto.
 
 El backend valida el permiso del usuario sobre la evidencia **antes**
 de abrir el flujo hacia el almacén; la clave del objeto sale de la base

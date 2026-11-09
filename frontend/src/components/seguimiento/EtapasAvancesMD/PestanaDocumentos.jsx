@@ -11,6 +11,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Plus, Link2, Paperclip, Loader2, Eye } from 'lucide-react';
 import * as evidenciasApi from '../../../api/evidencias';
 import * as actividadApi from '../../../api/actividad';
+import * as archivosApi from '../../../api/archivos';
 import ModalAccionNodo from './ModalAccionNodo';
 import SeccionArchivosNodo from '../../nodos/SeccionArchivosNodo';
 import FilePreviewModal from '../../evidencias/FilePreviewModal';
@@ -28,14 +29,10 @@ function iconoCategoria(categoria) {
 // en `actividad`, no en `evidencias`, y usa un endpoint de descarga distinto.
 // Sin esto, el link/vista previa de un documento agregado desde una tarea
 // apuntaba al endpoint equivocado (mismo `id`, tabla distinta).
-// modo: 'descarga' (attachment) o 'vista' (inline, para la vista previa).
-function urlDoc(doc, modo = 'descarga') {
-  if (doc.tipo_medio === 'link') return doc.url;
-  const vista = modo === 'vista';
-  if (doc.fuente === 'tarea') {
-    return vista ? actividadApi.obtenerUrlVistaActividad(doc.id) : actividadApi.obtenerUrlDescargaActividad(doc.id);
-  }
-  return vista ? evidenciasApi.obtenerUrlVista(doc.id) : evidenciasApi.obtenerUrlDescarga(doc.id);
+// Devuelve la `fuente` de api/archivos.js (null para un link externo).
+function fuenteDoc(doc) {
+  if (doc.tipo_medio === 'link') return null;
+  return doc.fuente === 'tarea' ? archivosApi.fuenteActividad(doc.id) : archivosApi.fuenteEvidencia(doc.id);
 }
 
 export default function PestanaDocumentos({ tipo, id, permisos, permisosProyecto, onCambiado, onContador, onNavegarNodo, altaSolicitada, onAltaConsumida }) {
@@ -158,14 +155,28 @@ export default function PestanaDocumentos({ tipo, id, permisos, permisosProyecto
                 <tr key={doc.id} className="hover:bg-gray-50">
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-2">
-                      <a
-                        href={urlDoc(doc, 'vista')}
-                        target="_blank" rel="noreferrer"
-                        className="flex items-center gap-1.5 text-gray-700 hover:text-guinda-700 font-medium min-w-0"
-                      >
-                        {doc.tipo_medio === 'link' ? <Link2 size={12} className="text-blue-500 flex-shrink-0" /> : <Paperclip size={12} className="text-gray-400 flex-shrink-0" />}
-                        <span className="truncate max-w-[220px]">{doc.titulo || doc.nombre_original || 'Sin título'}</span>
-                      </a>
+                      {doc.tipo_medio === 'link' ? (
+                        <a
+                          href={doc.url}
+                          target="_blank" rel="noreferrer"
+                          className="flex items-center gap-1.5 text-gray-700 hover:text-guinda-700 font-medium min-w-0"
+                        >
+                          <Link2 size={12} className="text-blue-500 flex-shrink-0" />
+                          <span className="truncate max-w-[220px]">{doc.titulo || doc.nombre_original || 'Sin título'}</span>
+                        </a>
+                      ) : (
+                        // Antes abría el archivo en otra pestaña con el token de
+                        // sesión en la URL; ahora abre la vista previa, que lo
+                        // carga con la cabecera (ver api/archivos.js).
+                        <button
+                          type="button"
+                          onClick={() => setPreviewItem(doc)}
+                          className="flex items-center gap-1.5 text-left text-gray-700 hover:text-guinda-700 font-medium min-w-0"
+                        >
+                          <Paperclip size={12} className="text-gray-400 flex-shrink-0" />
+                          <span className="truncate max-w-[220px]">{doc.titulo || doc.nombre_original || 'Sin título'}</span>
+                        </button>
+                      )}
                       <button
                         onClick={() => setPreviewItem(doc)}
                         title="Vista previa"
@@ -211,8 +222,7 @@ export default function PestanaDocumentos({ tipo, id, permisos, permisosProyecto
       {previewItem && (
         <FilePreviewModal
           evidencia={previewItem}
-          urlOverride={previewItem.tipo_medio === 'link' ? undefined : urlDoc(previewItem, 'vista')}
-          urlDescargaOverride={previewItem.tipo_medio === 'link' ? undefined : urlDoc(previewItem)}
+          fuente={fuenteDoc(previewItem) || undefined}
           onClose={() => setPreviewItem(null)}
         />
       )}

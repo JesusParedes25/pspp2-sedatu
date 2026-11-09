@@ -77,6 +77,7 @@ tocarlas después de que `dist/` ya existe no tiene ningún efecto).
 | `DB_PORT`          | Puerto interno de PostgreSQL (normalmente `5432`) | ✅       |
 | `JWT_SECRET`       | Secreto para firmar tokens JWT (mín. 64 chars) | ✅          |
 | `JWT_EXPIRES_IN`   | Duración de la sesión (ej: `48h`). Si no se define, el backend usa `48h` por omisión | ❌ |
+| `BOLETO_ARCHIVO_TTL_SEGUNDOS` | Vigencia en segundos del boleto efímero para descargar un archivo (el token de sesión no va en URLs). Por omisión `60`, tope `900` | ❌ |
 | `SUPERADMIN_EMAIL` | Correo de la cuenta de superadministrador      | ✅          |
 | `PASSWORD_USER`    | Contraseña de esa cuenta. **Se reaplica en cada arranque** | ✅ |
 | `MINIO_USER`       | Usuario administrador de MinIO                 | ✅          |
