@@ -41,10 +41,16 @@ import { useUI } from '../../context/UIContext';
 // evidencia del modelo viejo (trae metadata.evidencia_id), o un link externo
 // (metadata.tipo_medio === 'link') — cada uno resuelve su URL de descarga
 // distinto, y solo el primero (evidencia vieja) trae categoría de verdad.
-function urlArchivo(item) {
+// modo: 'descarga' (attachment) o 'vista' (inline, para la vista previa).
+function urlArchivo(item, modo = 'descarga') {
   if (item.metadata?.tipo_medio === 'link') return item.archivo_url;
-  if (item.metadata?.evidencia_id) return evidenciasApi.obtenerUrlDescarga(item.metadata.evidencia_id);
-  return actividadApi.obtenerUrlDescargaActividad(item.id);
+  const vista = modo === 'vista';
+  if (item.metadata?.evidencia_id) {
+    return vista
+      ? evidenciasApi.obtenerUrlVista(item.metadata.evidencia_id)
+      : evidenciasApi.obtenerUrlDescarga(item.metadata.evidencia_id);
+  }
+  return vista ? actividadApi.obtenerUrlVistaActividad(item.id) : actividadApi.obtenerUrlDescargaActividad(item.id);
 }
 
 const TIPOS_AGRUPABLES = new Set(['cambio_avance', 'cambio_estatus', 'estatus_cualitativo', 'comentario']);
@@ -304,7 +310,8 @@ export default function ActividadStream({ tipo, id, titulo, proyectoId, soloLect
             tipo_medio: previewItem.metadata?.tipo_medio,
             url: previewItem.metadata?.tipo_medio === 'link' ? previewItem.archivo_url : undefined,
           }}
-          urlOverride={previewItem.metadata?.tipo_medio === 'link' ? undefined : urlArchivo(previewItem)}
+          urlOverride={previewItem.metadata?.tipo_medio === 'link' ? undefined : urlArchivo(previewItem, 'vista')}
+          urlDescargaOverride={previewItem.metadata?.tipo_medio === 'link' ? undefined : urlArchivo(previewItem)}
           onClose={() => setPreviewItem(null)}
         />
       )}

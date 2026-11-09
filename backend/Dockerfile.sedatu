@@ -1,0 +1,61 @@
+# syntax=docker/dockerfile:1
+#
+# PSPP v2.0: imagen del backend para la infraestructura de SEDATU (DGTIC)
+#
+# Archivo NUEVO. No sustituye a backend/Dockerfile, que sigue siendo el que
+# usan docker-compose.yml (desarrollo) y docker-compose.prod.yml (VPS
+# actual). Ese Dockerfile no sirve para este modelo: instala
+# devDependencies, arranca con `npm run dev` (nodemon) y corre como root.
+#
+# Lo usa deploy/docker-compose.sedatu.yml. También se puede construir
+# directo, por ejemplo desde el pipeline de la DGTIC:
+#   docker build -f backend/Dockerfile.sedatu -t pspp-backend:sedatu backend
+#
+# Qué garantiza esta imagen:
+#   - Solo dependencias de producción (npm ci --omit=dev) y solo el código
+#     de backend/src: nada de pruebas, scripts de carga ni node_modules del
+#     host.
+#   - El proceso corre como el usuario sin privilegios `node` (uid 1000).
+#     El código es de root y de solo lectura para ese usuario: el proceso
+#     no puede modificarse a sí mismo. Lo único escribible es el temporal
+#     de subidas (UPLOAD_TMP_DIR, bajo /tmp), que el backend borra siempre.
+#   - Ninguna credencial ni valor de entorno horneado: todo llega en tiempo
+#     de ejecución (ver deploy/pspp-sedatu.env.example).
+#   - HEALTHCHECK contra /health del propio backend.
+
+# ─── Etapa 1: dependencias de producción ────────────────────────
+FROM node:22-alpine AS dependencias
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
+
+# ─── Etapa 2: imagen final ──────────────────────────────────────
+FROM node:22-alpine
+
+ENV NODE_ENV=production \
+    PORT=3000 \
+    UPLOAD_TMP_DIR=/tmp/pspp-uploads
+
+WORKDIR /app
+
+COPY --from=dependencias /app/node_modules ./node_modules
+COPY package.json package-lock.json ./
+COPY src ./src
+
+# Usuario sin privilegios que ya trae la imagen oficial de Node.
+USER node
+
+# Puerto INTERNO del contenedor. El puerto publicado en el servidor lo
+# decide quien despliega (PSPP_PUERTO en docker-compose.sedatu.yml).
+EXPOSE 3000
+
+# /health responde 200 en cuanto el servidor HTTP escucha, lo que en
+# server.js ocurre solo después de conectar a la base de datos y aplicar
+# migraciones; de ahí el start-period amplio.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
+  CMD ["node", "-e", "const r=require('http').get({host:'127.0.0.1',port:process.env.PORT||3000,path:'/health',timeout:4000},s=>process.exit(s.statusCode===200?0:1));r.on('error',()=>process.exit(1));r.on('timeout',()=>{r.destroy();process.exit(1);});"]
+
+# node directo, sin npm de por medio: así SIGTERM llega al proceso. Usar
+# con un init (compose: `init: true`; docker run: `--init`) para que las
+# señales y los procesos hijos se manejen bien siendo PID 1.
+CMD ["node", "src/server.js"]

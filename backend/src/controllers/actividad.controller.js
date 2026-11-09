@@ -6,8 +6,8 @@
  */
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
-const { minioClient, BUCKET } = require('../utils/minio');
-const { setContentDisposition } = require('../utils/contentDisposition');
+const { almacen } = require('../utils/minio');
+const { transmitirObjeto } = require('../utils/transmitirObjeto');
 const { limpiarArchivoTemporal } = require('../middleware/subidaArchivo.middleware');
 const actividadQueries = require('../db/queries/actividad.queries');
 
@@ -58,7 +58,7 @@ async function crear(req, res, next) {
         const archivo = req.file;
         const nombreUnico = `${uuidv4()}_${archivo.originalname}`;
         const rutaMinio = `actividad/${tipo_nodo}/${id_nodo}/${nombreUnico}`;
-        await minioClient.putObject(BUCKET, rutaMinio, fs.createReadStream(archivo.path), archivo.size, { 'Content-Type': archivo.mimetype });
+        await almacen.putObject(rutaMinio, fs.createReadStream(archivo.path), archivo.size, { 'Content-Type': archivo.mimetype });
         archivoUrl = rutaMinio;
         archivoNombre = archivo.originalname;
       }
@@ -75,17 +75,32 @@ async function crear(req, res, next) {
   }
 }
 
-// GET /actividad/:id/descargar — stream del archivo adjunto de una entrada
-async function descargar(req, res, next) {
-  try {
-    const actividadQ = require('../db/pool');
-    const { rows } = await actividadQ.query('SELECT archivo_url, archivo_nombre FROM actividad WHERE id = $1', [req.params.id]);
-    const fila = rows[0];
-    if (!fila?.archivo_url) return res.status(404).json({ error: true, mensaje: 'Archivo no encontrado' });
-    setContentDisposition(res, fila.archivo_nombre || 'archivo');
-    const stream = await minioClient.getObject(BUCKET, fila.archivo_url);
-    stream.pipe(res);
-  } catch (err) { next(err); }
+// GET /actividad/:id/ver       : vista previa del adjunto (inline)
+// GET /actividad/:id/descargar : descarga del adjunto (attachment)
+// La visibilidad ya la validó exigirVisibilidadActividadPorId() en la ruta.
+// Antes solo existía /descargar, siempre como attachment y sin
+// Content-Type, así que la vista previa de un PDF adjunto a una tarea
+// descargaba el archivo en vez de mostrarlo.
+function transmitirAdjunto(disposicion) {
+  return async function (req, res, next) {
+    try {
+      const fila = await actividadQueries.obtenerAdjuntoActividad(req.params.id);
+      if (!fila?.archivo_url) return res.status(404).json({ error: true, mensaje: 'Archivo no encontrado', codigo: 'NO_ENCONTRADO' });
+
+      // Liga externa (metadata.tipo_medio = 'link'): archivo_url es la URL,
+      // no una clave del almacén.
+      if (fila.metadata?.tipo_medio === 'link') return res.redirect(fila.archivo_url);
+
+      return await transmitirObjeto(req, res, next, {
+        clave: fila.archivo_url,
+        nombre: fila.archivo_nombre || 'archivo',
+        disposicion,
+      });
+    } catch (err) { return next(err); }
+  };
 }
 
-module.exports = { obtenerPorNodo, crear, descargar };
+const ver = transmitirAdjunto('inline');
+const descargar = transmitirAdjunto('attachment');
+
+module.exports = { obtenerPorNodo, crear, ver, descargar };

@@ -42,7 +42,7 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
   const [cargando, setCargando]             = useState(true);
   const [mostrarCatalogoInd, setMostrarCatalogoInd] = useState(false);
   const [imagenPortada, setImagenPortada]   = useState(null);
-  const [previewPortada, setPreviewPortada] = useState(proyecto.imagen_url || null);
+  const [previewPortada, setPreviewPortada] = useState(proyectosApi.urlImagenProyecto(proyecto));
   const [estructuraEtapas, setEstructuraEtapas] = useState([]);
   const [accionesPorEtapa, setAccionesPorEtapa] = useState({});
   const [etapaExpandida, setEtapaExpandida] = useState(null);

@@ -9,10 +9,11 @@
  * middleware/subidaArchivo.middleware.js). (2) El controller abre un
  * stream de lectura de ese temporal y lo sube a MinIO con putObject().
  * (3) Se inserta un registro en la tabla evidencias con la ruta en
- * MinIO. (4) El temporal se borra siempre, haya salido bien o mal, en
- * el finally de cada función. Para la descarga, getObject() devuelve
- * un stream que se pipea directamente al response HTTP sin cargar
- * todo en memoria.
+ * MinIO. (4) El temporal se borra siempre, haya salido bien o mal (ver
+ * middleware/subidaArchivo.middleware.js: la limpieza va atada al cierre
+ * de la respuesta, el finally de cada función es una segunda red). Para
+ * la descarga y la vista previa, utils/transmitirObjeto.js transmite el
+ * objeto por flujo desde el backend, con soporte de Range.
  * ─────────────────────────────────────────────────────────────────
  */
 const fs = require('fs');
@@ -61,9 +62,10 @@ async function resolverProyectoId(tipo, id) {
   return null;
 }
 
-// Cliente MinIO compartido (ver utils/minio.js — actividad.controller.js reusa el mismo)
-const { minioClient, BUCKET } = require('../utils/minio');
-const { setContentDisposition } = require('../utils/contentDisposition');
+// Acceso al almacén (ver utils/minio.js): `almacen` aplica MINIO_PREFIX a
+// toda clave; `minioClient` crudo solo se usa aquí para el bucket mismo.
+const { minioClient, BUCKET, almacen } = require('../utils/minio');
+const { transmitirObjeto } = require('../utils/transmitirObjeto');
 
 // Asegurar que el bucket existe al iniciar
 async function inicializarBucket() {
@@ -135,7 +137,7 @@ async function subirParaEtapa(req, res, next) {
       const archivo = req.file;
       const nombreUnico = `${uuidv4()}_${archivo.originalname}`;
       const rutaMinio = `evidencias/etapas/${req.params.id}/${nombreUnico}`;
-      await minioClient.putObject(BUCKET, rutaMinio, fs.createReadStream(archivo.path), archivo.size, { 'Content-Type': archivo.mimetype });
+      await almacen.putObject(rutaMinio, fs.createReadStream(archivo.path), archivo.size, { 'Content-Type': archivo.mimetype });
       datosEvidencia.nombre_archivo = nombreUnico;
       datosEvidencia.nombre_original = archivo.originalname;
       datosEvidencia.ruta_minio = rutaMinio;
@@ -179,7 +181,7 @@ async function subirParaSubaccion(req, res, next) {
     const nombreUnico = `${uuidv4()}_${archivo.originalname}`;
     const rutaMinio = `evidencias/subacciones/${req.params.id}/${nombreUnico}`;
 
-    await minioClient.putObject(BUCKET, rutaMinio, fs.createReadStream(archivo.path), archivo.size, {
+    await almacen.putObject(rutaMinio, fs.createReadStream(archivo.path), archivo.size, {
       'Content-Type': archivo.mimetype
     });
 
@@ -255,7 +257,7 @@ async function subirParaAccion(req, res, next) {
       const archivo = req.file;
       const nombreUnico = `${uuidv4()}_${archivo.originalname}`;
       const rutaMinio = `evidencias/acciones/${req.params.id}/${nombreUnico}`;
-      await minioClient.putObject(BUCKET, rutaMinio, fs.createReadStream(archivo.path), archivo.size, { 'Content-Type': archivo.mimetype });
+      await almacen.putObject(rutaMinio, fs.createReadStream(archivo.path), archivo.size, { 'Content-Type': archivo.mimetype });
       datosEvidencia.nombre_archivo = nombreUnico;
       datosEvidencia.nombre_original = archivo.originalname;
       datosEvidencia.ruta_minio = rutaMinio;
@@ -289,7 +291,7 @@ async function subirParaRiesgo(req, res, next) {
     const nombreUnico = `${uuidv4()}_${archivo.originalname}`;
     const rutaMinio = `evidencias/riesgos/${req.params.id}/${nombreUnico}`;
 
-    await minioClient.putObject(BUCKET, rutaMinio, fs.createReadStream(archivo.path), archivo.size, {
+    await almacen.putObject(rutaMinio, fs.createReadStream(archivo.path), archivo.size, {
       'Content-Type': archivo.mimetype
     });
 
@@ -313,39 +315,46 @@ async function subirParaRiesgo(req, res, next) {
   }
 }
 
-// GET /evidencias/:id/descargar — Descargar archivo desde MinIO o redirigir a link
-async function descargar(req, res, next) {
-  try {
-    const evidencia = await evidenciasQueries.obtenerEvidenciaPorId(req.params.id);
+// GET /evidencias/:id/ver       : previsualizar (Content-Disposition: inline)
+// GET /evidencias/:id/descargar : descargar   (Content-Disposition: attachment)
+//
+// La visibilidad ya la validó exigirVisibilidadEvidencia() en la ruta,
+// antes de llegar aquí y antes de tocar el almacén. La clave del objeto
+// sale del registro de la BD, nunca del cliente. Toda la parte de
+// transporte (Range, 404 del almacén, cierre anticipado, flujo sin cargar
+// en memoria) vive en utils/transmitirObjeto.js.
+function transmitirEvidencia(disposicion) {
+  return async function (req, res, next) {
+    try {
+      const evidencia = await evidenciasQueries.obtenerEvidenciaPorId(req.params.id);
 
-    if (!evidencia) {
-      return res.status(404).json({
-        error: true,
-        mensaje: 'Evidencia no encontrada',
-        codigo: 'NO_ENCONTRADO'
+      if (!evidencia) {
+        return res.status(404).json({
+          error: true,
+          mensaje: 'Evidencia no encontrada',
+          codigo: 'NO_ENCONTRADO'
+        });
+      }
+
+      // Una liga externa no vive en el almacén: se manda al navegador a ella.
+      if (evidencia.tipo_medio === 'link' && evidencia.url) {
+        return res.redirect(evidencia.url);
+      }
+
+      return await transmitirObjeto(req, res, next, {
+        clave: evidencia.ruta_minio,
+        nombre: evidencia.nombre_original || evidencia.nombre_archivo || 'archivo',
+        tipo: evidencia.tipo_archivo,
+        disposicion,
       });
+    } catch (err) {
+      return next(err);
     }
-
-    // Si es un link, redirigir
-    if (evidencia.tipo_medio === 'link' && evidencia.url) {
-      return res.redirect(evidencia.url);
-    }
-
-    if (!evidencia.ruta_minio) {
-      return res.status(404).json({ error: true, mensaje: 'Archivo no disponible' });
-    }
-
-    // Configurar headers de descarga
-    res.setHeader('Content-Type', evidencia.tipo_archivo || 'application/octet-stream');
-    setContentDisposition(res, evidencia.nombre_original || 'archivo', 'inline');
-
-    // Stream directo desde MinIO al response
-    const stream = await minioClient.getObject(BUCKET, evidencia.ruta_minio);
-    stream.pipe(res);
-  } catch (err) {
-    next(err);
-  }
+  };
 }
+
+const ver = transmitirEvidencia('inline');
+const descargar = transmitirEvidencia('attachment');
 
 // DELETE /evidencias/:id — Eliminar evidencia (BD + MinIO)
 async function eliminar(req, res, next) {
@@ -360,11 +369,14 @@ async function eliminar(req, res, next) {
       });
     }
 
-    // Intentar eliminar de MinIO (si falla, el registro ya se borró de la BD)
-    try {
-      await minioClient.removeObject(BUCKET, evidencia.ruta_minio);
-    } catch (minioErr) {
-      console.error('Advertencia: no se pudo eliminar archivo de MinIO:', minioErr.message);
+    // Intentar eliminar de MinIO (si falla, el registro ya se borró de la BD).
+    // Una liga externa no tiene objeto que borrar.
+    if (evidencia.ruta_minio) {
+      try {
+        await almacen.removeObject(evidencia.ruta_minio);
+      } catch (minioErr) {
+        console.error('Advertencia: no se pudo eliminar archivo de MinIO:', minioErr.message);
+      }
     }
 
     res.json({ datos: { id: evidencia.id }, mensaje: 'Evidencia eliminada' });
@@ -402,6 +414,7 @@ module.exports = {
   subirParaEtapa,
   subirParaRiesgo,
   subirParaSubaccion,
+  ver,
   descargar,
   eliminar,
   listarTodas,

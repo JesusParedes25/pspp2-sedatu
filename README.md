@@ -33,8 +33,13 @@ dos; lo que cambia es cómo se instalan y conectan las piezas.
   operativo. Usarlo cuando la infraestructura que recibe la plataforma
   no opera Docker. Ver `deploy/README.md` para la guía completa,
   probada de punta a punta en Rocky Linux 9.
+- **Modelo SEDATU / DGTIC** (`deploy/docker-compose.sedatu.yml`): solo
+  el backend en un contenedor con un único puerto publicado; base de
+  datos y almacén de objetos provistos por la institución; frontend
+  compilado y servido de forma nativa por el nginx institucional. Ver
+  la sección "Modelo SEDATU" de `deploy/README.md`.
 
-Los dos caminos conviven: ninguno depende de que el otro no exista, y
+Los caminos conviven: ninguno depende de que el otro no exista, y
 ningún archivo de uno se mueve ni se borra por tener el otro.
 
 ## Requisitos (despliegue con Docker)
@@ -78,6 +83,7 @@ tocarlas después de que `dist/` ya existe no tiene ningún efecto).
 | `MINIO_PASSWORD`   | Contraseña de MinIO                            | ✅          |
 | `MINIO_BUCKET`     | Nombre del bucket para evidencias              | ✅          |
 | `MINIO_PORT`       | Puerto interno de MinIO (normalmente `9000`)   | ✅          |
+| `MINIO_PREFIX`     | Prefijo que se antepone a toda clave de objeto para separar ambientes dentro de un mismo bucket (p. ej. `qa`, `prod`). Vacío = sin prefijo, igual que siempre | ❌ |
 | `UPLOAD_TMP_DIR`   | Carpeta donde el backend escribe el temporal de cada archivo subido antes de mandarlo a MinIO. Si no se define, usa una carpeta dentro del directorio temporal del sistema | ❌ |
 | `UPLOAD_MAX_SIZE_MB` | Tamaño máximo por archivo, en MB, para evidencias/imagen de proyecto/shapefile. Si no se define, el backend usa `200` | ❌ |
 | `FRONTEND_URL`     | URL pública del frontend. Controla la lista blanca de CORS y las ligas de activación/invitación | ✅          |

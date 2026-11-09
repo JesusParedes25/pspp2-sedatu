@@ -28,10 +28,14 @@ function iconoCategoria(categoria) {
 // en `actividad`, no en `evidencias`, y usa un endpoint de descarga distinto.
 // Sin esto, el link/vista previa de un documento agregado desde una tarea
 // apuntaba al endpoint equivocado (mismo `id`, tabla distinta).
-function urlDoc(doc) {
+// modo: 'descarga' (attachment) o 'vista' (inline, para la vista previa).
+function urlDoc(doc, modo = 'descarga') {
   if (doc.tipo_medio === 'link') return doc.url;
-  if (doc.fuente === 'tarea') return actividadApi.obtenerUrlDescargaActividad(doc.id);
-  return evidenciasApi.obtenerUrlDescarga(doc.id);
+  const vista = modo === 'vista';
+  if (doc.fuente === 'tarea') {
+    return vista ? actividadApi.obtenerUrlVistaActividad(doc.id) : actividadApi.obtenerUrlDescargaActividad(doc.id);
+  }
+  return vista ? evidenciasApi.obtenerUrlVista(doc.id) : evidenciasApi.obtenerUrlDescarga(doc.id);
 }
 
 export default function PestanaDocumentos({ tipo, id, permisos, permisosProyecto, onCambiado, onContador, onNavegarNodo, altaSolicitada, onAltaConsumida }) {
@@ -155,7 +159,7 @@ export default function PestanaDocumentos({ tipo, id, permisos, permisosProyecto
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-2">
                       <a
-                        href={urlDoc(doc)}
+                        href={urlDoc(doc, 'vista')}
                         target="_blank" rel="noreferrer"
                         className="flex items-center gap-1.5 text-gray-700 hover:text-guinda-700 font-medium min-w-0"
                       >
@@ -207,7 +211,8 @@ export default function PestanaDocumentos({ tipo, id, permisos, permisosProyecto
       {previewItem && (
         <FilePreviewModal
           evidencia={previewItem}
-          urlOverride={previewItem.tipo_medio === 'link' ? undefined : urlDoc(previewItem)}
+          urlOverride={previewItem.tipo_medio === 'link' ? undefined : urlDoc(previewItem, 'vista')}
+          urlDescargaOverride={previewItem.tipo_medio === 'link' ? undefined : urlDoc(previewItem)}
           onClose={() => setPreviewItem(null)}
         />
       )}

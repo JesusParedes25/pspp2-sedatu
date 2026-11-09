@@ -107,10 +107,25 @@ export async function obtenerDocumentosAgregados(tipo, nodoId, incluirHijos = tr
   return data;
 }
 
-export function obtenerUrlDescarga(evidenciaId) {
+// Los archivos SIEMPRE se piden a la API: el backend valida el permiso y
+// transmite el objeto desde el almacén, que no se publica (requisito de la
+// DGTIC: sin URLs firmadas, el navegador nunca habla con el almacén).
+// El token va en la query porque <a href>, <iframe> e <img> no mandan el
+// header Authorization.
+//   /ver       → Content-Disposition: inline     (vista previa)
+//   /descargar → Content-Disposition: attachment (botón "Descargar")
+function urlArchivoEvidencia(evidenciaId, accion) {
   const baseURL = client.defaults.baseURL;
   const token = localStorage.getItem('pspp_token');
-  return `${baseURL}/evidencias/${evidenciaId}/descargar?token=${token}`;
+  return `${baseURL}/evidencias/${evidenciaId}/${accion}?token=${encodeURIComponent(token || '')}`;
+}
+
+export function obtenerUrlDescarga(evidenciaId) {
+  return urlArchivoEvidencia(evidenciaId, 'descargar');
+}
+
+export function obtenerUrlVista(evidenciaId) {
+  return urlArchivoEvidencia(evidenciaId, 'ver');
 }
 
 export async function eliminarEvidencia(id) {

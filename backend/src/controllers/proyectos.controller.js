@@ -29,18 +29,12 @@ const pool = require('../db/pool');
 const { cambiarEstado: cambiarEstadoUtil } = require('../utils/validaciones-estado');
 const { recalcularProyecto } = require('../utils/recalculos');
 const fs = require('fs');
-const { Client: MinioClient } = require('minio');
 const { v4: uuidv4 } = require('uuid');
 const { limpiarArchivoTemporal } = require('../middleware/subidaArchivo.middleware');
-
-const minioClient = new MinioClient({
-  endPoint: process.env.MINIO_ENDPOINT || 'minio',
-  port: parseInt(process.env.MINIO_PORT) || 9000,
-  useSSL: process.env.MINIO_USE_SSL === 'true',
-  accessKey: process.env.MINIO_USER,
-  secretKey: process.env.MINIO_PASSWORD,
-});
-const BUCKET = process.env.MINIO_BUCKET || 'pspp-evidencias';
+// Cliente compartido: aplica MINIO_PREFIX (antes este controller tenía su
+// propio cliente, que no lo habría aplicado).
+const { almacen } = require('../utils/minio');
+const { transmitirObjeto } = require('../utils/transmitirObjeto');
 
 // GET /proyectos — Listar proyectos con filtros y paginación
 async function listar(req, res, next) {
@@ -372,7 +366,7 @@ async function subirImagen(req, res, next) {
     const nombreUnico = `${uuidv4()}_${archivo.originalname}`;
     const rutaMinio = `proyectos/${req.params.id}/portada/${nombreUnico}`;
 
-    await minioClient.putObject(BUCKET, rutaMinio, fs.createReadStream(archivo.path), archivo.size, {
+    await almacen.putObject(rutaMinio, fs.createReadStream(archivo.path), archivo.size, {
       'Content-Type': archivo.mimetype,
     });
 
@@ -413,7 +407,8 @@ async function obtenerEtiquetas(req, res, next) {
   }
 }
 
-// GET /proyectos/:id/imagen — Proxy: sirve la imagen desde MinIO al navegador
+// GET /proyectos/:id/imagen: proxy que transmite la portada desde el almacén
+// (utils/transmitirObjeto.js: flujo, Range, 404 si el objeto ya no está).
 async function servirImagen(req, res, next) {
   try {
     const proyecto = await proyectosQueries.obtenerProyectoPorId(req.params.id);
@@ -421,19 +416,15 @@ async function servirImagen(req, res, next) {
       return res.status(404).json({ error: true, mensaje: 'Imagen no encontrada' });
     }
 
-    const rutaObjeto = proyecto.imagen_url;
-    const stat = await minioClient.statObject(BUCKET, rutaObjeto);
-    res.setHeader('Content-Type', stat.metaData?.['content-type'] || 'image/png');
-    res.setHeader('Content-Length', stat.size);
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-
-    const stream = await minioClient.getObject(BUCKET, rutaObjeto);
-    stream.pipe(res);
+    return await transmitirObjeto(req, res, next, {
+      clave: proyecto.imagen_url,
+      nombre: 'portada',
+      disposicion: 'inline',
+      cacheControl: 'public, max-age=86400',
+      mensaje404: 'Imagen no encontrada en storage',
+    });
   } catch (err) {
-    if (err.code === 'NoSuchKey' || err.code === 'NotFound') {
-      return res.status(404).json({ error: true, mensaje: 'Imagen no encontrada en storage' });
-    }
-    next(err);
+    return next(err);
   }
 }
 

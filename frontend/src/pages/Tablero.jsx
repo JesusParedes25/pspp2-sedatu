@@ -25,6 +25,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { obtenerInicio, obtenerProyectosFiltroInicio, obtenerCarterasFiltroInicio } from '../api/inicio';
 import client from '../api/client';
+import { urlImagenProyecto } from '../api/proyectos';
 import MapaTerritorialInicio from '../components/inicio/MapaTerritorialInicio';
 import FiltroTablero from '../components/inicio/FiltroTablero';
 import { ETIQUETA_TIPO_INDICADOR, agruparPorCatalogo, TarjetaIndicadorOAgrupada } from '../components/indicadores/TarjetaIndicador';
@@ -376,7 +377,7 @@ function ProyectoCard({ proyecto }) {
     >
       {proyecto.imagen_url && (
         <div className="h-20 -mx-px -mt-px mb-3">
-          <img src={proyecto.imagen_url} alt="" className="w-full h-full object-cover" />
+          <img src={urlImagenProyecto(proyecto)} alt="" className="w-full h-full object-cover" />
         </div>
       )}
       <div className={proyecto.imagen_url ? 'px-4 pb-4' : 'p-4'}>

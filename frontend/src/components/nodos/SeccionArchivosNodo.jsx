@@ -216,7 +216,8 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
           {previewEv && (
             <FilePreviewModal
               evidencia={previewEv}
-              urlOverride={esActividad && previewEv.tipo_medio !== 'link' ? actividadApi.obtenerUrlDescargaActividad(previewEv.id) : undefined}
+              urlOverride={esActividad && previewEv.tipo_medio !== 'link' ? actividadApi.obtenerUrlVistaActividad(previewEv.id) : undefined}
+              urlDescargaOverride={esActividad && previewEv.tipo_medio !== 'link' ? actividadApi.obtenerUrlDescargaActividad(previewEv.id) : undefined}
               onClose={() => setPreviewEv(null)}
             />
           )}

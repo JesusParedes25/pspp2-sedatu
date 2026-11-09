@@ -22,7 +22,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const pool = require('../pool');
-const { minioClient, BUCKET } = require('../../utils/minio');
+const { almacen } = require('../../utils/minio');
 const { recalcularPesosEtapa } = require('./acciones.queries');
 const { recalcularEtapa, recalcularProyecto } = require('../../utils/recalculos');
 const { sincronizarCobertura } = require('./cobertura-sync.queries');
@@ -342,7 +342,7 @@ async function duplicarProyecto(idOrigen, opciones, creadorId) {
         if (ev.ruta_minio) {
           rutaNueva = `${nuevo.id}/${Date.now()}-${ev.nombre_archivo}`;
           try {
-            await minioClient.copyObject(BUCKET, rutaNueva, `/${BUCKET}/${ev.ruta_minio}`);
+            await almacen.copyObject(rutaNueva, ev.ruta_minio);
           } catch (errMinio) {
             // Sin esto el usuario recibía el error crudo del cliente MinIO
             // ("connect ECONNREFUSED ..."), que no le dice qué hacer.
@@ -389,7 +389,7 @@ async function duplicarProyecto(idOrigen, opciones, creadorId) {
     await client.query('ROLLBACK');
     // Postgres ya revirtió; MinIO no sabe de transacciones.
     for (const ruta of objetosCopiados) {
-      try { await minioClient.removeObject(BUCKET, ruta); } catch { /* mejor esfuerzo */ }
+      try { await almacen.removeObject(ruta); } catch { /* mejor esfuerzo */ }
     }
     throw err;
   } finally {
