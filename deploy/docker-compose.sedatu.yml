@@ -85,6 +85,9 @@ services:
 
       # ─── Subidas ──────────────────────────────────────────────────
       UPLOAD_MAX_SIZE_MB: ${UPLOAD_MAX_SIZE_MB:-200}
+      # Tiempo máximo para recibir una petición completa (Node corta a los
+      # 300 s si no se fija). Ver deploy/README.md, sección 12.
+      TIEMPO_MAXIMO_PETICION_SEGUNDOS: ${TIEMPO_MAXIMO_PETICION_SEGUNDOS:-3600}
       # Dentro del contenedor; el backend borra cada temporal al terminar
       # la petición (éxito, error o conexión cortada) y barre huérfanos.
       UPLOAD_TMP_DIR: /tmp/pspp-uploads

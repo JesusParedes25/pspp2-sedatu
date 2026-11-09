@@ -4,6 +4,7 @@
  */
 import { useState, useEffect } from 'react';
 import { Check, AlertTriangle, AlertCircle, Loader2, Undo2 } from 'lucide-react';
+import { mensajeDeError } from '../../api/transferencias';
 import ArbolPreview from './ArbolPreview';
 import * as importarApi from '../../api/importar';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
@@ -34,7 +35,7 @@ export default function PasoPreview({ fileId, config, proyectoId, sheetIndex, on
       const res = await importarApi.preview({ fileId, config, proyectoId, sheetIndex });
       setPreview(res.datos);
     } catch (e) {
-      setError(e.response?.data?.mensaje || e.message);
+      setError(mensajeDeError(e, e.message));
     } finally {
       setCargando(false);
     }
@@ -47,7 +48,7 @@ export default function PasoPreview({ fileId, config, proyectoId, sheetIndex, on
       setResultado(res.datos);
       if (onImportado) onImportado();
     } catch (e) {
-      setError(e.response?.data?.mensaje || e.message);
+      setError(mensajeDeError(e, e.message));
     }
   });
 

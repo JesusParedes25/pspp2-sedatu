@@ -11,6 +11,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import client from './client';
+import { subirArchivo, conTiempoDeProceso } from './transferencias';
 import { nombreDeContentDisposition } from '../utils/nombreDescarga';
 
 export async function listarProyectos(filtros = {}) {
@@ -37,10 +38,12 @@ export async function obtenerProyecto(id) {
 // extrae de ahí en vez de reconstruirlo aquí, para que quede idéntico al
 // que ya sanitizó el backend (sin repetir esa lógica en el frontend).
 export async function exportarProyecto(id, formato = 'xlsx') {
-  const response = await client.get(`/proyectos/${id}/exportar`, {
+  // El servidor arma el Excel antes de contestar: límite de proceso (5 min),
+  // no el de 30 s de una petición normal.
+  const response = await client.get(`/proyectos/${id}/exportar`, conTiempoDeProceso({
     params: { formato },
     responseType: 'blob',
-  });
+  }));
 
   const nombreArchivo = nombreDeContentDisposition(
     response.headers['content-disposition'], `proyecto.${formato}`);
@@ -140,18 +143,16 @@ export function urlImagenProyecto(proyecto) {
   return `${client.defaults.baseURL}/proyectos/${proyecto.id}/imagen`;
 }
 
-export async function subirImagenProyecto(id, archivo) {
+export async function subirImagenProyecto(id, archivo, opciones = {}) {
   const formData = new FormData();
   formData.append('imagen', archivo);
-  const { data } = await client.post(`/proyectos/${id}/imagen`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-  return data;
+  return subirArchivo(`/proyectos/${id}/imagen`, formData, archivo, opciones);
 }
 
 // Crea un proyecto nuevo copiando la estructura de `id`.
 // `incluir` es { fechas, territorio, indicadores, participantes, archivos }.
 export async function duplicarProyecto(id, { nombre, incluir }) {
-  const { data } = await client.post(`/proyectos/${id}/duplicar`, { nombre, incluir });
+  // Con "Archivos adjuntos" copia cada objeto en el almacén: límite de proceso.
+  const { data } = await client.post(`/proyectos/${id}/duplicar`, { nombre, incluir }, conTiempoDeProceso());
   return data;
 }

@@ -13,6 +13,7 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Plus, Trash2, ChevronDown, ChevronUp, ImagePlus } from 'lucide-react';
+import { mensajeDeError } from '../../api/transferencias';
 import * as catalogosApi from '../../api/catalogos';
 import * as proyectosApi from '../../api/proyectos';
 import * as indicadoresApi from '../../api/indicadores';
@@ -283,7 +284,7 @@ export default function ModalEditarProyecto({ proyecto, onCerrar, onGuardado }) 
       onGuardado && onGuardado();
       onCerrar();
     } catch (err) {
-      mostrarToast(err.response?.data?.mensaje || 'Error al guardar el proyecto', 'error');
+      mostrarToast(mensajeDeError(err, 'Error al guardar el proyecto.'), 'error');
     }
   });
 

@@ -16,6 +16,7 @@
  */
 import { useState, useEffect } from 'react';
 import { X, Loader2, Copy, Search, Calendar, MapPin, BarChart3, Users, Paperclip, Check } from 'lucide-react';
+import { mensajeDeError } from '../../api/transferencias';
 import * as proyectosApi from '../../api/proyectos';
 import * as etapasApi from '../../api/etapas';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
@@ -108,7 +109,7 @@ export default function ModalDuplicarProyecto({ proyectoOrigen = null, onCerrar,
       mostrarToast?.('Proyecto duplicado', 'exito');
       onDuplicado?.(res.datos);
     } catch (err) {
-      setError(err.response?.data?.mensaje || 'No se pudo duplicar el proyecto.');
+      setError(mensajeDeError(err, 'No se pudo duplicar el proyecto.'));
     }
   });
 

@@ -4,6 +4,7 @@
  *            riesgos reportados, cambios de estatus/avance) por nodo.
  */
 import client from './client';
+import { subirArchivo } from './transferencias';
 
 export async function obtenerActividadNodo(tipo, id) {
   const { data } = await client.get(`/actividad/${tipo}/${id}`);
@@ -15,21 +16,20 @@ export async function comentar(tipo, id, contenido) {
   return data;
 }
 
-export async function adjuntarArchivo(tipo, id, archivo) {
+export async function adjuntarArchivo(tipo, id, archivo, opciones = {}) {
   const formData = new FormData();
   formData.append('archivo', archivo);
   formData.append('tipo_nodo', tipo);
   formData.append('id_nodo', id);
   formData.append('tipo_evento', 'archivo');
-  const { data } = await client.post('/actividad', formData);
-  return data;
+  return subirArchivo('/actividad', formData, archivo, opciones);
 }
 
 // Igual que subirEvidenciaEtapa/subirEvidenciaAccion (evidencias.js) pero
 // contra el stream unificado — para tarea, que nunca tuvo su propia tabla
 // de evidencias. categoria/notas viajan en metadata (columna JSONB en
 // `actividad`), mismo criterio que ya usa reportarRiesgo con "nivel".
-export async function subirArchivoActividad(tipo, id, archivo, metadatos = {}) {
+export async function subirArchivoActividad(tipo, id, archivo, metadatos = {}, opciones = {}) {
   const formData = new FormData();
   formData.append('archivo', archivo);
   formData.append('tipo_nodo', tipo);
@@ -41,8 +41,7 @@ export async function subirArchivoActividad(tipo, id, archivo, metadatos = {}) {
     titulo: metadatos.titulo || null,
     tipo_medio: 'archivo',
   }));
-  const { data } = await client.post('/actividad', formData);
-  return data;
+  return subirArchivo('/actividad', formData, archivo, opciones);
 }
 
 // Igual que registrarLinkEtapa/registrarLinkAccion pero contra el stream

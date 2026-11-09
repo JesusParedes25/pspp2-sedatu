@@ -30,6 +30,8 @@ import { Paperclip, Send, Loader2, X, FileText, Upload, Link2 } from 'lucide-rea
 import * as actividadApi from '../../api/actividad';
 import * as archivosApi from '../../api/archivos';
 import { useDescargaArchivo } from '../../hooks/useDescargaArchivo';
+import { mensajeDeError } from '../../api/transferencias';
+import ProgresoSubida from '../common/ProgresoSubida';
 import * as riesgosApi from '../../api/riesgos';
 import FilePreviewModal from '../evidencias/FilePreviewModal';
 import ModalRiesgo from '../riesgos/ModalRiesgo';
@@ -161,13 +163,27 @@ export default function ActividadStream({ tipo, id, titulo, proyectoId, soloLect
     });
   }
 
+  // Antes el error de esta subida no tenía catch: solo quedaba en la
+  // consola del navegador y el usuario no se enteraba de que falló.
+  const [subida, setSubida] = useState(null); // { nombre, fraccion }
   function adjuntar(e) {
-    const archivo = e.target.files?.[0];
+    const input = e.target;
+    const archivo = input.files?.[0];
     if (!archivo) return;
     ejecutar(async () => {
-      await actividadApi.adjuntarArchivo(tipo, id, archivo);
-      cargar();
-    }).finally(() => { e.target.value = ''; });
+      setSubida({ nombre: archivo.name, fraccion: 0 });
+      try {
+        await actividadApi.adjuntarArchivo(tipo, id, archivo, {
+          onProgreso: (fraccion) => setSubida({ nombre: archivo.name, fraccion }),
+        });
+        cargar();
+      } catch (err) {
+        console.error('Error adjuntando archivo:', err);
+        mostrarToast(`No se pudo subir «${archivo.name}». ${mensajeDeError(err, 'Inténtalo de nuevo.')}`, 'error');
+      } finally {
+        setSubida(null);
+      }
+    }).finally(() => { input.value = ''; });
   }
 
   // Un riesgo reportado desde una tarea (sin riesgo_id) vive solo en
@@ -210,6 +226,7 @@ export default function ActividadStream({ tipo, id, titulo, proyectoId, soloLect
       )}
 
       {/* Composer */}
+      {subida && <ProgresoSubida nombre={subida.nombre} fraccion={subida.fraccion} className="mt-3" />}
       {soloLectura ? (
         <p className="text-[11px] text-gray-400 italic mt-3 pt-3 border-t border-gray-100">
           Solo consulta. Para comentar o adjuntar aquí necesitas participar en este proyecto.

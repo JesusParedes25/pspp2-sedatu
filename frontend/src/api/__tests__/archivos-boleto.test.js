@@ -10,7 +10,7 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../client', () => ({
-  default: { post: vi.fn(), get: vi.fn(), defaults: { baseURL: '/pspp/api/v1' } },
+  default: { post: vi.fn(), get: vi.fn(), request: vi.fn(), defaults: { baseURL: '/pspp/api/v1' } },
 }));
 
 const client = (await import('../client')).default;
@@ -40,21 +40,25 @@ describe('obtenerUrlConBoleto', () => {
 });
 
 describe('obtenerContenido (vista previa)', () => {
-  test('GET /ver con axios (lleva la cabecera), como blob, sin nada en la query', async () => {
+  test('GET /ver con axios (lleva la cabecera), como blob, sin nada en la query ni límite de 30 s', async () => {
     const blob = new Blob(['%PDF']);
-    client.get.mockResolvedValue({ data: blob });
+    client.request.mockResolvedValue({ data: blob });
     const r = await archivosApi.obtenerContenido(archivosApi.fuenteEvidencia('ev-1'));
     expect(r).toBe(blob);
-    const [ruta, opciones] = client.get.mock.calls[0];
-    expect(ruta).toBe('/evidencias/ev-1/ver');
-    expect(opciones.responseType).toBe('blob');
-    expect(opciones.params).toBeUndefined();
+    const [config] = client.request.mock.calls[0];
+    expect(config.method).toBe('get');
+    expect(config.url).toBe('/evidencias/ev-1/ver');
+    expect(config.responseType).toBe('blob');
+    expect(config.params).toBeUndefined();
+    // Transferencia: tope amplio + vigilante de "sin avance", no 30 s.
+    expect(config.timeout).toBe(3_600_000);
+    expect(typeof config.onDownloadProgress).toBe('function');
   });
 
   test('rango opcional → cabecera Range', async () => {
-    client.get.mockResolvedValue({ data: new Blob(['a']) });
+    client.request.mockResolvedValue({ data: new Blob(['a']) });
     await archivosApi.obtenerContenido(archivosApi.fuenteEvidencia('ev-1'), { rango: [0, 99] });
-    expect(client.get.mock.calls[0][1].headers).toEqual({ Range: 'bytes=0-99' });
+    expect(client.request.mock.calls[0][0].headers).toEqual({ Range: 'bytes=0-99' });
   });
 });
 

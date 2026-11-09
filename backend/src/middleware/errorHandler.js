@@ -28,8 +28,24 @@ const MENSAJES_CONSTRAINT = {
   acciones_territorio_exclusivo: 'Un nodo no puede tener Zona Metropolitana y Estado/Municipio al mismo tiempo.',
 };
 
+// Errores de multer (recepción de archivos). Sin este mapeo caían al 500
+// genérico con el mensaje en inglés de multer ("File too large"): el
+// usuario veía "Error interno" por algo que es un límite conocido.
+const MENSAJES_MULTER = {
+  LIMIT_FILE_SIZE: { status: 413, codigo: 'ARCHIVO_DEMASIADO_GRANDE', mensaje: 'El archivo excede el tamaño máximo permitido.' },
+  LIMIT_FILE_COUNT: { status: 400, codigo: 'DEMASIADOS_ARCHIVOS', mensaje: 'Se enviaron más archivos de los permitidos.' },
+  LIMIT_UNEXPECTED_FILE: { status: 400, codigo: 'CAMPO_ARCHIVO_INESPERADO', mensaje: 'El archivo llegó en un campo que no se esperaba.' },
+};
+
 // Middleware de error — siempre va ÚLTIMO en la cadena de app.use()
 function errorHandler(err, req, res, next) {
+  if (err && err.name === 'MulterError') {
+    const m = MENSAJES_MULTER[err.code] || { status: 400, codigo: 'SUBIDA_INVALIDA', mensaje: 'La subida del archivo no es válida.' };
+    console.error('─── Subida rechazada ───', req.method, req.originalUrl, err.code);
+    if (res.headersSent) return next(err);
+    return res.status(m.status).json({ error: true, mensaje: m.mensaje, codigo: m.codigo });
+  }
+
   // Loguear el error completo en consola para debugging
   console.error('─── Error capturado ───');
   console.error('Ruta:', req.method, req.originalUrl);

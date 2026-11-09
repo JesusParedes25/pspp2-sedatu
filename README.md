@@ -87,6 +87,7 @@ tocarlas después de que `dist/` ya existe no tiene ningún efecto).
 | `MINIO_PREFIX`     | Prefijo que se antepone a toda clave de objeto para separar ambientes dentro de un mismo bucket (p. ej. `qa`, `prod`). Vacío = sin prefijo, igual que siempre | ❌ |
 | `UPLOAD_TMP_DIR`   | Carpeta donde el backend escribe el temporal de cada archivo subido antes de mandarlo a MinIO. Si no se define, usa una carpeta dentro del directorio temporal del sistema | ❌ |
 | `UPLOAD_MAX_SIZE_MB` | Tamaño máximo por archivo, en MB, para evidencias/imagen de proyecto/shapefile. Si no se define, el backend usa `200` | ❌ |
+| `TIEMPO_MAXIMO_PETICION_SEGUNDOS` | Tiempo máximo para que el backend reciba una petición completa (subidas lentas). Por omisión `3600`; Node trae 300 | ❌ |
 | `FRONTEND_URL`     | URL pública del frontend. Controla la lista blanca de CORS y las ligas de activación/invitación | ✅          |
 
 ### Compilación del frontend
@@ -95,6 +96,7 @@ tocarlas después de que `dist/` ya existe no tiene ningún efecto).
 |------------------------|----------------------------------------------|:-----------:|
 | `VITE_API_URL`         | A dónde apunta el frontend compilado para llamar a la API. Por omisión, `/api/v1` (ruta relativa: el mismo build sirve para cualquier dominio) | ❌ |
 | `VITE_CARTO_API_KEY`   | Llave del proveedor de mapas base (CARTO). Si falta, el mapa base no carga, el resto de la plataforma funciona igual | ❌ |
+| `VITE_TIEMPO_ESPERA_MS` / `VITE_TIEMPO_ESPERA_PROCESO_MS` / `VITE_TRANSFERENCIA_SIN_AVANCE_MS` / `VITE_TIEMPO_MAXIMO_TRANSFERENCIA_MS` / `VITE_UPLOAD_MAX_SIZE_MB` | Límites del cliente HTTP (30 s normal, 5 min proceso, 60 s sin avance, 60 min tope, 200 MB). Ver `deploy/README.md`, sección 12 | ❌ |
 
 `SMTP_*` no aparece en esta lista a propósito: el correo (invitaciones,
 asignaciones) lo manda EmailJS desde el navegador, no el backend por

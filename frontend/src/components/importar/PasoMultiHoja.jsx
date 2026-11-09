@@ -10,6 +10,7 @@
  */
 import { useState } from 'react';
 import { Layers, Zap, ListChecks, ChevronDown, ChevronRight, AlertTriangle, CheckCircle2, Loader2, ArrowRight, Info, Undo2 } from 'lucide-react';
+import { mensajeDeError } from '../../api/transferencias';
 import * as importarApi from '../../api/importar';
 import { useEnvioUnico } from '../../hooks/useEnvioUnico';
 import ConfirmDialog from '../common/ConfirmDialog';
@@ -180,7 +181,7 @@ export default function PasoMultiHoja({ fileId, multiHoja, proyectoId, onImporta
       setPreview(res.datos);
       setPaso('preview');
     } catch (e) {
-      setError(e.response?.data?.mensaje || 'Error generando preview.');
+      setError(mensajeDeError(e, 'Error generando preview.'));
     } finally { setCargando(false); }
   }
 
@@ -196,7 +197,7 @@ export default function PasoMultiHoja({ fileId, multiHoja, proyectoId, onImporta
       setResultado(res.datos);
       setPaso('exito');
     } catch (e) {
-      setError(e.response?.data?.mensaje || 'Error durante la importación.');
+      setError(mensajeDeError(e, 'Error durante la importación.'));
       setPaso('preview');
     }
   });

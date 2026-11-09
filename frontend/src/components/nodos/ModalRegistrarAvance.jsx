@@ -25,6 +25,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Loader2, Lock, CheckCircle2, Plus } from 'lucide-react';
+import { mensajeDeError } from '../../api/transferencias';
+import ProgresoSubida from '../common/ProgresoSubida';
 import * as etapasApi from '../../api/etapas';
 import * as accionesApi from '../../api/acciones';
 import * as tareasApi from '../../api/tareas';
@@ -74,16 +76,16 @@ async function comentarEn(tipo, id, contenido) {
   return actividadApi.comentar(tipo, id, contenido);
 }
 
-async function adjuntarEvidencia(tipo, id, { archivo, url, categoria, notas, titulo }) {
+async function adjuntarEvidencia(tipo, id, { archivo, url, categoria, notas, titulo }, opciones = {}) {
   const metadatos = { categoria: categoria || 'Otro', notas: notas?.trim() || null, titulo: titulo?.trim() || null };
   if (url) {
     if (tipo === 'tarea') return actividadApi.registrarLinkActividad(tipo, id, url, metadatos);
     if (tipo === 'etapa') return evidenciasApi.registrarLinkEtapa(id, url, metadatos);
     return evidenciasApi.registrarLinkAccion(id, url, metadatos);
   }
-  if (tipo === 'tarea') return actividadApi.subirArchivoActividad(tipo, id, archivo, metadatos);
-  if (tipo === 'etapa') return evidenciasApi.subirEvidenciaEtapa(id, archivo, metadatos);
-  return evidenciasApi.subirEvidenciaAccion(id, archivo, metadatos);
+  if (tipo === 'tarea') return actividadApi.subirArchivoActividad(tipo, id, archivo, metadatos, opciones);
+  if (tipo === 'etapa') return evidenciasApi.subirEvidenciaEtapa(id, archivo, metadatos, opciones);
+  return evidenciasApi.subirEvidenciaAccion(id, archivo, metadatos, opciones);
 }
 
 let contadorEvidencia = 0;
@@ -114,6 +116,7 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
   // evidencia del mismo reporte.
   const [evidencias, setEvidencias] = useState([]);
   const [error, setError] = useState('');
+  const [subida, setSubida] = useState(null); // { nombre, fraccion } del archivo en curso
   // Historial de Estatus cualitativo — carga silenciosa, aparte del resto
   // del modal (que es usable de inmediato con o sin esto todavía cargado).
   const [historialRaw, setHistorialRaw] = useState([]);
@@ -196,15 +199,28 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
       // mismo nodo — más simple de seguir en el log del servidor y evita
       // sorpresas de orden si una evidencia depende de otra en el futuro.
       for (const ev of evidencias) {
-        if (ev.modo === 'archivo') await adjuntarEvidencia(tipo, nodo.id, { archivo: ev.archivo, categoria: ev.categoria, notas: ev.notas, titulo: ev.titulo });
-        else if (ev.url.trim()) await adjuntarEvidencia(tipo, nodo.id, { url: ev.url.trim(), categoria: ev.categoria, notas: ev.notas, titulo: ev.titulo });
+        if (ev.modo === 'archivo') {
+          const nombre = ev.archivo.name;
+          setSubida({ nombre, fraccion: 0 });
+          try {
+            await adjuntarEvidencia(tipo, nodo.id, { archivo: ev.archivo, categoria: ev.categoria, notas: ev.notas, titulo: ev.titulo },
+              { onProgreso: (fraccion) => setSubida({ nombre, fraccion }) });
+          } catch (errSubida) {
+            // El avance/estatus ya se guardó arriba: decirlo, para que no
+            // se reporte dos veces, y nombrar el archivo que falló.
+            errSubida.mensajePspp = `El avance se guardó, pero no se pudo subir «${nombre}». ${mensajeDeError(errSubida, 'Inténtalo de nuevo desde Documentos.')}`;
+            throw errSubida;
+          }
+        } else if (ev.url.trim()) await adjuntarEvidencia(tipo, nodo.id, { url: ev.url.trim(), categoria: ev.categoria, notas: ev.notas, titulo: ev.titulo });
       }
+      setSubida(null);
 
       await onGuardado?.();
       mostrarToast('Avance guardado', 'exito');
       onCerrar?.();
     } catch (err) {
-      setError(err.response?.data?.mensaje || 'No se pudo guardar el avance');
+      setSubida(null);
+      setError(err.mensajePspp || mensajeDeError(err, 'No se pudo guardar el avance.'));
     }
   });
 
@@ -367,6 +383,7 @@ export default function ModalRegistrarAvance({ tipo, nodo, esContenedor = false,
             </div>
           </div>
 
+          {subida && <ProgresoSubida nombre={subida.nombre} fraccion={subida.fraccion} />}
           {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded p-2 leading-snug">{error}</p>}
         </div>
 

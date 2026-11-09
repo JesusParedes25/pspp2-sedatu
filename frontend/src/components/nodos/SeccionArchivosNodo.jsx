@@ -24,6 +24,8 @@ import * as evidenciasApi from '../../api/evidencias';
 import * as actividadApi from '../../api/actividad';
 import * as archivosApi from '../../api/archivos';
 import { useDescargaArchivo } from '../../hooks/useDescargaArchivo';
+import { mensajeDeError } from '../../api/transferencias';
+import ProgresoSubida from '../common/ProgresoSubida';
 import FilePreviewModal from '../evidencias/FilePreviewModal';
 import FilaDocumentoPendiente from './FilaDocumentoPendiente';
 import { permisosDeNodo } from '../../hooks/usePermisos';
@@ -94,15 +96,21 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
   // solo la fila en la base de datos). Secuencial, no Promise.all: son
   // peticiones multipart contra el mismo nodo — más simple de seguir en el
   // log del servidor, mismo criterio que ModalRegistrarAvance.
+  const [subida, setSubida] = useState(null); // { nombre, fraccion } del archivo en curso
   const [guardarPendientes, guardando] = useEnvioUnico(async () => {
     const total = pendientes.length;
+    let enCurso = null;
     try {
       for (const p of pendientes) {
         const metadatos = { categoria: p.categoria, notas: p.notas, titulo: p.titulo?.trim() || null };
         if (p.modo === 'archivo') {
-          if (esActividad) await actividadApi.subirArchivoActividad(tipo, id, p.archivo, metadatos);
-          else if (tipo === 'etapa') await evidenciasApi.subirEvidenciaEtapa(id, p.archivo, metadatos);
-          else await evidenciasApi.subirEvidenciaAccion(id, p.archivo, metadatos);
+          enCurso = p.archivo.name;
+          setSubida({ nombre: enCurso, fraccion: 0 });
+          const opciones = { onProgreso: (fraccion) => setSubida({ nombre: p.archivo.name, fraccion }) };
+          if (esActividad) await actividadApi.subirArchivoActividad(tipo, id, p.archivo, metadatos, opciones);
+          else if (tipo === 'etapa') await evidenciasApi.subirEvidenciaEtapa(id, p.archivo, metadatos, opciones);
+          else await evidenciasApi.subirEvidenciaAccion(id, p.archivo, metadatos, opciones);
+          enCurso = null;
         } else if (p.url.trim()) {
           if (esActividad) await actividadApi.registrarLinkActividad(tipo, id, p.url.trim(), metadatos);
           else if (tipo === 'etapa') await evidenciasApi.registrarLinkEtapa(id, p.url.trim(), metadatos);
@@ -114,7 +122,13 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
       mostrarToast(total > 1 ? `${total} documentos guardados` : 'Documento guardado', 'exito');
     } catch (err) {
       console.error('Error subiendo documentos:', err);
-      mostrarToast(err.response?.data?.mensaje || 'No se pudo subir el documento', 'error');
+      const motivo = mensajeDeError(err, 'No se pudo subir el documento.');
+      mostrarToast(enCurso ? `No se pudo subir «${enCurso}». ${motivo}` : motivo, 'error');
+      // Los que ya se guardaron antes del que falló sí quedaron: recargar
+      // para que se vean y no se vuelvan a subir.
+      onRecargar?.();
+    } finally {
+      setSubida(null);
     }
   });
 
@@ -314,6 +328,8 @@ export default function SeccionArchivosNodo({ evidencias, tipo, id, onRecargar, 
           ))}
         </div>
       )}
+
+      {subida && <ProgresoSubida nombre={subida.nombre} fraccion={subida.fraccion} className="mb-2" />}
 
       {pendientes.some(p => p.modo === 'liga') && (
         <div className="flex items-start gap-1.5 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mb-2">

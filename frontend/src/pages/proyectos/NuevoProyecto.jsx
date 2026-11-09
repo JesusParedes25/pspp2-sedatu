@@ -25,6 +25,7 @@ import * as accionesApi from '../../api/acciones';
 import * as carterasApi from '../../api/carteras';
 import ModalCartera from '../../components/carteras/ModalCartera';
 import { ImagePlus, X, Plus, Trash2, ChevronDown, Briefcase, Copy } from 'lucide-react';
+import { mensajeDeError } from '../../api/transferencias';
 import ModalDuplicarProyecto from '../../components/proyectos/ModalDuplicarProyecto';
 import SelectorIndicadorCatalogo from '../../components/indicadores/SelectorIndicadorCatalogo';
 import EtiquetasChipInput from '../../components/common/EtiquetasChipInput';
@@ -143,11 +144,15 @@ export default function NuevoProyecto() {
           mostrarToast('Proyecto creado, pero no se pudo agregar a la cartera seleccionada', 'error');
         }
       }
+      // Antes un fallo de la portada solo quedaba en la consola. Se avisa
+      // al final, junto con el resultado del resto (hay un solo toast).
+      let avisoPortada = '';
       if (imagenPortada) {
         try {
           await proyectosApi.subirImagenProyecto(nuevoId, imagenPortada);
         } catch (imgErr) {
           console.error('Error subiendo imagen de portada:', imgErr);
+          avisoPortada = ` No se pudo subir la imagen de portada: ${mensajeDeError(imgErr, 'agrégala desde Editar proyecto.')}`;
         }
       }
       // Crear etapas y acciones planificadas. El proyecto ya existe en este
@@ -179,13 +184,13 @@ export default function NuevoProyecto() {
         // Toast solo soporta 'exito'|'error'|'info' (Toast.jsx) — esto es un
         // éxito parcial, pero 'error' es más honesto que 'info' aquí: algo
         // que el usuario capturó no se guardó y necesita revisarlo.
-        mostrarToast(`Proyecto creado, pero ${fallosEstructura} elemento(s) de la estructura no se guardaron: revísala desde el proyecto`, 'error');
+        mostrarToast(`Proyecto creado, pero ${fallosEstructura} elemento(s) de la estructura no se guardaron: revísala desde el proyecto.${avisoPortada}`, 'error');
       } else {
-        mostrarToast('Proyecto creado exitosamente', 'exito');
+        mostrarToast(avisoPortada ? `Proyecto creado.${avisoPortada}` : 'Proyecto creado exitosamente', avisoPortada ? 'error' : 'exito');
       }
       navigate(`/proyectos/${nuevoId}`);
     } catch (err) {
-      mostrarToast(err.response?.data?.mensaje || 'Error al crear proyecto', 'error');
+      mostrarToast(mensajeDeError(err, 'Error al crear proyecto.'), 'error');
     }
   });
 
