@@ -15,6 +15,15 @@
  * porque no permite mandar el header Authorization; se lee el stream
  * a mano con fetch + ReadableStream para reusar el mismo Bearer token
  * que ya usa el resto de la API.
+ *
+ * IMPORTANTE (paso 5, sesión por inactividad): esta conexión, igual que
+ * el polling de respaldo, NO cuenta como actividad de la persona para
+ * efectos de renovar la sesión — useSesionActividad.js solo escucha
+ * eventos de interacción real del DOM (click, teclado, mouse, scroll),
+ * nunca tráfico de red. Si contara, la sesión jamás caducaría mientras
+ * la pestaña siguiera abierta, aunque la persona se hubiera ido hace
+ * horas — justo lo que esta función (y cualquier `fetch`/axios que no
+ * sea un clic o una tecla) debe NO hacer.
  * ─────────────────────────────────────────────────────────────────
  */
 import client from './client';
@@ -22,7 +31,7 @@ import client from './client';
 const BASE_URL = (import.meta.env.VITE_API_URL || '/api/v1').replace(/\/$/, '');
 
 export function suscribirEnVivo(onAviso) {
-  const token = localStorage.getItem('pspp_token');
+  const token = sessionStorage.getItem('pspp_token');
   if (!token) return () => {};
 
   let activo = true;

@@ -64,7 +64,13 @@ services:
 
       # ─── Sesión ───────────────────────────────────────────────────
       JWT_SECRET: ${JWT_SECRET:?Defina JWT_SECRET}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-48h}
+      # Vigencia por inactividad (horas). Por omisión 8 — la DGTIC
+      # recomendó 15 minutos; se fijó 8h porque la captura en PSPP se
+      # hace en sesiones largas.
+      JWT_INACTIVIDAD_HORAS: ${JWT_INACTIVIDAD_HORAS:-8}
+      # Techo absoluto de la sesión (horas), contado desde el login.
+      # Por omisión 72.
+      JWT_SESION_MAX_HORAS: ${JWT_SESION_MAX_HORAS:-72}
       # Vigencia del boleto efímero de descarga (el token de sesión no va
       # en ninguna URL). Por omisión 60 s.
       BOLETO_ARCHIVO_TTL_SEGUNDOS: ${BOLETO_ARCHIVO_TTL_SEGUNDOS:-60}

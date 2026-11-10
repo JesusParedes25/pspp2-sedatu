@@ -42,6 +42,7 @@ import { useUI } from '../../context/UIContext';
 import { useCentroNotificaciones } from '../../hooks/useCentroNotificaciones';
 import { useMisPendientes } from '../../hooks/useMisPendientes';
 import ModalPendientesInicioSesion from '../notificaciones/ModalPendientesInicioSesion';
+import AvisoSesionPorExpirar from '../common/AvisoSesionPorExpirar';
 
 export default function Layout() {
   const { sidebarAbierto } = useUI();
@@ -58,6 +59,7 @@ export default function Layout() {
         </main>
       </div>
       <ModalPendientesInicioSesion onResuelto={recargarResumen} />
+      <AvisoSesionPorExpirar />
     </div>
   );
 }

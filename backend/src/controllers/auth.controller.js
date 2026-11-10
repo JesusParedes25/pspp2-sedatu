@@ -1,6 +1,6 @@
 /**
  * ARCHIVO: auth.controller.js
- * PROPÓSITO: Manejar login y obtención del usuario autenticado.
+ * PROPÓSITO: Manejar login, renovación y obtención del usuario autenticado.
  *
  * NOTA TÉCNICA: Flujo de autenticación con JWT
  * ─────────────────────────────────────────────────────────────────
@@ -9,14 +9,42 @@
  * 3. Comparamos el password con bcrypt.compare() (hash vs texto)
  * 4. Si coincide, generamos un JWT con jwt.sign() que incluye
  *    id, correo, rol e id_dg del usuario
- * 5. El frontend guarda el token en localStorage y lo envía en
+ * 5. El frontend guarda el token en sessionStorage y lo envía en
  *    cada petición como "Authorization: Bearer <token>"
+ * ─────────────────────────────────────────────────────────────────
+ *
+ * NOTA TÉCNICA: sesión por inactividad, no por duración fija
+ * ─────────────────────────────────────────────────────────────────
+ * El token expira (`exp`) a las JWT_INACTIVIDAD_HORAS (8h por omisión)
+ * de EMITIDO, sea el de login o el de una renovación — por eso el
+ * frontend llama a POST /auth/renovar cuando detecta actividad real de
+ * la persona (ver frontend/src/hooks/useSesionActividad.js), para
+ * empujar ese reloj hacia adelante. Lo que SÍ queda fijo desde el login
+ * es `ini` (inicio real de la sesión): renovarToken lo copia tal cual al
+ * payload nuevo en cada renovación, porque es la única forma de medir
+ * JWT_SESION_MAX_HORAS (72h por omisión, el techo absoluto) contra el
+ * inicio real de la sesión y no contra la última renovación — si no,
+ * alguien con un token robado podría renovarlo indefinidamente cada
+ * 7h59 sin tocar jamás el techo. `ini` es un claim propio, NO el `iat`
+ * estándar del JWT: jsonwebtoken reescribe `iat` en cada sign() y la
+ * opción pensada para fijarlo a mano (`noTimestamp`) en realidad lo
+ * BORRA del payload en vez de respetar el valor dado — se descubrió con
+ * una prueba que fallaba, no por lectura de la documentación.
+ * `tv` (token_version) viaja en el payload desde el login y en cada
+ * renovación; el middleware lo compara contra usuarios.token_version en
+ * cada petición (ver auth.middleware.js) — es lo que permite revocar una
+ * sesión sin esperar a que el token expire solo.
  * ─────────────────────────────────────────────────────────────────
  */
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const pool = require('../db/pool');
+const { inactividadSegundos, sesionMaxSegundos } = require('../utils/sesion');
+
+function expiraEnISO(segundosDesdeAhora) {
+  return new Date(Date.now() + segundosDesdeAhora * 1000).toISOString();
+}
 
 // POST /auth/login — Autenticar usuario y devolver JWT
 async function login(req, res, next) {
@@ -66,28 +94,31 @@ async function login(req, res, next) {
       });
     }
 
-    // Generar JWT con datos esenciales del usuario
+    // `tv` y `ini` — ver la nota técnica arriba del archivo.
     const tokenPayload = {
       id: usuario.id,
       correo: usuario.correo,
       rol: usuario.rol,
       id_dg: usuario.id_dg,
       id_direccion_area: usuario.id_direccion_area,
-      nombre_completo: usuario.nombre_completo
+      nombre_completo: usuario.nombre_completo,
+      tv: usuario.token_version || 0,
+      ini: Math.floor(Date.now() / 1000)
     };
 
-    // Duración leída de JWT_EXPIRES_IN (documentada en README.md junto a las
-    // demás variables de entorno) para que DGTIC pueda ajustarla en su
-    // infraestructura sin tocar código. 48h por omisión si la variable no
-    // está definida.
+    // Vigencia por inactividad leída de JWT_INACTIVIDAD_HORAS (documentada
+    // en README.md junto a las demás variables de entorno), 8h por omisión
+    // si la variable no está definida o no es válida.
+    const segundos = inactividadSegundos();
     const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, {
-      expiresIn: process.env.JWT_EXPIRES_IN || '48h'
+      expiresIn: segundos
     });
 
     // Devolver token y datos del usuario (sin password_hash)
     res.json({
       datos: {
         token,
+        expiraEn: expiraEnISO(segundos),
         usuario: {
           id: usuario.id,
           nombre_completo: usuario.nombre_completo,
@@ -142,6 +173,47 @@ async function obtenerUsuarioActual(req, res, next) {
   }
 }
 
+// POST /auth/renovar — Cambia un token vigente por uno nuevo con el reloj
+// de inactividad reiniciado. Montado detrás de verificarToken (ver
+// auth.routes.js), así que un token expirado, con firma inválida o de una
+// sesión ya revocada nunca llega aquí — responde 401 antes, con el mismo
+// código que cualquier otra ruta protegida. Lo único que se valida AQUÍ es
+// el techo absoluto: pasado JWT_SESION_MAX_HORAS desde `ini` (el inicio
+// real de la sesión, no la última renovación — ver la nota técnica arriba
+// del archivo), la renovación se niega y hay que volver a entrar.
+async function renovarToken(req, res, next) {
+  try {
+    const edadSesionSegundos = Math.floor(Date.now() / 1000) - req.sesionMeta.inicioSesion;
+    if (edadSesionSegundos > sesionMaxSegundos()) {
+      return res.status(401).json({
+        error: true,
+        mensaje: 'La sesión alcanzó su tiempo máximo, inicia sesión de nuevo',
+        codigo: 'AUTH_SESSION_MAX_AGE'
+      });
+    }
+
+    const segundos = inactividadSegundos();
+    const token = jwt.sign(
+      {
+        id: req.usuario.id,
+        correo: req.usuario.correo,
+        rol: req.usuario.rol,
+        id_dg: req.usuario.id_dg,
+        id_direccion_area: req.usuario.id_direccion_area,
+        nombre_completo: req.usuario.nombre_completo,
+        tv: req.sesionMeta.tokenVersion,
+        ini: req.sesionMeta.inicioSesion
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: segundos }
+    );
+
+    res.json({ datos: { token, expiraEn: expiraEnISO(segundos) } });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // POST /auth/activar-cuenta — Establece password usando token de activación
 async function activarCuenta(req, res, next) {
   try {
@@ -165,7 +237,9 @@ async function activarCuenta(req, res, next) {
     if (new Date(ta.expira_en) < new Date()) return res.status(400).json({ error: true, mensaje: 'El enlace ha expirado' });
 
     const hash = await bcrypt.hash(password, 10);
-    await pool.query('UPDATE usuarios SET password_hash = $1 WHERE id = $2', [hash, ta.id_usuario]);
+    // token_version + 1 revoca cualquier sesión que hubiera quedado abierta
+    // con la contraseña anterior (ver auth.middleware.js).
+    await pool.query('UPDATE usuarios SET password_hash = $1, token_version = token_version + 1 WHERE id = $2', [hash, ta.id_usuario]);
     await pool.query('UPDATE tokens_activacion SET usado = true WHERE id = $1', [ta.id]);
 
     res.json({ mensaje: 'Contraseña establecida correctamente. Ya puedes iniciar sesión.' });
@@ -258,7 +332,12 @@ async function restablecerContrasena(req, res, next) {
     }
 
     const hash = await bcrypt.hash(nueva_contrasena, 10);
-    await pool.query('UPDATE usuarios SET password_hash = $1 WHERE id = $2', [hash, ta.id_usuario]);
+    // token_version + 1 revoca cualquier sesión que hubiera quedado abierta
+    // con la contraseña anterior (ver auth.middleware.js) — relevante en
+    // particular aquí: restablecer-contrasena es el flujo de "me robaron
+    // la cuenta", así que una sesión ya abierta por quien sea no debe
+    // sobrevivir al cambio.
+    await pool.query('UPDATE usuarios SET password_hash = $1, token_version = token_version + 1 WHERE id = $2', [hash, ta.id_usuario]);
     await pool.query('UPDATE tokens_activacion SET usado = true WHERE id = $1', [ta.id]);
 
     res.json({ mensaje: 'Contraseña actualizada correctamente.' });
@@ -292,6 +371,7 @@ async function obtenerConfigCorreoPublico(req, res, next) {
 module.exports = {
   login,
   obtenerUsuarioActual,
+  renovarToken,
   activarCuenta,
   solicitarRecuperacion,
   validarTokenRecuperacion,

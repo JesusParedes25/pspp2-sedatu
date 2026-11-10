@@ -23,6 +23,14 @@ export async function obtenerUsuarioActual() {
   return data;
 }
 
+// Cambia el token vigente por uno nuevo con el reloj de inactividad
+// reiniciado (ver backend/src/controllers/auth.controller.js::renovarToken
+// y frontend/src/hooks/useSesionActividad.js, que es quien llama esto).
+export async function renovarToken() {
+  const { data } = await client.post('/auth/renovar');
+  return data;
+}
+
 export async function solicitarRecuperacion(correo) {
   const { data } = await client.post('/auth/solicitar-recuperacion', { correo });
   return data;

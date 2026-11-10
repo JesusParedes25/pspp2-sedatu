@@ -1,13 +1,15 @@
 /**
  * ARCHIVO: auth-controller-jwt-expiracion.test.js
- * PROPÓSITO: auth.controller.js::login — la duración del JWT debe salir
- *            de JWT_EXPIRES_IN (variable de entorno), con 48h como valor
- *            por omisión cuando la variable no está definida. Antes el
- *            default era 8h y, aunque ya venía de una variable de
- *            entorno, el valor de respaldo estaba fijo en el código —
- *            esta prueba fija que el respaldo es 48h y que una variable
- *            sí definida la sobreescribe, para que ninguno de los dos
- *            vuelva a quedar hardcodeado sin que se note.
+ * PROPÓSITO: auth.controller.js::login — la vigencia por inactividad del
+ *            JWT debe salir de JWT_INACTIVIDAD_HORAS (variable de
+ *            entorno), con 8h como valor por omisión cuando la variable
+ *            no está definida o no es un número válido. Antes de paso 5
+ *            (sesión por inactividad) era JWT_EXPIRES_IN con 48h fijas;
+ *            esta prueba fija el nombre y el valor nuevos para que
+ *            ninguno de los dos vuelva a quedar hardcodeado sin que se
+ *            note. También fija que el payload incluye `tv`
+ *            (token_version), que es lo que permite revocar la sesión
+ *            sin esperar a que el token expire (ver auth.middleware.js).
  *
  * jsonwebtoken y bcryptjs están mockeados en todo el archivo: ningún valor
  * de aquí abajo (password_hash, JWT_SECRET, el campo password del body
@@ -38,6 +40,7 @@ const USUARIO = {
   dg_nombre: null,
   direccion_area_siglas: null,
   direccion_area_nombre: null,
+  token_version: 0,
 };
 
 function crearRes() {
@@ -52,7 +55,7 @@ const pool = require('../db/pool');
 const jwt = require('jsonwebtoken');
 const { login } = require('../controllers/auth.controller');
 
-const JWT_EXPIRES_IN_ORIGINAL = process.env.JWT_EXPIRES_IN;
+const JWT_INACTIVIDAD_HORAS_ORIGINAL = process.env.JWT_INACTIVIDAD_HORAS;
 const JWT_SECRET_ORIGINAL = process.env.JWT_SECRET;
 
 beforeEach(() => {
@@ -65,28 +68,28 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  if (JWT_EXPIRES_IN_ORIGINAL === undefined) delete process.env.JWT_EXPIRES_IN;
-  else process.env.JWT_EXPIRES_IN = JWT_EXPIRES_IN_ORIGINAL;
+  if (JWT_INACTIVIDAD_HORAS_ORIGINAL === undefined) delete process.env.JWT_INACTIVIDAD_HORAS;
+  else process.env.JWT_INACTIVIDAD_HORAS = JWT_INACTIVIDAD_HORAS_ORIGINAL;
   if (JWT_SECRET_ORIGINAL === undefined) delete process.env.JWT_SECRET;
   else process.env.JWT_SECRET = JWT_SECRET_ORIGINAL;
 });
 
-test('sin JWT_EXPIRES_IN en el entorno, firma el token con 48h por omisión', async () => {
-  delete process.env.JWT_EXPIRES_IN;
+test('sin JWT_INACTIVIDAD_HORAS en el entorno, firma el token con 8h (28800s) por omisión', async () => {
+  delete process.env.JWT_INACTIVIDAD_HORAS;
   const req = { body: { correo: USUARIO.correo, password: CAMPO_NO_VALIDADO } };
   const res = crearRes();
 
   await login(req, res, jest.fn());
 
   expect(jwt.sign).toHaveBeenCalledWith(
-    expect.any(Object),
+    expect.objectContaining({ id: USUARIO.id, tv: 0 }),
     expect.any(String),
-    expect.objectContaining({ expiresIn: '48h' })
+    expect.objectContaining({ expiresIn: 8 * 3600 })
   );
 });
 
-test('con JWT_EXPIRES_IN definida, la usa en vez del valor por omisión', async () => {
-  process.env.JWT_EXPIRES_IN = '2h';
+test('con JWT_INACTIVIDAD_HORAS definida, la usa en vez del valor por omisión', async () => {
+  process.env.JWT_INACTIVIDAD_HORAS = '2';
   const req = { body: { correo: USUARIO.correo, password: CAMPO_NO_VALIDADO } };
   const res = crearRes();
 
@@ -95,6 +98,34 @@ test('con JWT_EXPIRES_IN definida, la usa en vez del valor por omisión', async 
   expect(jwt.sign).toHaveBeenCalledWith(
     expect.any(Object),
     expect.any(String),
-    expect.objectContaining({ expiresIn: '2h' })
+    expect.objectContaining({ expiresIn: 2 * 3600 })
+  );
+});
+
+test('con JWT_INACTIVIDAD_HORAS inválida (no numérica), cae al valor por omisión en vez de romperse', async () => {
+  process.env.JWT_INACTIVIDAD_HORAS = 'no-es-un-numero';
+  const req = { body: { correo: USUARIO.correo, password: CAMPO_NO_VALIDADO } };
+  const res = crearRes();
+
+  await login(req, res, jest.fn());
+
+  expect(jwt.sign).toHaveBeenCalledWith(
+    expect.any(Object),
+    expect.any(String),
+    expect.objectContaining({ expiresIn: 8 * 3600 })
+  );
+});
+
+test('el payload incluye tv con el token_version vigente del usuario', async () => {
+  pool.query.mockResolvedValue({ rows: [{ ...USUARIO, token_version: 5 }] });
+  const req = { body: { correo: USUARIO.correo, password: CAMPO_NO_VALIDADO } };
+  const res = crearRes();
+
+  await login(req, res, jest.fn());
+
+  expect(jwt.sign).toHaveBeenCalledWith(
+    expect.objectContaining({ tv: 5 }),
+    expect.any(String),
+    expect.any(Object)
   );
 });

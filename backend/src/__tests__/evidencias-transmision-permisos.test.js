@@ -70,6 +70,11 @@ beforeEach(() => {
     if (/FROM evidencias WHERE id = \$1/.test(sql)) {
       return Promise.resolve({ rows: [{ id_etapa: null, id_accion: 'acc-1', id_subaccion: null, id_riesgo: null }] });
     }
+    // auth.middleware.js::cargarUsuarioSesion — confirma activo/token_version
+    // en cada petición autenticada (ver 087_sesion_token_version.sql).
+    if (/FROM usuarios WHERE id = \$1/.test(sql)) {
+      return Promise.resolve({ rows: [{ id: 'u-1', correo: null, rol: 'externo', id_dg: null, id_direccion_area: null, nombre_completo: null, activo: true, token_version: 0 }] });
+    }
     return Promise.resolve({ rows: [] });
   });
   autorizacion.obtenerProyectoIdDeNodo.mockResolvedValue('proyecto-1');
@@ -108,7 +113,15 @@ test('la clave del objeto sale de la BD, no de lo que mande el cliente', async (
 });
 
 test('evidencia inexistente → 403 (no revela si el id existe) y sin tocar el almacén', async () => {
-  pool.query.mockResolvedValue({ rows: [] });
+  // Blanco para TODO salvo la sesión: sin esto, el SELECT de
+  // auth.middleware.js también caería en vacío y el request ni llegaría
+  // a la verificación de la evidencia (401 en vez del 403 que prueba este caso).
+  pool.query.mockImplementation((sql) => {
+    if (/FROM usuarios WHERE id = \$1/.test(sql)) {
+      return Promise.resolve({ rows: [{ id: 'u-1', correo: null, rol: 'externo', id_dg: null, id_direccion_area: null, nombre_completo: null, activo: true, token_version: 0 }] });
+    }
+    return Promise.resolve({ rows: [] });
+  });
   const r = await fetch(`${base}/evidencias/${EVIDENCIA.id}/descargar`, { headers: CABECERA });
   expect(r.status).toBe(403);
   expect(mockAlmacen.statObject).not.toHaveBeenCalled();

@@ -81,6 +81,11 @@ beforeEach(() => {
       return Promise.resolve({ rows: [{ id_etapa: null, id_accion: 'acc-1', id_subaccion: null, id_riesgo: null }] });
     }
     if (/FROM actividad WHERE id = \$1/.test(sql)) return Promise.resolve({ rows: [{ id_proyecto: 'proyecto-1' }] });
+    // auth.middleware.js::cargarUsuarioSesion — confirma activo/token_version
+    // en cada petición autenticada (ver 087_sesion_token_version.sql).
+    if (/FROM usuarios WHERE id = \$1/.test(sql)) {
+      return Promise.resolve({ rows: [{ ...USUARIO, correo: 'u1@ejemplo.org', nombre_completo: 'Usuaria Uno', activo: true, token_version: 0 }] });
+    }
     return Promise.resolve({ rows: [] });
   });
   autorizacion.obtenerProyectoIdDeNodo.mockResolvedValue('proyecto-1');

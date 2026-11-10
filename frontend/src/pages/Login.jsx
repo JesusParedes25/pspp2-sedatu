@@ -8,21 +8,35 @@ import { Eye, EyeOff, Lock, Mail, Loader2, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useUI } from '../context/UIContext';
 
+// Mensaje según POR QUÉ se cerró la sesión (api/client.js guarda el
+// motivo, no solo "sí/no") — "vuelve a entrar" es la acción en los
+// cuatro casos, pero decirle a la persona la razón real evita que
+// piense que fue un error cuando, por ejemplo, un superadmin le acaba
+// de desactivar la cuenta o alguien restableció su contraseña.
+const MENSAJES_SESION_CERRADA = {
+  inactividad: 'Tu sesión se cerró por inactividad. Vuelve a entrar.',
+  maximo: 'Tu sesión alcanzó su tiempo máximo de duración. Vuelve a entrar.',
+  revocada: 'Tu sesión ya no es válida — puede que tu contraseña o el acceso de tu cuenta hayan cambiado. Vuelve a entrar.',
+  generico: 'Tu sesión expiró, vuelve a entrar.',
+};
+
 // Si el interceptor de respuestas 401 (api/client.js) acaba de mandar aquí
-// por un token vencido, deja esta marca antes de recargar la página. Se lee
-// y se borra de una vez, en el primer render — no en un useEffect, para que
-// no aparezca ni un instante el formulario sin el aviso y luego "salte".
+// por una sesión que ya no sirve, deja esta marca antes de recargar la
+// página. Se lee y se borra de una vez, en el primer render — no en un
+// useEffect, para que no aparezca ni un instante el formulario sin el
+// aviso y luego "salte".
 function leerYLimpiarAvisoExpirada() {
   try {
-    if (sessionStorage.getItem('pspp_sesion_expirada') === '1') {
+    const motivo = sessionStorage.getItem('pspp_sesion_expirada');
+    if (motivo) {
       sessionStorage.removeItem('pspp_sesion_expirada');
-      return true;
+      return MENSAJES_SESION_CERRADA[motivo] || MENSAJES_SESION_CERRADA.generico;
     }
   } catch {
     // sessionStorage puede no estar disponible (modo privado estricto) —
     // sin el aviso no pasa nada grave, solo se pierde ese mensaje.
   }
-  return false;
+  return null;
 }
 
 export default function Login() {
@@ -34,14 +48,14 @@ export default function Login() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
   // Distinto de `error`: no es que la persona se haya equivocado, es que la
-  // sesión venció sola. Mismo aviso para token vencido o inválido — en
-  // ambos casos la acción es la misma, volver a entrar.
-  const [sesionExpirada, setSesionExpirada] = useState(leerYLimpiarAvisoExpirada);
+  // sesión se cerró sola — el texto exacto depende de por qué (ver
+  // MENSAJES_SESION_CERRADA arriba).
+  const [mensajeSesionCerrada, setMensajeSesionCerrada] = useState(leerYLimpiarAvisoExpirada);
 
   async function manejarSubmit(e) {
     e.preventDefault();
     setError('');
-    setSesionExpirada(false);
+    setMensajeSesionCerrada(null);
     setCargando(true);
     try {
       await login(correo, password);
@@ -116,11 +130,11 @@ export default function Login() {
 
           <form onSubmit={manejarSubmit} className="space-y-5">
 
-            {/* Sesión expirada — informativo, no un error de la persona */}
-            {sesionExpirada && !error && (
+            {/* Sesión cerrada — informativo, no un error de la persona */}
+            {mensajeSesionCerrada && !error && (
               <div className="flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
                 <Clock size={15} className="text-amber-500 mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-amber-800">Tu sesión expiró, vuelve a entrar.</p>
+                <p className="text-sm text-amber-800">{mensajeSesionCerrada}</p>
               </div>
             )}
 
