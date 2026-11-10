@@ -84,7 +84,8 @@ valor por omisión. Cada línea de `.env.example` dice cuál es su caso.
 | `DB_PASSWORD`      | Contraseña de PostgreSQL                       | ✅          |
 | `DB_PORT`          | Puerto interno de PostgreSQL (normalmente `5432`) | ✅       |
 | `JWT_SECRET`       | Secreto para firmar tokens JWT (mín. 64 chars). También firma, por derivación, los boletos de descarga. Sin él el backend no arranca | ✅          |
-| `JWT_EXPIRES_IN`   | Duración de la sesión (ej: `48h`). Si no se define, el backend usa `48h` por omisión | ❌ |
+| `JWT_INACTIVIDAD_HORAS` | Vigencia del token por inactividad, en horas. Cada petición normal no la toca; el frontend llama a `POST /auth/renovar` ante actividad real (nunca el polling de fondo ni la conexión de notificaciones en tiempo real). Por omisión `8` | ❌ |
+| `JWT_SESION_MAX_HORAS` | Techo absoluto de la sesión, en horas desde el login (no desde la última renovación). Pasado este tiempo, `POST /auth/renovar` se niega y hay que volver a entrar — acota un token robado. Por omisión `72` | ❌ |
 | `BOLETO_ARCHIVO_TTL_SEGUNDOS` | Vigencia en segundos del boleto efímero para descargar un archivo (el token de sesión no va en URLs). Por omisión `60`, tope `900` | ❌ |
 | `SUPERADMIN_EMAIL` | Correo de la cuenta de superadministrador      | ✅          |
 | `SUPERADMIN_NOMBRE` | Nombre visible de esa cuenta. Por omisión `Usuario Administrador`. `docker-compose.prod.yml` no la pasa | ❌ |
@@ -328,7 +329,7 @@ tenga contenido, precisamente para no repoblar una base en uso.
 | Puerto ocupado              | Verificar con `netstat -tlnp` y detener el servicio conflictivo |
 | Postgres no responde        | `docker-compose restart postgres` y esperar healthcheck         |
 | MinIO bucket no existe      | Se crea automáticamente en el seed; o crear manualmente en :9001 |
-| Token JWT expirado          | Hacer login nuevamente; ajustar `JWT_EXPIRES_IN` en `.env`      |
+| Token JWT expirado          | Hacer login nuevamente; ajustar `JWT_INACTIVIDAD_HORAS`/`JWT_SESION_MAX_HORAS` en `.env` |
 | Tras reconstruir el backend, login falla o no cargan proyectos (sin errores en `docker logs pspp-backend`) | Nginx quedó apuntando a la IP interna vieja del contenedor recreado. Reiniciar Nginx: `docker compose -f docker-compose.prod.yml restart nginx` |
 
 ℹ️ Una base de datos de una instalación anterior puede tener las vistas `vw_geo_estados`, `vw_geo_municipios`, `vw_geo_zm` y la tabla `capas_geo`, heredadas de cuando existía GeoServer; ninguna la usa el código actual y se pueden eliminar sin consecuencia.

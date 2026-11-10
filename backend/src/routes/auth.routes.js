@@ -26,5 +26,6 @@ router.get('/config-correo', authController.obtenerConfigCorreoPublico);
 
 // Ruta protegida — requiere token válido
 router.get('/me', verificarToken, authController.obtenerUsuarioActual);
+router.post('/renovar', verificarToken, authController.renovarToken);
 
 module.exports = router;

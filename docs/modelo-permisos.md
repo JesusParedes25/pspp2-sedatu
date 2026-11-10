@@ -765,7 +765,7 @@ descendiente) — una asignación en un nodo nunca sube a su padre.
 - **`GET /proyectos/:id/imagen`**: sigue respondiendo sin pasar por
   `verificarToken` — la razón del comentario en `routes/index.js` es
   real (un `<img src>` nunca envía el header `Authorization`; el JWT
-  vive en `localStorage`, nunca en una cookie), así que moverlo tal
+  vive en `sessionStorage`, nunca en una cookie), así que moverlo tal
   cual rompería el 100% de las portadas, no solo las de quien no tiene
   permiso. Cerrar el hueco real (cualquiera, sin sesión, puede pedir la
   imagen de cualquier proyecto por id) necesita un mecanismo nuevo

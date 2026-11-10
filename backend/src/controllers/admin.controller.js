@@ -311,11 +311,25 @@ async function editarUsuario(req, res, next) {
 }
 
 // PATCH /admin/usuarios/:id/toggle — activar/desactivar
+//
+// Desactivar sube token_version además de apagar `activo`: así, quien
+// tuviera sesión abierta pierde el acceso a la API de inmediato (ver
+// auth.middleware.js), en vez de seguir entrando hasta que su token
+// expirara solo. El CASE lee el `activo` DE ANTES del UPDATE (en
+// PostgreSQL, todas las expresiones del SET ven la fila previa, no el
+// resultado de otras columnas del mismo UPDATE), así que solo sube en la
+// transición activo→inactivo; reactivar no fuerza un re-login de nadie
+// más, porque no hay "nadie más" con sesión que revocar en ese sentido.
 async function toggleUsuario(req, res, next) {
   try {
     const { id } = req.params;
     const { rows } = await pool.query(
-      'UPDATE usuarios SET activo = NOT activo WHERE id = $1 RETURNING id, activo', [id]
+      `UPDATE usuarios
+       SET activo = NOT activo,
+           token_version = CASE WHEN activo THEN token_version + 1 ELSE token_version END
+       WHERE id = $1
+       RETURNING id, activo`,
+      [id]
     );
     if (!rows[0]) return res.status(404).json({ error: true, mensaje: 'Usuario no encontrado' });
     res.json({ datos: rows[0], mensaje: rows[0].activo ? 'Usuario activado' : 'Usuario desactivado' });

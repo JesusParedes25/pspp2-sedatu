@@ -18,9 +18,9 @@ const archivosApi = await import('../archivos');
 
 beforeEach(() => {
   vi.clearAllMocks();
-  localStorage.setItem('pspp_token', 'JWT-DE-SESION');
+  sessionStorage.setItem('pspp_token', 'JWT-DE-SESION');
 });
-afterEach(() => localStorage.clear());
+afterEach(() => sessionStorage.clear());
 
 describe('obtenerUrlConBoleto', () => {
   test('pide el boleto por POST (cabecera vía axios) y arma la URL con la base de la API', async () => {
