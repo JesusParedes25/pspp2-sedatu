@@ -16,6 +16,7 @@
  */
 const pool = require('../pool');
 const { registrarActividad } = require('../../utils/actividad-log');
+const { registrarAuditoria } = require('../../utils/auditoria');
 
 // Bloque 7.5 del rediseño de Indicadores: cuando un indicador viene del
 // catálogo (id_catalogo IS NOT NULL), su nombre/tipo/unidad/etiqueta son
@@ -302,6 +303,12 @@ async function crear(proyectoId, datos, client = null, creadorId = null) {
     client: client || undefined,
   });
 
+  await registrarAuditoria({
+    tabla: 'indicadores', registroId: indicador.id, campoModificado: 'fila',
+    valorNuevo: indicador, operacion: 'INSERT',
+    idUsuario: creadorId || datos.id_creador || null, client: client || undefined
+  });
+
   return indicador;
 }
 
@@ -319,6 +326,15 @@ async function crear(proyectoId, datos, client = null, creadorId = null) {
 async function actualizar(indicadorId, datos, idUsuario = null) {
   validarDatosIndicador(datos);
   const metaGlobal = datos.meta_global === '' || datos.meta_global == null ? null : parseFloat(datos.meta_global);
+
+  // Fotografía de los campos editables ANTES del UPDATE — sin esto no hay
+  // "anterior" que auditar, solo el título genérico que ya daba actividad_log.
+  const { rows: [antes] } = await pool.query(
+    `SELECT nombre, tipo, unidad, unidad_personalizada, etiqueta_unidad, meta_global, descripcion
+     FROM indicadores WHERE id = $1`,
+    [indicadorId]
+  );
+
   const resultado = await pool.query(`
     UPDATE indicadores SET
       nombre = $1, tipo = $2, unidad = $3,
@@ -344,6 +360,16 @@ async function actualizar(indicadorId, datos, idUsuario = null) {
       entidad_tipo: 'Indicador',
       entidad_id: indicadorId,
     });
+
+    if (antes) {
+      const { nombre, tipo, unidad, unidad_personalizada, etiqueta_unidad, meta_global, descripcion } = resultado.rows[0];
+      await registrarAuditoria({
+        tabla: 'indicadores', registroId: indicadorId, campoModificado: 'ficha',
+        valorAnterior: antes,
+        valorNuevo: { nombre, tipo, unidad, unidad_personalizada, etiqueta_unidad, meta_global, descripcion },
+        operacion: 'UPDATE', idUsuario
+      });
+    }
   }
 
   return resultado.rows[0] || null;
@@ -364,6 +390,10 @@ async function eliminar(indicadorId, idUsuario = null) {
       titulo: `Indicador "${fila.nombre}" eliminado`,
       entidad_tipo: 'Indicador',
       entidad_id: fila.id,
+    });
+    await registrarAuditoria({
+      tabla: 'indicadores', registroId: fila.id, campoModificado: 'activo',
+      valorAnterior: true, valorNuevo: false, operacion: 'UPDATE', idUsuario
     });
   }
   return fila || null;

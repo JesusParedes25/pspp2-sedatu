@@ -15,6 +15,7 @@ const pool = require('../pool');
 const indicadoresQueries = require('./indicadores.queries');
 const { condicionRiesgoDeProyecto } = require('../../utils/condicion-riesgo');
 const { condicionAccionesPorCompletar } = require('../../utils/condicion-actividades-por-completar');
+const { registrarAuditoria } = require('../../utils/auditoria');
 
 // Lista proyectos con filtros opcionales, paginación y datos del líder
 async function listarProyectos({ estado, tipo, idDg, busqueda, etiquetas, carteraId, sinCartera, participacion, usuarioId, pagina = 1, limite = 12 }) {
@@ -396,15 +397,33 @@ async function actualizarProyecto(proyectoId, datos, externalClient) {
   }
 }
 
-// Soft delete: marca deleted_at en lugar de borrar
-async function eliminarProyecto(proyectoId) {
-  const resultado = await pool.query(`
-    UPDATE proyectos SET deleted_at = NOW(), updated_at = NOW()
-    WHERE id = $1 AND deleted_at IS NULL
-    RETURNING id
-  `, [proyectoId]);
-
-  return resultado.rows[0] || null;
+// Soft delete: marca deleted_at en lugar de borrar. Se audita (operacion
+// UPDATE sobre el campo deleted_at) en la misma transacción que el cambio.
+async function eliminarProyecto(proyectoId, idUsuario) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const resultado = await client.query(`
+      UPDATE proyectos SET deleted_at = NOW(), updated_at = NOW()
+      WHERE id = $1 AND deleted_at IS NULL
+      RETURNING id, nombre
+    `, [proyectoId]);
+    const fila = resultado.rows[0];
+    if (fila) {
+      await registrarAuditoria({
+        tabla: 'proyectos', registroId: proyectoId, campoModificado: 'deleted_at',
+        valorAnterior: null, valorNuevo: 'eliminado (papelera)',
+        operacion: 'UPDATE', idUsuario, client
+      });
+    }
+    await client.query('COMMIT');
+    return fila || null;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 // Papelera: proyectos eliminados dentro de la ventana de 30 días (los
@@ -427,22 +446,70 @@ async function obtenerProyectosEliminados() {
 
 // Restaura un proyecto eliminado (solo si sigue dentro de la ventana de 30
 // días — pasado ese punto ya se purgó y no hay nada que restaurar).
-async function restaurarProyecto(proyectoId) {
-  const { rows } = await pool.query(`
-    UPDATE proyectos SET deleted_at = NULL, updated_at = NOW()
-    WHERE id = $1 AND deleted_at IS NOT NULL
-    RETURNING id
-  `, [proyectoId]);
-  return rows[0] || null;
+async function restaurarProyecto(proyectoId, idUsuario) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(`
+      UPDATE proyectos SET deleted_at = NULL, updated_at = NOW()
+      WHERE id = $1 AND deleted_at IS NOT NULL
+      RETURNING id, nombre
+    `, [proyectoId]);
+    const fila = rows[0];
+    if (fila) {
+      await registrarAuditoria({
+        tabla: 'proyectos', registroId: proyectoId, campoModificado: 'deleted_at',
+        valorAnterior: 'eliminado (papelera)', valorNuevo: null,
+        operacion: 'UPDATE', idUsuario, client
+      });
+    }
+    await client.query('COMMIT');
+    return fila || null;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
-// Elimina permanentemente un proyecto que ya está en la papelera (solo superadmin)
-async function purgarProyecto(proyectoId) {
-  const { rows } = await pool.query(
-    'DELETE FROM proyectos WHERE id = $1 AND deleted_at IS NOT NULL RETURNING id, nombre',
-    [proyectoId]
-  );
-  return rows[0] || null;
+// Elimina PERMANENTEMENTE un proyecto que ya está en la papelera (solo
+// superadmin; también la llama la purga automática de los 30 días, ver
+// utils/purgarProyectos.js). El DELETE dispara el ON DELETE CASCADE sobre
+// todo el árbol del proyecto (etapas/acciones/tareas/actividad_log/
+// actividad/comentarios/evidencias/...) — nada de eso sobrevive. Por eso
+// se toma una fotografía completa de la fila y se audita (operacion
+// DELETE) ANTES de ejecutar el DELETE, dentro de la misma transacción:
+// es la única de las tres bitácoras que conserva algo de este proyecto
+// después de purgarlo.
+async function purgarProyecto(proyectoId, idUsuario) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: [proyecto] } = await client.query(
+      'SELECT * FROM proyectos WHERE id = $1 AND deleted_at IS NOT NULL', [proyectoId]
+    );
+    if (!proyecto) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+    await registrarAuditoria({
+      tabla: 'proyectos', registroId: proyectoId, campoModificado: 'fila',
+      valorAnterior: proyecto, valorNuevo: null,
+      operacion: 'DELETE', idUsuario, client
+    });
+    const { rows } = await client.query(
+      'DELETE FROM proyectos WHERE id = $1 AND deleted_at IS NOT NULL RETURNING id, nombre',
+      [proyectoId]
+    );
+    await client.query('COMMIT');
+    return rows[0] || null;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 // Obtiene las DGs participantes de un proyecto — CALCULADO, no leído de

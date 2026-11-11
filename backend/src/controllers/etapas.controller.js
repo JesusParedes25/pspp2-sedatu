@@ -24,6 +24,7 @@ const municipiosNodoQueries = require('../db/queries/municipios-nodo.queries');
 const { sincronizarCobertura } = require('../db/queries/cobertura-sync.queries');
 const actividadQueries = require('../db/queries/actividad.queries');
 const { puedeGestionarNodo } = require('../utils/autorizacion');
+const { registrarAuditoria } = require('../utils/auditoria');
 
 // GET /proyectos/:id/etapas — Listar etapas de un proyecto
 async function listarPorProyecto(req, res, next) {
@@ -264,6 +265,7 @@ async function patchAvanceSemaforo(req, res, next) {
     const esHoja = await avanceSemaforo.esEtapaHoja(etapaId, client);
 
     // Avance actual: rechazar si contenedor
+    let avanceAuditoria = null; // { anterior, nuevo } si de verdad cambia avance_actual (ver registrarAuditoria más abajo)
     if (avance_actual !== undefined) {
       if (!esHoja) {
         await client.query('ROLLBACK');
@@ -281,6 +283,7 @@ async function patchAvanceSemaforo(req, res, next) {
         return res.status(400).json({ error: true, mensaje: 'No se puede modificar el avance de un nodo bloqueado.' });
       } else if (avance_actual === null) {
         sets.push(`avance_actual = NULL, avance_override = FALSE`);
+        avanceAuditoria = { anterior: rows[0].avance_actual, nuevo: null };
       } else {
         const v = parseInt(avance_actual);
         if (isNaN(v) || v < 0 || v >= 100) {
@@ -289,6 +292,7 @@ async function patchAvanceSemaforo(req, res, next) {
         }
         sets.push(`avance_actual = $${idx}, avance_override = TRUE`);
         params.push(v); idx++;
+        avanceAuditoria = { anterior: rows[0].avance_actual, nuevo: v };
       }
     }
 
@@ -459,6 +463,13 @@ async function patchAvanceSemaforo(req, res, next) {
         idUsuario: req.usuario?.id, contenido: `Avance actualizado a ${avance_actual ?? 0}%`,
         metadata: { avance_actual },
       }, client);
+    }
+    if (avanceAuditoria) {
+      await registrarAuditoria({
+        tabla: 'etapas', registroId: etapaId, campoModificado: 'avance_actual',
+        valorAnterior: avanceAuditoria.anterior, valorNuevo: avanceAuditoria.nuevo,
+        idUsuario: req.usuario?.id, client
+      });
     }
     if (estatus_cualitativo !== undefined) {
       await actividadQueries.crearActividad({

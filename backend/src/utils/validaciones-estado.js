@@ -15,6 +15,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const pool = require('../db/pool');
+const { registrarAuditoria: registrarAuditoriaOficial } = require('./auditoria');
 
 // ─── Catálogo unificado ─────────────────────────────────────────
 const ESTADOS_VALIDOS = [
@@ -374,20 +375,18 @@ async function validarReactivacion(entidadTipo, entidad, client) {
 }
 
 /**
- * Registra un cambio de estado en la tabla auditoria.
+ * Registra un cambio de estado en la bitácora oficial de auditoría
+ * (backend/src/utils/auditoria.js). Wrapper de compatibilidad: conserva la
+ * firma posicional histórica de este módulo (campo_modificado fijo a
+ * 'estado', que es lo único que cambiarEstado/cascadaCancelacion/etc.
+ * registran aquí) delegando en la función genérica compartida.
  * Retorna el UUID de la fila insertada.
  */
 async function registrarAuditoria(tabla, registroId, valorAnterior, valorNuevo, idUsuario, idEventoOrigen, client) {
-  const db = client || pool;
-  const res = await db.query(
-    `INSERT INTO auditoria
-       (tabla_afectada, registro_id, campo_modificado, valor_anterior, valor_nuevo,
-        operacion, id_usuario, id_evento_origen)
-     VALUES ($1, $2, 'estado', $3, $4, 'UPDATE', $5, $6)
-     RETURNING id`,
-    [tabla, registroId, valorAnterior, valorNuevo, idUsuario, idEventoOrigen]
-  );
-  return res.rows[0].id;
+  return registrarAuditoriaOficial({
+    tabla, registroId, campoModificado: 'estado', valorAnterior, valorNuevo,
+    operacion: 'UPDATE', idUsuario, idEventoOrigen, client
+  });
 }
 
 /**

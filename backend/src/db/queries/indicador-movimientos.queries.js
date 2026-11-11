@@ -10,6 +10,7 @@
  *            este archivo solo sabe insertar/anular/listar/recalcular.
  */
 const pool = require('../pool');
+const { registrarAuditoria } = require('../../utils/auditoria');
 
 // Única función que escribe `indicadores.valor_actual` en toda la
 // plataforma (ver reporte del PR, punto 1.3) — recalcula desde los
@@ -71,6 +72,11 @@ async function crear({ idIndicador, cantidad, fecha, origen, idNodoOrigen, nota,
         [nuevaCantidad, nota || null, existente.id]
       );
       await recalcularValorActual(idIndicador, db);
+      await registrarAuditoria({
+        tabla: 'indicador_movimientos', registroId: existente.id, campoModificado: 'cantidad',
+        valorAnterior: existente.cantidad, valorNuevo: nuevaCantidad,
+        operacion: 'UPDATE', idUsuario: creadoPor || null, client: db
+      });
       return actualizado;
     }
   }
@@ -83,6 +89,10 @@ async function crear({ idIndicador, cantidad, fecha, origen, idNodoOrigen, nota,
     [idIndicador, cantidad, fecha, origen, idNodoOrigen || null, nota || null, creadoPor || null]
   );
   await recalcularValorActual(idIndicador, db);
+  await registrarAuditoria({
+    tabla: 'indicador_movimientos', registroId: movimiento.id, campoModificado: 'fila',
+    valorNuevo: movimiento, operacion: 'INSERT', idUsuario: creadoPor || null, client: db
+  });
   return movimiento;
 }
 
@@ -101,6 +111,11 @@ async function anular(movimientoId, { motivo, usuarioId }, client = null) {
   );
   if (!movimiento) return null;
   await recalcularValorActual(movimiento.id_indicador, db);
+  await registrarAuditoria({
+    tabla: 'indicador_movimientos', registroId: movimiento.id, campoModificado: 'anulado_en',
+    valorAnterior: null, valorNuevo: movimiento.anulado_en,
+    operacion: 'UPDATE', idUsuario: usuarioId || null, client: db
+  });
   return movimiento;
 }
 
