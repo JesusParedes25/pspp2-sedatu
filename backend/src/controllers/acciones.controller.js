@@ -23,6 +23,7 @@ const municipiosNodoQueries = require('../db/queries/municipios-nodo.queries');
 const { sincronizarCobertura } = require('../db/queries/cobertura-sync.queries');
 const actividadQueries = require('../db/queries/actividad.queries');
 const { puedeGestionarNodo } = require('../utils/autorizacion');
+const { registrarAuditoria } = require('../utils/auditoria');
 
 // GET /etapas/:id/acciones — Listar acciones de una etapa
 async function listarPorEtapa(req, res, next) {
@@ -381,6 +382,7 @@ async function patchAvanceSemaforo(req, res, next) {
     }
 
     // ── Avance actual (solo hojas) ──
+    let avanceAuditoria = null; // { anterior, nuevo } si de verdad cambia avance_actual (ver registrarAuditoria más abajo)
     if (avance_actual !== undefined && esHoja) {
       // Determinar estado efectivo (puede venir en el mismo request)
       const estadoEfectivo = estado || accion.estado;
@@ -397,6 +399,7 @@ async function patchAvanceSemaforo(req, res, next) {
         // En_proceso: editable 0-99
         if (avance_actual === null) {
           sets.push(`avance_actual = NULL, avance_override = FALSE`);
+          avanceAuditoria = { anterior: accion.avance_actual, nuevo: null };
         } else {
           const v = parseInt(avance_actual);
           if (isNaN(v) || v < 0) {
@@ -410,6 +413,7 @@ async function patchAvanceSemaforo(req, res, next) {
           sets.push(`avance_actual = $${idx}, avance_override = TRUE, porcentaje_avance = $${idx + 1}`);
           params.push(v); idx++;
           params.push(v); idx++;
+          avanceAuditoria = { anterior: accion.avance_actual, nuevo: v };
         }
       }
     }
@@ -524,6 +528,13 @@ async function patchAvanceSemaforo(req, res, next) {
         idUsuario: req.usuario?.id, contenido: `Avance actualizado a ${avance_actual ?? 0}%`,
         metadata: { avance_actual },
       }, client);
+    }
+    if (avanceAuditoria) {
+      await registrarAuditoria({
+        tabla: 'acciones', registroId: accionId, campoModificado: 'avance_actual',
+        valorAnterior: avanceAuditoria.anterior, valorNuevo: avanceAuditoria.nuevo,
+        idUsuario: req.usuario?.id, client
+      });
     }
     if (estatus_cualitativo !== undefined) {
       await actividadQueries.crearActividad({

@@ -9,6 +9,12 @@ const { registrarActividad } = require('../utils/actividad-log');
 const { crearNotificacion } = require('../utils/notificaciones');
 const { etiquetaFuncion } = require('../utils/etiquetas-funcion');
 const pool = require('../db/pool');
+const { registrarAuditoria } = require('../utils/auditoria');
+
+// `proyecto_usuarios` tiene llave primaria compuesta (id_proyecto,
+// id_usuario) — auditoria.registro_id es una sola columna, así que se usa
+// el id del PROYECTO (la entidad con id propio) y el id_usuario afectado
+// viaja dentro de valorAnterior/valorNuevo (JSON), no como columna aparte.
 
 // Contrapeso de un permiso implícito (Fase 1 del modelo de permisos,
 // docs/modelo-permisos.md punto 4): cuando un ejecutivo gestiona
@@ -204,9 +210,18 @@ async function agregarMiembro(req, res, next) {
     if (esCambioDeFuncion) {
       await registrarActividad({ id_proyecto: req.params.id, id_usuario: req.usuario.id, tipo: 'miembro', titulo: 'Función actualizada', descripcion: `${req.usuario.nombre_completo} cambió la función de este miembro${await notaViaDG(acceso, req.usuario)}.`, entidad_tipo: 'proyecto', entidad_id: req.params.id, metadata: { id_usuario_objetivo: id_usuario, rol_anterior: previo.rol, rol_nuevo: rol } });
       await notificarCambioRol(req.params.id, id_usuario, rol, req.usuario.nombre_completo);
+      await registrarAuditoria({
+        tabla: 'proyecto_usuarios', registroId: req.params.id, campoModificado: 'rol',
+        valorAnterior: { id_usuario, rol: previo.rol }, valorNuevo: { id_usuario, rol },
+        operacion: 'UPDATE', idUsuario: req.usuario.id
+      });
     } else if (!sinCambioReal) {
       await registrarActividad({ id_proyecto: req.params.id, id_usuario: req.usuario.id, tipo: 'miembro', titulo: 'Nuevo miembro agregado al proyecto', descripcion: `Agregado por ${req.usuario.nombre_completo}${await notaViaDG(acceso, req.usuario)}.`, entidad_tipo: 'proyecto', entidad_id: req.params.id, metadata: { id_usuario_nuevo: id_usuario, rol } });
       await notificarNuevoMiembro(req.params.id, id_usuario, rol, req.usuario.nombre_completo);
+      await registrarAuditoria({
+        tabla: 'proyecto_usuarios', registroId: req.params.id, campoModificado: 'miembro',
+        valorNuevo: { id_usuario, rol }, operacion: 'INSERT', idUsuario: req.usuario.id
+      });
     }
     res.status(201).json({ datos: miembro, mensaje: 'Miembro agregado', cambio_rol: esCambioDeFuncion });
   } catch (err) { next(err); }
@@ -238,8 +253,18 @@ async function eliminarMiembro(req, res, next) {
       });
     }
 
+    // Fotografía ANTES de borrar: proyecto_usuarios no tiene columna id
+    // propia (PK compuesta id_proyecto+id_usuario) y aquí es un DELETE
+    // real sin RETURNING — sin esto, quitar a alguien de un proyecto no
+    // quedaba en NINGUNA bitácora (ni siquiera la informal).
+    const miembroPrevio = await miembrosQueries.obtenerMiembro(id, userId);
     const eliminado = await miembrosQueries.eliminarMiembro(id, userId);
     if (!eliminado) return res.status(404).json({ mensaje: 'Miembro no encontrado' });
+    await registrarAuditoria({
+      tabla: 'proyecto_usuarios', registroId: id, campoModificado: 'miembro',
+      valorAnterior: { id_usuario: userId, rol: miembroPrevio?.rol || null },
+      operacion: 'DELETE', idUsuario: req.usuario.id
+    });
     if (userId !== req.usuario.id) {
       await notificarRetiro(id, userId, req.usuario.nombre_completo);
     }
@@ -278,6 +303,10 @@ async function crearInvitacion(req, res, next) {
     const miembro = await miembrosQueries.agregarMiembro(req.params.id, id_usuario, rolFinal, req.usuario.id);
     await registrarActividad({ id_proyecto: req.params.id, id_usuario: req.usuario.id, tipo: 'miembro', titulo: 'Usuario agregado al proyecto', descripcion: `Agregado por ${req.usuario.nombre_completo}${await notaViaDG(acceso, req.usuario)}.`, entidad_tipo: 'proyecto', entidad_id: req.params.id, metadata: { id_usuario_nuevo: id_usuario, rol: rolFinal } });
     await notificarNuevoMiembro(req.params.id, id_usuario, rolFinal, req.usuario.nombre_completo);
+    await registrarAuditoria({
+      tabla: 'proyecto_usuarios', registroId: req.params.id, campoModificado: 'miembro',
+      valorNuevo: { id_usuario, rol: rolFinal }, operacion: 'INSERT', idUsuario: req.usuario.id
+    });
     res.status(201).json({ datos: miembro, mensaje: 'Usuario agregado al proyecto' });
   } catch (err) { next(err); }
 }
@@ -327,6 +356,13 @@ async function transferirAdministracionProyecto(req, res, next) {
       entidadTipo: 'Proyecto',
       entidadId: req.params.id,
       idUsuario: id_usuario,
+    });
+
+    await registrarAuditoria({
+      tabla: 'proyecto_usuarios', registroId: req.params.id, campoModificado: 'administracion_proyecto',
+      valorAnterior: { administradores_anteriores: resultado.administradoresAnteriores },
+      valorNuevo: { nuevo_administrador: id_usuario },
+      operacion: 'UPDATE', idUsuario: req.usuario.id
     });
 
     res.json({ mensaje: 'Administración del proyecto transferida', datos: resultado });

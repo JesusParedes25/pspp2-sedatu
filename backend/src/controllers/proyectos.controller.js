@@ -297,7 +297,7 @@ async function eliminar(req, res, next) {
       });
     }
 
-    const resultado = await proyectosQueries.eliminarProyecto(req.params.id);
+    const resultado = await proyectosQueries.eliminarProyecto(req.params.id, req.usuario.id);
 
     if (!resultado) {
       return res.status(404).json({
@@ -324,7 +324,7 @@ async function listarEliminados(req, res, next) {
 // PATCH /proyectos/:id/restaurar — Solo superadmin
 async function restaurar(req, res, next) {
   try {
-    const resultado = await proyectosQueries.restaurarProyecto(req.params.id);
+    const resultado = await proyectosQueries.restaurarProyecto(req.params.id, req.usuario.id);
     if (!resultado) {
       return res.status(404).json({ error: true, mensaje: 'Proyecto no encontrado en la papelera', codigo: 'NO_ENCONTRADO' });
     }
@@ -389,7 +389,7 @@ async function subirImagen(req, res, next) {
 // DELETE /proyectos/:id/purgar — Elimina permanentemente desde la papelera (solo superadmin)
 async function eliminarDefinitivamente(req, res, next) {
   try {
-    const resultado = await proyectosQueries.purgarProyecto(req.params.id);
+    const resultado = await proyectosQueries.purgarProyecto(req.params.id, req.usuario.id);
     if (!resultado) {
       return res.status(404).json({ error: true, mensaje: 'Proyecto no encontrado en la papelera', codigo: 'NO_ENCONTRADO' });
     }

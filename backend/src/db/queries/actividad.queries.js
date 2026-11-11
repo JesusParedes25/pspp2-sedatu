@@ -2,6 +2,19 @@
  * ARCHIVO: actividad.queries.js
  * PROPÓSITO: Queries para el stream de actividad unificado de un nodo
  *            (etapa/acción/tarea) y sus descendientes.
+ *
+ * NOTA TÉCNICA: esto es comodidad de usuario, NO la bitácora de auditoría
+ * ─────────────────────────────────────────────────────────────────
+ * `actividad` (migración 039) alimenta la pestaña de Detalle de un nodo:
+ * comentarios, archivos, riesgos y cambios de estatus/avance/estatus-
+ * cualitativo, con fecha y autor, para que la persona vea "qué pasó aquí".
+ * NO es la bitácora oficial de cumplimiento (ver backend/src/utils/auditoria.js):
+ * solo guarda el valor nuevo, nunca el anterior, y se borra en cascada con
+ * el nodo/proyecto — lo contrario de un historial inalterable. Cualquier
+ * cambio que necesite trazabilidad ante un dictamen debe registrarse
+ * también (o únicamente) en `auditoria` vía registrarAuditoria(); seguir
+ * usando crearActividad() aquí para la UI es correcto y no sustituye eso.
+ * ─────────────────────────────────────────────────────────────────
  */
 const pool = require('../pool');
 const { idsDescendientes } = require('../../utils/descendientes-nodo');

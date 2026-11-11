@@ -14,6 +14,7 @@ const indicadoresQueries = require('../db/queries/indicadores.queries');
 const inicioQueries = require('../db/queries/inicio.queries');
 const miembrosQueries = require('../db/queries/miembros.queries');
 const { resolverProyectoIdsFiltro } = require('../utils/alcanceProyectos');
+const { registrarAuditoria } = require('../utils/auditoria');
 
 const ROLES_CON_TOTAL_PLATAFORMA = ['superadmin', 'ejecutivo'];
 
@@ -186,24 +187,28 @@ async function eliminar(req, res, next) {
 
     // Hard delete so FK ON DELETE CASCADE cleans up aportaciones + metas + categorías
     if (nAport > 0 || nMetas > 0 || nCategorias > 0) {
-      // Capturar id_proyecto/nombre ANTES de borrar — la bitácora
-      // (actividad_log.entidad_id) no tiene FK, así que registrar
-      // después del hard-delete no rompe nada, pero el mensaje sí
-      // necesita el nombre mientras la fila todavía existe.
-      const { rows: [previo] } = await pool.query('SELECT id_proyecto, nombre FROM indicadores WHERE id = $1', [id]);
+      // Capturar la fila completa ANTES de borrar: la cascada se lleva
+      // aportaciones/metas/categorías y actividad_log no tiene FK (puede
+      // registrarse después), pero la fila en sí solo puede auditarse
+      // mientras todavía existe — mismo criterio que purgarProyecto en
+      // proyectos.queries.js.
+      const { rows: [previo] } = await pool.query('SELECT * FROM indicadores WHERE id = $1', [id]);
+      if (!previo) return res.status(404).json({ error: true, mensaje: 'Indicador no encontrado' });
+      await registrarAuditoria({
+        tabla: 'indicadores', registroId: id, campoModificado: 'fila',
+        valorAnterior: previo, operacion: 'DELETE', idUsuario: req.usuario?.id || null
+      });
       const del = await pool.query('DELETE FROM indicadores WHERE id = $1 RETURNING id', [id]);
       if (!del.rows[0]) return res.status(404).json({ error: true, mensaje: 'Indicador no encontrado' });
-      if (previo) {
-        const { registrarActividad } = require('../utils/actividad-log');
-        await registrarActividad({
-          id_proyecto: previo.id_proyecto,
-          id_usuario: req.usuario?.id || null,
-          tipo: 'indicador',
-          titulo: `Indicador "${previo.nombre}" eliminado`,
-          entidad_tipo: 'Indicador',
-          entidad_id: id,
-        });
-      }
+      const { registrarActividad } = require('../utils/actividad-log');
+      await registrarActividad({
+        id_proyecto: previo.id_proyecto,
+        id_usuario: req.usuario?.id || null,
+        tipo: 'indicador',
+        titulo: `Indicador "${previo.nombre}" eliminado`,
+        entidad_tipo: 'Indicador',
+        entidad_id: id,
+      });
     } else {
       const resultado = await indicadoresQueries.eliminar(id, req.usuario?.id);
       if (!resultado) return res.status(404).json({ error: true, mensaje: 'Indicador no encontrado' });

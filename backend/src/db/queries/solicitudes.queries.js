@@ -20,6 +20,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const pool = require('../pool');
+const { registrarAuditoria } = require('../../utils/auditoria');
 const { puedeGestionarParticipantes, puedeGestionarParticipantesNodo } = require('../../utils/autorizacion');
 
 // Crea la solicitud, de proyecto (sin tipoNodo) o de un nodo concreto.
@@ -153,6 +154,12 @@ async function responder({ idSolicitud, idQuienResuelve, acepta, motivoRespuesta
 
     const solicitud = rows[0];
     if (!solicitud) { await client.query('ROLLBACK'); return null; }
+
+    await registrarAuditoria({
+      tabla: 'solicitudes_participacion', registroId: solicitud.id, campoModificado: 'estado',
+      valorAnterior: 'pendiente', valorNuevo: solicitud.estado,
+      operacion: 'UPDATE', idUsuario: idQuienResuelve, client
+    });
 
     if (acepta && solicitud.id_nodo) {
       // Solicitud de una etapa, acción o tarea: la participación se crea

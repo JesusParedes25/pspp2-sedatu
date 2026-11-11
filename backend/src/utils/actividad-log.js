@@ -5,6 +5,21 @@
  *
  * Tipos de evento: estado, avance, evidencia, comentario, miembro,
  *                  creacion, indicador, tarea
+ *
+ * NOTA TÉCNICA: `actividad_log` es auditoría INFORMAL, no la oficial
+ * ─────────────────────────────────────────────────────────────────
+ * Esta tabla (migración 031) se autodescribe en su propio SQL como
+ * "auditoría informal" y se borra en cascada con el proyecto
+ * (ON DELETE CASCADE) — no sobrevive un borrado definitivo. Sigue viva y
+ * en uso real: la consumen la pestaña Bitácora del proyecto, "Actividad
+ * reciente" de Carteras, el Tablero General y Resumen/Panorama (ver
+ * backend/src/db/queries/bitacora.queries.js), con texto legible para
+ * humanos que ni `auditoria` ni `actividad` dan. Para trazabilidad ante
+ * un dictamen (estado previo/posterior, historial inalterable), usar la
+ * bitácora OFICIAL: backend/src/utils/auditoria.js. Esta función puede
+ * seguir llamándose EN PARALELO a registrarAuditoria() para esos eventos
+ * — una no sustituye a la otra.
+ * ─────────────────────────────────────────────────────────────────
  */
 const pool = require('../db/pool');
 

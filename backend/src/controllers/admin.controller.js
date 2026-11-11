@@ -8,6 +8,7 @@ const pool = require('../db/pool');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { limpiarArchivoTemporal } = require('../middleware/subidaArchivo.middleware');
+const { registrarAuditoria } = require('../utils/auditoria');
 
 // ─── CATÁLOGOS ─────────────────────────────────────────────────
 
@@ -301,11 +302,30 @@ async function editarUsuario(req, res, next) {
     if (id_direccion_area !== undefined) { sets.push(`id_direccion_area=$${i++}`); params.push(id_direccion_area || null); }
     if (sets.length === 0) return res.status(400).json({ error: true, mensaje: 'Nada que actualizar' });
     params.push(id);
+
+    // Fotografía ANTES del UPDATE — rol/id_dg/id_direccion_area deciden el
+    // alcance de permisos de la cuenta (ver autorizacion.js), así que un
+    // cambio aquí necesita antes/después, no solo un título genérico.
+    const { rows: [antes] } = await pool.query(
+      'SELECT nombre_completo, correo, cargo, rol, id_dg, id_direccion_area FROM usuarios WHERE id = $1', [id]
+    );
+
     const { rows } = await pool.query(
       `UPDATE usuarios SET ${sets.join(', ')} WHERE id = $${i} RETURNING id, nombre_completo, correo, cargo, rol, id_dg, id_direccion_area`,
       params
     );
     if (!rows[0]) return res.status(404).json({ error: true, mensaje: 'Usuario no encontrado' });
+
+    if (antes) {
+      const { nombre_completo: n, correo: c, cargo: cg, rol: r, id_dg: dg, id_direccion_area: da } = rows[0];
+      await registrarAuditoria({
+        tabla: 'usuarios', registroId: id, campoModificado: 'ficha',
+        valorAnterior: antes,
+        valorNuevo: { nombre_completo: n, correo: c, cargo: cg, rol: r, id_dg: dg, id_direccion_area: da },
+        operacion: 'UPDATE', idUsuario: req.usuario?.id || null
+      });
+    }
+
     res.json({ datos: rows[0], mensaje: 'Usuario actualizado' });
   } catch (err) { next(err); }
 }
@@ -332,6 +352,11 @@ async function toggleUsuario(req, res, next) {
       [id]
     );
     if (!rows[0]) return res.status(404).json({ error: true, mensaje: 'Usuario no encontrado' });
+    await registrarAuditoria({
+      tabla: 'usuarios', registroId: id, campoModificado: 'activo',
+      valorAnterior: !rows[0].activo, valorNuevo: rows[0].activo,
+      operacion: 'UPDATE', idUsuario: req.usuario?.id || null
+    });
     res.json({ datos: rows[0], mensaje: rows[0].activo ? 'Usuario activado' : 'Usuario desactivado' });
   } catch (err) { next(err); }
 }
@@ -343,6 +368,20 @@ async function eliminarUsuario(req, res, next) {
     if (req.usuario.id === id) {
       return res.status(400).json({ error: true, mensaje: 'No puedes eliminar tu propia cuenta.' });
     }
+
+    // Fotografía completa ANTES del DELETE — es la cuenta en sí (quién
+    // podía ser qué), el cambio de permiso más sensible de la plataforma,
+    // y hoy no quedaba registro de su borrado en ningún lado.
+    const { rows: [previo] } = await pool.query(
+      'SELECT id, nombre_completo, correo, cargo, rol, id_dg, id_direccion_area, activo FROM usuarios WHERE id = $1', [id]
+    );
+    if (!previo) return res.status(404).json({ error: true, mensaje: 'Usuario no encontrado' });
+
+    await registrarAuditoria({
+      tabla: 'usuarios', registroId: id, campoModificado: 'fila',
+      valorAnterior: previo, operacion: 'DELETE', idUsuario: req.usuario?.id || null
+    });
+
     const { rows } = await pool.query(
       'DELETE FROM usuarios WHERE id = $1 RETURNING id, nombre_completo, correo',
       [id]

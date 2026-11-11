@@ -326,7 +326,8 @@ describe('cambiarEstado — cascada cancelación', () => {
       call[0].includes('INSERT INTO auditoria') &&
       call[1] && call[1][0] === 'tareas' && call[1][1] === UUID_3
     );
-    expect(auditTarea[1][5]).toBe(UUID_AUD);
+    // params: [tabla, registro_id, campo_modificado, valor_anterior, valor_nuevo, operacion, id_usuario, id_evento_origen]
+    expect(auditTarea[1][7]).toBe(UUID_AUD);
     // Exactamente las consultas esperadas: ninguna quedó sin simular.
     expect(mockQuery).toHaveBeenCalledTimes(12);
 
@@ -342,7 +343,7 @@ describe('cambiarEstado — cascada cancelación', () => {
     const auditCall = mockQuery.mock.calls.find(call =>
       typeof call[0] === 'string' &&
       call[0].includes('INSERT INTO auditoria') &&
-      call[1] && call[1][5] === UUID_AUD // id_evento_origen
+      call[1] && call[1][7] === UUID_AUD // id_evento_origen
     );
     expect(auditCall).toBeDefined();
   });
