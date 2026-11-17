@@ -172,6 +172,7 @@ async function obtenerIndicadorDeAportacion(id) {
 async function obtenerConNodo(id) {
   const { rows: [row] } = await pool.query(`
     SELECT ia.id, ia.id_indicador, ia.id_etapa, ia.id_accion, ia.id_tarea,
+      ia.aportacion, ia.modo,
       COALESCE(e.nombre, a.nombre, t.nombre) AS nodo_nombre
     FROM indicador_aportaciones ia
     LEFT JOIN etapas e ON e.id = ia.id_etapa

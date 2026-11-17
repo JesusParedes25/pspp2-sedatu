@@ -132,7 +132,7 @@ export default function PortadaProyecto() {
         <FichaSeccion
           to={`/proyectos/${proyectoId}/bitacora`}
           icono={BookText}
-          titulo="Bitácora"
+          titulo="Actividad"
           descripcion="Revisa el historial del proyecto: quién hizo qué y cuándo."
           cargandoContadores={cargandoResumen}
           contadores={!errorResumen && resumen && (

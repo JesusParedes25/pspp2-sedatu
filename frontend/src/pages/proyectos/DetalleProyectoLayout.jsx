@@ -50,7 +50,7 @@ const SECCIONES = [
   { to: 'indicadores', etiqueta: 'Indicadores', icono: BarChart3 },
   { to: 'riesgos', etiqueta: 'Riesgos', icono: ShieldAlert },
   { to: 'documentos', etiqueta: 'Documentos', icono: FileText },
-  { to: 'bitacora', etiqueta: 'Bitácora', icono: BookText },
+  { to: 'bitacora', etiqueta: 'Actividad', icono: BookText },
   { to: 'configuracion', etiqueta: 'Configuración', icono: SlidersHorizontal },
 ];
 

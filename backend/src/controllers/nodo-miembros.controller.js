@@ -10,6 +10,7 @@ const { crearNotificacion } = require('../utils/notificaciones');
 const { registrarActividad } = require('../utils/actividad-log');
 const { etiquetaFuncion } = require('../utils/etiquetas-funcion');
 const pool = require('../db/pool');
+const { registrarAuditoria } = require('../utils/auditoria');
 
 // Extrae tipo ('etapa' | 'accion') del path y el id del nodo
 function parseTipoId(req) {
@@ -201,6 +202,10 @@ async function agregar(req, res, next) {
       titulo: `${nombreObjetivo} agregado a ${ETIQUETA_POR_TIPO[tipo]} "${nombreNodo}"`,
       descripcion: `${req.usuario?.nombre_completo || 'Alguien'} agregó a ${nombreObjetivo} como ${etiquetaRol} en ${ETIQUETA_POR_TIPO[tipo]} "${nombreNodo}".`,
     });
+    await registrarAuditoria({
+      tabla: 'nodo_miembros', registroId: miembro.id, campoModificado: 'fila',
+      valorNuevo: miembro, operacion: 'INSERT', idUsuario: req.usuario?.id || null
+    });
 
     res.status(201).json({ datos: miembro, mensaje: 'Miembro agregado' });
   } catch (err) {
@@ -240,6 +245,11 @@ async function actualizar(req, res, next) {
       titulo: `Función de ${nombreObjetivo} cambiada a ${etiquetaNueva} en ${ETIQUETA_POR_TIPO[tipo]} "${nombreNodo}"`,
       descripcion: `${req.usuario?.nombre_completo || 'Alguien'} cambió la función de ${nombreObjetivo} en ${ETIQUETA_POR_TIPO[tipo]} "${nombreNodo}"`
         + (etiquetaPrevia && etiquetaPrevia !== etiquetaNueva ? ` de ${etiquetaPrevia} a ${etiquetaNueva}.` : ` a ${etiquetaNueva}.`),
+    });
+    await registrarAuditoria({
+      tabla: 'nodo_miembros', registroId: miembro.id, campoModificado: 'rol',
+      valorAnterior: previo?.rol || null, valorNuevo: rol,
+      operacion: 'UPDATE', idUsuario: req.usuario?.id || null
     });
 
     // Si ya estaba ACEPTADO y la función de verdad cambió, avisarle: no
@@ -317,6 +327,10 @@ async function eliminar(req, res, next) {
 
     const resultado = await nodoMiembrosQueries.eliminarMiembro(tipo, idNodo, userId);
     if (!resultado) return res.status(404).json({ error: true, mensaje: 'Miembro no encontrado' });
+    await registrarAuditoria({
+      tabla: 'nodo_miembros', registroId: previo.id, campoModificado: 'fila',
+      valorAnterior: previo, operacion: 'DELETE', idUsuario: req.usuario?.id || null
+    });
     if (!esAutoeliminacion) {
       await notificarRetiroNodo(tipo, idNodo, userId, req.usuario?.nombre_completo);
     }

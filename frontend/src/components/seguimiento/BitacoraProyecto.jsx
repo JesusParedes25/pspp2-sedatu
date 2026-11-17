@@ -245,7 +245,7 @@ export default function BitacoraProyecto({ proyectoId }) {
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <BookText size={18} className="text-guinda-600" />
-        <h2 className="text-base font-semibold text-gray-800">Bitácora del proyecto</h2>
+        <h2 className="text-base font-semibold text-gray-800">Actividad del proyecto</h2>
         <span className="text-xs text-gray-400">Todo lo que ha pasado aquí, en un solo lugar.</span>
       </div>
 
@@ -373,7 +373,7 @@ export default function BitacoraProyecto({ proyectoId }) {
 
       {cargando ? (
         <div className="flex items-center justify-center gap-2 py-12 text-sm text-gray-400">
-          <Loader2 size={16} className="animate-spin" /> Cargando bitácora…
+          <Loader2 size={16} className="animate-spin" /> Cargando actividad…
         </div>
       ) : eventos.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-xl text-center py-12 px-4">
