@@ -40,6 +40,7 @@ jest.mock('../utils/validar-funcion-lectura', () => ({
 }));
 jest.mock('../utils/actividad-log', () => ({ registrarActividad: jest.fn() }));
 jest.mock('../utils/notificaciones', () => ({ crearNotificacion: jest.fn() }));
+jest.mock('../utils/auditoria', () => ({ registrarAuditoria: jest.fn() }));
 
 const nodoMiembrosQueries = require('../db/queries/nodo-miembros.queries');
 const { crearNotificacion } = require('../utils/notificaciones');

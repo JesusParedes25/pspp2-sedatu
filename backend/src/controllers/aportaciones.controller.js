@@ -5,6 +5,7 @@
 const aportacionesQueries = require('../db/queries/aportaciones.queries');
 const pool = require('../db/pool');
 const { registrarActividad } = require('../utils/actividad-log');
+const { registrarAuditoria } = require('../utils/auditoria');
 
 // Resuelve id_proyecto/nombre del indicador dueño de una aportación —
 // necesario para la bitácora (actividad_log requiere id_proyecto), ya
@@ -94,6 +95,10 @@ async function crear(req, res, next) {
         entidad_id: aportacion.id_indicador,
       });
     }
+    await registrarAuditoria({
+      tabla: 'indicador_aportaciones', registroId: aportacion.id, campoModificado: 'fila',
+      valorNuevo: aportacion, operacion: 'INSERT', idUsuario: req.usuario?.id || null
+    });
 
     res.status(201).json({ datos: aportacion, mensaje: 'Aportación creada' });
   } catch (err) {
@@ -119,6 +124,11 @@ async function actualizar(req, res, next) {
       mapped.aportacion = monto;
     }
     if (req.body.modo !== undefined) mapped.modo = req.body.modo;
+
+    // Fotografía ANTES del UPDATE — sin esto no hay "anterior" que
+    // auditar, solo el título genérico que ya daba actividad_log.
+    const antes = await aportacionesQueries.obtenerConNodo(req.params.id);
+
     const aportacion = await aportacionesQueries.actualizar(req.params.id, mapped);
     if (!aportacion) return res.status(404).json({ error: true, mensaje: 'Aportación no encontrada' });
 
@@ -143,6 +153,14 @@ async function actualizar(req, res, next) {
         descripcion: nodo ? `Se editó la aportación de ${nodo} a este indicador.` : null,
         entidad_tipo: 'Indicador',
         entidad_id: aportacion.id_indicador,
+      });
+    }
+    if (antes) {
+      await registrarAuditoria({
+        tabla: 'indicador_aportaciones', registroId: aportacion.id, campoModificado: 'ficha',
+        valorAnterior: { aportacion: antes.aportacion, modo: antes.modo },
+        valorNuevo: { aportacion: aportacion.aportacion, modo: aportacion.modo },
+        operacion: 'UPDATE', idUsuario: req.usuario?.id || null
       });
     }
 
@@ -179,6 +197,10 @@ async function eliminar(req, res, next) {
         entidad_id: antes.id_indicador,
       });
     }
+    await registrarAuditoria({
+      tabla: 'indicador_aportaciones', registroId: antes.id, campoModificado: 'fila',
+      valorAnterior: antes, operacion: 'DELETE', idUsuario: req.usuario?.id || null
+    });
 
     res.json({ mensaje: 'Aportación eliminada' });
   } catch (err) { next(err); }

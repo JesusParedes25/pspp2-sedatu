@@ -24,7 +24,7 @@ export default function BandaConsulta({ tipo, nodo, proyecto, permisosProyecto }
     <div className="flex items-start justify-between gap-3 mb-4 p-3 rounded-lg border border-gray-200 bg-gray-50">
       <p className="text-[12px] text-gray-600 leading-relaxed">
         Estás en modo consulta. No participas en {ETIQUETA_TIPO[tipo] || 'este elemento'}. Puedes leer
-        todo lo que hay aquí, incluidos documentos, riesgos y bitácora, pero no registrar avances ni
+        todo lo que hay aquí, incluidos documentos, riesgos y actividad, pero no registrar avances ni
         adjuntar archivos.
       </p>
       <BotonSolicitarParticipar
