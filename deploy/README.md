@@ -138,11 +138,13 @@ chmod 640 /etc/pspp/pspp.env
 # Editar /etc/pspp/pspp.env con los valores reales
 ```
 
-Ver `deploy/pspp.env.example` para el detalle de cada una de las 22
-variables que el backend lee, cuáles son obligatorias, y las dos
+Ver `deploy/pspp.env.example` para el detalle de cada una de las 32
+variables que el backend lee, cuáles son obligatorias, y las
 advertencias importantes (`FRONTEND_URL` controla CORS;
 `UPLOAD_MAX_SIZE_MB` tiene que coincidir con `client_max_body_size` de
-nginx).
+nginx; el host SMTP, igual que el resto de `SMTP_*`, es configuración
+de este ambiente — conviene comprobar que se puede abrir conexión al
+puerto configurado antes de dar por bueno un despliegue nuevo).
 
 Crear el directorio de subidas temporales que `UPLOAD_TMP_DIR` declara
 en la plantilla:
@@ -151,6 +153,36 @@ en la plantilla:
 mkdir -p /var/lib/pspp/uploads-tmp
 chown pspp:pspp /var/lib/pspp/uploads-tmp
 ```
+
+### Probar el envío de correo sin credenciales institucionales
+
+Para probar que un correo de verdad sale (invitación, recuperación de
+contraseña, asignación a un proyecto...) sin esperar a que la DGTIC dé
+el relevo institucional, basta un colector SMTP local — recibe
+cualquier correo y lo muestra en una bandeja web, sin reenviarlo a
+ningún lado. [Mailpit](https://github.com/axllent/mailpit) es el más
+simple de levantar (un binario o imagen, sin configurar nada):
+
+```bash
+docker run -d --name mailpit -p 1025:1025 -p 8025:8025 axllent/mailpit
+```
+
+Y en `/etc/pspp/pspp.env` (o el `.env`/`pspp-sedatu.env` que
+corresponda):
+
+```bash
+SMTP_HOST=localhost   # o la IP del contenedor/host donde corra Mailpit
+SMTP_PUERTO=1025
+SMTP_SEGURO=false
+# SMTP_USUARIO y SMTP_CONTRASENA vacías: Mailpit no pide autenticación
+```
+
+Reiniciar el backend y disparar cualquier operación que mande correo
+(crear un usuario, pedir recuperación de contraseña); el mensaje
+aparece en `http://localhost:8025`, con asunto y cuerpo exactamente
+como los redacta `backend/src/utils/correoTextos.js` — nunca llega a
+ningún buzón real, así que no hay riesgo de mandarle algo a una cuenta
+de verdad mientras se prueba.
 
 ## 7. Servicio systemd del backend
 
@@ -359,6 +391,13 @@ cambian respecto a los otros despliegues:
 - `FRONTEND_URL`: la URL pública completa, con su ruta si la tiene
   (`https://sistemas.sedatu.gob.mx/pspp`). CORS se compara contra su
   origen; las ligas de activación de cuenta usan la URL completa.
+- `SMTP_HOST` y el resto de `SMTP_*`/`CORREO_REMITENTE*`: el relevo
+  institucional de la DGTIC entra aquí. Si se deja `SMTP_HOST` vacía,
+  el backend arranca igual con el envío de correo deshabilitado (se
+  avisa en el log); conviene comprobar que se puede abrir conexión al
+  puerto configurado antes de dar por bueno un despliegue nuevo, ya que
+  el host es configuración de este ambiente, no algo que el repositorio
+  pueda validar por su cuenta.
 
 ### 11.3 Backend
 

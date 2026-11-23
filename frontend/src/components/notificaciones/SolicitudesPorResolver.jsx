@@ -27,10 +27,6 @@ import { useNavigate } from 'react-router-dom';
 import { Check, X, MailQuestion, Loader2, Layers, CornerDownRight } from 'lucide-react';
 import { responderSolicitud } from '../../api/solicitudes';
 import { olvidarPermisos } from '../../hooks/usePermisos';
-import { useAuth } from '../../context/AuthContext';
-import {
-  enviarCorreoAsignacion, etiquetaFuncionCorreo, construirDestino, textosSolicitudAceptada,
-} from '../../utils/correoAsignacion';
 
 const ETIQUETA_NODO = { etapa: 'la etapa', accion: 'la acción', tarea: 'la tarea' };
 
@@ -45,7 +41,6 @@ function rutaDe(sol) {
 
 export default function SolicitudesPorResolver({ solicitudes, onRespondida, ocultarEncabezado = false }) {
   const navigate = useNavigate();
-  const { usuario } = useAuth();
   const [declinando, setDeclinando] = useState(null);
   const [motivo, setMotivo] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -59,18 +54,6 @@ export default function SolicitudesPorResolver({ solicitudes, onRespondida, ocul
       await responderSolicitud(sol.id, respuesta, textoMotivo);
       olvidarPermisos(sol.id_proyecto);
       setDeclinando(null); setMotivo('');
-      // Correo de aviso a quien solicitó (ya tiene cuenta) — solo cuando
-      // se acepta: declinar no asigna nada que avisar. Nunca bloquea la
-      // operación (ya se guardó arriba): se dispara sin esperar.
-      if (respuesta === 'aceptar') {
-        const funcion = etiquetaFuncionCorreo(sol.funcion);
-        const destino = construirDestino({
-          alcance: sol.id_nodo ? 'nodo' : 'proyecto',
-          nodoTipo: sol.tipo_nodo, nodoNombre: sol.nombre_nodo, proyectoNombre: sol.nombre_proyecto,
-        });
-        const textos = textosSolicitudAceptada({ quien: usuario?.nombre_completo, funcion, destino, ruta: rutaDe(sol) });
-        enviarCorreoAsignacion({ nombreDestino: sol.nombre_completo, correoDestino: sol.correo, destino, funcion, ...textos });
-      }
       onRespondida?.(sol, respuesta);
     } catch (err) {
       setError(err.response?.data?.mensaje || 'No se pudo registrar tu respuesta');

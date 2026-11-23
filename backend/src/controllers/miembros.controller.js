@@ -10,6 +10,8 @@ const { crearNotificacion } = require('../utils/notificaciones');
 const { etiquetaFuncion } = require('../utils/etiquetas-funcion');
 const pool = require('../db/pool');
 const { registrarAuditoria } = require('../utils/auditoria');
+const { enviarCorreo, enlaceNotificaciones, enlaceProyecto, destinoTexto } = require('../utils/correo');
+const correoTextos = require('../utils/correoTextos');
 
 // `proyecto_usuarios` tiene llave primaria compuesta (id_proyecto,
 // id_usuario) — auditoria.registro_id es una sola columna, así que se usa
@@ -41,6 +43,14 @@ async function notificarNuevoMiembro(proyectoId, idUsuarioNuevo, rol, quienInvit
       entidadId: proyectoId,
       idUsuario: idUsuarioNuevo,
     });
+    const { rows: u } = await pool.query('SELECT nombre_completo, correo FROM usuarios WHERE id = $1', [idUsuarioNuevo]);
+    if (u[0]?.correo) {
+      const { asunto, texto } = correoTextos.asignacion({
+        nombre: u[0].nombre_completo, quien: quienInvita, funcion: rol,
+        destino: destinoTexto({ nombreProyecto }), enlace: enlaceNotificaciones(),
+      });
+      await enviarCorreo({ para: u[0].correo, asunto, texto });
+    }
   } catch (err) {
     console.error('[miembros] Error al notificar nuevo miembro:', err.message);
   }
@@ -62,6 +72,14 @@ async function notificarCambioRol(proyectoId, idUsuarioObjetivo, rolNuevo, quien
       entidadId: proyectoId,
       idUsuario: idUsuarioObjetivo,
     });
+    const { rows: u } = await pool.query('SELECT nombre_completo, correo FROM usuarios WHERE id = $1', [idUsuarioObjetivo]);
+    if (u[0]?.correo) {
+      const { asunto, texto } = correoTextos.cambioFuncion({
+        nombre: u[0].nombre_completo, quien: quienCambia, funcion: rolNuevo,
+        destino: destinoTexto({ nombreProyecto }), enlace: enlaceProyecto(proyectoId),
+      });
+      await enviarCorreo({ para: u[0].correo, asunto, texto });
+    }
   } catch (err) {
     console.error('[miembros] Error al notificar cambio de función:', err.message);
   }

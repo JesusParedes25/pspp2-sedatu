@@ -39,7 +39,7 @@ import {
   Home, LayoutDashboard, FolderKanban, Bell, PlusCircle, ChevronLeft, ChevronRight,
   ChevronDown, LogOut, FileText, Map, Shield, ListChecks, ListTodo, CalendarDays,
   List, Briefcase, Inbox, History, Users, Building2, Landmark, BarChart3, KeyRound,
-  Trash2, Settings, BookOpen,
+  Trash2, BookOpen,
 } from 'lucide-react';
 
 // Definición de items del menú principal.
@@ -106,7 +106,6 @@ const menuItems = [
       {
         titulo: 'Sistema', children: [
           { to: '/admin/catalogos?tab=papelera', param: 'papelera', etiqueta: 'Papelera', icono: Trash2 },
-          { to: '/admin/catalogos?tab=config', param: 'config', etiqueta: 'Configuración', icono: Settings },
         ],
       },
     ],

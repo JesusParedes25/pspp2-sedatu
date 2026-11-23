@@ -6,28 +6,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Mail, Loader2, CheckCircle2 } from 'lucide-react';
-import emailjs from '@emailjs/browser';
 import * as authApi from '../api/auth';
-
-// Envía el correo de recuperación vía EmailJS — mismo patrón que
-// enviarCorreoInvitacion en AdminCatalogos.jsx, pero usando la config
-// pública alcanzable sin sesión (GET /auth/config-correo).
-async function enviarCorreoRecuperacion(nombre, correo, resetLink) {
-  try {
-    const json = await authApi.obtenerConfigCorreoPublico();
-    const cfg = json.datos || {};
-    if (cfg.emailjs_enabled !== 'true') return;
-    const { emailjs_service_id: svcId, emailjs_template_id: tplId, emailjs_public_key: pubKey } = cfg;
-    if (!svcId || !tplId || !pubKey) return;
-    await emailjs.send(svcId, tplId, {
-      to_name: nombre,
-      to_email: correo,
-      invite_link: resetLink,
-    }, pubKey);
-  } catch (err) {
-    console.error('Error enviando correo de recuperación:', err);
-  }
-}
 
 export default function SolicitarRecuperacion() {
   const [correo, setCorreo] = useState('');
@@ -40,10 +19,7 @@ export default function SolicitarRecuperacion() {
     setError('');
     setCargando(true);
     try {
-      const res = await authApi.solicitarRecuperacion(correo);
-      if (res.enviar) {
-        await enviarCorreoRecuperacion(res.nombre, res.correo, res.reset_link);
-      }
+      await authApi.solicitarRecuperacion(correo);
       setEnviado(true);
     } catch (err) {
       setError(err.response?.data?.mensaje || 'Ocurrió un error. Intenta de nuevo.');

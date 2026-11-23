@@ -1,17 +1,15 @@
 /**
  * ARCHIVO: solicitudes-crear-destinatarios.test.js
- * PROPÓSITO: POST /proyectos/:id/solicitudes (y las rutas de nodo) ya
- *            creaba la notificación dentro de la plataforma para cada
- *            destinatario de `destinatariosDe`, pero no mandaba ningún
- *            correo — esta ronda agrega el correo, reusando la MISMA
- *            lista (ver docs/modelo-permisos.md, sección 15.2.3, punto
- *            5): `destinatariosDe` ahora devuelve objetos
- *            {id_usuario, nombre_completo, correo} en vez de solo ids,
- *            y el controller debe (a) seguir filtrando al propio
- *            solicitante de las notificaciones, (b) devolver esa misma
- *            lista filtrada como `destinatarios` en la respuesta del
- *            POST, para que el frontend envíe el correo sin recalcular
- *            nada, y (c) no tronar si no hay ningún destinatario.
+ * PROPÓSITO: POST /proyectos/:id/solicitudes (y las rutas de nodo) crea
+ *            la notificación dentro de la plataforma para cada
+ *            destinatario de `destinatariosDe` y, en el mismo bucle,
+ *            manda el correo de "solicitud por resolver" (ver
+ *            docs/modelo-permisos.md, sección 15.2.3, punto 5) — un
+ *            solo cálculo de destinatarios para los dos canales, ahora
+ *            enteramente en el backend. El controller debe (a) filtrar
+ *            al propio solicitante de los dos avisos, (b) mandar
+ *            correo solo a quien tiene `correo` registrado, y (c) no
+ *            tronar si no hay ningún destinatario.
  *
  * Ejecutar: npm test
  */
@@ -45,6 +43,14 @@ jest.mock('../utils/validar-funcion-lectura', () => ({
 
 jest.mock('../utils/notificaciones', () => ({ crearNotificacion: jest.fn() }));
 const { crearNotificacion } = require('../utils/notificaciones');
+
+jest.mock('../utils/correo', () => ({
+  enviarCorreo: jest.fn().mockResolvedValue({ enviado: true }),
+  enlaceNotificaciones: jest.fn(() => 'http://localhost:5173/notificaciones'),
+  enlaceProyecto: jest.fn(() => 'http://localhost:5173/proyectos/x'),
+  destinoTexto: jest.fn(() => 'el proyecto «X»'),
+}));
+const { enviarCorreo } = require('../utils/correo');
 
 const { crear } = require('../controllers/solicitudes.controller');
 
@@ -83,48 +89,42 @@ test('reusa destinatariosDe para notificar y para la respuesta — filtra al pro
 
   await crear(req(), res, jest.fn());
 
-  // Al solicitante no se le notifica a sí mismo.
+  // Al solicitante no se le notifica a sí mismo, ni por los dos canales.
   expect(crearNotificacion).toHaveBeenCalledTimes(2);
   expect(crearNotificacion).toHaveBeenCalledWith(expect.objectContaining({ idUsuario: DESTINATARIO_1 }));
   expect(crearNotificacion).toHaveBeenCalledWith(expect.objectContaining({ idUsuario: DESTINATARIO_2 }));
   expect(crearNotificacion).not.toHaveBeenCalledWith(expect.objectContaining({ idUsuario: SOLICITANTE }));
 
-  // La respuesta trae la MISMA lista (sin el solicitante), con
-  // nombre/correo — lo que el frontend necesita para el correo, sin
-  // tener que volver a calcular nada ni pedir otro endpoint.
+  expect(enviarCorreo).toHaveBeenCalledTimes(2);
+  expect(enviarCorreo).toHaveBeenCalledWith(expect.objectContaining({ para: 'd1@example.org' }));
+  expect(enviarCorreo).toHaveBeenCalledWith(expect.objectContaining({ para: 'd2@example.org' }));
+
   expect(res.status).toHaveBeenCalledWith(201);
   const payload = res.json.mock.calls[0][0];
-  expect(payload.destinatarios).toHaveLength(2);
-  expect(payload.destinatarios).toEqual(expect.arrayContaining([
-    expect.objectContaining({ id_usuario: DESTINATARIO_1, nombre_completo: 'Destinatario Uno', correo: 'd1@example.org' }),
-    expect.objectContaining({ id_usuario: DESTINATARIO_2, nombre_completo: 'Destinatario Dos', correo: 'd2@example.org' }),
-  ]));
   expect(payload.datos).toEqual(expect.objectContaining({ id: 'sol-1' }));
 });
 
-test('sin ningún destinatario: no notifica, no truena, responde con destinatarios vacío', async () => {
+test('sin ningún destinatario: no notifica, no manda correo, no truena', async () => {
   solicitudesQueries.destinatariosDe.mockResolvedValue([]);
   const res = crearRes();
 
   await expect(crear(req(), res, jest.fn())).resolves.not.toThrow();
 
   expect(crearNotificacion).not.toHaveBeenCalled();
+  expect(enviarCorreo).not.toHaveBeenCalled();
   expect(res.status).toHaveBeenCalledWith(201);
-  const payload = res.json.mock.calls[0][0];
-  expect(payload.destinatarios).toEqual([]);
   // La solicitud ya quedó guardada de todos modos.
   expect(solicitudesQueries.crear).toHaveBeenCalled();
 });
 
-test('único destinatario además del propio solicitante: 1 notificación, 1 destinatario en la respuesta', async () => {
+test('destinatario sin correo registrado: notifica dentro de la plataforma, no manda correo', async () => {
   solicitudesQueries.destinatariosDe.mockResolvedValue([
-    { id_usuario: DESTINATARIO_1, nombre_completo: 'Destinatario Uno', correo: 'd1@example.org' },
+    { id_usuario: DESTINATARIO_1, nombre_completo: 'Destinatario Uno', correo: null },
   ]);
   const res = crearRes();
 
   await crear(req(), res, jest.fn());
 
   expect(crearNotificacion).toHaveBeenCalledTimes(1);
-  const payload = res.json.mock.calls[0][0];
-  expect(payload.destinatarios).toHaveLength(1);
+  expect(enviarCorreo).not.toHaveBeenCalled();
 });

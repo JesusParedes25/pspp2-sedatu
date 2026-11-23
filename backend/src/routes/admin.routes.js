@@ -11,9 +11,6 @@ const { upload } = require('../middleware/subidaArchivo.middleware');
 
 const router = Router();
 
-// Ruta pública — config EmailJS para el frontend
-router.get('/config/publico', adminController.obtenerConfigPublico);
-
 // Solo superadmin puede acceder al resto
 router.use(requiereRol(['superadmin']));
 
@@ -58,9 +55,6 @@ router.put('/programas/:id', adminController.editarPrograma);
 router.patch('/programas/:id/activo', adminController.cambiarActivoPrograma);
 router.delete('/programas/:id', adminController.eliminarPrograma);
 
-// Configuración del sistema
-router.get('/config', adminController.obtenerConfig);
-router.put('/config', adminController.actualizarConfig);
 
 // ─── Tokens de servicio de la API de indicadores ─────────────────
 // Administrables desde el panel para no tener que tocar código ni

@@ -1,14 +1,14 @@
 /**
  * ARCHIVO: AdminCatalogos.jsx
  * PROPÓSITO: Panel de administración (solo superadmin).
- * Tabs: Catálogos | Usuarios | Áreas | Configuración
+ * Tabs: Catálogos | Usuarios | Áreas
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Plus, Pencil, Trash2, RotateCcw, AlertTriangle, Shield, ChevronDown, ChevronRight,
-  Loader2, Save, X, Users, Building2, Settings, Mail, ToggleLeft, ToggleRight,
-  RefreshCw, CheckCircle, EyeOff, Eye, BarChart3, KeyRound, Landmark, Search,
+  Loader2, Save, X, Users, Building2,
+  RefreshCw, ToggleLeft, ToggleRight, BarChart3, KeyRound, Landmark, Search,
   ArrowRightLeft
 } from 'lucide-react';
 import * as adminApi from '../api/admin';
@@ -17,7 +17,6 @@ import TabProgramas from '../components/admin/TabProgramas';
 import TabApiIndicadores from '../components/admin/TabApiIndicadores';
 import TabTransferenciaAdmin from '../components/admin/TabTransferenciaAdmin';
 import * as proyectosApi from '../api/proyectos';
-import emailjs from '@emailjs/browser';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import { ROLES, DESCRIPCION_ROL, colorRol } from '../utils/roles';
 import { useCandado, useEnvioUnico } from '../hooks/useEnvioUnico';
@@ -142,27 +141,6 @@ function TabCatalogos() {
 // La lista de roles, sus colores y la descripción de cada uno viven en
 // utils/roles.js. El nombre que se muestra es el mismo que se guarda.
 
-// Envía el correo de invitación vía EmailJS (se ejecuta desde el navegador).
-// Devuelve { enviado: true } o { enviado: false, motivo: string }.
-async function enviarCorreoInvitacion(nombreUsuario, correoUsuario, inviteLink) {
-  try {
-    const json = await adminApi.obtenerConfigPublico();
-    const cfg = json.datos || {};
-    if (cfg.emailjs_enabled !== 'true') return { enviado: false, motivo: 'correo_deshabilitado' };
-    const { emailjs_service_id: svcId, emailjs_template_id: tplId, emailjs_public_key: pubKey } = cfg;
-    if (!svcId || !tplId || !pubKey) return { enviado: false, motivo: 'sin_configuracion' };
-    await emailjs.send(svcId, tplId, {
-      to_name: nombreUsuario,
-      to_email: correoUsuario,
-      invite_link: inviteLink,
-    }, pubKey);
-    return { enviado: true };
-  } catch (err) {
-    console.error('EmailJS error:', err);
-    return { enviado: false, motivo: 'error_envio' };
-  }
-}
-
 // Compara ignorando mayúsculas y acentos, para que "garcia" encuentre "García".
 function normalizarBusqueda(s) {
   return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
@@ -195,9 +173,7 @@ function TabUsuarios({ dgs, das }) {
     try {
       if (modal.modo === 'crear') {
         const r = await adminApi.crearUsuarioAdmin(modal.datos);
-        const link = r.datos.invite_link;
-        const resultado = await enviarCorreoInvitacion(r.datos.nombre_completo, r.datos.correo, link);
-        setInviteLink({ usuario: r.datos, invite_link: link, correoEnviado: resultado.enviado, motivoFallo: resultado.motivo });
+        setInviteLink({ usuario: r.datos, invite_link: r.datos.invite_link, correoEnviado: r.datos.correo_enviado });
         setModal(null);
         cargar();
       } else {
@@ -211,9 +187,7 @@ function TabUsuarios({ dgs, das }) {
   async function reenviar(u) {
     try {
       const r = await adminApi.reenviarInvitacion(u.id);
-      const link = r.datos.invite_link;
-      const resultado = await enviarCorreoInvitacion(u.nombre_completo, u.correo, link);
-      setInviteLink({ usuario: u, invite_link: link, correoEnviado: resultado.enviado, motivoFallo: resultado.motivo });
+      setInviteLink({ usuario: u, invite_link: r.datos.invite_link, correoEnviado: r.datos.correo_enviado });
     } catch (e) { setError(e.response?.data?.mensaje || 'Error'); }
   }
 
@@ -256,11 +230,7 @@ function TabUsuarios({ dgs, das }) {
             <div>
               {inviteLink.correoEnviado
                 ? <p className="text-sm font-medium text-green-800">✅ Correo de invitación enviado a <strong>{inviteLink.usuario.correo}</strong></p>
-                : <p className="text-sm font-medium text-amber-800">⚠️ Usuario creado, pero el correo no pudo enviarse
-                    {inviteLink.motivoFallo === 'correo_deshabilitado' && ' (envío deshabilitado en Configuración)'}
-                    {inviteLink.motivoFallo === 'sin_configuracion' && ' (configura EmailJS en Configuración)'}
-                    {inviteLink.motivoFallo === 'error_envio' && ' (error de EmailJS: revisa las credenciales)'}
-                  </p>
+                : <p className="text-sm font-medium text-amber-800">⚠️ Usuario creado, pero el correo no pudo enviarse. Revisa el registro del servidor.</p>
               }
               <p className="text-xs text-gray-500 mt-0.5">Enlace válido por 30 días. Cópialo si necesitas enviarlo manualmente.</p>
             </div>
@@ -622,127 +592,6 @@ function TabAreas({ dgs, das, recargar }) {
 }
 
 // ─── Tab: Configuración ──────────────────────────────────────────
-// Un bloque = una cuenta de EmailJS completa e independiente (Service
-// ID + Template ID + Public Key). Deliberadamente sin ningún valor
-// compartido entre bloques: el plan gratuito de EmailJS da 2 plantillas
-// por cuenta, así que cada plantilla vive en SU PROPIA cuenta — mezclar
-// credenciales entre bloques perdería ese margen (2 cuentas = 4
-// plantillas). Si a un bloque le falta cualquiera de los 3 campos, ese
-// correo sencillamente no se envía (ver frontend/src/utils/correoAsignacion.js).
-function BloqueEmailJS({ titulo, descripcion, prefijo, variables, config, setConfig, extra }) {
-  const [mostrarKey, setMostrarKey] = useState(false);
-  const clave = (campo) => `${prefijo}${campo}`;
-
-  return (
-    <div className="border border-gray-200 rounded-xl p-5 bg-white space-y-4">
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <Mail size={18} className="text-guinda-600" />
-          <h3 className="font-semibold text-gray-800">{titulo}</h3>
-        </div>
-        <p className="text-xs text-gray-500">{descripcion}</p>
-      </div>
-
-      <Field label="Service ID">
-        <input value={config[clave('service_id')] || ''} onChange={e => setConfig(c => ({ ...c, [clave('service_id')]: e.target.value }))} placeholder="service_xxxxxxx" className="input-base text-sm" />
-      </Field>
-      <Field label="Template ID">
-        <input value={config[clave('template_id')] || ''} onChange={e => setConfig(c => ({ ...c, [clave('template_id')]: e.target.value }))} placeholder="template_xxxxxxx" className="input-base text-sm" />
-      </Field>
-      <Field label="Public Key (User ID)">
-        <div className="relative">
-          <input type={mostrarKey ? 'text' : 'password'} value={config[clave('public_key')] || ''} onChange={e => setConfig(c => ({ ...c, [clave('public_key')]: e.target.value }))} placeholder="Tu llave pública" className="input-base text-sm pr-9" />
-          <button type="button" onClick={() => setMostrarKey(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400">
-            {mostrarKey ? <EyeOff size={15} /> : <Eye size={15} />}
-          </button>
-        </div>
-      </Field>
-
-      {extra}
-
-      <div className="pt-1 border-t border-gray-100">
-        <p className="text-xs font-medium text-gray-500 mt-3 mb-1.5">Variables que necesita esta plantilla:</p>
-        <div className="flex flex-wrap gap-1.5">
-          {variables.map(v => (
-            <code key={v} className="text-[11px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded font-mono">{`{{${v}}}`}</code>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TabConfiguracion() {
-  const [config, setConfig] = useState({});
-  const [cargando, setCargando] = useState(true);
-  const [ok, setOk] = useState(false);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    adminApi.obtenerConfig().then(r => {
-      const map = {};
-      r.datos.forEach(i => { map[i.clave] = i.valor || ''; });
-      setConfig(map);
-    }).catch(() => {}).finally(() => setCargando(false));
-  }, []);
-
-  const [guardar, guardando] = useEnvioUnico(async () => {
-    setOk(false); setError(null);
-    try {
-      await adminApi.actualizarConfig(Object.entries(config).map(([clave, valor]) => ({ clave, valor })));
-      setOk(true);
-      setTimeout(() => setOk(false), 3000);
-    } catch (e) { setError(e.response?.data?.mensaje || 'Error al guardar'); }
-  });
-
-  if (cargando) return <div className="flex justify-center py-10"><Loader2 size={24} className="animate-spin text-guinda-600" /></div>;
-
-  return (
-    <div className="max-w-lg space-y-6">
-      {error && <ErrorBanner msg={error} onClose={() => setError(null)} />}
-      {ok && <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700"><CheckCircle size={16} />Configuración guardada</div>}
-
-      <p className="text-xs text-gray-500">
-        Dos plantillas de EmailJS, cada una en su propia cuenta (consíguelas en{' '}
-        <a href="https://www.emailjs.com" target="_blank" rel="noreferrer" className="text-blue-600 underline">emailjs.com</a>).
-        No comparten credenciales entre sí a propósito.
-      </p>
-
-      <BloqueEmailJS
-        titulo="Invitación a la plataforma"
-        descripcion="Se envía a una persona que aún no tiene cuenta, para que la cree y entre por primera vez."
-        prefijo="emailjs_"
-        variables={['to_name', 'to_email', 'invite_link']}
-        config={config}
-        setConfig={setConfig}
-        extra={
-          <div className="flex items-center gap-3 pt-1">
-            <label className="text-sm text-gray-700 font-medium">Habilitar envío de correos</label>
-            <button onClick={() => setConfig(c => ({ ...c, emailjs_enabled: c.emailjs_enabled === 'true' ? 'false' : 'true' }))}
-              className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-colors ${config.emailjs_enabled === 'true' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-              {config.emailjs_enabled === 'true' ? <><ToggleRight size={16} /> Habilitado</> : <><ToggleLeft size={16} /> Deshabilitado</>}
-            </button>
-          </div>
-        }
-      />
-
-      <BloqueEmailJS
-        titulo="Asignación de participación"
-        descripcion="Se envía a quien ya tiene cuenta cuando la asignan a un proyecto o a una parte, cuando le aceptan una solicitud, o cuando cambia su función."
-        prefijo="emailjs_asignacion_"
-        variables={['to_name', 'to_email', 'titulo', 'mensaje', 'destino', 'funcion', 'texto_boton', 'enlace']}
-        config={config}
-        setConfig={setConfig}
-      />
-
-      <button onClick={guardar} disabled={guardando} className="flex items-center gap-2 px-5 py-2.5 bg-guinda-700 text-white rounded-lg text-sm hover:bg-guinda-600 disabled:opacity-50">
-        {guardando ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-        Guardar configuración
-      </button>
-    </div>
-  );
-}
-
 // ─── Helpers ─────────────────────────────────────────────────────
 function ErrorBanner({ msg, onClose }) {
   return (
@@ -779,7 +628,6 @@ const TABS = [
   { id: 'areas', label: 'Áreas', icon: Building2 },
   { id: 'transferencia', label: 'Transferir administración', icon: ArrowRightLeft },
   { id: 'papelera', label: 'Papelera', icon: Trash2 },
-  { id: 'config', label: 'Configuración', icon: Settings },
 ];
 
 // Agrupación temática de las secciones para la navegación lateral del
@@ -789,7 +637,7 @@ const GRUPOS_NAV = [
   { titulo: 'Personas', ids: ['usuarios', 'areas'] },
   { titulo: 'Datos y catálogos', ids: ['catalogos', 'programas', 'indicadores', 'api'] },
   { titulo: 'Proyectos', ids: ['transferencia'] },
-  { titulo: 'Sistema', ids: ['papelera', 'config'] },
+  { titulo: 'Sistema', ids: ['papelera'] },
 ];
 
 // ─── Tab: Papelera de proyectos ───────────────────────────────────
@@ -988,7 +836,6 @@ export default function AdminCatalogos() {
           {tab === 'areas' && <TabAreas dgs={dgs} das={das} recargar={cargarAreas} />}
           {tab === 'transferencia' && <TabTransferenciaAdmin />}
           {tab === 'papelera' && <TabPapelera />}
-          {tab === 'config' && <TabConfiguracion />}
         </div>
       </div>
     </div>

@@ -140,20 +140,6 @@ export async function transferirAdministracionProyecto(proyectoId, idUsuario) {
   return data;
 }
 
-// ─── Configuración ─────────────────────────────────────────────
-export async function obtenerConfig() {
-  const { data } = await API.get('/admin/config');
-  return data;
-}
-export async function actualizarConfig(items) {
-  const { data } = await API.put('/admin/config', { items });
-  return data;
-}
-export async function obtenerConfigPublico() {
-  const { data } = await API.get('/admin/config/publico');
-  return data;
-}
-
 // ─── Tokens de servicio de la API de indicadores ─────────────────
 export async function listarApiTokens() {
   const { data } = await API.get('/admin/api-tokens');

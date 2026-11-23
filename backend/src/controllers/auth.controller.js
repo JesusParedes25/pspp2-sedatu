@@ -41,6 +41,8 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const pool = require('../db/pool');
 const { inactividadSegundos, sesionMaxSegundos } = require('../utils/sesion');
+const { enviarCorreo } = require('../utils/correo');
+const correoTextos = require('../utils/correoTextos');
 
 function expiraEnISO(segundosDesdeAhora) {
   return new Date(Date.now() + segundosDesdeAhora * 1000).toISOString();
@@ -247,12 +249,15 @@ async function activarCuenta(req, res, next) {
 }
 
 // POST /auth/solicitar-recuperacion — { correo }
-// Responde SIEMPRE el mismo mensaje genérico exista o no la cuenta, para no
-// filtrar qué correos están registrados. Como el backend no tiene un mailer
-// propio (los correos de activación ya se mandan desde el navegador vía
-// EmailJS, ver AdminCatalogos.jsx#enviarCorreoInvitacion), este endpoint
-// también le regresa al frontend los datos para que él dispare el envío —
-// pero solo cuando el usuario sí existe (campo `enviar`).
+// Responde SIEMPRE el mismo acuse genérico, exista o no la cuenta: ni el
+// token ni el enlace de restablecimiento salen nunca en la respuesta al
+// navegador. El token se genera, se guarda y se manda por correo
+// enteramente aquí, en el servidor — antes el enlace completo (con el
+// token) viajaba en esta misma respuesta JSON, alcanzable sin ninguna
+// autenticación, así que cualquiera que conociera un correo registrado
+// podía leerlo ahí mismo y tomar la cuenta sin tocar el buzón. Por el
+// mismo motivo, la forma de la respuesta no cambia según exista o no la
+// cuenta — lo único que varía es si, internamente, se dispara el correo.
 async function solicitarRecuperacion(req, res, next) {
   const MENSAJE_GENERICO = 'Si el correo está registrado, recibirás un enlace de recuperación en los próximos minutos.';
   try {
@@ -267,27 +272,21 @@ async function solicitarRecuperacion(req, res, next) {
     );
     const usuario = rows[0];
 
-    if (!usuario) {
-      return res.json({ mensaje: MENSAJE_GENERICO, enviar: false });
+    if (usuario) {
+      const token = crypto.randomBytes(48).toString('hex');
+      await pool.query(
+        `INSERT INTO tokens_activacion (id_usuario, token, expira_en, tipo)
+         VALUES ($1, $2, NOW() + INTERVAL '4 hours', 'recuperacion')`,
+        [usuario.id, token]
+      );
+
+      const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const reset_link = `${baseUrl}/restablecer-contrasena?token=${token}`;
+      const { asunto, texto } = correoTextos.recuperacion({ nombre: usuario.nombre_completo, resetLink: reset_link });
+      await enviarCorreo({ para: usuario.correo, asunto, texto });
     }
 
-    const token = crypto.randomBytes(48).toString('hex');
-    await pool.query(
-      `INSERT INTO tokens_activacion (id_usuario, token, expira_en, tipo)
-       VALUES ($1, $2, NOW() + INTERVAL '4 hours', 'recuperacion')`,
-      [usuario.id, token]
-    );
-
-    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const reset_link = `${baseUrl}/restablecer-contrasena?token=${token}`;
-
-    res.json({
-      mensaje: MENSAJE_GENERICO,
-      enviar: true,
-      nombre: usuario.nombre_completo,
-      correo: usuario.correo,
-      reset_link,
-    });
+    res.json({ mensaje: MENSAJE_GENERICO });
   } catch (err) { next(err); }
 }
 
@@ -344,30 +343,6 @@ async function restablecerContrasena(req, res, next) {
   } catch (err) { next(err); }
 }
 
-// GET /auth/config-correo — público (sin token), espejo de
-// GET /admin/config/publico pero alcanzable ANTES de iniciar sesión, para
-// que /solicitar-recuperacion pueda enviar el correo vía EmailJS. Prioriza
-// el template de recuperación si está configurado; si no, reusa el de
-// activación (mismo servicio/llave — no es una llave secreta, EmailJS la
-// diseñó para vivir en el navegador).
-async function obtenerConfigCorreoPublico(req, res, next) {
-  try {
-    const claves = ['emailjs_service_id', 'emailjs_template_id', 'emailjs_template_id_recuperacion', 'emailjs_public_key', 'emailjs_enabled'];
-    const { rows } = await pool.query(
-      'SELECT clave, valor FROM configuracion_sistema WHERE clave = ANY($1)', [claves]
-    );
-    const cfg = Object.fromEntries(rows.map(r => [r.clave, r.valor]));
-    res.json({
-      datos: {
-        emailjs_service_id: cfg.emailjs_service_id,
-        emailjs_template_id: cfg.emailjs_template_id_recuperacion || cfg.emailjs_template_id,
-        emailjs_public_key: cfg.emailjs_public_key,
-        emailjs_enabled: cfg.emailjs_enabled,
-      },
-    });
-  } catch (err) { next(err); }
-}
-
 module.exports = {
   login,
   obtenerUsuarioActual,
@@ -376,5 +351,4 @@ module.exports = {
   solicitarRecuperacion,
   validarTokenRecuperacion,
   restablecerContrasena,
-  obtenerConfigCorreoPublico,
 };

@@ -9,6 +9,8 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { limpiarArchivoTemporal } = require('../middleware/subidaArchivo.middleware');
 const { registrarAuditoria } = require('../utils/auditoria');
+const { enviarCorreo } = require('../utils/correo');
+const correoTextos = require('../utils/correoTextos');
 
 // ─── CATÁLOGOS ─────────────────────────────────────────────────
 
@@ -284,7 +286,10 @@ async function crearUsuario(req, res, next) {
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const invite_link = `${baseUrl}/activar-cuenta?token=${token}`;
 
-    res.status(201).json({ datos: { ...usuario, token, invite_link }, mensaje: 'Usuario creado' });
+    const { asunto, texto } = correoTextos.invitacion({ nombre: usuario.nombre_completo, inviteLink: invite_link });
+    const resultadoCorreo = await enviarCorreo({ para: usuario.correo, asunto, texto });
+
+    res.status(201).json({ datos: { ...usuario, token, invite_link, correo_enviado: resultadoCorreo.enviado }, mensaje: 'Usuario creado' });
   } catch (err) { next(err); }
 }
 
@@ -405,7 +410,9 @@ async function reenviarInvitacion(req, res, next) {
     );
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const invite_link = `${baseUrl}/activar-cuenta?token=${token}`;
-    res.json({ datos: { ...u[0], token, invite_link }, mensaje: 'Invitación generada' });
+    const { asunto, texto } = correoTextos.invitacion({ nombre: u[0].nombre_completo, inviteLink: invite_link });
+    const resultadoCorreo = await enviarCorreo({ para: u[0].correo, asunto, texto });
+    res.json({ datos: { ...u[0], token, invite_link, correo_enviado: resultadoCorreo.enviado }, mensaje: 'Invitación generada' });
   } catch (err) { next(err); }
 }
 
@@ -692,46 +699,6 @@ async function eliminarPrograma(req, res, next) {
   } catch (err) { next(err); }
 }
 
-// ─── CONFIGURACIÓN DEL SISTEMA ─────────────────────────────────
-
-// GET /admin/config
-async function obtenerConfig(req, res, next) {
-  try {
-    const { rows } = await pool.query('SELECT clave, valor, descripcion FROM configuracion_sistema ORDER BY clave');
-    res.json({ datos: rows });
-  } catch (err) { next(err); }
-}
-
-// PUT /admin/config — { items: [{ clave, valor }] }
-async function actualizarConfig(req, res, next) {
-  try {
-    const { items } = req.body;
-    if (!Array.isArray(items)) return res.status(400).json({ error: true, mensaje: 'items debe ser un arreglo' });
-    for (const item of items) {
-      await pool.query(
-        `UPDATE configuracion_sistema SET valor=$1, updated_at=NOW(), updated_by=$2 WHERE clave=$3`,
-        [item.valor ?? null, req.usuario.id, item.clave]
-      );
-    }
-    res.json({ mensaje: 'Configuración actualizada' });
-  } catch (err) { next(err); }
-}
-
-// GET /admin/config/publico — sin autenticación, solo para el frontend al enviar emails
-async function obtenerConfigPublico(req, res, next) {
-  try {
-    const claves = [
-      'emailjs_service_id', 'emailjs_template_id', 'emailjs_public_key', 'emailjs_enabled',
-      'emailjs_asignacion_service_id', 'emailjs_asignacion_template_id', 'emailjs_asignacion_public_key',
-    ];
-    const { rows } = await pool.query(
-      'SELECT clave, valor FROM configuracion_sistema WHERE clave = ANY($1)', [claves]
-    );
-    const cfg = Object.fromEntries(rows.map(r => [r.clave, r.valor]));
-    res.json({ datos: cfg });
-  } catch (err) { next(err); }
-}
-
 // ─── Tokens de servicio para la API de indicadores ───────────────
 const apiTokensQueries = require('../db/queries/api-tokens.queries');
 
@@ -792,8 +759,4 @@ module.exports = {
   editarPrograma,
   cambiarActivoPrograma,
   eliminarPrograma,
-  // Config
-  obtenerConfig,
-  actualizarConfig,
-  obtenerConfigPublico,
 };

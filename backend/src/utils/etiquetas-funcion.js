@@ -6,10 +6,9 @@
  *            transfiere, ver miembros.queries.js::transferirAdministracion).
  *
  * Usada en notificaciones dentro de la plataforma (crearNotificacion) y
- * en el correo de aviso de asignación
- * (frontend/src/utils/correoAsignacion.js), para que los dos canales
- * digan exactamente lo mismo sobre la misma persona — "Solo lectura",
- * no "invitado" ni el valor crudo "lectura".
+ * en el correo de aviso de asignación (utils/correoTextos.js), para que
+ * los dos canales digan exactamente lo mismo sobre la misma persona —
+ * "Solo lectura", no "invitado" ni el valor crudo "lectura".
  */
 const ETIQUETA_FUNCION = {
   captura: 'Colaborador',

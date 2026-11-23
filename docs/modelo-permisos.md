@@ -1,17 +1,16 @@
 # Modelo de permisos de PSPP v2.0
 
-> **Versión: Fase 4, parte B v2. 2026-10-15.**
+> **Versión: Fase 4, parte B v3. 2026-11-23.**
 > Cubre la matriz de capacidades completa (sección 13), la transferencia
 > de administración de proyecto exclusiva de superadmin (sección 15.1) y
 > el aviso de cambio de función: correo y notificación dentro de la
-> plataforma, dos cuentas de EmailJS independientes (sin ningún valor
-> compartido) para "Invitación a la plataforma" y "Asignación de
-> participación", 8 variables de contenido armadas por la plataforma, y
-> la etiqueta visible de función (nunca el valor crudo) en ambos canales
-> (sección 15.2). El modelo de autorización vigente es una sola función,
-> `funcionEfectiva` (`backend/src/utils/funcion-efectiva.js`), comparada
-> contra un mínimo por `backend/src/utils/autorizacion.js`; si el código
-> y este documento no coinciden, manda el código.
+> plataforma, ambos escritos por el backend en la misma petición que
+> aplica el cambio, por SMTP genérico del servidor (sección 15.2 — paso
+> 8 DGTIC retira EmailJS y el envío desde el navegador por completo). El
+> modelo de autorización vigente es una sola función, `funcionEfectiva`
+> (`backend/src/utils/funcion-efectiva.js`), comparada contra un mínimo
+> por `backend/src/utils/autorizacion.js`; si el código y este documento
+> no coinciden, manda el código.
 
 ## 0. Resumen ejecutivo
 
@@ -1115,191 +1114,130 @@ controller: 400 sin `id_usuario`, happy path con bitácora+2
 notificaciones, y que un error tipado de la query se reenvía a
 `next(err)` sin que el controller lo intercepte).
 
-### 15.2 Correo de aviso a quien ya tiene cuenta (v2 — corrige un hueco de la v1)
+### 15.2 Correo de aviso a quien ya tiene cuenta (v3 — correo pasa al servidor, se retira EmailJS)
 
-**Contexto**: ya existía `enviarCorreoInvitacion` (en
-`AdminCatalogos.jsx`) para avisarle a un usuario NUEVO que se le creó
-una cuenta. Esta pieza agrega el aviso a alguien que YA TIENE CUENTA,
-para 5 situaciones: lo asignan a un proyecto completo, lo asignan a una
-parte, le aceptan una solicitud de participación, le cambian la
-función, o alguien solicita participar en algo que esa persona puede
-resolver. Las primeras 4 avisan a la persona cuya participación
-cambió; la 5ª es la única que avisa en la dirección contraria — a
-quien DECIDE, no a quien pide (ver 15.2.3, punto 5). La primera versión
-de esta pieza (mismo PR, antes de esta corrección) solo cubría las
-primeras 3 — dejaba fuera el cambio de función con el argumento de que
-"no hay nada que aceptar o rechazar". Ese argumento es cierto, pero no
-justifica el silencio: a quien le cambian la función le cambian lo que
-puede hacer (subir de Colaborador a Responsable, por ejemplo, le da
-crear acciones/tareas, mover fechas límite e invitar o retirar gente),
-y enterarse de eso no es opcional. Ver 15.2.4 para el cierre completo
-de ese hueco — en los dos canales, no solo en el correo. La solicitud
-de participación (5ª situación) se agregó después, en una ronda
-aparte — ver 15.2.3, punto 5.
+**Contexto**: cubre 4 situaciones donde algo le pasa a la participación
+de alguien que YA TIENE CUENTA: lo asignan a un proyecto completo, lo
+asignan a una parte, le aceptan una solicitud de participación, o le
+cambian la función. Hay una 5ª situación de correo que vive en el
+mismo módulo pero avisa en la dirección contraria — a quien DECIDE, no
+a quien actuó (ver 15.2.3, punto 5) — y una 6ª que no es de este
+documento (invitación a una cuenta nueva, disparada al crear el
+usuario, ver `backend/src/controllers/admin.controller.js::crearUsuario`).
 
-#### 15.2.1 Dos cuentas de EmailJS, sin ningún valor compartido entre ellas
+**Paso 8 DGTIC (esta versión) retira por completo el mecanismo
+anterior**: ya no hay EmailJS, ni envío disparado desde el navegador,
+ni `configuracion_sistema` (la tabla se elimina en la migración 089,
+sin dejar lector ni escritor pendiente). El correo ahora es
+responsabilidad exclusiva del backend: se genera y se manda en el
+mismo código que aplica el cambio, nunca por un componente de React
+que conozca credenciales de correo. Las dos razones que motivaron el
+cambio: (a) el envío desde el navegador era de mejor esfuerzo, no
+garantizado (ver la v2 de esta sección, ahora retirada) — si quien
+actuaba cerraba la pestaña, el correo podía no salir; (b) había un
+endpoint que exponía credenciales de un servicio externo al navegador
+para que el flujo de recuperación de contraseña (que ocurre antes de
+iniciar sesión) pudiera usarlas.
 
-El plan gratuito de EmailJS da 2 plantillas por cuenta. Con la de
-"Invitación a la plataforma" ya ocupando una, "Asignación de
-participación" (las 5 situaciones de arriba) necesita vivir en una
-**cuenta de EmailJS completamente distinta** — dos cuentas gratuitas
-dan 4 plantillas en total, dos de margen para el futuro. Por eso cada
-plantilla guarda su propio trío COMPLETO e INDEPENDIENTE de
-credenciales (Service ID + Template ID + Public Key) — ninguna hereda
-nada de la otra, ni siquiera el toggle "Habilitar envío de correos"
-(ese solo gates el camino de invitación, que ya lo tenía antes de esta
-ronda; el de asignación se envía o no según si su propio trío está
-completo, sin un interruptor aparte).
+#### 15.2.1 Transporte: SMTP genérico del lado del servidor, una sola interfaz
 
-Migración `082_emailjs_asignacion_cuenta_propia.sql` retira la clave
-única de la v1 (`emailjs_template_id_asignacion`, que sí reusaba el
-`service_id`/`public_key` de invitación — el hueco que esta migración
-corrige) y la reemplaza por un trío propio:
-`emailjs_asignacion_service_id`, `emailjs_asignacion_template_id`,
-`emailjs_asignacion_public_key`. El valor que la v1 ya hubiera
-capturado se migra al nuevo campo de `template_id` en la misma
-migración (`UPDATE ... FROM`, solo si el nuevo campo está vacío) —
-nunca se pierde ni hay que volver a escribirlo a mano; verificado
-contra una copia de datos simulando ese caso antes de mergear esta
-ronda. `admin.controller.js::obtenerConfigPublico` expone las 7 claves
-finales (las 4 de invitación — `emailjs_service_id`,
-`emailjs_template_id`, `emailjs_public_key`, `emailjs_enabled` — más
-las 3 nuevas de asignación).
+Todo el sistema manda correo a través de
+`backend/src/utils/correo.js::enviarCorreo({ para, asunto, texto })` —
+ningún controlador usa `nodemailer` directo. El transporte se
+configura por variables de entorno (`SMTP_HOST`, `SMTP_PUERTO`,
+`SMTP_USUARIO`, `SMTP_CONTRASENA`, `SMTP_SEGURO`, `CORREO_REMITENTE`,
+`CORREO_REMITENTE_NOMBRE` — ver `deploy/README.md`), no por una fila
+en una tabla administrable desde el panel: el host SMTP es
+configuración de cada ambiente, no un dato de negocio.
 
-**Configuración en Administración** (`TabConfiguracion`,
-`AdminCatalogos.jsx`): dos bloques independientes
-(`BloqueEmailJS`, un componente chico reusado por los dos), cada uno
-con sus 3 campos, una línea que explica para qué sirve, y la lista de
-variables que esa plantilla necesita — para que quien la arme en
-EmailJS no tenga que adivinar ni venir a preguntar:
-- **"Invitación a la plataforma"** — "Se envía a una persona que aún
-  no tiene cuenta, para que la cree y entre por primera vez." Variables:
-  `to_name`, `to_email`, `invite_link`.
-- **"Asignación de participación"** — "Se envía a quien ya tiene
-  cuenta cuando la asignan a un proyecto o a una parte, cuando le
-  aceptan una solicitud, cuando cambia su función, o —a quien puede
-  resolverla— cuando alguien solicita participar." Variables: las 8
-  de 15.2.2.
+**`SMTP_HOST` es el interruptor, no el momento del despliegue**: sin
+`SMTP_HOST`, el envío queda deshabilitado — se avisa una sola vez al
+arrancar (`avisarSiDeshabilitado`, llamado desde `server.js`) y cada
+intento omitido se registra en el log con destinatario y motivo. Con
+`SMTP_HOST` definida, el envío se intenta de verdad, con topes de
+conexión de 10 s (`connectionTimeout`/`greetingTimeout`/
+`socketTimeout`) para que un relevo inalcanzable nunca cuelgue la
+petición HTTP que disparó el correo. En los dos casos,
+`enviarCorreo` nunca lanza: la operación que lo originó (crear
+usuario, pedir recuperación, asignar a un proyecto, aceptar una
+solicitud...) ya se completó o se completa igual aunque el correo
+falle u omita, y el fallo queda en el log del servidor, no en la
+tabla de auditoría de negocio.
 
-#### 15.2.2 Una sola plantilla, texto armado por la plataforma
+#### 15.2.2 Un solo texto por situación, armado por la plataforma
 
-El texto viaja como variable — la plantilla de EmailJS solo lo pinta,
-nunca decide la redacción. 8 variables finales
-(`frontend/src/utils/correoAsignacion.js`):
+Los cuerpos viven en un único módulo,
+`backend/src/utils/correoTextos.js`, una función por situación —
+texto plano, sin imágenes ni recursos externos, para que sea la misma
+fuente que se lee al redactar la relación de correos del sistema
+(entregable DGTIC). Las 4 situaciones de esta sección usan
+`asignacion`, `cambioFuncion` y `solicitudAceptada` (más
+`solicitudPorResolver`, situación 5 — ver 15.2.3); cada una recibe
+`nombre` (de quien recibe), `quien` (actuó), `funcion` (etiqueta
+visible), `destino` (frase ya armada, "el proyecto «Y»" o "la etapa
+«X» del proyecto «Y»" — `destinoTexto()` en `utils/correo.js`) y
+`enlace` (`enlaceNotificaciones()` cuando hay algo que aceptar o
+rechazar, `enlaceProyecto()` cuando el cambio ya se aplicó):
 
-| Variable | Contenido |
-|---|---|
-| `to_name` | nombre de quien recibe |
-| `to_email` | correo de quien recibe |
-| `titulo` | encabezado del correo (también sirve de asunto) |
-| `mensaje` | la frase principal, ya armada por la plataforma |
-| `destino` | nombre del proyecto o de la parte |
-| `funcion` | etiqueta visible: Colaborador, Responsable, Solo lectura |
-| `texto_boton` | texto del botón |
-| `enlace` | a dónde lleva el botón |
+| Situación | Asunto | Cuerpo (resumen) | Enlace |
+|---|---|---|---|
+| Asignado al proyecto completo o a una parte | Te asignaron en PSPP | "{quien} te asignó como {funcion} en {destino}." | `/notificaciones` |
+| Cambio de función | Cambió tu función en PSPP | "{quien} cambió tu función en {destino}. Ahora eres {funcion}." | el proyecto o nodo |
+| Solicitud aceptada | Aceptaron tu solicitud en PSPP | "{quien} aceptó tu solicitud. Ya puedes participar como {funcion} en {destino}." | el proyecto o nodo |
+| Solicitud de participación (situación 5, a quien decide) | Solicitud de participación en PSPP | "{quien} solicitó participar como {funcion} en {destino}." | `/notificaciones` |
 
-Los 5 textos fijos, uno por situación (`textosAsignacionProyecto`,
-`textosAsignacionNodo`, `textosSolicitudAceptada`, `textosCambioFuncion`,
-`textosSolicitud`, en el mismo archivo):
+"Asignado al proyecto" y "asignado a una parte" comparten la misma
+función (`correoTextos.asignacion`) — solo cambia `destino`, igual que
+en la v2. Las etiquetas de función (`Colaborador`/`Responsable`/`Solo
+lectura`) salen de `correoTextos.etiquetaFuncion`, espejo del mismo
+mapa que usa `backend/src/utils/etiquetas-funcion.js` para la
+notificación dentro de la plataforma — un correo que dijera "ahora
+eres captura" no se entiende.
 
-| Situación | `titulo` | `mensaje` | `texto_boton` | `enlace` |
-|---|---|---|---|---|
-| Asignado al proyecto completo | Te asignaron a un proyecto | "{quien} te asignó como {funcion} en {destino}." | Ver mi invitación | `/notificaciones` |
-| Asignado a una parte | Te asignaron a una parte de un proyecto | "{quien} te asignó como {funcion} en {destino}." | Ver mi invitación | `/notificaciones` |
-| Solicitud aceptada | Aceptaron tu solicitud | "{quien} aceptó tu solicitud. Ya puedes participar como {funcion} en {destino}." | Ir al proyecto | el proyecto o nodo |
-| Cambio de función | Cambió tu función | "{quien} cambió tu función en {destino}. Ahora eres {funcion}." | Ir al proyecto | el proyecto o nodo |
-| Solicitud de participación | Solicitud de participación | "{quien} solicitó participar como {funcion} en {destino}." | Revisar solicitud | `/notificaciones` |
+#### 15.2.3 Disparada en el backend, en el mismo código que guarda cada cambio
 
-Las tres primeras filas llevan a notificaciones porque hay algo que
-aceptar o rechazar; "Cambio de función" lleva directo al trabajo
-porque ya no hay nada que decidir. "Solicitud de participación" es la
-única dirigida a quien DECIDE, no a quien actuó — ver 15.2.3, punto 5.
-`mensaje` se compone con la misma frase natural en los 5 casos ("{quien}
-...  en {destino}[, ahora eres {funcion}]."), donde `destino` ya es una
-frase completa y autocontenida (`construirDestino()`: "el proyecto «Y»"
-o "la etapa «X» del proyecto «Y»") — un ajuste sobre el fraseo textual
-que se pidió originalmente para la situación "asignado a una parte"
-(que mencionaba `{destino}` y `{proyecto}` como dos tokens separados
-dentro de la misma oración): aquí se fusionan en una sola variable
-`destino` ya completa, en vez de agregar una 9ª variable `proyecto`
-solo para ese caso — mismo criterio de "texto armado por la
-plataforma", con una sola frase coherente en los 5 casos en lugar de
-una construida a mano por caso.
+Las 5 situaciones viven ahora en el controlador, junto a
+`crearNotificacion` — no hay un segundo viaje desde el frontend después
+de leer la respuesta:
 
-**Sin configurar → no se envía, y queda registrado**: si a la cuenta
-de "Asignación de participación" le falta cualquiera de sus 3 campos,
-`enviarCorreoAsignacion` no intenta el envío
-(`console.warn` + `{enviado:false, motivo:'sin_configuracion'}`) — la
-asignación/aceptación/cambio ya se guardó antes de llegar aquí, así
-que nunca se bloquea por esto.
-
-#### 15.2.3 Disparada en los mismos 5 lugares donde algo le pasa a la participación de alguien
-
-1. **Asignación a proyecto o a nodo** desde Configuración → Equipo y
-   permisos — `GestorUsuariosProyecto.jsx::ModalInvitar::handleInvitar`
-   (un solo call site cubre las dos situaciones, según `alcance`).
-2. **Asignación a un nodo** desde la pestaña Equipo de Seguimiento
-   (`SeccionMiembrosNodo.jsx::confirmarAgregar`) — call site distinto
-   del anterior, mismo efecto. Este componente sigue sin recibir el
-   nombre del proyecto de ninguno de sus 2 padres (`NodoCard.jsx`,
-   `PestanasDetalle.jsx`): lo pide por su cuenta
-   (`obtenerProyecto(idProyecto)`) solo cuando hace falta mandar el
-   correo.
-3. **Aceptación de una solicitud de participación**
-   (`SolicitudesPorResolver.jsx::responder`, solo si
-   `respuesta === 'aceptar'` — declinar no asigna nada que avisar).
+1. **Asignación a proyecto** —
+   `miembros.controller.js::notificarNuevoMiembro`, llamada desde
+   `agregarMiembro` (rama de alta nueva) y desde `crearInvitacion`.
+2. **Asignación a un nodo** —
+   `nodo-miembros.controller.js::notificarNuevoMiembroNodo`, llamada
+   desde `agregar()`.
+3. **Aceptación de una solicitud de participación** —
+   `solicitudes.controller.js::responder()`, solo si
+   `respuesta === 'aceptar'` (declinar no asigna nada que avisar).
 4. **Cambio de función de alguien ya aceptado** — dos call sites
-   simétricos: `GestorUsuariosProyecto.jsx::handleCambiarRol` (alcance
-   proyecto o nodo, ambos pasan por este mismo handler) y
-   `SeccionMiembrosNodo.jsx::cambiarRol` (alcance nodo, desde
-   Seguimiento). Ninguno de los dos asume que el cambio es real: el
-   backend ya lo sabe con certeza (ver 15.2.4) y lo devuelve en la
-   respuesta (`cambio_rol: true/false`) — si la persona todavía estaba
-   PENDIENTE de aceptar, cambiarle la función antes de que acepte
-   sigue siendo una asignación (situación 1/2), no un cambio de
-   función (situación 4); el frontend confía en ese flag en vez de
-   volver a adivinar el estado por su cuenta.
+   simétricos: `miembros.controller.js::notificarCambioRol` (alcance
+   proyecto) y el bloque en línea dentro de
+   `nodo-miembros.controller.js::actualizar()` (alcance nodo). Ninguno
+   de los dos asume que el cambio es real: la misma lógica de 15.2.4
+   decide `cambio_rol` antes de llegar aquí.
 5. **Solicitud de participación creada** —
-   `BotonSolicitarParticipar.jsx::enviar` → `avisarDestinatarios`. Es
-   la única de las 5 que no avisa a la persona cuya participación
-   cambió: avisa a quienes PUEDEN RESOLVER la solicitud —
-   exactamente a los mismos que ya reciben la notificación dentro de
-   la plataforma, nunca a una lista recalculada aparte. El backend
-   (`solicitudes.controller.js::crear`) llama
-   `solicitudesQueries.destinatariosDe(idProyecto)` **una sola vez** y
-   reusa ese mismo resultado para los dos canales: crea la
-   notificación de cada destinatario y, además, devuelve esa misma
-   lista (sin el propio solicitante) como `destinatarios` en la
-   respuesta del `POST` — si las dos se calcularan por separado,
-   acabarían divergiendo. El frontend solo itera esa lista, sin volver
-   a decidir quién debería enterarse.
-   - **Puede disparar varios correos desde una sola solicitud** — uno
-     por destinatario, todos desde el navegador de quien solicita.
-   - **Orden de guardado invertido respecto al correo**: la solicitud
-     y su notificación dentro de la plataforma ya quedaron guardadas
-     ANTES de intentar el correo — si el envío falla, o si
-     `destinatarios` viene vacío, se registra (`console.info`/
-     `console.error` según el caso) y se sigue sin tronar; nunca al
-     revés.
-   - **Cuota de EmailJS (plan gratuito, límite mensual de envíos)**:
-     `destinatariosDe` resuelve, por diseño (ver el comentario de la
-     función en `solicitudes.queries.js`), un conjunto deliberadamente
-     chico — responsables/administrador del proyecto (nivel proyecto,
-     `estado='aceptada'`) + personal con rol `direccion` que comparte
-     área con ellos + el creador del proyecto, solo como respaldo si
-     no hay ningún responsable. En los datos de prueba disponibles
-     (entorno de desarrollo, no producción) esto dio **2 destinatarios
-     por proyecto** (1 responsable/administrador + 1 persona de
-     dirección de la misma área). Es un dato de un entorno sparse, no
-     una medición real de producción — pero el diseño de la consulta
-     hace improbable que el típico sea alto: casi siempre es 1-2
-     responsables a nivel proyecto (muchos responsables reales viven a
-     nivel etapa/nodo, vía `nodo_miembros`, fuera de este cálculo) más,
-     como mucho, 1 persona de dirección por área compartida — rango
-     esperado de **1 a 3-4 destinatarios por solicitud** en la
-     mayoría de los casos, salvo un proyecto con varios responsables
-     de distintas áreas. No agota la cuota gratuita de EmailJS salvo
-     un volumen de solicitudes inusualmente alto.
+   `solicitudes.controller.js::crear()`, en el mismo bucle que ya
+   recorre `solicitudesQueries.destinatariosDe(idProyecto)` para la
+   notificación dentro de la plataforma: por cada destinatario (sin el
+   propio solicitante) se crea la notificación y, si tiene correo
+   registrado, se manda el aviso — un solo cálculo de destinatarios
+   para los dos canales, ahora en el mismo lugar, no repartido entre
+   backend y frontend. El `POST` ya no devuelve `destinatarios` en la
+   respuesta: nada en el frontend lo necesita.
+
+**Simplificación aceptada en el alta masiva a varios nodos a la vez**
+(`GestorUsuariosProyecto.jsx::ModalInvitar::handleInvitar`, alcance
+`'nodos'`): antes, el frontend armaba un solo correo resumido para
+todo el lote después de que las llamadas `Promise.all` terminaban; con
+el envío en el backend, cada llamada a `agregarMiembroNodo` dispara su
+propio correo de forma independiente — un correo por nodo en vez de
+uno por lote. Se acepta como más simple y más correcto por nodo, en
+vez de reconstruir ese resumen del lado del servidor.
+
+Ya no hay límite de cuota que vigilar (la cuenta gratuita de EmailJS
+quedó atrás): el relevo SMTP es del ambiente, y un volumen alto de
+solicitudes es, como mucho, un problema de ese relevo, no de un plan
+gratuito con tope mensual.
 
 #### 15.2.4 El hueco que quedó abierto en la v1: el cambio de función ahora avisa, en los dos canales
 
@@ -1329,8 +1267,9 @@ casos:
   reusado para el aviso de transferencia de administración, sección
   15.1) con el mensaje correcto: *"{quien} cambió tu función en {el
   proyecto/la etapa "X"}. Ahora eres {etiqueta}."* La respuesta HTTP
-  incluye `cambio_rol: true`, que el frontend usa para disparar el
-  correo de la situación "Cambio de función" (15.2.3, punto 4).
+  incluye `cambio_rol: true`; el mismo booleano que decide, en el
+  propio controlador, si el correo que se manda es el de "Cambio de
+  función" (15.2.3, punto 4) en vez de el de asignación.
 - **Sin fila previa, o todavía PENDIENTE de aceptar** → sigue siendo
   una invitación, comportamiento sin cambios (`notificarNuevoMiembro`,
   "te invitó a participar..."); `cambio_rol: false`.
@@ -1338,12 +1277,12 @@ casos:
   registra bitácora; `cambio_rol: false`.
 
 **La etiqueta en ambos canales es la misma, y es la visible, nunca el
-valor crudo** — nuevo módulo compartido
-`backend/src/utils/etiquetas-funcion.js`
+valor crudo** — `backend/src/utils/etiquetas-funcion.js`
 (`{ captura: 'Colaborador', responsable: 'Responsable', lectura: 'Solo
-lectura' }`, espejo exacto de `ETIQUETA_FUNCION_CORREO` en
-`correoAsignacion.js` del lado del frontend) — un correo o una
-notificación que dijeran "ahora eres captura" no se entienden. Nota de
+lectura' }`), espejo exacto de `correoTextos.etiquetaFuncion` (15.2.2,
+el mismo backend, ya no hay un lado del frontend que repita el mapa) —
+un correo o una notificación que dijeran "ahora eres captura" no se
+entienden. Nota de
 vocabulario: aquí es **"Solo lectura"**, no "Invitado" (la etiqueta que
 sigue usando el `<select>` de función en pantalla, sin cambios, ver
 13.6) — "ahora eres Invitado" en un correo suena a que te invitaron a
@@ -1354,21 +1293,26 @@ Pruebas: `backend/src/__tests__/agregar-miembro-cambio-funcion.test.js`
 y `nodo-miembros-cambio-funcion.test.js` — los 3 casos de arriba, en
 ambos niveles.
 
-#### 15.2.5 Limitación conocida: el correo es de mejor esfuerzo, no garantizado
+#### 15.2.5 La limitación de la v2 queda resuelta: el correo ya no depende del navegador
 
-El envío ocurre en el navegador de quien asigna/acepta/cambia la
-función (`@emailjs/browser`, igual que el correo de invitación) —
-nunca desde el backend. Si esa persona cierra la pestaña de inmediato
-después de la acción, el correo puede no llegar a salir. Esto es
-aceptado como limitación conocida, no un bug: cambiarlo implicaría
-mover el envío al servidor, que no es el alcance de esta ronda.
+La v2 de esta sección documentaba una limitación conocida: el envío
+ocurría en el navegador de quien asignaba/aceptaba/cambiaba la función
+(`@emailjs/browser`), así que si esa persona cerraba la pestaña de
+inmediato, el correo podía no salir. Con el envío en el backend
+(15.2.1), eso deja de ser una limitación: el correo se intenta en el
+mismo proceso que guarda el cambio, sin depender de que ninguna
+pestaña siga abierta. Lo que sí puede fallar ahora es el relevo SMTP
+en sí (inalcanzable, credenciales incorrectas) — y ese fallo queda en
+el log del servidor con destinatario y motivo, nunca silencioso y
+nunca bloqueando la operación que lo originó.
 
-Por eso la NOTIFICACIÓN dentro de la plataforma (`crearNotificacion`,
-escrita por el backend en la misma petición que aplica el cambio) es
-la que de verdad es confiable, y nunca depende de que el navegador de
-quien actúa siga abierto. El correo es un aviso adicional de mejor
-esfuerzo — toda asignación/aceptación/cambio de función/solicitud de
-participación registra ambos, nunca solo el correo.
+La NOTIFICACIÓN dentro de la plataforma (`crearNotificacion`, escrita
+por el backend en la misma petición que aplica el cambio) sigue siendo
+el canal que nunca falla por un problema de correo — toda
+asignación/aceptación/cambio de función/solicitud de participación
+sigue registrando ambos, nunca solo el correo, pero ahora por
+consistencia de diseño (dos avisos independientes) y no porque uno de
+los dos sea menos confiable que el otro.
 
 ### 15.3 Verificación pedida: `GET /proyectos/:id/exportar`
 
