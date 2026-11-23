@@ -103,6 +103,13 @@ valor por omisión. Cada línea de `.env.example` dice cuál es su caso.
 | `FRONTEND_URL`     | URL pública del frontend. Controla la lista blanca de CORS y las ligas de activación/invitación | ✅          |
 | `NODE_ENV`         | `production` apaga los datos de demostración. En Docker lo fija el compose | ✅ (nativo) |
 | `PORT`             | Puerto del backend. Por omisión `3000`; en Docker lo fija el compose | ❌ |
+| `SMTP_HOST`        | Host del relevo SMTP para enviar correo (invitación, recuperación de contraseña, asignación a un proyecto...). Vacía deshabilita el envío por completo: el backend arranca igual, avisa una vez en el log, y cada intento omitido queda registrado — es el interruptor, configuración de este ambiente | ❌ |
+| `SMTP_PUERTO`      | Puerto del relevo. Por omisión `587`                | ❌ |
+| `SMTP_USUARIO`     | Usuario del relevo, si pide autenticación           | ❌ |
+| `SMTP_CONTRASENA`  | Contraseña del relevo, si pide autenticación        | ❌ |
+| `SMTP_SEGURO`      | `true` para TLS implícito (puerto 465 típico). Por omisión `false` (STARTTLS, puerto 587 típico) | ❌ |
+| `CORREO_REMITENTE` | Dirección que aparece como remitente. Por omisión, `SMTP_USUARIO` | ❌ |
+| `CORREO_REMITENTE_NOMBRE` | Nombre visible del remitente. Por omisión `PSPP` | ❌ |
 
 ### Compilación del frontend
 

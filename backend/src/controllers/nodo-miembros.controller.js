@@ -11,6 +11,8 @@ const { registrarActividad } = require('../utils/actividad-log');
 const { etiquetaFuncion } = require('../utils/etiquetas-funcion');
 const pool = require('../db/pool');
 const { registrarAuditoria } = require('../utils/auditoria');
+const { enviarCorreo, enlaceNotificaciones, enlaceProyecto, destinoTexto } = require('../utils/correo');
+const correoTextos = require('../utils/correoTextos');
 
 // Extrae tipo ('etapa' | 'accion') del path y el id del nodo
 function parseTipoId(req) {
@@ -76,6 +78,16 @@ async function notificarNuevoMiembroNodo(tipo, idNodo, idUsuarioNuevo, rol, quie
       entidadId: idNodo,
       idUsuario: idUsuarioNuevo,
     });
+    const idProyecto = await obtenerProyectoIdDeNodo(tipo, idNodo);
+    const nombreProyecto = idProyecto ? (await pool.query('SELECT nombre FROM proyectos WHERE id = $1', [idProyecto])).rows[0]?.nombre : null;
+    const { rows: u } = await pool.query('SELECT nombre_completo, correo FROM usuarios WHERE id = $1', [idUsuarioNuevo]);
+    if (u[0]?.correo) {
+      const { asunto, texto } = correoTextos.asignacion({
+        nombre: u[0].nombre_completo, quien: quienInvita, funcion: rol,
+        destino: destinoTexto({ tipoNodo: tipo, nombreNodo, nombreProyecto }), enlace: enlaceNotificaciones(),
+      });
+      await enviarCorreo({ para: u[0].correo, asunto, texto });
+    }
   } catch (err) {
     console.error('[nodo-miembros] Error al notificar nuevo miembro:', err.message);
   }
@@ -264,6 +276,16 @@ async function actualizar(req, res, next) {
         entidadId: idNodo,
         idUsuario: userId,
       });
+      const nombreProyecto = idProyecto ? (await pool.query('SELECT nombre FROM proyectos WHERE id = $1', [idProyecto])).rows[0]?.nombre : null;
+      const { rows: u } = await pool.query('SELECT correo FROM usuarios WHERE id = $1', [userId]);
+      if (u[0]?.correo) {
+        const { asunto, texto } = correoTextos.cambioFuncion({
+          nombre: nombreObjetivo, quien: req.usuario?.nombre_completo, funcion: rol,
+          destino: destinoTexto({ tipoNodo: tipo, nombreNodo, nombreProyecto }),
+          enlace: enlaceProyecto(idProyecto, { tipoNodo: tipo, idNodo }),
+        });
+        await enviarCorreo({ para: u[0].correo, asunto, texto });
+      }
     }
 
     res.json({ datos: miembro, mensaje: 'Rol actualizado', cambio_rol: esCambioDeFuncion });

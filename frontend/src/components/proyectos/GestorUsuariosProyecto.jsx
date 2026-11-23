@@ -27,10 +27,6 @@ import { ramasDeEtapas } from '../../utils/arbolSeleccionable';
 import client from '../../api/client';
 import BotonSolicitarParticipar from './BotonSolicitarParticipar';
 import SelectorFuncion, { sustantivoAsignacion } from '../common/SelectorFuncion';
-import {
-  enviarCorreoAsignacion, etiquetaFuncionCorreo, construirDestino, construirRuta,
-  textosAsignacionProyecto, textosAsignacionNodo, textosCambioFuncion,
-} from '../../utils/correoAsignacion';
 
 const GUINDA = '#7B1C3E';
 const ETIQUETA_ALCANCE = { etapa: 'etapa', accion: 'acción', tarea: 'tarea' };
@@ -102,34 +98,16 @@ export default function GestorUsuariosProyecto({ proyecto, proyectoId, abrirInvi
   async function handleCambiarRol(m, nuevoRol) {
     if (nuevoRol === m.rol) return;
     try {
-      let resultado;
       if (m.alcance === 'proyecto') {
-        resultado = await agregarMiembro(proyectoId, m.id_usuario, nuevoRol);
+        await agregarMiembro(proyectoId, m.id_usuario, nuevoRol);
       } else {
-        resultado = await actualizarRolNodo(m.nodo_tipo, m.nodo_id, m.id_usuario, nuevoRol);
+        await actualizarRolNodo(m.nodo_tipo, m.nodo_id, m.id_usuario, nuevoRol);
       }
       await cargar();
       mostrarToast('Función actualizada', 'exito');
-      // Correo de aviso — nunca bloquea (ya se guardó arriba): se
-      // dispara sin esperar. `cambio_rol` lo decide el servidor: solo es
-      // un cambio de función real si la persona ya estaba aceptada;
-      // si seguía pendiente de aceptar, sigue siendo una asignación.
-      enviarCorreoDeFuncion(m, nuevoRol, resultado?.cambio_rol);
     } catch (e) {
       mostrarToast(e.response?.data?.mensaje || 'Error al cambiar la función', 'error');
     }
-  }
-
-  function enviarCorreoDeFuncion(m, nuevoRol, esCambioDeFuncion) {
-    const quien = usuario?.nombre_completo;
-    const funcion = etiquetaFuncionCorreo(nuevoRol);
-    const destino = construirDestino({
-      alcance: m.alcance, nodoTipo: m.nodo_tipo, nodoNombre: m.nodo_nombre, proyectoNombre: proyecto?.nombre,
-    });
-    const textos = esCambioDeFuncion
-      ? textosCambioFuncion({ quien, funcion, destino, ruta: construirRuta({ proyectoId, alcance: m.alcance, nodoId: m.nodo_id }) })
-      : (m.alcance === 'proyecto' ? textosAsignacionProyecto({ quien, funcion, destino }) : textosAsignacionNodo({ quien, funcion, destino }));
-    enviarCorreoAsignacion({ nombreDestino: m.nombre_completo, correoDestino: m.correo, destino, funcion, ...textos });
   }
 
   async function handleAmpliarATodoElProyecto(m) {
@@ -246,8 +224,6 @@ export default function GestorUsuariosProyecto({ proyecto, proyectoId, abrirInvi
       {modalInvitar && (
         <ModalInvitar
           proyectoId={proyectoId}
-          proyectoNombre={proyecto?.nombre}
-          nombreQuienAsigna={usuario?.nombre_completo}
           onClose={() => setModalInvitar(false)}
           onInvitado={() => { setModalInvitar(false); cargar(); }}
         />
@@ -385,18 +361,7 @@ function ParticipanteCard({ miembro: m, puedeGestionar, puedeSalir, onEliminar, 
 }
 
 // ─── Modal Invitar ────────────────────────────────────────────
-// Busca un nodo por tipo+id dentro de las ramas del árbol (ramasDeEtapas) —
-// solo para armar un texto legible del destino en el correo de aviso.
-function buscarNodoEnRamas(ramas, tipo, id) {
-  for (const rama of ramas) {
-    if (rama.tipo === tipo && String(rama.nodo.id) === String(id)) return rama.nodo;
-    const enHijos = buscarNodoEnRamas(rama.hijos, tipo, id);
-    if (enHijos) return enHijos;
-  }
-  return null;
-}
-
-function ModalInvitar({ proyectoId, proyectoNombre, nombreQuienAsigna, onClose, onInvitado }) {
+function ModalInvitar({ proyectoId, onClose, onInvitado }) {
   const [dgs, setDgs] = useState([]);
   const [das, setDas] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
@@ -484,44 +449,10 @@ function ModalInvitar({ proyectoId, proyectoNombre, nombreQuienAsigna, onClose, 
         });
         await Promise.all(promesas);
       }
-      // Correo de aviso a quien ya tiene cuenta — nunca bloquea la
-      // operación (ya se guardó arriba): se dispara sin esperar.
-      enviarCorreoDeAsignacion();
       onInvitado();
     } catch (err) {
       setError(err.response?.data?.mensaje || 'Error al agregar usuario');
     } finally { setEnviando(false); }
-  }
-
-  function enviarCorreoDeAsignacion() {
-    const quien = nombreQuienAsigna;
-    const funcion = etiquetaFuncionCorreo(rol);
-
-    if (alcance === 'proyecto') {
-      const destino = construirDestino({ alcance: 'proyecto', proyectoNombre });
-      const textos = textosAsignacionProyecto({ quien, funcion, destino });
-      enviarCorreoAsignacion({ nombreDestino: seleccionado.nombre_completo, correoDestino: seleccionado.correo, destino, funcion, ...textos });
-      return;
-    }
-
-    // alcance === 'nodos': con exactamente un elemento elegido hay un
-    // destino preciso; con varios, no hay una sola "parte" que nombrar
-    // — se avisa igual, con una frase genérica (no es ninguna de las 4
-    // situaciones documentadas al pie de la letra, es el caso de borde
-    // de un alta masiva).
-    let destino;
-    if (nodosSeleccionados.size === 1) {
-      const [key] = nodosSeleccionados;
-      const idx = key.indexOf('-');
-      const tipo = key.slice(0, idx);
-      const id = key.slice(idx + 1);
-      const nodo = buscarNodoEnRamas(ramas, tipo, id);
-      destino = construirDestino({ alcance: 'nodo', nodoTipo: tipo, nodoNombre: nodo?.nombre, proyectoNombre });
-    } else {
-      destino = `${nodosSeleccionados.size} elementos del proyecto «${proyectoNombre || ''}»`;
-    }
-    const textos = textosAsignacionNodo({ quien, funcion, destino });
-    enviarCorreoAsignacion({ nombreDestino: seleccionado.nombre_completo, correoDestino: seleccionado.correo, destino, funcion, ...textos });
   }
 
   const dasFiltradas = filtros.id_dg ? das : [];

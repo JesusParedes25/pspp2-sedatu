@@ -22,7 +22,6 @@ router.post('/activar-cuenta', authController.activarCuenta);
 router.post('/solicitar-recuperacion', authController.solicitarRecuperacion);
 router.get('/validar-token-recuperacion', authController.validarTokenRecuperacion);
 router.post('/restablecer-contrasena', authController.restablecerContrasena);
-router.get('/config-correo', authController.obtenerConfigCorreoPublico);
 
 // Ruta protegida — requiere token válido
 router.get('/me', verificarToken, authController.obtenerUsuarioActual);

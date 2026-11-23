@@ -29,6 +29,8 @@ const { puedeGestionarParticipantes, puedeGestionarParticipantesNodo, obtenerPro
 const { rechazoLecturaParaInterno } = require('../utils/validar-funcion-lectura');
 const { crearNotificacion } = require('../utils/notificaciones');
 const pool = require('../db/pool');
+const { enviarCorreo, enlaceNotificaciones, enlaceProyecto } = require('../utils/correo');
+const correoTextos = require('../utils/correoTextos');
 
 // Peldaños válidos desde la migración 079 (docs/modelo-permisos.md):
 // 'captura' reemplaza a 'colaborador', 'lectura' reemplaza a 'invitado'.
@@ -155,15 +157,13 @@ async function crear(req, res, next) {
     const destino = describirDestino({ esDeNodo, tipoNodo, nombreDelNodo, nombreDelProyecto: nombre });
     const destinatarios = await solicitudesQueries.destinatariosDe(idProyecto);
     const textoMotivo = resultado.solicitud.motivo ? ` Motivo: ${resultado.solicitud.motivo}` : '';
-    // Misma lista para dos canales: la notificación dentro de la plataforma
-    // (aquí) y, del lado del frontend, el correo de aviso — ver
-    // docs/modelo-permisos.md, sección 15.2.3. `destinatariosParaCorreo`
-    // es esta misma lista sin quien solicita, para que el frontend no
-    // tenga que repetir ese filtro ni recalcular nada.
-    const destinatariosParaCorreo = [];
+    // Misma lista para los dos avisos: la notificación dentro de la
+    // plataforma y el correo de "solicitud por resolver" — ver
+    // docs/modelo-permisos.md, sección 15.2.3. Se excluye a quien
+    // solicita (destinatariosDe puede incluirlo si gestiona su propio
+    // proyecto).
     for (const d of destinatarios) {
       if (d.id_usuario === req.usuario.id) continue;
-      destinatariosParaCorreo.push(d);
       await crearNotificacion({
         tipo: 'Solicitud',
         mensaje: `${req.usuario.nombre_completo} solicita participar en ${destino} `
@@ -174,11 +174,17 @@ async function crear(req, res, next) {
         entidadId: esDeNodo ? idNodo : idProyecto,
         idUsuario: d.id_usuario,
       });
+      if (d.correo) {
+        const { asunto, texto } = correoTextos.solicitudPorResolver({
+          nombre: d.nombre_completo, quien: req.usuario.nombre_completo,
+          funcion: resultado.solicitud.funcion, destino, enlace: enlaceNotificaciones(),
+        });
+        await enviarCorreo({ para: d.correo, asunto, texto });
+      }
     }
 
     res.status(201).json({
       datos: resultado.solicitud,
-      destinatarios: destinatariosParaCorreo,
       mensaje: 'Solicitud enviada',
     });
   } catch (err) { next(err); }
@@ -302,6 +308,18 @@ async function responder(req, res, next) {
       entidadId: esDeNodo ? solicitud.id_nodo : solicitud.id_proyecto,
       idUsuario: solicitud.id_usuario,
     });
+
+    // Solo al aceptar: declinar no es una de las 6 situaciones con correo
+    // (ver correoTextos.js) — el aviso dentro de la plataforma, arriba, es
+    // el único rastro de un rechazo.
+    if (acepta && solicitud.correo) {
+      const { asunto, texto } = correoTextos.solicitudAceptada({
+        nombre: solicitud.nombre_completo, quien: req.usuario.nombre_completo,
+        funcion: resuelta.funcion, destino,
+        enlace: enlaceProyecto(solicitud.id_proyecto, { tipoNodo: solicitud.tipo_nodo, idNodo: solicitud.id_nodo }),
+      });
+      await enviarCorreo({ para: solicitud.correo, asunto, texto });
+    }
 
     res.json({ datos: resuelta, mensaje: acepta ? 'Solicitud aceptada' : 'Solicitud declinada' });
   } catch (err) { next(err); }

@@ -45,8 +45,3 @@ export async function restablecerContrasena(token, nueva_contrasena) {
   const { data } = await client.post('/auth/restablecer-contrasena', { token, nueva_contrasena });
   return data;
 }
-
-export async function obtenerConfigCorreoPublico() {
-  const { data } = await client.get('/auth/config-correo');
-  return data;
-}

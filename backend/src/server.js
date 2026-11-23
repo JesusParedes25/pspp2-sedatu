@@ -29,6 +29,7 @@ const { iniciarPurgaAutomatica } = require('./utils/purgarProyectos');
 const { iniciarAlertasAutomaticas } = require('./utils/alertasVencimiento');
 const { verificarDirectorioSubidas, iniciarBarridoTemporales, DIRECTORIO_TEMPORAL } = require('./middleware/subidaArchivo.middleware');
 const { variablesObligatoriasFaltantes } = require('./utils/configuracion');
+const { avisarSiDeshabilitado } = require('./utils/correo');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -36,9 +37,9 @@ const PORT = process.env.PORT || 3000;
 // ─── Middlewares globales ──────────────────────────────────────
 // Encabezados HTTP de seguridad (X-Content-Type-Options, X-Frame-Options,
 // etc). CSP desactivado por ahora: el frontend carga teselas de mapa
-// (Leaflet) y llama a EmailJS desde el navegador — activar CSP sin
-// mapear esos dominios primero rompería el mapa y el envío de correos
-// para los usuarios actuales. Queda como mejora de una fase posterior.
+// (Leaflet) — activar CSP sin mapear ese dominio primero rompería el
+// mapa para los usuarios actuales. Queda como mejora de una fase
+// posterior.
 app.use(helmet({ contentSecurityPolicy: false }));
 
 // Permitir peticiones solo desde el frontend real (FRONTEND_URL). En
@@ -109,6 +110,8 @@ async function iniciar() {
     console.error(`✗ Faltan variables de entorno obligatorias: ${faltantes.join(', ')}. Ver .env.example o deploy/pspp.env.example.`);
     process.exit(1);
   }
+
+  avisarSiDeshabilitado();
 
   try {
     verificarDirectorioSubidas();

@@ -103,6 +103,19 @@ services:
       SUPERADMIN_NOMBRE: ${SUPERADMIN_NOMBRE:-}
       PASSWORD_USER: ${PASSWORD_USER:-}
 
+      # ─── Correo (backend/src/utils/correo.js) ─────────────────────
+      # SMTP_HOST vacía deshabilita el envío (se avisa en el log al
+      # arrancar; toda operación que dispara un correo se completa
+      # igual). El relevo institucional de la DGTIC entra aquí cuando
+      # esté disponible.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PUERTO: ${SMTP_PUERTO:-587}
+      SMTP_USUARIO: ${SMTP_USUARIO:-}
+      SMTP_CONTRASENA: ${SMTP_CONTRASENA:-}
+      SMTP_SEGURO: ${SMTP_SEGURO:-false}
+      CORREO_REMITENTE: ${CORREO_REMITENTE:-}
+      CORREO_REMITENTE_NOMBRE: ${CORREO_REMITENTE_NOMBRE:-PSPP}
+
     # Permite usar DB_HOST/MINIO_ENDPOINT=host.docker.internal cuando el
     # servicio de la DGTIC escucha en el propio servidor (desde dentro del
     # contenedor, 127.0.0.1 es el contenedor, no el servidor).

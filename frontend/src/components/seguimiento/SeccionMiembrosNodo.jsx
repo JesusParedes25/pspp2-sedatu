@@ -33,14 +33,8 @@ import {
   actualizarRolNodo,
   eliminarMiembroNodo,
 } from '../../api/nodo-miembros';
-import { obtenerProyecto } from '../../api/proyectos';
 import BotonSolicitarParticipar from '../proyectos/BotonSolicitarParticipar';
 import SelectorFuncion, { sustantivoAsignacion } from '../common/SelectorFuncion';
-import {
-  enviarCorreoAsignacion, etiquetaFuncionCorreo, construirDestino, construirRuta,
-  textosAsignacionNodo, textosCambioFuncion,
-} from '../../utils/correoAsignacion';
-import { useAuth } from '../../context/AuthContext';
 
 // Etiquetas de solo lectura (fila ya fija, fuera de SelectorFuncion):
 // miembro de alcance "proyecto" mostrado aquí, o el administrador del
@@ -74,7 +68,6 @@ function Iniciales({ nombre, className = '' }) {
 }
 
 export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto, nombreNodo, onContador, altaSolicitada, onAltaConsumida }) {
-  const { usuario } = useAuth();
   const [miembros, setMiembros] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [mostrarPicker, setMostrarPicker] = useState(false);
@@ -143,11 +136,6 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto
     try {
       await agregarMiembroNodo(tipo, idNodo, seleccionado.id, rolNuevo);
       setMostrarPicker(false);
-      // Correo de aviso a quien ya tiene cuenta — nunca bloquea la
-      // operación (ya se guardó arriba): se dispara sin esperar. Esto
-      // siempre es una invitación nueva (el picker ya excluye a quien
-      // ya está agregado), nunca un cambio de función.
-      enviarCorreoDeAsignacionANodo(seleccionado, rolNuevo);
       await cargar();
     } catch (err) {
       // El servidor explica los dos casos que importan: la persona ya
@@ -158,52 +146,11 @@ export default function SeccionMiembrosNodo({ tipo, idNodo, permisos, idProyecto
     } finally { setGuardando(false); }
   }
 
-  // Self-contenido (mismo criterio que el resto del archivo): este
-  // componente nunca recibe el nombre del proyecto como prop desde
-  // ninguno de sus dos padres (NodoCard.jsx, PestanasDetalle.jsx), así
-  // que lo pide por su cuenta, solo cuando de verdad hace falta (al
-  // mandar el correo), en vez de agregar un prop nuevo en dos árboles
-  // de componentes distintos.
-  async function nombreDelProyecto() {
-    try {
-      const proyecto = await obtenerProyecto(idProyecto);
-      return proyecto?.datos?.nombre || proyecto?.nombre || '';
-    } catch {
-      return ''; // el correo es best-effort; sin nombre, se manda igual
-    }
-  }
-
-  async function enviarCorreoDeAsignacionANodo(persona, rol) {
-    const nombreProyecto = await nombreDelProyecto();
-    const funcion = etiquetaFuncionCorreo(rol);
-    const destino = construirDestino({ alcance: 'nodo', nodoTipo: tipo, nodoNombre: nombreNodo, proyectoNombre: nombreProyecto });
-    const textos = textosAsignacionNodo({ quien: usuario?.nombre_completo, funcion, destino });
-    enviarCorreoAsignacion({ nombreDestino: persona.nombre_completo, correoDestino: persona.correo, destino, funcion, ...textos });
-  }
-
-  async function enviarCorreoDeCambioFuncion(persona, rolNuevo) {
-    const nombreProyecto = await nombreDelProyecto();
-    const funcion = etiquetaFuncionCorreo(rolNuevo);
-    const destino = construirDestino({ alcance: 'nodo', nodoTipo: tipo, nodoNombre: nombreNodo, proyectoNombre: nombreProyecto });
-    const ruta = construirRuta({ proyectoId: idProyecto, alcance: 'nodo', nodoId: idNodo });
-    const textos = textosCambioFuncion({ quien: usuario?.nombre_completo, funcion, destino, ruta });
-    enviarCorreoAsignacion({ nombreDestino: persona.nombre_completo, correoDestino: persona.correo, destino, funcion, ...textos });
-  }
-
   async function cambiarRol(m, rol) {
     const idUsuario = m.id_usuario;
     try {
-      const resultado = await actualizarRolNodo(tipo, idNodo, idUsuario, rol);
+      await actualizarRolNodo(tipo, idNodo, idUsuario, rol);
       setMiembros(prev => prev.map(x => x.id_usuario === idUsuario ? { ...x, rol } : x));
-      // Correo de aviso — nunca bloquea (ya se guardó arriba): se
-      // dispara sin esperar. `cambio_rol` lo decide el servidor: solo
-      // es un cambio de función real si la persona ya estaba aceptada;
-      // si seguía pendiente de aceptar, sigue siendo una asignación.
-      if (resultado?.cambio_rol) {
-        enviarCorreoDeCambioFuncion(m, rol);
-      } else {
-        enviarCorreoDeAsignacionANodo(m, rol);
-      }
     } catch (err) {
       setError(err.response?.data?.mensaje || 'No se pudo cambiar la función');
       await cargar();

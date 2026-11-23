@@ -123,7 +123,7 @@ async function listarDeUsuario(idUsuario, db) {
 async function obtener(idSolicitud, db) {
   const conn = db || pool;
   const { rows } = await conn.query(
-    `SELECT s.*, u.nombre_completo, p.id_dg_lider
+    `SELECT s.*, u.nombre_completo, u.correo, p.id_dg_lider
      FROM solicitudes_participacion s
      JOIN usuarios u ON u.id = s.id_usuario
      JOIN proyectos p ON p.id = s.id_proyecto

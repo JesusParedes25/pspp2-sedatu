@@ -13,7 +13,6 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@emailjs/browser": "^4.4.1",
     "@tanstack/react-table": "^8.21.3",
     "@xyflow/react": "^12.11.2",
     "axios": "^1.6.2",
