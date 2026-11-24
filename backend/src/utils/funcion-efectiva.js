@@ -137,6 +137,22 @@ async function funcionEfectivaEnProyecto(usuario, idProyecto, db) {
     candidato = masAlto(candidato, { peldano: 'lectura', via: 'direccion_dg' });
   }
 
+  // Paso 15 DGTIC: 'direccion_general' — rol nuevo, un nivel arriba de
+  // 'direccion' en la jerarquía institucional (una Dirección General
+  // contiene varias Direcciones de Área). Mismo criterio de comparación
+  // que 'direccion_dg' arriba (por id_dg, no por id_direccion_area: su
+  // alcance es la DG completa, todas sus áreas) y mismo tope deliberado
+  // en 'lectura' — ve el contenido de trabajo de cualquier proyecto de
+  // su DG, nunca gana edición automática sobre uno en el que no participa.
+  if (
+    usuario.rol === 'direccion_general' &&
+    usuario.id_dg != null &&
+    proyecto.id_dg_lider != null &&
+    usuario.id_dg === proyecto.id_dg_lider
+  ) {
+    candidato = masAlto(candidato, { peldano: 'lectura', via: 'direccion_general_dg' });
+  }
+
   return candidato;
 }
 
