@@ -46,17 +46,35 @@ function errorHandler(err, req, res, next) {
     return res.status(m.status).json({ error: true, mensaje: m.mensaje, codigo: m.codigo });
   }
 
-  // Loguear el error completo en consola para debugging
+  // Loguear el error completo en consola para debugging — el detalle
+  // completo (mensaje + stack) va siempre al log, sin importar el
+  // entorno: en producción es la ÚNICA copia que queda en algún lado,
+  // porque el cliente puede recibir un mensaje genérico (ver abajo).
   console.error('─── Error capturado ───');
   console.error('Ruta:', req.method, req.originalUrl);
   console.error('Mensaje:', err.message);
-  if (process.env.NODE_ENV === 'development') {
-    console.error('Stack:', err.stack);
-  }
+  console.error('Stack:', err.stack);
 
   // Determinar el código HTTP apropiado
   const statusCode = err.statusCode || PG_ERROR_STATUS[err.code] || 500;
-  const mensaje = MENSAJES_CONSTRAINT[err.constraint] || err.message || 'Error interno del servidor';
+
+  // err.message solo es seguro para el cliente cuando alguien lo redactó
+  // a propósito para eso: el patrón establecido en todo el código
+  // (utils/validaciones.js, utils/validaciones-estado.js,
+  // utils/boletoArchivo.js, aportaciones.controller.js, db/queries/*.js)
+  // es lanzar `new Error(mensajeSeguro)` con su propio err.statusCode —
+  // esa marca es la señal de "este texto ya está pensado para mostrarse".
+  // Un error SIN err.statusCode propio (cayó al 500 por defecto, o es un
+  // código de Postgres sin mapeo en MENSAJES_CONSTRAINT) es, por
+  // definición, uno que nadie anticipó: su err.message puede traer texto
+  // crudo de Postgres, de una librería o del intérprete (nombres de
+  // tabla/columna, rutas de archivo, detalle interno) — en producción no
+  // se manda tal cual. En desarrollo sí, porque ahí hace falta verlo.
+  const esMensajeSeguro = Boolean(err.statusCode) || Boolean(MENSAJES_CONSTRAINT[err.constraint]);
+  const esDev = process.env.NODE_ENV === 'development';
+  const mensaje = MENSAJES_CONSTRAINT[err.constraint]
+    || ((esMensajeSeguro || esDev) ? err.message : null)
+    || 'Error interno del servidor';
 
   // Respuesta JSON consistente para el frontend
   res.status(statusCode).json({
@@ -64,7 +82,7 @@ function errorHandler(err, req, res, next) {
     mensaje,
     codigo: err.codigo || (err.constraint ? err.constraint.toUpperCase() : 'INTERNAL_ERROR'),
     // Solo mostrar detalles en desarrollo
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    ...(esDev && { stack: err.stack })
   });
 }
 
