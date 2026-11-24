@@ -1,6 +1,9 @@
 # PSPP Backend — Dockerfile de desarrollo
-# Usa Node 18 Alpine para imagen liviana (~120MB)
-FROM node:18-alpine
+# Node 22 Alpine — igual que backend/Dockerfile.sedatu y que la instancia
+# nativa (paso 11 DGTIC): Node 18 llegó a su fin de soporte de seguridad en
+# abril de 2025 y era lo único que bloqueaba subir nodemailer a una versión
+# sin ese límite.
+FROM node:22-alpine
 
 WORKDIR /app
 
