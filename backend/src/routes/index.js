@@ -154,7 +154,10 @@ router.post('/acciones/:id/subacciones', exigirResponsableNodo('accion'), accion
 // toggle eliminado — usar PUT /acciones/:id con { estado } en body
 
 // Indicadores vinculados a una acción (lectura + edición)
-router.get('/acciones/:id/indicadores', accionesController.obtenerIndicadores);
+// /acciones/:id/indicadores llevaba el mismo hueco (paso 11 DGTIC,
+// reportado en el paso 10), ya cerrado — mismo middleware que ya exige
+// el PUT hermano de abajo.
+router.get('/acciones/:id/indicadores', exigirVisibilidadNodo('accion'), accionesController.obtenerIndicadores);
 router.put('/acciones/:id/indicadores', exigirEdicionNodo('accion'), accionesController.actualizarIndicadores);
 
 // Importar estructura desde CSV
@@ -232,7 +235,9 @@ router.get('/indicadores/mios', indicadoresController.listarMios);
 router.get('/indicadores/:id', exigirVisibilidadIndicador(), indicadoresController.obtenerPorId);
 router.put('/indicadores/:id', exigirEdicionIndicador(), indicadoresController.actualizar);
 router.delete('/indicadores/:id', exigirEdicionIndicador(), indicadoresController.eliminar);
-router.get('/indicadores/:id/resumen-aportaciones', indicadoresController.resumenAportaciones);
+// Llevaba el mismo hueco (paso 11 DGTIC, reportado en el paso 10) —
+// mismo middleware que ya exige su hermano GET /indicadores/:id arriba.
+router.get('/indicadores/:id/resumen-aportaciones', exigirVisibilidadIndicador(), indicadoresController.resumenAportaciones);
 // `GET /indicadores/publicos` + `PATCH /indicadores/:id/publicar`
 // (es_publicable) se retiraron: sin interfaz, sin consumidor, y la única
 // ruta del módulo que no verificaba visibilidad de proyecto — ver Bloque
