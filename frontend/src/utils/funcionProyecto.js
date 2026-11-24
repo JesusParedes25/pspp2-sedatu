@@ -91,11 +91,12 @@ export function calcularFuncion(proyecto, usuario, permisos) {
 
   if (esCreador || rolProyecto === 'responsable' || rolProyecto === 'administracion_proyecto') return FUNCION.RESPONSABLE;
 
-  // El superadmin administra la plataforma; el ejecutivo y el director
-  // ejercen atribuciones sobre su ámbito. Ninguno participa en el
-  // proyecto, así que nombrarlos "Responsable" sería inexacto.
+  // El superadmin administra la plataforma; el ejecutivo ejerce
+  // atribuciones de edición sobre su propia DG. Ninguno de los dos
+  // participa en el proyecto, así que nombrarlos "Responsable" sería
+  // inexacto.
   if (usuario.rol === 'superadmin') return FUNCION.ATRIBUCION;
-  if ((usuario.rol === 'ejecutivo' || usuario.rol === 'direccion') && esMismaDG) return FUNCION.ATRIBUCION;
+  if (usuario.rol === 'ejecutivo' && esMismaDG) return FUNCION.ATRIBUCION;
 
   if (rolProyecto === 'colaborador' || rolProyecto === 'captura') return FUNCION.COLABORADOR;
 
@@ -107,6 +108,16 @@ export function calcularFuncion(proyecto, usuario, permisos) {
   // Fuera de su Dirección General, el ejecutivo consulta y designa
   // participantes, pero no edita: es un alcance distinto al de un lector.
   if (usuario.rol === 'ejecutivo') return FUNCION.SEGUIMIENTO;
+
+  // 'direccion' y 'direccion_general' (paso 15 DGTIC) de la misma DG que
+  // lidera el proyecto: SEGUIMIENTO, no ATRIBUCION — su bono de DG tope
+  // en 'lectura' desde el paso 14 (direccion_dg/direccion_general_dg en
+  // funcion-efectiva.js), nunca edición automática. Antes de este paso
+  // esta rama decía ATRIBUCION para 'direccion', lo cual ya era incorrecto
+  // desde el paso 14: el chip prometía "tu cargo te permite editar este
+  // proyecto" y el botón de edición fallaba al pulsarlo — exactamente lo
+  // que este archivo dice en su cabecera que hay que evitar.
+  if ((usuario.rol === 'direccion' || usuario.rol === 'direccion_general') && esMismaDG) return FUNCION.SEGUIMIENTO;
 
   return FUNCION.LECTOR;
 }

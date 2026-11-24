@@ -56,6 +56,7 @@ export function usePermisosGlobales() {
       esSuperadmin: rol === 'superadmin',
       esEjecutivo: rol === 'ejecutivo' || rol === 'superadmin',
       esDireccion: rol === 'direccion',
+      esDireccionGeneral: rol === 'direccion_general',
       esEnlace: rol === 'enlace',
       esExterno: rol === 'externo',
       puedeCrearProyecto: rol !== 'externo',
@@ -145,14 +146,18 @@ export function usePermisosProyecto(proyecto) {
       // Designa participantes en toda la Secretaría; edita y elimina solo
       // en su propia Dirección General.
       local = { editaFicha: mandaAqui, captura: mandaAqui, elimina: mandaAqui, invita: true };
-    } else if (rol === 'direccion') {
-      const mandaAqui = esMismaDG || esCreador || esResponsableProyecto;
-      local = {
-        editaFicha: mandaAqui,
-        captura: mandaAqui,
-        elimina: esCreador || esResponsableProyecto,
-        invita: mandaAqui,
-      };
+    } else if (rol === 'direccion' || rol === 'direccion_general') {
+      // El bono de DG de estos dos roles (funcion-efectiva.js, vía
+      // direccion_dg/direccion_general_dg, paso 14/15 DGTIC) tope en
+      // 'lectura' — a propósito nunca editan, invitan ni eliminan solo
+      // por pertenecer a la misma DG, igual que enlace/externo abajo:
+      // esMismaDG NO entra aquí. Antes esta rama sí la usaba para
+      // 'direccion' (editaFicha/captura/invita en toda su DG) — quedaba
+      // corregido en cuanto respondía el servidor (que sí aplica el
+      // tope), pero por un instante mostraba controles de edición que al
+      // usarlos fallaban, justo lo que este archivo dice que hay que evitar.
+      const editaFicha = esCreador || esResponsableProyecto;
+      local = { editaFicha, captura: participa, elimina: editaFicha, invita: editaFicha };
     } else {
       // enlace y externo: solo lo que se les haya asignado explícitamente.
       const editaFicha = esCreador || esResponsableProyecto;

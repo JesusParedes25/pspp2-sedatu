@@ -89,6 +89,35 @@ describe('alcanceProyectosUsuario — direccion, el bono de DG', () => {
   });
 });
 
+describe('alcanceProyectosUsuario — direccion_general, mismo bono de DG (paso 15 DGTIC)', () => {
+  test('recibe la unión de su participación y los proyectos de su propia DG', async () => {
+    miembrosQueries.obtenerProyectosUsuario.mockResolvedValueOnce([UUID_PROPIO]);
+    pool.query.mockResolvedValueOnce({ rows: [{ id: UUID_DG }] });
+    const resultado = await alcanceProyectosUsuario({ rol: 'direccion_general', id: 'u1', id_dg: 'dg-1' });
+    expect(resultado.sort()).toEqual([UUID_PROPIO, UUID_DG].sort());
+  });
+
+  test('el bono se resuelve con el mismo criterio que direccion: id_dg_lider contra usuario.id_dg, nunca cruzando proyecto_usuarios/nodo_miembros', async () => {
+    miembrosQueries.obtenerProyectosUsuario.mockResolvedValueOnce([]);
+    pool.query.mockResolvedValueOnce({ rows: [{ id: UUID_DG }] });
+    await alcanceProyectosUsuario({ rol: 'direccion_general', id: 'u1', id_dg: 'dg-1' });
+
+    expect(pool.query).toHaveBeenCalledTimes(1);
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toMatch(/id_dg_lider\s*=\s*\$1/);
+    expect(sql).not.toMatch(/proyecto_usuarios/);
+    expect(sql).not.toMatch(/nodo_miembros/);
+    expect(params).toEqual(['dg-1']);
+  });
+
+  test('direccion_general SIN id_dg asignada no gana nada de más (null-safe)', async () => {
+    miembrosQueries.obtenerProyectosUsuario.mockResolvedValueOnce([UUID_PROPIO]);
+    const resultado = await alcanceProyectosUsuario({ rol: 'direccion_general', id: 'u1', id_dg: null });
+    expect(resultado).toEqual([UUID_PROPIO]);
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+});
+
 describe('alcanceProyectosUsuario — enlace, sin bono (regresión)', () => {
   test('recibe solo los proyectos donde participa, nunca el bono de DG', async () => {
     miembrosQueries.obtenerProyectosUsuario.mockResolvedValueOnce([UUID_PROPIO]);

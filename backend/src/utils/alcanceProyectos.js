@@ -5,7 +5,10 @@
  *            Mis indicadores, Documentos) — superadmin/ejecutivo ven
  *            todos los proyectos activos; `direccion` ve los suyos más
  *            el bono de DG (sección 9.1 de docs/modelo-permisos.md);
- *            cualquier otro rol (`enlace`) solo los que ya le pertenecen.
+ *            `direccion_general` (paso 15 DGTIC) ve los suyos más el
+ *            mismo bono de DG, un nivel arriba de `direccion` en la
+ *            jerarquía institucional; cualquier otro rol (`enlace`)
+ *            solo los que ya le pertenecen.
  *
  * Antes este mismo bloque vivía duplicado tal cual en
  * inicio.controller.js y en geo.controller.js (obtenerMapaInicio y
@@ -28,6 +31,16 @@
  * directamente, nunca cruzando `proyecto_usuarios`/`nodo_miembros` de
  * nadie más. Null-safe: un `direccion` sin `id_dg` asignada no gana nada
  * de más, se queda solo con su participación real.
+ *
+ * `direccion_general` (paso 15 DGTIC) recibe exactamente el mismo bono
+ * de DG que `direccion` tiene HOY — comparando `proyectos.id_dg_lider`
+ * contra `usuario.id_dg`, mismo helper (`proyectosDeLaDG`), mismo
+ * null-safety. Es un rol nuevo pensado para quedarse a nivel Dirección
+ * General completa (todas las áreas que cuelgan de ella) incluso si el
+ * bono de `direccion` más adelante bajara a nivel Dirección de Área —
+ * ese acotamiento de `direccion` es una decisión aparte, pendiente de
+ * confirmar su impacto antes de tocar este archivo (ver
+ * docs/modelo-permisos.md sección 9.1), y no se implementó en este paso.
  */
 const pool = require('../db/pool');
 const miembrosQueries = require('../db/queries/miembros.queries');
@@ -53,7 +66,7 @@ async function alcanceProyectosUsuario(usuario) {
   }
 
   const propios = await miembrosQueries.obtenerProyectosUsuario(usuario.id);
-  if (usuario.rol === 'direccion' && usuario.id_dg) {
+  if ((usuario.rol === 'direccion' || usuario.rol === 'direccion_general') && usuario.id_dg) {
     const deSuDG = await proyectosDeLaDG(usuario.id_dg);
     return Array.from(new Set([...propios, ...deSuDG]));
   }
