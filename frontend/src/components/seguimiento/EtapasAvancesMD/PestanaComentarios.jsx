@@ -19,10 +19,18 @@ import { useState, useEffect, useCallback } from 'react';
 import { Send, Loader2, MessageSquare } from 'lucide-react';
 import * as actividadApi from '../../../api/actividad';
 import { useCandado } from '../../../hooks/useEnvioUnico';
+import ContenidoReservado from '../../proyectos/ContenidoReservado';
 
-export default function PestanaComentarios({ tipo, id, permisos, onCambiado, onContador }) {
+export default function PestanaComentarios({ tipo, id, nodo, proyectoId, permisos, onCambiado, onContador }) {
   const [comentarios, setComentarios] = useState([]);
   const [cargando, setCargando] = useState(true);
+  // GET /actividad/:tipo/:id no se bloquea por falta de participación
+  // (mezcla avance, que debe seguir visible, con comentarios/archivos/
+  // riesgos) — en vez de un 403, responde 200 con `contenido: null` en
+  // cada comentario (paso 14 DGTIC, ver actividad.queries.js). Si hay
+  // comentarios pero su contenido viene vacío, es que están redactados,
+  // no que de verdad estén en blanco.
+  const [reservado, setReservado] = useState(false);
   const [texto, setTexto] = useState('');
   const [ejecutar, enviando] = useCandado();
 
@@ -32,9 +40,11 @@ export default function PestanaComentarios({ tipo, id, permisos, onCambiado, onC
       const res = await actividadApi.obtenerActividadNodo(tipo, id);
       const propios = (res.datos || []).filter(it => it.tipo_evento === 'comentario');
       setComentarios(propios);
+      setReservado(propios.length > 0 && propios.every(c => c.contenido == null));
       onContador?.(propios.length);
     } catch {
       setComentarios([]);
+      setReservado(false);
       onContador?.(0);
     } finally {
       setCargando(false);
@@ -58,6 +68,10 @@ export default function PestanaComentarios({ tipo, id, permisos, onCambiado, onC
     const fechaTxt = d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
     const horaTxt = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
     return `${fechaTxt}, ${horaTxt}`;
+  }
+
+  if (reservado) {
+    return <ContenidoReservado proyectoId={proyectoId} nodo={{ tipo, id, nombre: nodo?.nombre }} permisos={permisos} />;
   }
 
   return (

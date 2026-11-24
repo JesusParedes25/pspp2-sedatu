@@ -17,17 +17,22 @@ const actividadController = require('../controllers/actividad.controller');
 const boletosController = require('../controllers/boletos.controller');
 const corregirCodificacionArchivo = require('../middleware/corregirCodificacionArchivo.middleware');
 const { exigirEdicionDeNodoEnCuerpo } = require('../middleware/permisos.middleware');
-const { exigirVisibilidadActividadPorId, exigirVisibilidadNodoEnParams } = require('../utils/alcance-lectura');
+const { exigirParticipacionActividadPorId, exigirVisibilidadNodoEnParams } = require('../utils/alcance-lectura');
 const { upload } = require('../middleware/subidaArchivo.middleware');
 
 const router = Router();
 
-// Leer (listado y emisión de boletos de descarga) exige solo visibilidad
-// del proyecto dueño: total entre internos, cerrado para 'externo' fuera
-// de lo invitado.
+// El boleto de descarga es contenido de trabajo (paso 14 DGTIC): exige
+// participación real, no solo visibilidad del proyecto dueño.
+// El listado (GET /:tipo_nodo/:id_nodo) mezcla cambios de avance/estado
+// (seguimiento, debe seguir abierto) con comentarios/archivos/riesgos
+// (contenido de trabajo) bajo el mismo stream — no se puede bloquear
+// entero sin ocultar también lo que debe seguir visible, así que se
+// queda en visibilidad y el controller redacta el contenido de trabajo
+// cuando falta participación (ver actividad.controller.js).
 // Escribir sigue exigiendo captura (exigirEdicionDeNodoEnCuerpo, sin
 // cambios desde Fase 2 / Paso 0).
-router.post('/:id/boleto', exigirVisibilidadActividadPorId(), boletosController.emitirBoletoActividad);
+router.post('/:id/boleto', exigirParticipacionActividadPorId(), boletosController.emitirBoletoActividad);
 router.post('/', upload.single('archivo'), corregirCodificacionArchivo, exigirEdicionDeNodoEnCuerpo(), actividadController.crear);
 router.get('/:tipo_nodo/:id_nodo', exigirVisibilidadNodoEnParams(), actividadController.obtenerPorNodo);
 

@@ -12,6 +12,7 @@
 const pool = require('../pool');
 const { condicionRiesgoDeProyecto } = require('../../utils/condicion-riesgo');
 const { calcularAvancePorcentaje } = require('../../utils/indicador-calculo');
+const { redactar } = require('../../utils/redaccion-contenido-trabajo');
 
 /**
  * Obtiene conteo de acciones por estado para un proyecto.
@@ -87,8 +88,15 @@ async function contarRiesgosActivos(proyectoId) {
  * - Últimos comentarios en entidades del proyecto
  * - Últimas evidencias subidas
  * Devuelve los 10 eventos más recientes combinados.
+ *
+ * `tieneParticipacion` (paso 14 DGTIC, default false — fallar cerrado
+ * para cualquier llamador que no lo pase explícitamente): sin ella se
+ * redacta `descripcion` en las filas 'comentario' (el texto del
+ * comentario) y 'evidencia' (el nombre del archivo) — son contenido de
+ * trabajo. 'indicador' no se toca: su descripcion es un rótulo de
+ * seguimiento ("Indicador "X" actualizado"), no contenido de trabajo.
  */
-async function obtenerActividadReciente(proyectoId) {
+async function obtenerActividadReciente(proyectoId, tieneParticipacion = false) {
   const resultado = await pool.query(`
     (
       SELECT
@@ -162,7 +170,11 @@ async function obtenerActividadReciente(proyectoId) {
     ORDER BY created_at DESC
     LIMIT 10
   `, [proyectoId]);
-  return resultado.rows;
+  return resultado.rows.map((row) => (
+    row.tipo === 'comentario' || row.tipo === 'evidencia'
+      ? { ...row, descripcion: redactar(row.descripcion, tieneParticipacion) }
+      : row
+  ));
 }
 
 /**
@@ -343,8 +355,14 @@ async function obtenerIndicadoresConProgreso(proyectoId) {
 
 /**
  * Obtiene detalle de riesgos activos del proyecto.
+ *
+ * `tieneParticipacion` (paso 14 DGTIC, default false): sin ella se
+ * redactan `titulo` y `descripcion` (la sustancia del riesgo — "el
+ * reconocimiento de que algo va mal" es contenido de trabajo); `nivel`,
+ * `estado` y `etiqueta` (dónde está, qué tan grave) se quedan, son
+ * seguimiento — que haya un riesgo activo y su gravedad no se oculta.
  */
-async function obtenerRiesgosDetalle(proyectoId) {
+async function obtenerRiesgosDetalle(proyectoId, tieneParticipacion = false) {
   const resultado = await pool.query(`
     SELECT
       r.id,
@@ -377,7 +395,11 @@ async function obtenerRiesgosDetalle(proyectoId) {
       r.created_at DESC
     LIMIT 15
   `, [proyectoId]);
-  return resultado.rows;
+  return resultado.rows.map((row) => ({
+    ...row,
+    titulo: redactar(row.titulo, tieneParticipacion),
+    descripcion: redactar(row.descripcion, tieneParticipacion),
+  }));
 }
 
 /**

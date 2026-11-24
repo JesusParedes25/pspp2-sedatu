@@ -655,7 +655,10 @@ export default function NodoCard({
           {seccion === 'comentar' && (
             ENTIDAD_TIPO[tipo] ? (
               <div className="bg-gray-50 rounded-lg p-2.5 max-h-96 overflow-y-auto">
-                <HiloComentarios entidadTipo={ENTIDAD_TIPO[tipo]} entidadId={nodo.id} compacto={false} soloLectura={soloLectura} onStatsChange={cargarActividad} />
+                <HiloComentarios
+                  entidadTipo={ENTIDAD_TIPO[tipo]} entidadId={nodo.id} compacto={false} soloLectura={soloLectura} onStatsChange={cargarActividad}
+                  proyectoId={proyectoId} nodo={{ tipo, id: nodo.id, nombre: nodo.nombre }} permisos={permisos}
+                />
               </div>
             ) : (
               <div className="bg-gray-50 rounded-lg p-2 space-y-2">

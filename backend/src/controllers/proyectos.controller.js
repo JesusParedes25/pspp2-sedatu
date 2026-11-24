@@ -17,7 +17,7 @@ const { duplicarProyecto } = require('../db/queries/duplicar.queries');
 const {
   puedeEditarProyecto, puedeGestionarProyecto,
   puedeEditarContenidoProyecto, puedeGestionarParticipantes,
-  tienePeldanoProyecto,
+  tienePeldanoProyecto, puedeVerContenidoProyecto,
 } = require('../utils/autorizacion');
 const permisosQueries = require('../db/queries/permisos.queries');
 const indicadoresQueries = require('../db/queries/indicadores.queries');
@@ -475,7 +475,11 @@ async function misPermisos(req, res, next) {
 // (obtenerActividadReciente), aquí acotado a un solo proyecto.
 async function actividadReciente(req, res, next) {
   try {
-    const datos = await inicioQueries.obtenerActividadReciente([req.params.id]);
+    // Participación resuelta UNA sola vez aquí y pasada como un solo
+    // booleano a la capa de consulta (paso 14 DGTIC) — sin ella se
+    // redacta el texto de los comentarios, no el resto del evento.
+    const tieneParticipacion = await puedeVerContenidoProyecto({ usuario: req.usuario, idProyecto: req.params.id });
+    const datos = await inicioQueries.obtenerActividadReciente([req.params.id], tieneParticipacion);
     res.json({ datos });
   } catch (err) {
     next(err);
@@ -490,6 +494,10 @@ async function actividadReciente(req, res, next) {
 async function bitacora(req, res, next) {
   try {
     const { categoria, usuarioId, desde, hasta, busqueda, etapaId, accionId, tareaId, pagina, limite } = req.query;
+    // Participación resuelta UNA sola vez aquí (paso 14 DGTIC) — sin ella
+    // se redacta el contenido de comentarios/archivos/riesgos, no el
+    // resto de la bitácora (avance, miembros, indicadores).
+    const tieneParticipacion = await puedeVerContenidoProyecto({ usuario: req.usuario, idProyecto: req.params.id });
     const resultado = await bitacoraQueries.obtenerBitacoraProyecto(req.params.id, {
       categoria: categoria || undefined,
       usuarioId: usuarioId || undefined,
@@ -506,7 +514,7 @@ async function bitacora(req, res, next) {
       // la lista — el frontend pide esto con limite=1000 y pagina() propia
       // y pagina la lista del lado del cliente sobre ese mismo arreglo.
       limite: Math.min(parseInt(limite) || 30, 1000),
-    });
+    }, tieneParticipacion);
     res.json({ datos: resultado.datos, total: resultado.total });
   } catch (err) {
     next(err);
@@ -524,6 +532,10 @@ async function bitacora(req, res, next) {
 async function portadaResumen(req, res, next) {
   try {
     const proyectoId = req.params.id;
+    // Participación resuelta UNA sola vez aquí (paso 14 DGTIC) — solo
+    // afecta el texto embebido en actividadReciente (ver abajo); el resto
+    // de la Portada son conteos, siempre abiertos.
+    const tieneParticipacion = await puedeVerContenidoProyecto({ usuario: req.usuario, idProyecto: proyectoId });
     const [
       proyecto,
       etapasTotal,
@@ -545,7 +557,7 @@ async function portadaResumen(req, res, next) {
       statsQueries.contarEvidenciasProyecto(proyectoId),
       statsQueries.contarParticipantesProyecto(proyectoId),
       proyectosQueries.obtenerDGsProyecto(proyectoId),
-      statsQueries.obtenerActividadReciente(proyectoId),
+      statsQueries.obtenerActividadReciente(proyectoId, tieneParticipacion),
     ]);
 
     if (!proyecto) return res.status(404).json({ mensaje: 'Proyecto no encontrado' });

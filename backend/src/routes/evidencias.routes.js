@@ -18,16 +18,16 @@ const evidenciasController = require('../controllers/evidencias.controller');
 const boletosController = require('../controllers/boletos.controller');
 
 const { exigirEdicionEvidencia } = require('../middleware/permisos.middleware');
-const { exigirVisibilidadEvidencia } = require('../utils/alcance-lectura');
+const { exigirParticipacionEvidencia } = require('../utils/alcance-lectura');
 
 const router = Router();
 
 // listarTodas ya filtra por alcanceProyectosUsuarioONull (vista
 // personalizada, acotada a participación — fuera de este PR, ver
-// docs/modelo-permisos.md). La descarga por UUID no filtraba nada: solo
-// se cierra el caso 'externo' fuera de su proyecto invitado.
+// docs/modelo-permisos.md). El boleto de descarga por UUID es contenido
+// de trabajo (paso 14 DGTIC): exige participación real.
 router.get('/', evidenciasController.listarTodas);
-router.post('/:id/boleto', exigirVisibilidadEvidencia(), boletosController.emitirBoletoEvidencia);
+router.post('/:id/boleto', exigirParticipacionEvidencia(), boletosController.emitirBoletoEvidencia);
 router.delete('/:id', exigirEdicionEvidencia(), evidenciasController.eliminar);
 
 module.exports = router;

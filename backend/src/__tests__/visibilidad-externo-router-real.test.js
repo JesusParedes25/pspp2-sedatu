@@ -145,12 +145,16 @@ async function pedir(ruta, usuario) {
 // Las 24 rutas cerradas en los pasos 10 (5), 11 (2) y 12 (17) — una de
 // cada bloque de router.get(...) de routes/index.js que agregó
 // exigirVisibilidad* en alguno de esos tres pasos.
+//
+// Los 4 riesgos-por-nodo del paso 10 (etapas/acciones/subacciones/tareas
+// /:id/riesgos) salieron de esta lista: el paso 14 DGTIC los reclasificó
+// de visibilidad a participación (son contenido de trabajo, no
+// seguimiento — exigirParticipacionNodo, no exigirVisibilidadNodo), así
+// que ya no responden NO_AUTORIZADO sino SIN_PARTICIPACION. Quedan
+// cubiertos, junto con el resto de endpoints reclasificados, en
+// participacion-contenido-trabajo-router-real.test.js.
 const RUTAS = [
   // Paso 10
-  { ruta: `/etapas/${ETAPA_A}/riesgos`, paso: 10 },
-  { ruta: `/acciones/${ACCION_A}/riesgos`, paso: 10 },
-  { ruta: `/subacciones/${ACCION_A}/riesgos`, paso: 10 },
-  { ruta: `/tareas/${TAREA_A}/riesgos`, paso: 10 },
   { ruta: `/etapas/${ETAPA_A}/indicadores`, paso: 10 },
   // Paso 11
   { ruta: `/acciones/${ACCION_A}/indicadores`, paso: 11 },

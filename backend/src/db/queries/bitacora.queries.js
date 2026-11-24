@@ -28,6 +28,12 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const pool = require('../pool');
+const { redactar } = require('../../utils/redaccion-contenido-trabajo');
+
+// Categorías cuyo `contenido` es sustancia de trabajo (texto de
+// comentario, título del riesgo, nombre del documento) — paso 14 DGTIC.
+// 'avance', 'miembro' e 'indicador' se quedan siempre: son seguimiento.
+const CATEGORIAS_CONTENIDO_TRABAJO = new Set(['comentario', 'archivo', 'riesgo']);
 
 const CAMPOS_COMUNES = `id, categoria, titulo, contenido, autor_id, autor_nombre, created_at,
   nodo_tipo, nodo_id, nodo_nombre, metadata`;
@@ -70,7 +76,15 @@ async function obtenerTareasDeAccion(accionId) {
   return rows.map(r => r.id);
 }
 
-async function obtenerBitacoraProyecto(proyectoId, opciones = {}) {
+// `tieneParticipacion` (paso 14 DGTIC, default false — fallar cerrado
+// para cualquier llamador que no la pase): sin ella se redacta
+// `contenido` en las categorías de CATEGORIAS_CONTENIDO_TRABAJO, y la
+// búsqueda de texto libre (`busqueda`) deja de mirar esa misma columna —
+// si se quedara comparando contra el texto crudo, alguien sin
+// participación podría usar el buscador para confirmar qué dice un
+// comentario probando subcadenas, aunque el campo de salida venga
+// redactado (el resultado "sí hay/no hay coincidencia" ya es una fuga).
+async function obtenerBitacoraProyecto(proyectoId, opciones = {}, tieneParticipacion = false) {
   const { categoria, usuarioId, desde, hasta, busqueda, etapaId, accionId, tareaId, pagina = 1, limite = 30 } = opciones;
   const { etapaIds, accionIds } = await obtenerEtapaAccionIds(proyectoId);
 
@@ -208,7 +222,10 @@ async function obtenerBitacoraProyecto(proyectoId, opciones = {}) {
   if (hasta) { idx++; condiciones.push(`created_at < $${idx}::date + interval '1 day'`); valores.push(hasta); }
   if (busqueda) {
     idx++;
-    condiciones.push(`(titulo ILIKE $${idx} OR contenido ILIKE $${idx} OR nodo_nombre ILIKE $${idx} OR autor_nombre ILIKE $${idx})`);
+    const camposBusqueda = tieneParticipacion
+      ? `titulo ILIKE $${idx} OR contenido ILIKE $${idx} OR nodo_nombre ILIKE $${idx} OR autor_nombre ILIKE $${idx}`
+      : `titulo ILIKE $${idx} OR nodo_nombre ILIKE $${idx} OR autor_nombre ILIKE $${idx}`;
+    condiciones.push(`(${camposBusqueda})`);
     valores.push(`%${busqueda}%`);
   }
   // Los tres filtros de nodo (Etapa/Acción/Tarea) son excluyentes entre
@@ -260,7 +277,13 @@ async function obtenerBitacoraProyecto(proyectoId, opciones = {}) {
     ${where}
   `, valores);
 
-  return { datos: rows, total };
+  const datos = rows.map((row) => (
+    CATEGORIAS_CONTENIDO_TRABAJO.has(row.categoria)
+      ? { ...row, contenido: redactar(row.contenido, tieneParticipacion) }
+      : row
+  ));
+
+  return { datos, total };
 }
 
 module.exports = { obtenerBitacoraProyecto };

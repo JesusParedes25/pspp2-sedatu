@@ -31,10 +31,15 @@ const {
 // hoy no verifican nada — cierra el único caso donde la lectura no es
 // total entre perfiles internos: un usuario 'externo' fuera de sus
 // proyectos invitados (ver utils/alcance-lectura.js, docs/modelo-permisos.md).
+// Permiso de PARTICIPACIÓN (paso 14 DGTIC) para comentarios, documentos/
+// evidencias y riesgos — contenido de trabajo, no seguimiento: exige una
+// vía real (funcionEfectivaEnProyecto/EnNodo), no solo visibilidad total
+// entre internos (ver utils/alcance-lectura.js, docs/modelo-permisos.md).
 const {
-  exigirVisibilidadProyecto, exigirVisibilidadNodo, exigirVisibilidadRiesgo,
+  exigirVisibilidadProyecto, exigirVisibilidadNodo,
   exigirVisibilidadIndicador, exigirVisibilidadEntidadEnParams,
   exigirVisibilidadDeEntidadEnQuery,
+  exigirParticipacionProyecto, exigirParticipacionNodo, exigirParticipacionRiesgo,
 } = require('../utils/alcance-lectura');
 
 // Importar routers de cada recurso
@@ -195,37 +200,37 @@ router.post('/tareas/:tareaId/miembros-nodo/responder', nodoMiembrosController.r
 router.get('/acciones/:id/tareas', exigirVisibilidadNodo('accion'), tareasController.listar);
 router.post('/acciones/:id/tareas', exigirResponsableNodo('accion'), tareasController.crear);
 
-// Evidencias de etapas, acciones, riesgos y subacciones
-router.get('/etapas/:id/evidencias', exigirVisibilidadNodo('etapa'), evidenciasController.listarPorEtapa);
+// Evidencias de etapas, acciones, riesgos y subacciones — contenido de
+// trabajo, no seguimiento (paso 14 DGTIC): exigen participación real,
+// no solo visibilidad total entre internos.
+router.get('/etapas/:id/evidencias', exigirParticipacionNodo('etapa'), evidenciasController.listarPorEtapa);
 router.post('/etapas/:id/evidencias', exigirEdicionNodo('etapa'), upload.single('archivo'), corregirCodificacionArchivo, evidenciasController.subirParaEtapa);
-router.get('/acciones/:id/evidencias', exigirVisibilidadNodo('accion'), evidenciasController.listarPorAccion);
+router.get('/acciones/:id/evidencias', exigirParticipacionNodo('accion'), evidenciasController.listarPorAccion);
 router.post('/acciones/:id/evidencias', exigirEdicionNodo('accion'), upload.single('archivo'), corregirCodificacionArchivo, evidenciasController.subirParaAccion);
-router.get('/riesgos/:id/evidencias', exigirVisibilidadRiesgo(), evidenciasController.listarPorRiesgo);
+router.get('/riesgos/:id/evidencias', exigirParticipacionRiesgo(), evidenciasController.listarPorRiesgo);
 router.post('/riesgos/:id/evidencias', exigirEdicionRiesgo(), upload.single('archivo'), corregirCodificacionArchivo, evidenciasController.subirParaRiesgo);
-router.get('/subacciones/:id/evidencias', exigirVisibilidadNodo('accion'), evidenciasController.listarPorSubaccion);
+router.get('/subacciones/:id/evidencias', exigirParticipacionNodo('accion'), evidenciasController.listarPorSubaccion);
 router.post('/subacciones/:id/evidencias', exigirEdicionNodo('accion'), upload.single('archivo'), corregirCodificacionArchivo, evidenciasController.subirParaSubaccion);
-router.get('/proyectos/:id/evidencias', exigirVisibilidadProyecto(), evidenciasController.listarPorProyecto);
+router.get('/proyectos/:id/evidencias', exigirParticipacionProyecto(), evidenciasController.listarPorProyecto);
 
 // Documentos agregados (pestaña "Documentos" de Detalle, Fase 4) — incluye
 // los del nodo y, por omisión, los de sus descendientes (?incluirHijos=false
 // para solo el propio). Distinto de los endpoints exactos de arriba, que
 // alimentan el modal "Adjuntar documento" (solo lo propio del nodo).
-router.get('/etapas/:id/documentos', exigirVisibilidadNodo('etapa'), evidenciasController.obtenerDocumentosAgregados);
-router.get('/acciones/:id/documentos', exigirVisibilidadNodo('accion'), evidenciasController.obtenerDocumentosAgregados);
-router.get('/tareas/:id/documentos', exigirVisibilidadNodo('tarea'), evidenciasController.obtenerDocumentosAgregados);
+// Mismo candado de participación que las evidencias de arriba (paso 14 DGTIC).
+router.get('/etapas/:id/documentos', exigirParticipacionNodo('etapa'), evidenciasController.obtenerDocumentosAgregados);
+router.get('/acciones/:id/documentos', exigirParticipacionNodo('accion'), evidenciasController.obtenerDocumentosAgregados);
+router.get('/tareas/:id/documentos', exigirParticipacionNodo('tarea'), evidenciasController.obtenerDocumentosAgregados);
 
-// Riesgos de un proyecto, etapa, acción, subacción y tarea — los
-// listados por nodo llevaban el mismo hueco que ya cerraba
-// /proyectos/:id/riesgos (paso 10 DGTIC, A01): un usuario sin
-// visibilidad de ESE proyecto (el caso 'externo' fuera de sus
-// proyectos invitados) los leía igual. Mismo middleware que ya usan los
-// endpoints equivalentes de evidencias/aportaciones para cada tipo de
-// nodo (subacción resuelve como 'accion', igual que en esos).
-router.get('/proyectos/:id/riesgos', exigirVisibilidadProyecto(), riesgosController.listarPorProyecto);
-router.get('/etapas/:id/riesgos', exigirVisibilidadNodo('etapa'), riesgosController.listarPorEtapa);
-router.get('/acciones/:id/riesgos', exigirVisibilidadNodo('accion'), riesgosController.listarPorAccion);
-router.get('/subacciones/:id/riesgos', exigirVisibilidadNodo('accion'), riesgosController.listarPorSubaccion);
-router.get('/tareas/:id/riesgos', exigirVisibilidadNodo('tarea'), riesgosController.listarPorTarea);
+// Riesgos de un proyecto, etapa, acción, subacción y tarea — contenido
+// de trabajo, no seguimiento (paso 14 DGTIC): exigen participación real,
+// no solo visibilidad total entre internos (subacción resuelve como
+// 'accion', igual que en evidencias/aportaciones).
+router.get('/proyectos/:id/riesgos', exigirParticipacionProyecto(), riesgosController.listarPorProyecto);
+router.get('/etapas/:id/riesgos', exigirParticipacionNodo('etapa'), riesgosController.listarPorEtapa);
+router.get('/acciones/:id/riesgos', exigirParticipacionNodo('accion'), riesgosController.listarPorAccion);
+router.get('/subacciones/:id/riesgos', exigirParticipacionNodo('accion'), riesgosController.listarPorSubaccion);
+router.get('/tareas/:id/riesgos', exigirParticipacionNodo('tarea'), riesgosController.listarPorTarea);
 // Riesgos donde a este usuario le propusieron ser responsable y no ha
 // respondido — misma bandeja que solicitudes-por-resolver, para Riesgo.
 router.get('/riesgos-asignados-pendientes', riesgosController.listarAsignacionesPendientes);
