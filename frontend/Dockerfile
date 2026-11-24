@@ -1,6 +1,9 @@
 # PSPP Frontend — Dockerfile de desarrollo
-# Usa Node 18 Alpine para imagen liviana
-FROM node:18-alpine
+# Node 22 Alpine — igual que backend/Dockerfile y backend/Dockerfile.sedatu
+# (paso 13 DGTIC): esta imagen también la usa el servicio frontend-build de
+# docker-compose.prod.yml para compilar el frontend de producción, así que
+# seguía en Node 18 en el VPS real, no solo en desarrollo.
+FROM node:22-alpine
 
 WORKDIR /app
 
