@@ -26,7 +26,7 @@ function invitacion({ nombre, inviteLink }) {
   return {
     asunto: 'Invitación a PSPP',
     texto: `Hola${nombre ? ` ${nombre}` : ''}:\n\n`
-      + 'Se creó una cuenta para ti en PSPP, la Plataforma de Seguimiento de Proyectos Prioritarios de SEDATU.\n\n'
+      + 'Se creó una cuenta para ti en PSPP, la Plataforma de Seguimiento de Proyectos Prioritarios.\n\n'
       + `Para activarla y establecer tu contraseña, visita el siguiente enlace (vigente por 30 días):\n${inviteLink}\n\n`
       + 'Si no esperabas este correo, puedes ignorarlo.'
       + pie(),

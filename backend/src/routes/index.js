@@ -205,33 +205,29 @@ router.get('/etapas/:id/documentos', exigirVisibilidadNodo('etapa'), evidenciasC
 router.get('/acciones/:id/documentos', exigirVisibilidadNodo('accion'), evidenciasController.obtenerDocumentosAgregados);
 router.get('/tareas/:id/documentos', exigirVisibilidadNodo('tarea'), evidenciasController.obtenerDocumentosAgregados);
 
-// Riesgos de un proyecto, etapa, acción, subacción y tarea
-//
-// NOTA DE ALCANCE: solo /proyectos/:id/riesgos (listado a nivel proyecto)
-// y GET /riesgos/:id (riesgos.routes.js) quedan protegidos en este PR —
-// son los que el Paso 1/2 nombran explícitamente. Los listados por nodo
-// de esta misma sección (etapa/acción/subacción/tarea) tienen el mismo
-// hueco hoy (sin control) pero no se tocan aquí a propósito: no están en
-// la lista pedida y se reportan aparte para no exceder el alcance de
-// este PR.
+// Riesgos de un proyecto, etapa, acción, subacción y tarea — los
+// listados por nodo llevaban el mismo hueco que ya cerraba
+// /proyectos/:id/riesgos (paso 10 DGTIC, A01): un usuario sin
+// visibilidad de ESE proyecto (el caso 'externo' fuera de sus
+// proyectos invitados) los leía igual. Mismo middleware que ya usan los
+// endpoints equivalentes de evidencias/aportaciones para cada tipo de
+// nodo (subacción resuelve como 'accion', igual que en esos).
 router.get('/proyectos/:id/riesgos', exigirVisibilidadProyecto(), riesgosController.listarPorProyecto);
-router.get('/etapas/:id/riesgos', riesgosController.listarPorEtapa);
-router.get('/acciones/:id/riesgos', riesgosController.listarPorAccion);
-router.get('/subacciones/:id/riesgos', riesgosController.listarPorSubaccion);
-router.get('/tareas/:id/riesgos', riesgosController.listarPorTarea);
+router.get('/etapas/:id/riesgos', exigirVisibilidadNodo('etapa'), riesgosController.listarPorEtapa);
+router.get('/acciones/:id/riesgos', exigirVisibilidadNodo('accion'), riesgosController.listarPorAccion);
+router.get('/subacciones/:id/riesgos', exigirVisibilidadNodo('accion'), riesgosController.listarPorSubaccion);
+router.get('/tareas/:id/riesgos', exigirVisibilidadNodo('tarea'), riesgosController.listarPorTarea);
 // Riesgos donde a este usuario le propusieron ser responsable y no ha
 // respondido — misma bandeja que solicitudes-por-resolver, para Riesgo.
 router.get('/riesgos-asignados-pendientes', riesgosController.listarAsignacionesPendientes);
 
-// Indicadores de un proyecto (nivel proyecto, nivel etapa, o todos)
-//
-// NOTA DE ALCANCE: /etapas/:id/indicadores no se toca en este PR — mismo
-// hueco de visibilidad hoy, pero fuera de lo nombrado en el Paso 1/2;
-// reportado aparte.
+// Indicadores de un proyecto (nivel proyecto, nivel etapa, o todos) —
+// /etapas/:id/indicadores llevaba el mismo hueco (paso 10 DGTIC, A01),
+// ya cerrado.
 router.get('/proyectos/:id/indicadores', exigirVisibilidadProyecto(), indicadoresController.listarPorProyecto);
 router.get('/proyectos/:id/indicadores/todos', exigirVisibilidadProyecto(), indicadoresController.listarTodosPorProyecto);
 router.post('/proyectos/:id/indicadores', exigirEdicionProyecto(), indicadoresController.crear);
-router.get('/etapas/:id/indicadores', indicadoresController.listarPorEtapa);
+router.get('/etapas/:id/indicadores', exigirVisibilidadNodo('etapa'), indicadoresController.listarPorEtapa);
 router.get('/indicadores/mios', indicadoresController.listarMios);
 router.get('/indicadores/:id', exigirVisibilidadIndicador(), indicadoresController.obtenerPorId);
 router.put('/indicadores/:id', exigirEdicionIndicador(), indicadoresController.actualizar);
