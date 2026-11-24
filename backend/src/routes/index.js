@@ -16,6 +16,7 @@ const { Router } = require('express');
 const { verificarToken } = require('../middleware/auth.middleware');
 const corregirCodificacionArchivo = require('../middleware/corregirCodificacionArchivo.middleware');
 const { upload } = require('../middleware/subidaArchivo.middleware');
+const { limiteApiGeneral } = require('../middleware/rateLimit.middleware');
 
 // Permiso de captura para las rutas anidadas que escriben estructura
 // (las rutas independientes lo aplican en su propio archivo de rutas).
@@ -100,6 +101,12 @@ router.get('/publico/indicadores', requiereApiToken, publicoController.indicador
 
 // ─── Middleware de autenticación para todas las rutas siguientes ─
 router.use(verificarToken);
+
+// Límite holgado para el resto de la API ya autenticada (ver
+// middleware/rateLimit.middleware.js) — deja fuera notificaciones/stream,
+// que es una sola conexión SSE que se queda abierta horas, no una
+// petición más que contar.
+router.use(limiteApiGeneral);
 
 // ─── Recursos principales ──────────────────────────────────────
 router.use('/proyectos', proyectosRoutes);

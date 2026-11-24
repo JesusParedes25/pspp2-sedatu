@@ -129,6 +129,16 @@ export function mensajeDeError(err, porOmision = 'No se pudo completar la operac
     // Puede venir de nginx (HTML, sin mensaje) o del backend.
     return `El archivo excede el tamaño máximo que acepta el servidor (${TAMANO_MAXIMO_SUBIDA_MB} MB).`;
   }
+  // Límite de peticiones (backend/src/middleware/rateLimit.middleware.js):
+  // nunca un error genérico — se dice cuánto falta para poder reintentar,
+  // con el mismo número que mandó el servidor, no una frase fija.
+  if (estado === 429) {
+    const segundos = err.response.data?.reintentar_en_segundos;
+    const espera = segundos
+      ? ` Espera ${segundos >= 60 ? minutos(segundos * 1000) : `${segundos} segundos`} e inténtalo de nuevo.`
+      : ' Espera unos minutos e inténtalo de nuevo.';
+    return `${delServidor || 'Demasiadas peticiones en poco tiempo.'}${espera}`;
+  }
   if (delServidor) return delServidor;
   if (estado === 408) return 'El servidor cortó la petición porque tardó demasiado en llegar. Inténtalo de nuevo.';
   if (estado === 403) return 'No tienes permiso para realizar esta operación.';

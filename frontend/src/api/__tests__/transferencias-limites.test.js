@@ -155,4 +155,29 @@ describe('mensajeDeError', () => {
   test('sin nada reconocible usa el texto por omisión', () => {
     expect(mensajeDeError({ response: { status: 500, data: {} } }, 'No se pudo.')).toBe('No se pudo.');
   });
+
+  // 429 (backend/src/middleware/rateLimit.middleware.js, paso 9 DGTIC):
+  // nunca el mensaje crudo del servidor a secas — siempre con cuánto falta
+  // para reintentar, usando el número real que manda `reintentar_en_segundos`.
+  describe('límite de peticiones (429)', () => {
+    test('con segundos < 60, dice los segundos exactos', () => {
+      const err = { response: { status: 429, data: { mensaje: 'Demasiados intentos de inicio de sesión.', reintentar_en_segundos: 42 } } };
+      expect(mensajeDeError(err)).toBe('Demasiados intentos de inicio de sesión. Espera 42 segundos e inténtalo de nuevo.');
+    });
+
+    test('con segundos >= 60, los convierte a minutos', () => {
+      const err = { response: { status: 429, data: { mensaje: 'Demasiadas peticiones en poco tiempo.', reintentar_en_segundos: 125 } } };
+      expect(mensajeDeError(err)).toBe('Demasiadas peticiones en poco tiempo. Espera 2 minutos e inténtalo de nuevo.');
+    });
+
+    test('sin reintentar_en_segundos, usa una espera genérica en vez de omitirla', () => {
+      const err = { response: { status: 429, data: { mensaje: 'Demasiadas solicitudes de recuperación de contraseña.' } } };
+      expect(mensajeDeError(err)).toBe('Demasiadas solicitudes de recuperación de contraseña. Espera unos minutos e inténtalo de nuevo.');
+    });
+
+    test('sin mensaje del servidor, no queda un hueco al inicio de la frase', () => {
+      const err = { response: { status: 429, data: { reintentar_en_segundos: 10 } } };
+      expect(mensajeDeError(err)).toBe('Demasiadas peticiones en poco tiempo. Espera 10 segundos e inténtalo de nuevo.');
+    });
+  });
 });

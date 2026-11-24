@@ -110,6 +110,10 @@ valor por omisión. Cada línea de `.env.example` dice cuál es su caso.
 | `SMTP_SEGURO`      | `true` para TLS implícito (puerto 465 típico). Por omisión `false` (STARTTLS, puerto 587 típico) | ❌ |
 | `CORREO_REMITENTE` | Dirección que aparece como remitente. Por omisión, `SMTP_USUARIO` | ❌ |
 | `CORREO_REMITENTE_NOMBRE` | Nombre visible del remitente. Por omisión `PSPP` | ❌ |
+| `PROXY_SALTOS_CONFIABLES` | Cuántos proxies de confianza hay delante del backend (`req.ip`, límite de peticiones por IP). Este VPS tiene 2 (Nginx Proxy Manager + el nginx propio de este compose). Por omisión del backend, `1` | ❌ |
+| `LIMITE_PETICIONES_LOGIN_VENTANA_MIN` / `LIMITE_PETICIONES_LOGIN_MAX` | Límite de intentos de inicio de sesión, por IP y por correo. Por omisión `15` min / `10` intentos | ❌ |
+| `LIMITE_PETICIONES_RECUPERACION_VENTANA_MIN` / `LIMITE_PETICIONES_RECUPERACION_MAX` | Límite de solicitudes de recuperación de contraseña, por IP y por correo. Por omisión `60` min / `5` intentos | ❌ |
+| `LIMITE_PETICIONES_API_VENTANA_MIN` / `LIMITE_PETICIONES_API_MAX` | Límite holgado para el resto de la API ya autenticada (no aplica a notificaciones en tiempo real). Por omisión `15` min / `600` peticiones | ❌ |
 
 ### Compilación del frontend
 

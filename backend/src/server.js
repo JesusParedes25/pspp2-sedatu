@@ -34,12 +34,39 @@ const { avisarSiDeshabilitado } = require('./utils/correo');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// ─── Confianza en el proxy que tenemos delante ─────────────────
+// req.ip (y por lo tanto el límite de peticiones por IP, ver
+// middleware/rateLimit.middleware.js) depende enteramente de esto. Sin
+// configurarlo, Express trata como "cliente" al proxy más cercano —
+// todo el tráfico real cae en una sola IP y la primera ráfaga agota la
+// cuota para todo el mundo, bloqueando el acceso a todos.
+//
+// El número es CUÁNTOS proxies de confianza hay entre el navegador y
+// este proceso, no si hay alguno. Por omisión, 1: el caso de un solo
+// salto (nuestro propio nginx delante del backend, deploy/nginx/pspp.conf
+// en el despliegue nativo). Esta instancia (pspp.geobint.com) tiene DOS
+// saltos — Nginx Proxy Manager y luego el nginx propio de
+// docker-compose.prod.yml — y la infraestructura de la DGTIC también
+// tendrá dos (F5 y luego su nginx institucional), así que ambas fijan
+// PROXY_SALTOS_CONFIABLES=2 en su propio archivo de entorno (ver
+// .env.example y deploy/pspp-sedatu.env.example). Un valor insuficiente
+// dejaría colándose la IP de un proxy intermedio como si fuera la real;
+// uno de más confiaría en una cabecera X-Forwarded-For que cualquiera
+// puede mandar con su petición.
+const PROXY_SALTOS_CONFIABLES = (() => {
+  const n = Number.parseInt(process.env.PROXY_SALTOS_CONFIABLES, 10);
+  return Number.isFinite(n) && n >= 0 ? n : 1;
+})();
+app.set('trust proxy', PROXY_SALTOS_CONFIABLES);
+
 // ─── Middlewares globales ──────────────────────────────────────
 // Encabezados HTTP de seguridad (X-Content-Type-Options, X-Frame-Options,
-// etc). CSP desactivado por ahora: el frontend carga teselas de mapa
-// (Leaflet) — activar CSP sin mapear ese dominio primero rompería el
-// mapa para los usuarios actuales. Queda como mejora de una fase
-// posterior.
+// etc). CSP desactivado aquí a propósito: quien sirve el documento HTML
+// es nginx (el backend solo contesta JSON bajo /api/), así que la
+// política vive en su configuración — deploy/nginx/pspp.conf (nativo) y
+// nginx/default.conf (Docker), sección "Content-Security-Policy" — no
+// en helmet. Ver deploy/README.md para el detalle completo de la
+// política y por qué.
 app.use(helmet({ contentSecurityPolicy: false }));
 
 // Permitir peticiones solo desde el frontend real (FRONTEND_URL). En

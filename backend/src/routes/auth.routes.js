@@ -13,13 +13,20 @@
 const { Router } = require('express');
 const { verificarToken } = require('../middleware/auth.middleware');
 const authController = require('../controllers/auth.controller');
+const {
+  limiteLoginPorIp, limiteLoginPorCorreo,
+  limiteRecuperacionPorIp, limiteRecuperacionPorCorreo,
+} = require('../middleware/rateLimit.middleware');
 
 const router = Router();
 
-// Ruta pública — no requiere token
-router.post('/login', authController.login);
+// Ruta pública — no requiere token. Límite estricto, por IP y por correo
+// (ver middleware/rateLimit.middleware.js): son los dos endpoints
+// alcanzables sin sesión, y solicitar-recuperacion dispara un envío real
+// por SMTP en cada intento (utils/correo.js).
+router.post('/login', limiteLoginPorIp, limiteLoginPorCorreo, authController.login);
 router.post('/activar-cuenta', authController.activarCuenta);
-router.post('/solicitar-recuperacion', authController.solicitarRecuperacion);
+router.post('/solicitar-recuperacion', limiteRecuperacionPorIp, limiteRecuperacionPorCorreo, authController.solicitarRecuperacion);
 router.get('/validar-token-recuperacion', authController.validarTokenRecuperacion);
 router.post('/restablecer-contrasena', authController.restablecerContrasena);
 
