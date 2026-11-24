@@ -24,7 +24,14 @@ const router = Router();
 // total entre perfiles internos); solo se cierra para 'externo' fuera de
 // los proyectos a los que fue invitado (exigirVisibilidadNodo, ver
 // docs/modelo-permisos.md). Escritura: solo quien puede capturar.
-router.get('/:id/indicadores', indicadoresController.listarPorEtapa);
+//
+// Esta misma ruta también estaba declarada en routes/index.js, montada
+// DESPUÉS de este router (router.use('/etapas', ...) va primero) — por
+// orden de montaje, Express siempre atendía ESTA versión y la de
+// routes/index.js nunca se ejecutaba; se quedó sin el candado que su
+// propio comentario de arriba decía que debía llevar. Corregido aquí; la
+// declaración muerta en routes/index.js se quitó (paso 13 DGTIC).
+router.get('/:id/indicadores', exigirVisibilidadNodo('etapa'), indicadoresController.listarPorEtapa);
 router.get('/:id', exigirVisibilidadNodo('etapa'), etapasController.obtenerPorId);
 router.put('/:id', exigirEdicionNodo('etapa'), etapasController.actualizar);
 // Sin exigirEdicionNodo aquí a propósito: este endpoint mezcla registrar

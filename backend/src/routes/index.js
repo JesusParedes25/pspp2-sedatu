@@ -231,12 +231,15 @@ router.get('/tareas/:id/riesgos', exigirVisibilidadNodo('tarea'), riesgosControl
 router.get('/riesgos-asignados-pendientes', riesgosController.listarAsignacionesPendientes);
 
 // Indicadores de un proyecto (nivel proyecto, nivel etapa, o todos) —
-// /etapas/:id/indicadores llevaba el mismo hueco (paso 10 DGTIC, A01),
-// ya cerrado.
+// GET /etapas/:id/indicadores vive en etapas.routes.js (ruta
+// independiente de etapa, igual que GET/PUT/DELETE /etapas/:id); no se
+// repite aquí. Declararla también en este archivo fue lo que causó el
+// montaje duplicado corregido en el paso 13 DGTIC — router.use('/etapas', ...)
+// se registra antes, así que esa versión (sin candado hasta ese paso) era
+// la que Express atendía siempre, y esta nunca se ejecutaba.
 router.get('/proyectos/:id/indicadores', exigirVisibilidadProyecto(), indicadoresController.listarPorProyecto);
 router.get('/proyectos/:id/indicadores/todos', exigirVisibilidadProyecto(), indicadoresController.listarTodosPorProyecto);
 router.post('/proyectos/:id/indicadores', exigirEdicionProyecto(), indicadoresController.crear);
-router.get('/etapas/:id/indicadores', exigirVisibilidadNodo('etapa'), indicadoresController.listarPorEtapa);
 router.get('/indicadores/mios', indicadoresController.listarMios);
 router.get('/indicadores/:id', exigirVisibilidadIndicador(), indicadoresController.obtenerPorId);
 router.put('/indicadores/:id', exigirEdicionIndicador(), indicadoresController.actualizar);
