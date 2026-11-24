@@ -12,7 +12,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { Plus, Loader2, AlertTriangle } from 'lucide-react';
 import * as riesgosApi from '../../../api/riesgos';
 import ModalRiesgo from '../../riesgos/ModalRiesgo';
+import ContenidoReservado from '../../proyectos/ContenidoReservado';
 import { formatFecha } from '../../../utils/fecha';
+import { esSinParticipacion } from '../../../utils/erroresPermisos';
 
 const NIVEL_LABEL = { etapa: 'Etapa', accion: 'Acción', tarea: 'Tarea', subaccion: 'Acción' };
 const ENTIDAD_TIPO_RIESGO = { etapa: 'Etapa', accion: 'Accion', tarea: 'Tarea' };
@@ -25,10 +27,11 @@ async function obtenerPorTipo(tipo, id, incluirHijos) {
   return riesgosApi.obtenerRiesgosAccion(id, incluirHijos);
 }
 
-export default function PestanaRiesgos({ tipo, id, proyectoId, permisos, onCambiado, mostrarToast, onContador, onNavegarNodo, altaSolicitada, onAltaConsumida }) {
+export default function PestanaRiesgos({ tipo, id, proyectoId, nodo, permisos, onCambiado, mostrarToast, onContador, onNavegarNodo, altaSolicitada, onAltaConsumida }) {
   const [incluirHijos, setIncluirHijos] = useState(true);
   const [riesgos, setRiesgos] = useState(null);
   const [cargando, setCargando] = useState(true);
+  const [reservado, setReservado] = useState(false);
   const [mostrarAlta, setMostrarAlta] = useState(false);
   const [riesgoEditando, setRiesgoEditando] = useState(null);
 
@@ -45,9 +48,11 @@ export default function PestanaRiesgos({ tipo, id, proyectoId, permisos, onCambi
       const res = await obtenerPorTipo(tipo, id, incluirHijos);
       const datos = res.datos || [];
       setRiesgos(datos);
+      setReservado(false);
       if (incluirHijos) onContador?.(datos.length);
-    } catch {
+    } catch (err) {
       setRiesgos([]);
+      setReservado(esSinParticipacion(err));
       if (incluirHijos) onContador?.(0);
     } finally {
       setCargando(false);
@@ -85,6 +90,10 @@ export default function PestanaRiesgos({ tipo, id, proyectoId, permisos, onCambi
   }
 
   const soloLectura = permisos?.esSoloLectura ?? true;
+
+  if (reservado) {
+    return <ContenidoReservado proyectoId={proyectoId} nodo={{ tipo, id, nombre: nodo?.nombre }} permisos={permisos} />;
+  }
 
   return (
     <div>

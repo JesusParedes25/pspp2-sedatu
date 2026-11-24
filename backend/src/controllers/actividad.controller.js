@@ -10,17 +10,28 @@ const { almacen } = require('../utils/minio');
 const { transmitirObjeto } = require('../utils/transmitirObjeto');
 const { limpiarArchivoTemporal } = require('../middleware/subidaArchivo.middleware');
 const actividadQueries = require('../db/queries/actividad.queries');
+const { puedeVerContenidoNodo } = require('../utils/autorizacion');
 
 const TIPOS_NODO = ['etapa', 'accion', 'tarea'];
 
 // GET /actividad/:tipo_nodo/:id_nodo
+//
+// Este endpoint mezcla avance/estatus (seguimiento, abierto a cualquier
+// interno — exigirVisibilidadNodoEnParams en la ruta, sin cambios) con
+// comentarios/archivos/riesgos (contenido de trabajo). No se puede
+// bloquear entero sin ocultar también los cambios de avance legítimos de
+// quien no participa, así que, igual que los seis endpoints agregados de
+// proyecto, aquí se redacta en vez de bloquear (paso 14 DGTIC):
+// participación resuelta UNA sola vez y pasada como un solo booleano a
+// obtenerActividadNodo, que decide qué campo redactar por tipo_evento.
 async function obtenerPorNodo(req, res, next) {
   try {
     const { tipo_nodo, id_nodo } = req.params;
     if (!TIPOS_NODO.includes(tipo_nodo)) {
       return res.status(400).json({ error: true, mensaje: 'tipo_nodo inválido' });
     }
-    const datos = await actividadQueries.obtenerActividadNodo(tipo_nodo, id_nodo);
+    const tieneParticipacion = await puedeVerContenidoNodo({ usuario: req.usuario, tipoNodo: tipo_nodo, idNodo: id_nodo });
+    const datos = await actividadQueries.obtenerActividadNodo(tipo_nodo, id_nodo, 1000, tieneParticipacion);
     res.json({ datos, mensaje: 'Actividad obtenida' });
   } catch (err) { next(err); }
 }
@@ -77,7 +88,8 @@ async function crear(req, res, next) {
 
 // GET /actividad/:id/ver       : vista previa del adjunto (inline)
 // GET /actividad/:id/descargar : descarga del adjunto (attachment)
-// La visibilidad ya la validó exigirVisibilidadActividadPorId() en la ruta.
+// La participación ya la validó exigirParticipacionActividadPorId() en
+// la ruta (paso 14 DGTIC — contenido de trabajo, no visibilidad).
 // Antes solo existía /descargar, siempre como attachment y sin
 // Content-Type, así que la vista previa de un PDF adjunto a una tarea
 // descargaba el archivo en vez de mostrarlo.

@@ -29,6 +29,10 @@ jest.mock('../utils/autorizacion', () => ({
   ...jest.requireActual('../utils/autorizacion'),
   puedeVerProyecto: jest.fn(),
   obtenerProyectoIdDeNodo: jest.fn(),
+  // Las rutas de transmisión exigen participación (paso 14 DGTIC), no
+  // solo visibilidad — alcance-lectura.js llama a estas, no a puedeVerProyecto.
+  tienePeldanoProyecto: jest.fn(),
+  tienePeldanoNodo: jest.fn(),
 }));
 const mockAlmacen = { statObject: jest.fn(), getObject: jest.fn(), getPartialObject: jest.fn(), removeObject: jest.fn() };
 jest.mock('../utils/minio', () => ({
@@ -90,6 +94,8 @@ beforeEach(() => {
   });
   autorizacion.obtenerProyectoIdDeNodo.mockResolvedValue('proyecto-1');
   autorizacion.puedeVerProyecto.mockResolvedValue(true);
+  autorizacion.tienePeldanoProyecto.mockResolvedValue(true);
+  autorizacion.tienePeldanoNodo.mockResolvedValue(true);
   evidenciasQueries.obtenerEvidenciaPorId.mockImplementation(async (id) => ({
     id, ruta_minio: `evidencias/acciones/acc-1/${id}.pdf`, nombre_original: 'plano.pdf', tipo_archivo: 'application/pdf', tipo_medio: 'archivo',
   }));
@@ -128,8 +134,8 @@ describe('emisión', () => {
     expect(r.status).toBe(401);
   });
 
-  test('no se emite para algo que el usuario no puede ver', async () => {
-    autorizacion.puedeVerProyecto.mockResolvedValue(false);
+  test('no se emite para algo en lo que el usuario no participa', async () => {
+    autorizacion.tienePeldanoNodo.mockResolvedValue(false);
     const { r } = await pedirBoleto('evidencia', EV_A, 'descargar');
     expect(r.status).toBe(403);
   });
@@ -156,12 +162,12 @@ describe('emisión', () => {
 describe('uso del boleto en la URL', () => {
   test('boleto válido → 200 con el archivo, y los permisos se vuelven a validar', async () => {
     const { cuerpo } = await pedirBoleto('evidencia', EV_A, 'ver');
-    autorizacion.puedeVerProyecto.mockClear();
+    autorizacion.tienePeldanoNodo.mockClear();
     const r = await fetch(`${base}${cuerpo.datos.ruta}`);
     expect(r.status).toBe(200);
     expect(r.headers.get('content-disposition')).toMatch(/^inline;/);
     expect(await r.text()).toBe('%PDF');
-    expect(autorizacion.puedeVerProyecto).toHaveBeenCalledWith(expect.objectContaining({ id: 'u-1', rol: 'operativo' }), 'proyecto-1');
+    expect(autorizacion.tienePeldanoNodo).toHaveBeenCalledWith(expect.objectContaining({ id: 'u-1', rol: 'operativo' }), 'accion', 'acc-1', 'lectura', undefined);
   });
 
   test('boleto de descarga → attachment; también para adjuntos de tareas', async () => {
@@ -192,7 +198,7 @@ describe('uso del boleto en la URL', () => {
     const r = await fetch(`${base}/evidencias/${EV_B}/ver?boleto=${encodeURIComponent(cuerpo.datos.boleto)}`);
     expect(r.status).toBe(401);
     expect((await r.json()).codigo).toBe('BOLETO_OTRO_OBJETO');
-    expect(autorizacion.puedeVerProyecto).toHaveBeenCalledTimes(1); // solo el de la emisión
+    expect(autorizacion.tienePeldanoNodo).toHaveBeenCalledTimes(1); // solo el de la emisión
     expect(mockAlmacen.statObject).not.toHaveBeenCalled();
   });
 

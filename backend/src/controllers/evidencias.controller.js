@@ -318,8 +318,9 @@ async function subirParaRiesgo(req, res, next) {
 // GET /evidencias/:id/ver       : previsualizar (Content-Disposition: inline)
 // GET /evidencias/:id/descargar : descargar   (Content-Disposition: attachment)
 //
-// La visibilidad ya la validó exigirVisibilidadEvidencia() en la ruta,
-// antes de llegar aquí y antes de tocar el almacén. La clave del objeto
+// La participación ya la validó exigirParticipacionEvidencia() en la
+// ruta (paso 14 DGTIC — contenido de trabajo, no visibilidad), antes de
+// llegar aquí y antes de tocar el almacén. La clave del objeto
 // sale del registro de la BD, nunca del cliente. Toda la parte de
 // transporte (Range, 404 del almacén, cierre anticipado, flujo sin cargar
 // en memoria) vive en utils/transmitirObjeto.js.

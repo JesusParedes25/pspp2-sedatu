@@ -1,18 +1,20 @@
 # Modelo de permisos de PSPP v2.0
 
-> **Versión: Fase 4, parte B v4. 2026-11-24.**
-> Cubre la matriz de capacidades completa (sección 13), la transferencia
-> de administración de proyecto exclusiva de superadmin (sección 15.1), el
-> aviso de cambio de función: correo y notificación dentro de la
-> plataforma, ambos escritos por el backend en la misma petición que
-> aplica el cambio, por SMTP genérico del servidor (sección 15.2 — paso
-> 8 DGTIC retira EmailJS y el envío desde el navegador por completo), y
-> la lectura estructural de un proyecto, completamente conectada al
-> modelo de alcance de la sección 5. El modelo de autorización vigente
-> es una sola función, `funcionEfectiva`
-> (`backend/src/utils/funcion-efectiva.js`), comparada contra un mínimo
-> por `backend/src/utils/autorizacion.js`; si el código y este documento
-> no coinciden, manda el código.
+> **Versión: paso 14 DGTIC. 2026-11-24.**
+> El modelo de lectura de un proyecto (sección 5) tiene ahora dos reglas
+> distintas (sección 5.1): la visibilidad de seguimiento (estructura,
+> avance, bitácora de cambios) sigue total entre internos, sin cambios;
+> el contenido de trabajo (comentarios, documentos/evidencias, riesgos)
+> pasó a exigir participación real, por bloqueo directo en sus endpoints
+> dedicados o por redacción del campo de contenido en los endpoints
+> agregados que mezclan las dos cosas. También cubre la matriz de
+> capacidades completa (sección 13), la transferencia de administración
+> de proyecto exclusiva de superadmin (sección 15.1) y el aviso de cambio
+> de función por correo y notificación dentro de la plataforma (sección
+> 15.2). El modelo de autorización vigente es una sola función,
+> `funcionEfectiva` (`backend/src/utils/funcion-efectiva.js`), comparada
+> contra un mínimo por `backend/src/utils/autorizacion.js`; si el código
+> y este documento no coinciden, manda el código.
 
 ## 0. Resumen ejecutivo
 
@@ -26,9 +28,13 @@ es sobre la primera:
    **Esto es lo que cubre este documento.**
 2. **¿Qué proyectos/nodos puede VER un usuario entre TODOS los que
    existen?** ("alcance de lectura por perfil" — superadmin/ejecutivo/
-   direccion/enlace/externo). La REGLA ya está decidida (sección 5):
-   lectura total entre perfiles internos sobre cualquier proyecto,
-   `externo` solo ve lo que le invitaron, y las vistas personalizadas
+   direccion/enlace/externo). La REGLA ya está decidida (sección 5), y
+   desde el paso 14 DGTIC tiene dos partes (sección 5.1): la estructura,
+   el avance y la bitácora de cambios son lectura total entre perfiles
+   internos sobre cualquier proyecto; los comentarios, documentos/
+   evidencias y riesgos (contenido de trabajo, no seguimiento) exigen
+   participación real aunque el usuario sea interno. `externo` solo ve
+   lo que le invitaron, estructura incluida. Las vistas personalizadas
    (Tablero, dashboard, mapas, Mis indicadores, Documentos) se quedan
    acotadas a participación + el bono de DG de `direccion` (sección 9.1)
    — excepto Mis actividades/Agenda, que son trabajo propio y nunca
@@ -44,10 +50,11 @@ es sobre la primera:
 
 La arquitectura de la pregunta 1 es una **escalera única de 4 peldaños**
 (`lectura < captura < responsable < administracion_proyecto`), resuelta
-en un solo lugar por **7 vías** que pueden otorgarla (superadmin, creador,
+en un solo lugar por **8 vías** que pueden otorgarla (superadmin, creador,
 invitación directa, ser responsable de un nodo, herencia del padre, rol a
-nivel proyecto, bono de DG para ejecutivo). Cada función con nombre en
-`autorizacion.js` es, sin excepción, una comparación de esa escalera
+nivel proyecto, bono de DG para ejecutivo, bono de DG para dirección —
+este último tope en `lectura`, nunca más alto). Cada función con nombre
+en `autorizacion.js` es, sin excepción, una comparación de esa escalera
 contra un mínimo — no queda ninguna cadena de `if/OR` suelta decidiendo
 permisos por su cuenta.
 
@@ -92,7 +99,7 @@ administracion_proyecto -> todo lo anterior en TODO el proyecto, + ficha del pro
 Cada peldaño incluye las facultades del anterior (`PELDANOS` + `indice()` +
 `alcanza()`, comparación por índice, nunca por nombre exacto).
 
-### 2.1 Las 7 vías (todas se evalúan; gana la más alta, nunca se restan entre sí)
+### 2.1 Las 8 vías (todas se evalúan; gana la más alta, nunca se restan entre sí)
 
 | Vía | Dónde se resuelve | Qué otorga |
 |---|---|---|
@@ -111,6 +118,7 @@ Cada peldaño incluye las facultades del anterior (`PELDANOS` + `indice()` +
 
 | `proyecto` | `proyecto_usuarios`, fila aceptada a nivel de TODO el proyecto | el `rol` aceptado, aplicado al proyecto completo y a todos sus nodos |
 | `ejecutivo_dg` | `usuario.rol==='ejecutivo'` + mismo `id_dg` que `proyectos.id_dg_lider` | `responsable` (nunca más alto) |
+| `direccion_dg` (paso 14 DGTIC) | `usuario.rol==='direccion'` + mismo `id_dg` que `proyectos.id_dg_lider` | `lectura` (nunca más alto — a propósito: ver sección 5.1) |
 
 `masAlto(a, b)` resuelve el empate: en igualdad de peldaño gana el primer
 argumento — por eso los llamadores siempre ordenan la vía más específica
@@ -151,6 +159,7 @@ Cada una compara la escalera contra un mínimo. Tabla completa:
 | `puedeEditarProyecto` / `puedeGestionarProyecto` | `administracion_proyecto` | ficha del proyecto, eliminarlo |
 | `minimoParaPatchNodo(body)` | `responsable` si el body trae algún campo de `CAMPOS_FICHA_NODO`¹, si no `captura` | PATCH combinado de avance+ficha en `/etapas\|acciones\|tareas/:id` |
 | `puedeVerProyecto(usuario, idProyecto)` | ver sección 5 | — |
+| `puedeVerContenidoProyecto({usuario, idProyecto})` / `puedeVerContenidoNodo({usuario, tipoNodo, idNodo})` | `lectura` real (no el atajo de `puedeVerProyecto`) | ver sección 5.1 — comentarios, documentos/evidencias y riesgos |
 | `tienePeldanoProyecto` / `tienePeldanoNodo(usuario, tipo, id, minimo)` | el que se pida | primitivas genéricas, usadas directo por middleware cuando no hay una función con nombre que calce |
 
 ¹ `CAMPOS_FICHA_NODO = ['nombre', 'descripcion', 'tipo', 'id_responsable',
@@ -193,25 +202,38 @@ aplica el mismo criterio:
 | `exigirResolverBloqueo(param)` | SELECT `entidad_tipo,entidad_id,id_creador` de `bloqueos` por `id`; permite si es el creador O `puedeCapturarEn` en la entidad | `PUT /bloqueos/:id/resolver` (ver sección 6.1) |
 | `exigirEdicionDeNodoEnCuerpo()` | `req.body.{tipo_nodo,id_nodo}` (nombres propios de `actividad.controller.js`, distintos de `entidad_tipo`/`entidad_id`) | `POST /actividad` (ver sección 6.2) |
 
-Patrón "leer abierto, escribir cerrado": comentar/adjuntar/reportar un
-riesgo/bloqueo/entrada de actividad es **participar**, no mirar — por eso
-solo las rutas de escritura llevan una de estas factories; `GET` de
-comentarios/riesgos/evidencias/bloqueos sigue sin restricción de captura
-(la visibilidad dentro de SEDATU es total entre internos, sección 5) —
-solo exige poder VER el proyecto, vía `utils/alcance-lectura.js`
-(sección 7.1), no poder editarlo.
+Patrón "leer abierto, escribir cerrado" — **con una excepción desde el
+paso 14 DGTIC**: comentar/adjuntar/reportar un riesgo/bloqueo/entrada de
+actividad es **participar**, no mirar, por eso solo las rutas de
+escritura llevan una de estas factories. Para bloqueos esto sigue siendo
+"leer abierto" de verdad: `GET /bloqueos` solo exige poder VER el
+proyecto (`utils/alcance-lectura.js`, sección 7.1), no poder editarlo —
+la visibilidad dentro de SEDATU es total entre internos (sección 5). Para
+comentarios/riesgos/evidencias, en cambio, "leer" deja de estar abierto:
+pasan a exigir la misma participación real que escribirlos (sección 5.1,
+regla 2) — leer y escribir exigen ahora el mismo peldaño mínimo
+(`lectura` para leer, `captura` para escribir), solo que por rutas y
+factories distintas.
 
 ## 5. El modelo de alcance de lectura (decidido, Fase 2 / Paso 1)
 
 **Regla general**: cualquier perfil interno (`superadmin`, `ejecutivo`,
-`direccion`, `enlace`) puede abrir cualquier proyecto y leer su estructura,
-avance, documentos, comentarios, riesgos y bitácora — participe o no en
-él. Lo que distingue a quien participa de quien no es poder **actuar**
-(capturar avance, editar la ficha, resolver un bloqueo...), nunca poder
-**ver**. Donde un usuario no participa, ve todo igual, solo sin los
-botones de edición. `externo` es la única excepción real: solo ve los
+`direccion`, `enlace`) puede abrir cualquier proyecto y leer su
+estructura, su avance y su bitácora de cambios de estado/avance/equipo/
+indicadores — participe o no en él. Lo que distingue a quien participa de
+quien no es poder **actuar** (capturar avance, editar la ficha, resolver
+un bloqueo...), nunca poder **ver el seguimiento**. Donde un usuario no
+participa, ve la estructura y el avance igual, solo sin los botones de
+edición. `externo` es la única excepción real a esta regla: solo ve los
 proyectos a los que fue invitado — fuera de ahí no ve nada, ni la
 estructura.
+
+Comentarios, documentos/evidencias y riesgos son una pieza aparte, **no**
+cubierta por esta regla general: son contenido de trabajo, no
+seguimiento, y exigen participación real, aunque el usuario sea interno
+— ver sección 5.1, segunda regla. Por eso la bitácora de un proyecto
+(que combina las dos cosas) se sigue viendo entera sin participar, pero
+con el texto de sus comentarios/documentos/riesgos vacío.
 
 ```js
 async function puedeVerProyecto(usuario, idProyecto, db) {
@@ -237,33 +259,68 @@ son trabajo propio de la persona (asignaciones directas), nunca llevan el
 bono — un director no hereda ahí los pendientes de los enlaces de su DG
 (sección 9.1). La sección **Proyectos con el filtro "Todos"**, en cambio,
 es una vista estructural (no personalizada) y queda abierta a cualquier
-perfil interno, igual que cualquier otra lectura de proyecto.
+perfil interno, igual que cualquier otra lectura de proyecto. Aparte de
+estas vistas personalizadas, la única otra excepción a "lectura total
+entre internos" es el contenido de trabajo de la sección 5.1 — no una
+vista distinta, sino una pieza concreta (comentarios, documentos/
+evidencias, riesgos) dentro de las mismas pantallas de siempre.
 
-### 5.1 Tres reglas, no una omisión
+### 5.1 Dos reglas, no una
 
-El modelo tiene exactamente tres piezas, cada una deliberada:
+El modelo de lectura de un proyecto tiene exactamente dos reglas, cada
+una deliberada y resuelta por un mecanismo distinto:
 
-1. **La visibilidad dentro de la Secretaría es total, a propósito.**
-   Cualquier perfil interno (`superadmin`, `ejecutivo`, `direccion`,
-   `enlace`) ve la estructura, el avance, los documentos, los
-   comentarios, los riesgos y la bitácora de cualquier proyecto,
-   participe o no — es una plataforma institucional de seguimiento, no
-   un conjunto de silos por área. `puedeVerProyecto` (sección 5) es esa
-   regla hecha código, y aplica sin excepción a toda la lectura
-   estructural de un proyecto (`utils/alcance-lectura.js`, sección 7.1).
-2. **La captura está acotada al modelo de participación.** Ver no es
-   poder actuar — capturar avance, editar la ficha, resolver un
-   bloqueo, invitar — exige estar en la escalera de la sección 2
-   (`funcionEfectiva`), nunca el solo hecho de pertenecer a la
-   Secretaría. Es la distinción que recorre todo este documento.
-3. **El rol `externo` es la única excepción a la visibilidad total**:
-   solo ve los proyectos a los que fue invitado, estructura incluida —
-   fuera de ahí no ve nada. Es la mitad de `puedeVerProyecto` que sí
-   evalúa un peldaño real (`tienePeldanoProyecto(..., 'lectura')`).
+1. **La visibilidad de seguimiento dentro de la Secretaría es total, a
+   propósito.** Cualquier perfil interno (`superadmin`, `ejecutivo`,
+   `direccion`, `enlace`) ve la estructura, el avance y la bitácora de
+   cambios de cualquier proyecto, participe o no — es una plataforma
+   institucional de seguimiento, no un conjunto de silos por área.
+   `puedeVerProyecto` (sección 5) es esa regla hecha código: `true` sin
+   condición para cualquier interno, y solo para `externo` exige el
+   peldaño `lectura` sobre ese proyecto. La aplican las fábricas
+   `exigirVisibilidad*` (`utils/alcance-lectura.js`, sección 7.1).
+2. **El contenido de trabajo está acotado a quienes participan.**
+   Comentarios, documentos/evidencias y riesgos no son seguimiento: son
+   discusión de equipo, pueden traer información sensible, o son el
+   reconocimiento de que algo va mal — pertenecer a la Secretaría no
+   basta para verlos, hace falta una vía real de `funcionEfectiva`
+   (sección 2): ser creador, estar invitado, ser responsable del nodo, o
+   el bono de DG de `ejecutivo`/`direccion`. `puedeVerContenidoProyecto`/
+   `puedeVerContenidoNodo` (sección 3) son esa regla hecha código —
+   exigen el peldaño `lectura` real, sin el atajo de `puedeVerProyecto`.
+   Se aplica de dos formas distintas según el endpoint:
+   - **Bloqueo directo** (`exigirParticipacion*`,
+     `utils/alcance-lectura.js`) en los endpoints dedicados a estas tres
+     categorías — comentarios, evidencias/documentos y riesgos, listados
+     e individuales, incluida la transmisión del archivo mismo. Sin
+     participación, 403 con `codigo: 'SIN_PARTICIPACION'` (distinto del
+     `NO_AUTORIZADO` de la regla 1, para que el frontend muestre
+     "contenido reservado" y no "sin acceso al proyecto").
+   - **Redacción** en los endpoints agregados que mezclan seguimiento
+     (debe seguir abierto) con contenido de trabajo embebido: estadísticas/
+     portada/actividad-reciente/bitácora/panorama/panorama-rápido de
+     proyecto, y el stream de actividad de un nodo
+     (`GET /actividad/:tipo_nodo/:id_nodo`). Ahí el endpoint sigue
+     respondiendo 200 con `exigirVisibilidad*` sin cambios; el controller
+     resuelve la participación una sola vez y la pasa como un booleano a
+     la capa de consulta, que redacta solo el campo de contenido (texto
+     de comentario, título/descripción de riesgo, nombre de archivo) a
+     `null` cuando falta — nunca el resto de la fila (conteos, avance,
+     estado, nivel del riesgo, nombre del nodo, autor, fecha). El
+     bloqueo entero se descartó a propósito para este segundo grupo:
+     perdería el detalle justo a quien participa, que es quien lo
+     necesita, y una bitácora sin texto de comentarios deja de servir
+     para ponerse al día.
 
-| Qué | Regla | Dónde |
+`externo` sigue siendo, además, la única excepción a la regla 1: fuera de
+los proyectos a los que fue invitado no ve ni la estructura, nunca llega
+a evaluar la regla 2.
+
+| Qué | Regla | Mecanismo |
 |---|---|---|
-| Estructura/avance/documentos/comentarios/riesgos/bitácora de un proyecto | Lectura total entre internos, `externo` solo si invitado | `puedeVerProyecto` + `utils/alcance-lectura.js` (sección 7) |
+| Estructura, avance, bitácora de cambios de un proyecto | Lectura total entre internos, `externo` solo si invitado | `puedeVerProyecto` + `exigirVisibilidad*` (sección 7) |
+| Comentarios, documentos/evidencias, riesgos (endpoints dedicados) | Acotado a participación real | `puedeVerContenido*` + `exigirParticipacion*` → 403 `SIN_PARTICIPACION` |
+| Lo mismo, embebido en estadísticas/portada/actividad-reciente/bitácora/panorama/panorama-rápido/stream de nodo | Acotado a participación real | 200 sin cambio de middleware; campo de contenido redactado a `null` |
 | Tablero, dashboard, mapas, Mis indicadores, Documentos | Acotado a participación + bono de DG para `direccion` | `utils/alcanceProyectos.js` (sección 9.1) |
 | Mis actividades, Agenda | Acotado a asignación directa — SIN el bono de DG | `acciones.queries.js::obtenerAccionesAgenda` (sección 9.1) |
 | Proyectos → filtro "Todos" | Abierto a cualquier interno | ya así, sin cambios |
@@ -344,15 +401,22 @@ resuelve "¿de qué proyecto es esto?" y después se aplica siempre
 
 | Factory | Cómo resuelve el proyecto | Aplicada en |
 |---|---|---|
-| `exigirVisibilidadProyecto(param)` | `req.params[param]` es el proyecto | `GET /proyectos/:id/{etapas,arbol,acciones,evidencias,riesgos,indicadores,indicadores/todos,miembros,panorama,panorama-rapido,stats,bitacora,portada-resumen,actividad-reciente,actividades-sin-fecha,campos-extra-schema}` |
-| `exigirVisibilidadNodo(tipoNodo, param)` | `obtenerProyectoIdDeNodo` (reusada de `autorizacion.js`) | `GET /etapas/:id`, `/acciones/:id`, riesgos/evidencias/documentos/aportaciones/indicadores por nodo, miembros-nodo por nodo |
+| `exigirVisibilidadProyecto(param)` | `req.params[param]` es el proyecto | `GET /proyectos/:id/{etapas,arbol,acciones,indicadores,indicadores/todos,miembros,panorama,panorama-rapido,stats,bitacora,portada-resumen,actividad-reciente,actividades-sin-fecha,campos-extra-schema}` |
+| `exigirVisibilidadNodo(tipoNodo, param)` | `obtenerProyectoIdDeNodo` (reusada de `autorizacion.js`) | `GET /etapas/:id`, `/acciones/:id`, aportaciones/indicadores por nodo, miembros-nodo por nodo |
 | `exigirVisibilidadNodoEnParams()` | tipo+id vienen en la propia ruta (`/actividad/:tipo_nodo/:id_nodo`); tipo inválido deja pasar para que el controller dé su 400 | `GET /actividad/:tipo_nodo/:id_nodo` |
-| `exigirVisibilidadDeEntidadEnQuery()` | `req.query.{entidad_tipo,entidad_id}`; sin ellos deja pasar (400 del controller) | `GET /comentarios`, `GET /bloqueos`, `GET /bloqueos/activo`, `GET /conteo-descendientes` |
-| `exigirVisibilidadRiesgo(param)` | SELECT `entidad_tipo,entidad_id` de `riesgos` | `GET /riesgos/:id`, `GET /riesgos/:id/evidencias` |
+| `exigirVisibilidadDeEntidadEnQuery()` | `req.query.{entidad_tipo,entidad_id}`; sin ellos deja pasar (400 del controller) | `GET /bloqueos`, `GET /bloqueos/activo`, `GET /conteo-descendientes` |
 | `exigirVisibilidadIndicador(param)` | `indicadores.id_proyecto`, columna propia | `GET /indicadores/:id`, `GET /indicadores/:id/aportaciones` |
-| `exigirVisibilidadEvidencia(param)` | SELECT `id_etapa,id_accion,id_subaccion,id_riesgo` de `evidencias` | `GET /evidencias/:id/descargar` |
-| `exigirVisibilidadActividadPorId(param)` | `actividad.id_proyecto`, columna propia (migración 039) | `GET /actividad/:id/descargar` |
 | `exigirSoloInternos()` | sin proyecto que resolver — las plantillas de importación son por DG, no por proyecto; replica el mismo criterio interno/externo de `puedeVerProyecto` sin exigirle un `idProyecto` | `GET /plantillas-importacion/:id` |
+
+Riesgos, evidencias/documentos y `GET /comentarios` tenían aquí su propia
+fila (`exigirVisibilidadRiesgo`, `exigirVisibilidadEvidencia`,
+`exigirVisibilidadActividadPorId`, y una rama de
+`exigirVisibilidadDeEntidadEnQuery`) — el paso 14 DGTIC las reclasificó a
+participación real (sección 5.1, regla 2): esas tres categorías ya no
+pasan por `puedeVerProyecto` ni por este archivo con la fábrica de
+visibilidad, sino por `exigirParticipacion*`, con el mismo patrón de
+"resolver primero a qué proyecto/nodo pertenece esto" pero evaluando
+`tienePeldanoProyecto`/`tienePeldanoNodo` en vez de `puedeVerProyecto`.
 
 **Cambio de criterio en `GET /bloqueos` y `GET /bloqueos/activo`**: el
 Paso 0 (sección 6.1) les había puesto `captura`-o-superior (un criterio
@@ -365,22 +429,26 @@ cualquier otro dato de proyecto — así que estos dos GET pasan a
 `PUT /bloqueos/:id/resolver` (una acción, no una lectura) conserva el
 criterio de captura-o-creador del Paso 0, sin cambios.
 
-Los listados de riesgos por nodo
-(`/etapas|acciones|subacciones|tareas/:id/riesgos`), los de indicadores
-por nodo o por acción (`/etapas/:id/indicadores`,
-`/acciones/:id/indicadores`), `/indicadores/:id/resumen-aportaciones` y
-`/proyectos/:id/panorama-rapido` quedan conectados al mismo criterio que
-el resto de esta sección: lectura total entre internos, `externo` solo
-si invitado.
+Los listados de indicadores por nodo o por acción
+(`/etapas/:id/indicadores`, `/acciones/:id/indicadores`),
+`/indicadores/:id/resumen-aportaciones` y `/proyectos/:id/panorama-rapido`
+quedan conectados al mismo criterio que el resto de esta sección: lectura
+total entre internos, `externo` solo si invitado — `panorama-rapido`
+redacta aparte el texto de actividad embebido (sección 5.1, regla 2). Los
+listados de riesgos por nodo
+(`/etapas|acciones|subacciones|tareas/:id/riesgos`) NO quedan aquí desde
+el paso 14 DGTIC: pasaron a `exigirParticipacionNodo` (sección 5.1).
 
 ### 7.2 Bloque A, Paso 2 — lectura a nivel proyecto
 
-`/proyectos/:id/evidencias|riesgos|indicadores(/todos|/resumen)` quedan
-con `exigirVisibilidadProyecto()`. "Aportaciones" y "documentos" no
-tienen una ruta literal `/proyectos/:id/...` — se interpretaron como sus
+`/proyectos/:id/indicadores(/todos|/resumen)` queda con
+`exigirVisibilidadProyecto()`. "Aportaciones" y "documentos" no tienen
+una ruta literal `/proyectos/:id/...` — se interpretaron como sus
 listados por nodo ya existentes (`/etapas|acciones|tareas/:id/aportaciones`,
 `/etapas|acciones|tareas/:id/documentos`), que son la única superficie de
-lectura real para esas dos categorías.
+lectura real para esas dos categorías. `/proyectos/:id/evidencias` y
+`/proyectos/:id/riesgos` pasaron a `exigirParticipacionProyecto()` en el
+paso 14 DGTIC (sección 5.1) — ya no viven en esta regla.
 
 ### 7.3 Bloque B — directorio de usuarios
 
@@ -445,6 +513,16 @@ todo, sin tocar membresía. `enlace`/`externo` nunca llevan bono.
 en la sección 5): `acciones.controller.js::agenda` resuelve siempre por
 el id propio del usuario, nunca por `id_dg` — un director no hereda ahí
 los pendientes de los enlaces de su DG.
+
+Este bono es un mecanismo aparte de la vía `direccion_dg` de
+`funcionEfectivaEnProyecto` (sección 2.1, paso 14 DGTIC) — mismo criterio
+(`id_dg_lider === usuario.id_dg`), pero resuelto por código distinto para
+un propósito distinto: este acota QUÉ PROYECTOS entran en una vista
+personalizada (Tablero, Documentos...); la vía de la escalera decide si
+`direccion` VE EL CONTENIDO DE TRABAJO (sección 5.1) de un proyecto que
+ya tenía abierto por `puedeVerProyecto`. No competir por la lectura
+estructural (que ya era total) fue la razón de no reusar este mismo
+`alcanceProyectosUsuario` para eso.
 
 ### 9.2 Grupo 1 — ya conectados, ganan el bono sin cambio de código propio
 
@@ -1065,6 +1143,14 @@ contra `'externo'`, un valor que ese campo nunca tiene — así que el
   nunca se validó contra deficiencias de visión de color** (sección
   11.2) — preexistente a este PR, que solo lo hizo más visible al
   intentar atenuar el punto.
+- **`GET /inicio` (Tablero) y `obtenerRiesgosAbiertos`/`obtenerActividadReciente`
+  de `inicio.queries.js`**: mezclan proyectos de varias DG en una sola
+  llamada, sin una participación única que aplicarles a todos — en vez de
+  resolverla por fila, quedan siempre del lado seguro (contenido de
+  trabajo redactado también para quien sí participa en algún proyecto de
+  ese tablero, incluido `ejecutivo`/`direccion` en proyectos de su propia
+  DG). Corregirlo por fila es trabajo aparte, fuera de este paso (14
+  DGTIC), que se limitó al contenido de trabajo DENTRO de un proyecto.
 - **`text-gray-500` (chips/contadores del panel) y `text-gray-400`
   (leyendas como "Calculado desde sus acciones.") no pasan 4.5:1 contra
   el fondo `bg-gray-150` del panel bloqueado** (4.16:1 y 2.18:1 — ambos

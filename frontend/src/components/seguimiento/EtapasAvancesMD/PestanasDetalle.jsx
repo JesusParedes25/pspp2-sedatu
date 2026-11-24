@@ -120,7 +120,7 @@ export default function PestanasDetalle({
 
         <div className={activa === 'comentarios' ? '' : 'hidden'}>
           <PestanaComentarios
-            tipo={tipo} id={id} permisos={permisos}
+            tipo={tipo} id={id} nodo={nodo} proyectoId={proyectoId} permisos={permisos}
             onCambiado={onCambiado}
             onContador={onContadorComentarios}
           />
@@ -128,7 +128,7 @@ export default function PestanasDetalle({
 
         <div className={activa === 'documentos' ? '' : 'hidden'}>
           <PestanaDocumentos
-            tipo={tipo} id={id} permisos={permisos} permisosProyecto={permisosProyecto}
+            tipo={tipo} id={id} nodo={nodo} proyectoId={proyectoId} permisos={permisos} permisosProyecto={permisosProyecto}
             onCambiado={onCambiado} mostrarToast={mostrarToast} onNavegarNodo={onNavegarNodo}
             onContador={onContadorDocumentos}
             altaSolicitada={accionRapida === 'documentos'}
@@ -156,7 +156,7 @@ export default function PestanasDetalle({
 
         <div className={activa === 'riesgos' ? '' : 'hidden'}>
           <PestanaRiesgos
-            tipo={tipo} id={id} proyectoId={proyectoId} permisos={permisos} onCambiado={onCambiado} mostrarToast={mostrarToast} onNavegarNodo={onNavegarNodo}
+            tipo={tipo} id={id} nodo={nodo} proyectoId={proyectoId} permisos={permisos} onCambiado={onCambiado} mostrarToast={mostrarToast} onNavegarNodo={onNavegarNodo}
             onContador={onContadorRiesgos}
             altaSolicitada={accionRapida === 'riesgos'}
             onAltaConsumida={onAccionRapidaConsumida}

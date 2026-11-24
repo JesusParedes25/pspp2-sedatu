@@ -15,22 +15,27 @@
  * ─────────────────────────────────────────────────────────────────
  */
 const statsQueries = require('../db/queries/proyectos.stats.queries');
+const { puedeVerContenidoProyecto } = require('../utils/autorizacion');
 
 // GET /proyectos/:id/stats
 async function obtenerStats(req, res, next) {
   try {
     const proyectoId = req.params.id;
+    // Participación resuelta UNA sola vez aquí (paso 14 DGTIC) — solo
+    // afecta actividad/riesgos_detalle (ver abajo); el resto son conteos
+    // y fichas de seguimiento, siempre abiertos.
+    const tieneParticipacion = await puedeVerContenidoProyecto({ usuario: req.usuario, idProyecto: proyectoId });
 
     // Ejecutar todas las queries en paralelo
     const [acciones, evidencias, riesgos, actividad, accionesResumen, atrasadas, proximasAVencer, riesgosDetalle, indicadores] = await Promise.all([
       statsQueries.contarAccionesPorEstado(proyectoId),
       statsQueries.contarEvidenciasProyecto(proyectoId),
       statsQueries.contarRiesgosActivos(proyectoId),
-      statsQueries.obtenerActividadReciente(proyectoId),
+      statsQueries.obtenerActividadReciente(proyectoId, tieneParticipacion),
       statsQueries.obtenerAccionesResumen(proyectoId),
       statsQueries.obtenerAtrasadas(proyectoId),
       statsQueries.obtenerProximasAVencer(proyectoId),
-      statsQueries.obtenerRiesgosDetalle(proyectoId),
+      statsQueries.obtenerRiesgosDetalle(proyectoId, tieneParticipacion),
       statsQueries.obtenerIndicadoresConProgreso(proyectoId),
     ]);
 

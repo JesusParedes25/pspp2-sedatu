@@ -7,6 +7,7 @@ const pool = require('../pool');
 const { condicionRiesgoDeProyecto } = require('../../utils/condicion-riesgo');
 const { condicionAccionesPorCompletar } = require('../../utils/condicion-actividades-por-completar');
 const { calcularAvancePorcentaje } = require('../../utils/indicador-calculo');
+const { redactar } = require('../../utils/redaccion-contenido-trabajo');
 
 /**
  * Obtiene los proyectos del usuario (donde es miembro o creador).
@@ -90,7 +91,13 @@ async function obtenerPorVencer(proyectoIds) {
 /**
  * Riesgos abiertos del usuario, agrupados por proyecto.
  */
-async function obtenerRiesgosAbiertos(proyectoIds) {
+// `tieneParticipacion` (paso 14 DGTIC, default false): sin ella se
+// redacta `titulo` (la sustancia del riesgo) — nivel/estado/ubicación se
+// quedan, son seguimiento. Ningún llamador la pasa hoy (este dashboard
+// mezcla proyectos de distintas DG en una sola llamada, sin una
+// participación única que aplicarles a todos) — queda siempre redactado,
+// del lado seguro, en vez de evaluar participación por fila.
+async function obtenerRiesgosAbiertos(proyectoIds, tieneParticipacion = false) {
   if (!proyectoIds || proyectoIds.length === 0) return [];
   const { rows } = await pool.query(`
     SELECT
@@ -146,7 +153,7 @@ async function obtenerRiesgosAbiertos(proyectoIds) {
     ORDER BY nivel, created_at DESC
     LIMIT 15
   `, [proyectoIds]);
-  return rows;
+  return rows.map((row) => ({ ...row, titulo: redactar(row.titulo, tieneParticipacion) }));
 }
 
 /**
@@ -244,7 +251,15 @@ async function obtenerIndicadoresAgregados(proyectoIds) {
 // dentro de su jerarquía. Cada LEFT JOIN solo puede coincidir para el
 // entidad_tipo que le corresponde, así que en cualquier fila a lo más una
 // rama de cada nivel tiene datos; el resto queda NULL.
-async function obtenerActividadReciente(proyectoIds) {
+// `tieneParticipacion` (paso 14 DGTIC, default false): sin ella se
+// redacta `descripcion` solo para tipo 'comentario' (el único tipo de
+// actividad_log con texto libre sensible — 'evidencia' aquí solo guarda
+// un rótulo genérico, nunca el nombre del archivo, ver actividad-log.js).
+// Los llamadores de un solo proyecto (proyectos.controller.js::actividadReciente,
+// panorama.controller.js::obtenerPanoramaRapido) la pasan ya resuelta;
+// GET /inicio (inicio.controller.js) mezcla proyectos de varias DG en una
+// sola llamada y no la pasa — queda siempre redactado ahí, del lado seguro.
+async function obtenerActividadReciente(proyectoIds, tieneParticipacion = false) {
   if (!proyectoIds || proyectoIds.length === 0) return [];
   const { rows } = await pool.query(`
     SELECT
@@ -289,7 +304,11 @@ async function obtenerActividadReciente(proyectoIds) {
     ORDER BY al.created_at DESC
     LIMIT 50
   `, [proyectoIds]);
-  return rows;
+  return rows.map((row) => (
+    row.tipo === 'comentario'
+      ? { ...row, descripcion: redactar(row.descripcion, tieneParticipacion) }
+      : row
+  ));
 }
 
 // Estatus cualitativo — la nota corta de texto libre por nodo

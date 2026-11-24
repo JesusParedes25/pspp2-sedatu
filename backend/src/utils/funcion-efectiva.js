@@ -117,6 +117,26 @@ async function funcionEfectivaEnProyecto(usuario, idProyecto, db) {
     candidato = masAlto(candidato, { peldano: 'responsable', via: 'ejecutivo_dg' });
   }
 
+  // Paso 14 DGTIC: 'direccion' de la misma DG que lidera el proyecto gana
+  // 'lectura' aunque no participe — es responsable institucional de esos
+  // proyectos y necesita ver su contenido de trabajo (comentarios,
+  // documentos, riesgos), no solo su estructura y avance (eso ya era
+  // visible para cualquier interno vía puedeVerProyecto, sección 5 del
+  // modelo de permisos). Tope deliberado en 'lectura', nunca más alto:
+  // el bono de DG de 'ejecutivo' llega a 'responsable' porque ya existía
+  // así desde antes de este paso; extenderle lo mismo a 'direccion' le
+  // daría edición automática sobre proyectos donde no participa, que la
+  // Fase 1 retiró a propósito (ver docs/modelo-permisos.md, sección 1) y
+  // que este paso no busca revertir — solo visibilidad.
+  if (
+    usuario.rol === 'direccion' &&
+    usuario.id_dg != null &&
+    proyecto.id_dg_lider != null &&
+    usuario.id_dg === proyecto.id_dg_lider
+  ) {
+    candidato = masAlto(candidato, { peldano: 'lectura', via: 'direccion_dg' });
+  }
+
   return candidato;
 }
 

@@ -14,17 +14,25 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useEffect, useRef } from 'react';
-import { MessageSquare, Send, ChevronUp } from 'lucide-react';
+import { MessageSquare, Send, ChevronUp, Lock } from 'lucide-react';
 import * as comentariosApi from '../../api/comentarios';
 import ComentarioItem from './ComentarioItem';
 import { useCandado } from '../../hooks/useEnvioUnico';
+import { esSinParticipacion } from '../../utils/erroresPermisos';
+import BotonSolicitarParticipar from '../proyectos/BotonSolicitarParticipar';
 
 // soloLectura: quien no participa en el proyecto lee el hilo pero no
 // escribe en él. El servidor aplica la misma regla en POST /comentarios,
 // así que sin esto el botón existía y la petición fallaba con 403.
-export default function HiloComentarios({ entidadTipo, entidadId, compacto = true, onStatsChange, soloLectura = false }) {
+//
+// `proyectoId`/`nodo`/`permisos`: solo para el botón de "Solicitar
+// participar" cuando GET /comentarios rechaza con SIN_PARTICIPACION (paso
+// 14 DGTIC) — leer el hilo es ahora contenido de trabajo, no solo
+// visibilidad, así que alguien sin participación real ya no puede verlo.
+export default function HiloComentarios({ entidadTipo, entidadId, compacto = true, onStatsChange, soloLectura = false, proyectoId, nodo, permisos }) {
   const [comentarios, setComentarios] = useState([]);
   const [cargando, setCargando] = useState(false);
+  const [reservado, setReservado] = useState(false);
   const [abierto, setAbierto] = useState(!compacto);
   const [nuevoTexto, setNuevoTexto] = useState('');
   const [respondiendo, setRespondiendo] = useState(null); // id del comentario al que se responde
@@ -44,8 +52,10 @@ export default function HiloComentarios({ entidadTipo, entidadId, compacto = tru
       try {
         const res = await comentariosApi.obtenerComentarios(entidadTipo, entidadId);
         setComentarios(res.datos || []);
+        setReservado(false);
       } catch (err) {
         console.error('Error cargando comentarios:', err);
+        setReservado(esSinParticipacion(err));
       } finally {
         setCargando(false);
       }
@@ -134,6 +144,14 @@ export default function HiloComentarios({ entidadTipo, entidadId, compacto = tru
       {/* Lista de comentarios */}
       {cargando ? (
         <p className="text-xs text-gray-400 py-2">Cargando...</p>
+      ) : reservado ? (
+        <div className="flex items-center justify-between gap-2 flex-wrap py-2">
+          <span className="flex items-center gap-1.5 text-xs text-gray-400">
+            <Lock size={12} />
+            Este hilo es solo para quienes participan en el proyecto.
+          </span>
+          <BotonSolicitarParticipar proyecto={{ id: proyectoId }} permisos={permisos} nodo={nodo} />
+        </div>
       ) : comentarios.length > 0 ? (
         <div className="space-y-3 mb-3">
           {comentarios.map(c => (
@@ -190,7 +208,7 @@ export default function HiloComentarios({ entidadTipo, entidadId, compacto = tru
       ) : null}
 
       {/* Input para nuevo comentario */}
-      {soloLectura ? (
+      {reservado ? null : soloLectura ? (
         <p className="text-xs text-gray-400 italic">
           Solo consulta. Para comentar aquí necesitas participar en este proyecto.
         </p>

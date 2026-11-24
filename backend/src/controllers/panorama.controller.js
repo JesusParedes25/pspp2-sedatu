@@ -8,6 +8,7 @@ const etapasQueries = require('../db/queries/etapas.queries');
 const inicioQueries = require('../db/queries/inicio.queries');
 const { semaforoEfectivo } = require('../utils/avance-semaforo');
 const { calcularAvancePorcentaje } = require('../utils/indicador-calculo');
+const { puedeVerContenidoProyecto } = require('../utils/autorizacion');
 
 // GET /proyectos/:id/panorama
 async function obtenerPanorama(req, res, next) {
@@ -33,6 +34,11 @@ async function obtenerPanorama(req, res, next) {
       return res.status(404).json({ mensaje: 'Proyecto no encontrado' });
     }
 
+    // Participación resuelta UNA sola vez aquí (paso 14 DGTIC) — solo
+    // afecta riesgos/actividad (ver abajo); el resto del Panorama es
+    // seguimiento, siempre abierto.
+    const tieneParticipacion = await puedeVerContenidoProyecto({ usuario: req.usuario, idProyecto: proyectoId });
+
     // Fetch all panorama data in parallel
     const [miembros, indicadores, cobertura, vencidos, porVencer, riesgos, actividad, estatusCualitativo] = await Promise.all([
       obtenerTodosParticipantes(proyectoId),
@@ -40,8 +46,8 @@ async function obtenerPanorama(req, res, next) {
       obtenerCoberturaProyecto(proyectoId),
       statsQueries.obtenerAtrasadas(proyectoId),
       statsQueries.obtenerProximasAVencer(proyectoId),
-      statsQueries.obtenerRiesgosDetalle(proyectoId),
-      statsQueries.obtenerActividadReciente(proyectoId),
+      statsQueries.obtenerRiesgosDetalle(proyectoId, tieneParticipacion),
+      statsQueries.obtenerActividadReciente(proyectoId, tieneParticipacion),
       // Estatus cualitativo de las etapas de ESTE proyecto. Se reusa la
       // consulta del Tablero pasándole un solo proyecto, para no tener
       // dos definiciones del mismo dato.
@@ -283,10 +289,13 @@ async function obtenerTodosParticipantes(proyectoId) {
 async function obtenerPanoramaRapido(req, res, next) {
   try {
     const proyectoId = req.params.id;
+    // Participación resuelta UNA sola vez aquí (paso 14 DGTIC) — solo
+    // afecta `actividad` (ver abajo).
+    const tieneParticipacion = await puedeVerContenidoProyecto({ usuario: req.usuario, idProyecto: proyectoId });
     const [etapas, estatusCualitativo, actividad] = await Promise.all([
       etapasQueries.obtenerEtapasPorProyecto(proyectoId),
       inicioQueries.obtenerEstatusCualitativo([proyectoId]),
-      inicioQueries.obtenerActividadReciente([proyectoId]),
+      inicioQueries.obtenerActividadReciente([proyectoId], tieneParticipacion),
     ]);
 
     res.json({

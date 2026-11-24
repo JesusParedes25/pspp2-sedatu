@@ -15,8 +15,10 @@ import * as archivosApi from '../../../api/archivos';
 import ModalAccionNodo from './ModalAccionNodo';
 import SeccionArchivosNodo from '../../nodos/SeccionArchivosNodo';
 import FilePreviewModal from '../../evidencias/FilePreviewModal';
+import ContenidoReservado from '../../proyectos/ContenidoReservado';
 import CATEGORIAS_EVIDENCIA from '../categoriasEvidencia';
 import { formatFecha } from '../../../utils/fecha';
+import { esSinParticipacion } from '../../../utils/erroresPermisos';
 
 const NIVEL_LABEL = { etapa: 'Etapa', accion: 'Acción', tarea: 'Tarea' };
 
@@ -35,10 +37,11 @@ function fuenteDoc(doc) {
   return doc.fuente === 'tarea' ? archivosApi.fuenteActividad(doc.id) : archivosApi.fuenteEvidencia(doc.id);
 }
 
-export default function PestanaDocumentos({ tipo, id, permisos, permisosProyecto, onCambiado, onContador, onNavegarNodo, altaSolicitada, onAltaConsumida }) {
+export default function PestanaDocumentos({ tipo, id, nodo, proyectoId, permisos, permisosProyecto, onCambiado, onContador, onNavegarNodo, altaSolicitada, onAltaConsumida }) {
   const [incluirHijos, setIncluirHijos] = useState(true);
   const [documentos, setDocumentos] = useState(null);
   const [cargando, setCargando] = useState(true);
+  const [reservado, setReservado] = useState(false);
   const [mostrarAlta, setMostrarAlta] = useState(false);
   const [evidenciasPropias, setEvidenciasPropias] = useState(null);
   const [previewItem, setPreviewItem] = useState(null);
@@ -49,9 +52,11 @@ export default function PestanaDocumentos({ tipo, id, permisos, permisosProyecto
       const res = await evidenciasApi.obtenerDocumentosAgregados(tipo, id, incluirHijos);
       const datos = res.datos || [];
       setDocumentos(datos);
+      setReservado(false);
       if (incluirHijos) onContador?.(datos.length);
-    } catch {
+    } catch (err) {
       setDocumentos([]);
+      setReservado(esSinParticipacion(err));
       if (incluirHijos) onContador?.(0);
     } finally {
       setCargando(false);
@@ -106,6 +111,10 @@ export default function PestanaDocumentos({ tipo, id, permisos, permisosProyecto
     // altaSolicitada/onAltaConsumida (sí estables) deben disparar esto.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [altaSolicitada, onAltaConsumida]);
+
+  if (reservado) {
+    return <ContenidoReservado proyectoId={proyectoId} nodo={{ tipo, id, nombre: nodo?.nombre }} permisos={permisos} />;
+  }
 
   return (
     <div>

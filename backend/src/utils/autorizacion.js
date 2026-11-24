@@ -115,6 +115,23 @@ async function puedeEditarNodo({ usuario, tipoNodo, idNodo }, db) {
   return tienePeldanoNodo(usuario, tipoNodo, idNodo, 'captura', db);
 }
 
+// ─── ¿Puede VER el CONTENIDO DE TRABAJO (comentarios, documentos y
+// evidencias, riesgos) de un proyecto o nodo? (paso 14 DGTIC) ──────
+// A diferencia de puedeVerProyecto (visibilidad total entre internos),
+// esto exige una vía real de funcionEfectiva — participar de verdad
+// (creador, invitación, bono de DG), no solo pertenecer a la Secretaría.
+// La estructura y el avance siguen siendo visibles para cualquier
+// interno vía puedeVerProyecto (sin cambios); esto es exclusivamente
+// para el contenido de trabajo, que es discusión de equipo, puede traer
+// información sensible, o es el reconocimiento de que algo va mal.
+async function puedeVerContenidoProyecto({ usuario, idProyecto }, db) {
+  return tienePeldanoProyecto(usuario, idProyecto, 'lectura', db);
+}
+
+async function puedeVerContenidoNodo({ usuario, tipoNodo, idNodo }, db) {
+  return tienePeldanoNodo(usuario, tipoNodo, idNodo, 'lectura', db);
+}
+
 // ─── ¿Puede GESTIONAR PARTICIPANTES (invitar, cambiar función, retirar)? ──
 // Responsable sobre el elemento — a nivel proyecto, incluye a todo el
 // proyecto y sus descendientes; a nivel nodo, solo ese nodo y los suyos.
@@ -209,4 +226,6 @@ module.exports = {
   puedeEditarNodo,
   puedeGestionarNodo,
   puedeGestionarParticipantesNodo,
+  puedeVerContenidoProyecto,
+  puedeVerContenidoNodo,
 };

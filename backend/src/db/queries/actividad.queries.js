@@ -18,6 +18,7 @@
  */
 const pool = require('../pool');
 const { idsDescendientes } = require('../../utils/descendientes-nodo');
+const { redactar } = require('../../utils/redaccion-contenido-trabajo');
 
 // Resuelve id_proyecto/id_etapa/id_accion/id_tarea a partir de tipo+id de nodo,
 // para poder insertar una fila de actividad con la atribución correcta.
@@ -48,7 +49,14 @@ async function resolverContextoNodo(tipoNodo, idNodo, client = pool) {
 // cambio_estatus/cambio_avance, y comentario/archivo/riesgo para tareas,
 // que nunca tuvieron soporte en el modelo viejo). Sin este merge, el stream
 // nuevo se veía "vacío" aunque el nodo ya tuviera historial real.
-async function obtenerActividadNodo(tipoNodo, idNodo, limite = 1000) {
+// `tieneParticipacion` (paso 14 DGTIC, default false — fallar cerrado):
+// sin ella se redacta `contenido` para 'comentario'/'riesgo', y además
+// `archivo_url`/`archivo_nombre` para 'archivo' (el nombre y la liga del
+// documento son la parte sensible, no solo que exista uno). 'miembro' y
+// los cambios de avance/estatus/estatus-cualitativo (tipo_evento crudo de
+// la tabla `actividad`) no se tocan: son seguimiento/gobierno del equipo,
+// no contenido de trabajo (ver docs/modelo-permisos.md 5.1).
+async function obtenerActividadNodo(tipoNodo, idNodo, limite = 1000, tieneParticipacion = false) {
   const { etapaIds, accionIds, tareaIds } = await idsDescendientes(tipoNodo, idNodo);
 
   const condicionesAct = [];
@@ -164,7 +172,22 @@ async function obtenerActividadNodo(tipoNodo, idNodo, limite = 1000) {
   );
 
   const [nuevos, comentarios, evidencias, riesgos, miembros] = await Promise.all(promesas);
-  return [...nuevos, ...comentarios, ...evidencias, ...riesgos, ...miembros]
+  const combinado = [...nuevos, ...comentarios, ...evidencias, ...riesgos, ...miembros];
+  const redactado = combinado.map((row) => {
+    if (row.tipo_evento === 'comentario' || row.tipo_evento === 'riesgo') {
+      return { ...row, contenido: redactar(row.contenido, tieneParticipacion) };
+    }
+    if (row.tipo_evento === 'archivo') {
+      return {
+        ...row,
+        contenido: redactar(row.contenido, tieneParticipacion),
+        archivo_url: redactar(row.archivo_url, tieneParticipacion),
+        archivo_nombre: redactar(row.archivo_nombre, tieneParticipacion),
+      };
+    }
+    return row;
+  });
+  return redactado
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     .slice(0, limite);
 }

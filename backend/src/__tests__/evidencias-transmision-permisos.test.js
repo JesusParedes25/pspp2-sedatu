@@ -25,6 +25,10 @@ jest.mock('../utils/autorizacion', () => ({
   ...jest.requireActual('../utils/autorizacion'),
   puedeVerProyecto: jest.fn(),
   obtenerProyectoIdDeNodo: jest.fn(),
+  // La transmisión de evidencias exige participación (paso 14 DGTIC), no
+  // solo visibilidad — alcance-lectura.js llama a estas, no a puedeVerProyecto.
+  tienePeldanoProyecto: jest.fn(),
+  tienePeldanoNodo: jest.fn(),
 }));
 const mockAlmacen = {
   statObject: jest.fn(),
@@ -84,7 +88,7 @@ beforeEach(() => {
 });
 
 test.each(['ver', 'descargar'])('/%s sin permiso → 403 y el almacén ni se consulta', async (accion) => {
-  autorizacion.puedeVerProyecto.mockResolvedValue(false);
+  autorizacion.tienePeldanoNodo.mockResolvedValue(false);
   const r = await fetch(`${base}/evidencias/${EVIDENCIA.id}/${accion}`, { headers: CABECERA });
   expect(r.status).toBe(403);
   expect(mockAlmacen.statObject).not.toHaveBeenCalled();
@@ -92,7 +96,7 @@ test.each(['ver', 'descargar'])('/%s sin permiso → 403 y el almacén ni se con
 });
 
 test('/ver con permiso → inline; /descargar con permiso → attachment', async () => {
-  autorizacion.puedeVerProyecto.mockResolvedValue(true);
+  autorizacion.tienePeldanoNodo.mockResolvedValue(true);
   const ver = await fetch(`${base}/evidencias/${EVIDENCIA.id}/ver`, { headers: CABECERA });
   expect(ver.status).toBe(200);
   expect(ver.headers.get('content-disposition')).toMatch(/^inline;/);
@@ -105,7 +109,7 @@ test('/ver con permiso → inline; /descargar con permiso → attachment', async
 });
 
 test('la clave del objeto sale de la BD, no de lo que mande el cliente', async () => {
-  autorizacion.puedeVerProyecto.mockResolvedValue(true);
+  autorizacion.tienePeldanoNodo.mockResolvedValue(true);
   await fetch(`${base}/evidencias/${EVIDENCIA.id}/descargar?ruta=otra/clave.pdf&key=x`, {
     headers: { ...CABECERA, 'X-Object-Key': 'otra/clave.pdf' },
   });
@@ -128,7 +132,7 @@ test('evidencia inexistente → 403 (no revela si el id existe) y sin tocar el a
 });
 
 test('con permiso pero el objeto ya no está en el almacén → 404', async () => {
-  autorizacion.puedeVerProyecto.mockResolvedValue(true);
+  autorizacion.tienePeldanoNodo.mockResolvedValue(true);
   mockAlmacen.statObject.mockRejectedValue(Object.assign(new Error('nf'), { code: 'NotFound' }));
   const r = await fetch(`${base}/evidencias/${EVIDENCIA.id}/descargar`, { headers: CABECERA });
   expect(r.status).toBe(404);
@@ -137,6 +141,6 @@ test('con permiso pero el objeto ya no está en el almacén → 404', async () =
 test('sin cabecera ni boleto → 401, sin consultar permisos ni almacén', async () => {
   const r = await fetch(`${base}/evidencias/${EVIDENCIA.id}/descargar`);
   expect(r.status).toBe(401);
-  expect(autorizacion.puedeVerProyecto).not.toHaveBeenCalled();
+  expect(autorizacion.tienePeldanoNodo).not.toHaveBeenCalled();
   expect(mockAlmacen.statObject).not.toHaveBeenCalled();
 });

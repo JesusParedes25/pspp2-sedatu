@@ -19,15 +19,18 @@
  */
 const { Router } = require('express');
 const { autenticarArchivo } = require('../middleware/auth.middleware');
-const { exigirVisibilidadEvidencia, exigirVisibilidadActividadPorId } = require('../utils/alcance-lectura');
+const { exigirParticipacionEvidencia, exigirParticipacionActividadPorId } = require('../utils/alcance-lectura');
 const evidenciasController = require('../controllers/evidencias.controller');
 const actividadController = require('../controllers/actividad.controller');
 
 const router = Router();
 
-router.get('/evidencias/:id/ver', autenticarArchivo('evidencia', 'ver'), exigirVisibilidadEvidencia(), evidenciasController.ver);
-router.get('/evidencias/:id/descargar', autenticarArchivo('evidencia', 'descargar'), exigirVisibilidadEvidencia(), evidenciasController.descargar);
-router.get('/actividad/:id/ver', autenticarArchivo('actividad', 'ver'), exigirVisibilidadActividadPorId(), actividadController.ver);
-router.get('/actividad/:id/descargar', autenticarArchivo('actividad', 'descargar'), exigirVisibilidadActividadPorId(), actividadController.descargar);
+// Transmitir el archivo en sí es contenido de trabajo (paso 14 DGTIC):
+// exige participación real sobre el nodo/proyecto dueño, no solo
+// visibilidad total entre internos.
+router.get('/evidencias/:id/ver', autenticarArchivo('evidencia', 'ver'), exigirParticipacionEvidencia(), evidenciasController.ver);
+router.get('/evidencias/:id/descargar', autenticarArchivo('evidencia', 'descargar'), exigirParticipacionEvidencia(), evidenciasController.descargar);
+router.get('/actividad/:id/ver', autenticarArchivo('actividad', 'ver'), exigirParticipacionActividadPorId(), actividadController.ver);
+router.get('/actividad/:id/descargar', autenticarArchivo('actividad', 'descargar'), exigirParticipacionActividadPorId(), actividadController.descargar);
 
 module.exports = router;

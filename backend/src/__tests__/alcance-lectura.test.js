@@ -11,6 +11,13 @@
  *            se mockea ../db/pool (las filas que resuelven a qué proyecto
  *            pertenece cada entidad).
  *
+ * Cubre solo las fábricas de VISIBILIDAD (exigirVisibilidad*). Las de
+ * riesgos/evidencias/actividad-por-id se reclasificaron a PARTICIPACIÓN
+ * en el paso 14 DGTIC (contenido de trabajo, no seguimiento) y se
+ * eliminaron de este archivo — las fábricas exigirParticipacion* viven
+ * en participacion-contenido-trabajo-router-real.test.js, con el mismo
+ * método de router real que paso 13, no con mocks de middleware aislado.
+ *
  * Ejecutar: npm test
  */
 
@@ -19,18 +26,15 @@ const pool = require('../db/pool');
 const {
   exigirVisibilidadProyecto, exigirVisibilidadNodo, exigirVisibilidadNodoEnParams,
   exigirVisibilidadEntidadEnParams,
-  exigirVisibilidadDeEntidadEnQuery, exigirVisibilidadRiesgo, exigirVisibilidadIndicador,
-  exigirVisibilidadEvidencia, exigirVisibilidadActividadPorId, exigirSoloInternos,
+  exigirVisibilidadDeEntidadEnQuery, exigirVisibilidadIndicador,
+  exigirSoloInternos,
 } = require('../utils/alcance-lectura');
 
 const PROYECTO_A = '00000000-0000-0000-0000-0000000000a1';
 const ETAPA_A = '00000000-0000-0000-0000-0000000000a2';
 const ACCION_A = '00000000-0000-0000-0000-0000000000a3';
 const TAREA_A = '00000000-0000-0000-0000-0000000000a4';
-const RIESGO_A = '00000000-0000-0000-0000-0000000000a5';
 const INDICADOR_A = '00000000-0000-0000-0000-0000000000a6';
-const EVIDENCIA_A = '00000000-0000-0000-0000-0000000000a7';
-const ACTIVIDAD_A = '00000000-0000-0000-0000-0000000000a8';
 const ID_EXTERNO = '00000000-0000-0000-0000-0000000000e1';
 const ID_ENLACE = '00000000-0000-0000-0000-0000000000e2';
 
@@ -59,16 +63,7 @@ function mockPool(membresia = []) {
     if (/FROM tareas WHERE id = \$1/.test(sql)) {
       return Promise.resolve({ rows: [{ id_accion: ACCION_A }] });
     }
-    if (/FROM riesgos WHERE id = \$1/.test(sql)) {
-      return Promise.resolve({ rows: [{ entidad_tipo: 'Proyecto', entidad_id: PROYECTO_A }] });
-    }
     if (/FROM indicadores WHERE id = \$1/.test(sql)) {
-      return Promise.resolve({ rows: [{ id_proyecto: PROYECTO_A }] });
-    }
-    if (/FROM evidencias WHERE id = \$1/.test(sql)) {
-      return Promise.resolve({ rows: [{ id_etapa: ETAPA_A, id_accion: null, id_subaccion: null, id_riesgo: null }] });
-    }
-    if (/FROM actividad WHERE id = \$1/.test(sql)) {
       return Promise.resolve({ rows: [{ id_proyecto: PROYECTO_A }] });
     }
     return Promise.resolve({ rows: [] });
@@ -87,10 +82,7 @@ const CASOS = [
   { nombre: "exigirVisibilidadNodo('tarea')", mw: () => exigirVisibilidadNodo('tarea'), req: () => ({ params: { id: TAREA_A } }) },
   { nombre: 'exigirVisibilidadNodoEnParams (actividad)', mw: () => exigirVisibilidadNodoEnParams(), req: () => ({ params: { tipo_nodo: 'etapa', id_nodo: ETAPA_A } }) },
   { nombre: 'exigirVisibilidadDeEntidadEnQuery (comentarios/bloqueos)', mw: () => exigirVisibilidadDeEntidadEnQuery(), req: () => ({ query: { entidad_tipo: 'Etapa', entidad_id: ETAPA_A } }) },
-  { nombre: 'exigirVisibilidadRiesgo', mw: () => exigirVisibilidadRiesgo(), req: () => ({ params: { id: RIESGO_A } }) },
   { nombre: 'exigirVisibilidadIndicador', mw: () => exigirVisibilidadIndicador(), req: () => ({ params: { id: INDICADOR_A } }) },
-  { nombre: 'exigirVisibilidadEvidencia', mw: () => exigirVisibilidadEvidencia(), req: () => ({ params: { id: EVIDENCIA_A } }) },
-  { nombre: 'exigirVisibilidadActividadPorId', mw: () => exigirVisibilidadActividadPorId(), req: () => ({ params: { id: ACTIVIDAD_A } }) },
   // Fase 2 / Paso 2, Grupo 3: cobertura/mapa-territorial de un solo
   // proyecto/nodo — mismo tratamiento Paso 1 (lectura total entre
   // internos), tipo dinámico en la propia ruta (GET /cobertura/:tipo/:id).
