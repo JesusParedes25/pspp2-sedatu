@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import { Eye, EyeOff, Lock, Mail, Loader2, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useUI } from '../context/UIContext';
+import { mensajeDeError } from '../api/transferencias';
 
 // Mensaje según POR QUÉ se cerró la sesión (api/client.js guarda el
 // motivo, no solo "sí/no") — "vuelve a entrar" es la acción en los
@@ -61,7 +62,7 @@ export default function Login() {
       await login(correo, password);
       mostrarToast('Bienvenido a PSPP', 'exito');
     } catch (err) {
-      setError(err.response?.data?.mensaje || 'Credenciales incorrectas. Verifica tu correo y contraseña.');
+      setError(mensajeDeError(err, 'Credenciales incorrectas. Verifica tu correo y contraseña.'));
     } finally {
       setCargando(false);
     }

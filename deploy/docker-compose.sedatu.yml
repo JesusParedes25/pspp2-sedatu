@@ -116,6 +116,17 @@ services:
       CORREO_REMITENTE: ${CORREO_REMITENTE:-}
       CORREO_REMITENTE_NOMBRE: ${CORREO_REMITENTE_NOMBRE:-PSPP}
 
+      # ─── Límite de peticiones (paso 9 DGTIC) ───────────────────────
+      # Cadena real aquí: navegador → F5 → nginx institucional →
+      # backend, DOS saltos. Detalle en deploy/README.md, sección 13.
+      PROXY_SALTOS_CONFIABLES: ${PROXY_SALTOS_CONFIABLES:-2}
+      LIMITE_PETICIONES_LOGIN_VENTANA_MIN: ${LIMITE_PETICIONES_LOGIN_VENTANA_MIN:-15}
+      LIMITE_PETICIONES_LOGIN_MAX: ${LIMITE_PETICIONES_LOGIN_MAX:-10}
+      LIMITE_PETICIONES_RECUPERACION_VENTANA_MIN: ${LIMITE_PETICIONES_RECUPERACION_VENTANA_MIN:-60}
+      LIMITE_PETICIONES_RECUPERACION_MAX: ${LIMITE_PETICIONES_RECUPERACION_MAX:-5}
+      LIMITE_PETICIONES_API_VENTANA_MIN: ${LIMITE_PETICIONES_API_VENTANA_MIN:-15}
+      LIMITE_PETICIONES_API_MAX: ${LIMITE_PETICIONES_API_MAX:-600}
+
     # Permite usar DB_HOST/MINIO_ENDPOINT=host.docker.internal cuando el
     # servicio de la DGTIC escucha en el propio servidor (desde dentro del
     # contenedor, 127.0.0.1 es el contenedor, no el servidor).

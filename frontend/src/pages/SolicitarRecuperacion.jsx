@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Mail, Loader2, CheckCircle2 } from 'lucide-react';
 import * as authApi from '../api/auth';
+import { mensajeDeError } from '../api/transferencias';
 
 export default function SolicitarRecuperacion() {
   const [correo, setCorreo] = useState('');
@@ -22,7 +23,7 @@ export default function SolicitarRecuperacion() {
       await authApi.solicitarRecuperacion(correo);
       setEnviado(true);
     } catch (err) {
-      setError(err.response?.data?.mensaje || 'Ocurrió un error. Intenta de nuevo.');
+      setError(mensajeDeError(err, 'Ocurrió un error. Intenta de nuevo.'));
     } finally {
       setCargando(false);
     }

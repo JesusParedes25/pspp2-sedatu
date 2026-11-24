@@ -67,6 +67,13 @@ services:
       SMTP_SEGURO: ${SMTP_SEGURO}
       CORREO_REMITENTE: ${CORREO_REMITENTE}
       CORREO_REMITENTE_NOMBRE: ${CORREO_REMITENTE_NOMBRE}
+      # Sin nginx delante en dev (el backend se publica directo en 3000):
+      # 0 saltos de proxy, no 1. Límites generosos a propósito, para que
+      # probar el login a mano durante el desarrollo no se bloquee solo
+      # — en producción (.env.example) llevan los valores estrictos.
+      PROXY_SALTOS_CONFIABLES: 0
+      LIMITE_PETICIONES_LOGIN_MAX: 1000
+      LIMITE_PETICIONES_RECUPERACION_MAX: 1000
       PORT: 3000
       PASSWORD_USER: ${PASSWORD_USER}
       SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL}

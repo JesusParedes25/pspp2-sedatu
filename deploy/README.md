@@ -216,6 +216,96 @@ systemctl reload nginx
 `nginx -t` valida la sintaxis antes de aplicar nada; si marca error,
 nginx sigue corriendo con la configuración anterior, no se cae.
 
+### Content-Security-Policy (CSP, paso 9 DGTIC — NOF-2)
+
+Va en `deploy/nginx/pspp.conf` (nativo) y `nginx/default.conf` (Docker,
+`pspp.geobint.com`), a nivel `server`, no en el backend: quien sirve el
+documento HTML es nginx — el backend solo contesta JSON bajo `/api/`.
+Con EmailJS fuera (paso 8), el único bloqueador real que quedaba era el
+mapa, así que la política es:
+
+```
+default-src 'self';
+script-src 'self';
+style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+font-src 'self' https://fonts.gstatic.com;
+img-src 'self' data: blob: https://*.basemaps.cartocdn.com https://*.tile.openstreetmap.org;
+media-src 'self' blob:;
+connect-src 'self';
+frame-src 'self' blob: https:;
+object-src 'none';
+base-uri 'self';
+form-action 'self';
+frame-ancestors 'self';
+```
+
+**Por qué cada directiva que no es simplemente `'self'`:**
+
+- **`style-src 'unsafe-inline'`** — probado con el navegador real contra
+  esta misma política, no asumido: `/login` (toda su UI usa
+  `style={{...}}` de React — fondos, colores de marca) pasa con **cero**
+  violaciones de `style-src` aunque se quite `unsafe-inline`. La razón
+  es que React fija cada propiedad CSS por separado sobre el objeto
+  `style` del DOM (la API CSSOM), que CSP no vigila — solo vigila
+  escribir el atributo `style=""` completo como texto (`setAttribute`,
+  `cssText`, o HTML con `dangerouslySetInnerHTML`, que este código no
+  usa en ningún lado). **Leaflet sí lo necesita**: con la misma prueba
+  pero cargando el mapa, el navegador reporta exactamente una violación
+  ("Applying inline style violates... style-src") al posicionar sus
+  teselas internamente, y sin `unsafe-inline` el mapa no se puede
+  mostrar. Es la única directiva que de verdad lo requiere, y es por
+  una librería externa, no por el código propio.
+- **`img-src`** — permite los dos proveedores de teselas reales del
+  código: `basemaps.cartocdn.com` (mapa base de Leaflet,
+  `frontend/src/utils/cartoBasemap.js`, Territorio y Mapa de
+  Seguimiento) y `tile.openstreetmap.org` (vista previa de capas
+  geográficas KML/shapefile, `FilePreviewModal.jsx`) — revisados en el
+  código, no adivinados. `blob:` es necesario para la vista previa de
+  imágenes y PDF (`URL.createObjectURL`, ver `api/archivos.js`);
+  `data:` para el ícono inline de `index.html`.
+- **`font-src`/`style-src` con `fonts.googleapis.com`/`fonts.gstatic.com`**
+  — la tipografía Noto Sans se carga de Google Fonts (`index.html`): la
+  hoja de estilo viene de `fonts.googleapis.com` y el archivo de fuente
+  en sí de `fonts.gstatic.com`, dos hosts distintos.
+- **`media-src 'self' blob:'`** — vista previa de audio
+  (`<audio src={blob:...}>`, mismo mecanismo de blob local que PDF/imagen).
+- **`frame-src 'self' blob: https:`** — `blob:` para la vista previa de
+  PDF (`<iframe src={blob:...}>`); `https:` porque una evidencia de tipo
+  "enlace" se incrusta en un `<iframe>` apuntando a un sitio externo que
+  el usuario capturó (`FilePreviewModal.jsx`) — una URL arbitraria que
+  no se puede listar por dominio de antemano. Es, a propósito, la
+  directiva más permisiva de la política: el costo de mantener esa
+  función de incrustar enlaces externos.
+- **`connect-src 'self'`** — todas las llamadas de `axios` van a la
+  propia API (`/api/v1/...`, mismo origen vía nginx) y las notificaciones
+  en tiempo real (SSE) también; ninguna petición `fetch`/`XHR` sale a
+  otro origen.
+- **`object-src 'none'`**, **`base-uri 'self'`**, **`form-action 'self'`**,
+  **`frame-ancestors 'self'`** — endurecimiento estándar sin costo: el
+  código no usa `<object>`/`<embed>`, no hay `<base>`, los formularios se
+  envían por JS (nunca a otro origen), y no hay motivo para que otro
+  sitio incruste esta plataforma en un `<iframe>` (protección adicional
+  de *clickjacking*, redundante con `X-Frame-Options` pero cubriendo
+  navegadores que solo miran CSP).
+
+**Cómo se probó** (no solo "debería funcionar"): un build real de
+`frontend/dist` servido por nginx con esta cabecera exacta, abierto con
+Chromium vía Playwright, viendo la consola del navegador. `/login` sin
+ninguna violación de CSP (fuentes, estilos inline de React, scripts).
+Un arnés aparte que carga Leaflet real con las dos URLs de teselas
+reales del código (apuntadas a un servidor HTTPS local de prueba, mismos
+nombres de host, para no depender de salida a internet) confirmó 24/24
+peticiones de tesela en 200, Leaflet marcando cada una como cargada
+(`tileload`), y cero violaciones de CSP en consola.
+
+**Si se cambia algo del mapa o de las vistas previas**, repetir esta
+prueba antes de dar por buena la política: abrir la consola del
+navegador (F12 → Console) en una sesión real contra el nginx con la
+cabecera aplicada, navegar el mapa y abrir una vista previa de cada
+tipo (PDF, imagen, audio, capa geográfica, enlace externo), y confirmar
+que no aparece ningún "Refused to..." ni "violates the following
+Content Security Policy directive...".
+
 ### SELinux
 
 Si el servidor tiene SELinux en modo `Enforcing` (verificar con
@@ -487,6 +577,28 @@ nginx de la institución. Lo que necesita:
    objetos. El navegador nunca habla con él (11.6).
 8. `/health` no necesita publicarse: lo usa el healthcheck del
    contenedor, desde dentro.
+9. **`X-Forwarded-For` agregando, nunca reemplazando** (paso 9 DGTIC):
+   en la infraestructura de la DGTIC la cadena es F5 → nginx
+   institucional → backend, **dos saltos**. El backend necesita saber
+   cuántos para identificar correctamente a cada persona en el límite
+   de peticiones (`PROXY_SALTOS_CONFIABLES=2` en el entorno del
+   backend, sección 13) — si el F5 o el nginx institucional
+   **reemplazan** la cabecera en vez de agregarle su propio salto, o si
+   el valor configurado no coincide con los saltos reales, el backend
+   identifica mal a cada persona: en el peor caso, todo el tráfico cae
+   en una sola IP y la primera ráfaga agota la cuota para todo el
+   mundo. Detalle completo en la sección 13 y en el comentario de
+   `backend/src/server.js`.
+10. **`Content-Security-Policy` sin modificar**: el backend no la pone
+    (la pone nginx, sección 8), pero si el F5 o un WAF institucional
+    reescribe o elimina cabeceras de respuesta por política propia, la
+    política deja de llegar al navegador — sin aviso ni error, el mapa
+    y las vistas previas simplemente dejan de estar protegidas por CSP
+    (aunque sigan funcionando igual, porque CSP es una capa de defensa
+    adicional, no la única). Confirmar con las herramientas de
+    desarrollador del navegador (pestaña Network → respuesta de
+    `/pspp/` → cabecera `Content-Security-Policy`) después de cualquier
+    cambio en el F5 o el WAF.
 
 Configuración de referencia (validar con `nginx -t`; ajustar
 `PSPP_PUERTO` y la ruta de `dist`):
@@ -710,6 +822,32 @@ Por qué la cadena es coherente:
 > archivo completo antes de pasarlo al backend. Lo único que no cabe es
 > un archivo de entre ~199.9 y 200 MB.
 
+> **Incidente real (paso 8, al desplegar) — por qué reiniciar nginx tras
+> recrear el backend no es opcional.** `nginx/default.conf` usa
+> `proxy_pass http://backend:3000;` con el nombre del servicio Docker
+> directo, sin variable ni `resolver`. nginx resuelve ese nombre a una
+> IP **una sola vez, al arrancar**, y la cachea para toda la vida del
+> proceso. Al recrear el contenedor `backend` (nueva imagen, o solo
+> reiniciarlo) Docker le asigna una IP interna nueva en su red — pero
+> nginx sigue intentando hablar con la IP vieja, así que **toda la API
+> responde 502** aunque el backend esté perfectamente sano. Pasó de
+> verdad: al reconstruir el backend una segunda vez sin reiniciar nginx
+> después, la plataforma quedó devolviendo 502 en todas las rutas
+> durante varios minutos. No hay ningún error en `docker logs
+> pspp-backend` (la petición nunca llega ahí) ni nada visible a simple
+> vista: el frontend es estático, así que la pantalla de login sigue
+> cargando con normalidad — la plataforma "parece arriba" aunque nada de
+> la API funcione. Por eso el checklist de despliegue con Docker
+> (`README.md`, "Despliegue en producción") trae `restart nginx` como
+> paso **obligatorio** después de recrear `backend` o `frontend`, nunca
+> opcional ni "solo si algo se ve raro". Esto es específico de
+> `docker-compose.prod.yml`: ni el despliegue nativo (nginx habla con
+> `127.0.0.1:PSPP_PUERTO`, un puerto fijo, no una IP de contenedor — ver
+> sección 11.9) ni el modelo SEDATU (el nginx institucional tampoco
+> resuelve un nombre de servicio Docker) tienen este riesgo. El
+> principio general, para cualquier capa intermedia que sí lo tenga,
+> está generalizado como requisito 13 en la sección 12.2.
+
 ### 12.2 Requisitos mínimos para cualquier servidor intermedio
 
 Aplican a cada capa entre el navegador y el backend: nginx institucional,
@@ -728,6 +866,8 @@ F5, WAF, balanceador. Son mínimos: un valor mayor está bien.
 | 9 | Dejar pasar sin modificar la cabecera `Authorization`, la cabecera `Range`, la *query string* (`?boleto=`) y las respuestas `206` | sin cambios | Sin `Authorization`, toda la API responde 401. Sin `?boleto=`, las descargas dan 401. Sin `Range` o sin 206, la vista previa de archivos de texto (que pide solo los primeros 2 MB) baja el archivo completo o falla. |
 | 10 | No almacenar en caché respuestas de `/api/` | sin caché | Un usuario podría recibir datos o archivos de otro. Las respuestas de boleto ya llevan `Cache-Control: no-store`. |
 | 11 | No inspeccionar ni bloquear por contenido los `multipart/form-data` de `/api/` (reglas de WAF sobre cargas de archivos) | sin bloqueo | El WAF rechaza evidencias legítimas (audio, ZIP de capas geográficas, PDF) con un error genérico de la institución, no de la plataforma. Si es obligatorio inspeccionarlos, el límite de tamaño de esa inspección también debe ser ≥ 210 MB. |
+| 12 | Dejar pasar sin modificar (ni recortar, ni reemplazar) la cabecera `X-Forwarded-For`, agregando la IP real de quien se conecta en vez de sustituirla — cada capa que la toque debe **agregar**, nunca reescribir el valor completo | sin modificar, solo agregar | El backend usa esta cabecera para identificar a cada persona en el límite de peticiones (sección 13). Si una capa la reescribe en vez de agregarle su propia IP, dos personas distintas pueden terminar compartiendo la misma IP "vista" por el backend — o, peor, la IP de la propia capa intermedia — y una ráfaga de una persona bloquearía a las demás. |
+| 13 | Si esta capa resuelve la dirección del backend por nombre (DNS interno, descubrimiento de servicio) en vez de una IP o puerto fijo, debe volver a resolverla cuando el backend se recree, o reiniciarse junto con él | re-resolver o reiniciarse tras cada recreación del backend | Toda la API responde **502** aunque el backend esté sano y atendiendo — la capa intermedia se quedó con la dirección vieja. No hay ningún error en los logs del backend porque la petición nunca llega a él, y el frontend (estático, servido aparte) sigue respondiendo, así que la plataforma "parece arriba". Ver la nota de la sección 12.1 sobre `nginx/default.conf` para un caso real de esto. |
 
 Si se cambia `UPLOAD_MAX_SIZE_MB`, mover junto con él
 `VITE_UPLOAD_MAX_SIZE_MB` (recompilando el frontend) y el requisito 1
@@ -754,3 +894,88 @@ Para probar la cadena completa, sube desde el navegador una evidencia de
 unos 190 MB con la red limitada a ~2 Mbps (herramientas de desarrollo →
 Red → limitación personalizada). Tarda unos 13 minutos y debe terminar
 con la barra al 100 % y "Documento guardado".
+
+## 13. Límite de peticiones (paso 9 DGTIC — NOF-7)
+
+`backend/src/middleware/rateLimit.middleware.js`. Tres perfiles
+independientes en vez de un límite global — uno solo obliga a elegir
+entre dejar fuera a alguien trabajando normal (si es estricto) o no
+proteger nada de verdad (si es holgado):
+
+| Perfil | Dónde aplica | Clave | Por omisión | Variables |
+|---|---|---|---|---|
+| Inicio de sesión | `POST /auth/login` | IP **y** correo (los dos, en paralelo — cualquiera de los dos que se agote bloquea) | 10 intentos / 15 min | `LIMITE_PETICIONES_LOGIN_VENTANA_MIN`, `LIMITE_PETICIONES_LOGIN_MAX` |
+| Recuperación de contraseña | `POST /auth/solicitar-recuperacion` | IP y correo, igual que login | 5 intentos / 60 min | `LIMITE_PETICIONES_RECUPERACION_VENTANA_MIN`, `LIMITE_PETICIONES_RECUPERACION_MAX` |
+| Resto de la API autenticada | Todo lo que pasa por `verificarToken`, excepto la ruta de notificaciones en tiempo real | usuario (su id; IP de respaldo si aún no hay sesión) | 600 peticiones / 15 min | `LIMITE_PETICIONES_API_VENTANA_MIN`, `LIMITE_PETICIONES_API_MAX` |
+
+Por qué login y recuperación llevan el candado doble (IP y correo, no
+uno solo): alguien que prueba muchas cuentas distintas desde una sola
+IP lo frena el límite por IP; alguien que rota de IP para seguir
+probando una sola cuenta lo frena el límite por correo. Recuperación de
+contraseña es, además, el endpoint que el paso 8 corrigió por una
+vulnerabilidad real (devolvía el enlace de restablecimiento sin
+autenticación) y el que más conviene proteger ahora que cada solicitud
+dispara un envío real por SMTP (`backend/src/utils/correo.js`) — un
+límite estricto ahí también evita agotar la cuota o la reputación del
+relevo SMTP con una ráfaga.
+
+**La ruta de notificaciones en tiempo real
+(`/api/v1/notificaciones/stream`, Server-Sent Events) queda fuera del
+límite general a propósito**: es una sola conexión `GET` que se queda
+abierta horas (`backend/src/utils/sse.js`), no "una petición más" —
+contarla agotaría la cuota con cualquier persona que simplemente tenga
+el buzón de notificaciones abierto, y cada reconexión tras un corte de
+red (el navegador reintenta solo) consumiría cuota de nuevo.
+
+**`trust proxy` — de dónde sale `req.ip`, y por qué importa tanto como
+los límites mismos.** Sin esto configurado correctamente, Express ve
+como "cliente" al proxy más cercano — el mismo para todo el mundo — y
+la primera ráfaga agota la cuota para todas las personas detrás de él,
+bloqueando el acceso a todos. `PROXY_SALTOS_CONFIABLES` (entero, por
+omisión **1**) le dice a Express cuántos proxies de confianza hay entre
+el navegador y el backend:
+
+| Despliegue | Cadena real | `PROXY_SALTOS_CONFIABLES` |
+|---|---|---|
+| Nativo (`deploy/nginx/pspp.conf`, sección 8), un solo nginx delante | navegador → nginx → backend | **1** (el valor por omisión — es el caso base, un solo salto) |
+| Docker, `pspp.geobint.com` | navegador → Nginx Proxy Manager → nginx propio (`nginx/default.conf`) → backend | **2** |
+| Modelo SEDATU (DGTIC) | navegador → F5 → nginx institucional → backend | **2** |
+
+El valor por omisión (1) es el caso de un solo salto, el más simple y
+el más seguro para empezar — un valor **insuficiente** (como dejar 1 en
+una cadena real de 2 saltos) hace que Express tome la IP de un proxy
+intermedio como si fuera la de cada persona, exactamente el escenario
+descrito arriba. Ambos despliegues de dos saltos fijan
+`PROXY_SALTOS_CONFIABLES=2` en su propio archivo de variables — ver
+`.env.example` y `deploy/pspp-sedatu.env.example`. Verificado con
+pruebas automatizadas contra cadenas de `X-Forwarded-For` reales
+(`backend/src/__tests__/rateLimit.middleware.test.js`), incluyendo el
+caso de un valor insuficiente para confirmar que el síntoma es el
+descrito y no otra cosa.
+
+**Respuesta al agotar el límite**: `429`, con un mensaje claro y
+`reintentar_en_segundos` (cuánto falta para la siguiente ventana):
+
+```json
+{
+  "error": true,
+  "codigo": "DEMASIADAS_PETICIONES",
+  "mensaje": "Demasiados intentos de inicio de sesión.",
+  "reintentar_en_segundos": 420
+}
+```
+
+El frontend nunca lo muestra como un error genérico:
+`mensajeDeError()` (`frontend/src/api/transferencias.js`) arma la frase
+completa con el número real ("Espera 7 minutos e inténtalo de nuevo."),
+y tanto Login como Solicitar recuperación la usan en vez de leer el
+mensaje del servidor a secas.
+
+**Alcance de esta ronda**: las rutas que ya están montadas antes de
+`verificarToken` por diseño propio (transmisión de archivos,
+`routes/archivos.routes.js`; la imagen pública de portada de un
+proyecto; el endpoint de indicadores para el tablero externo, que ya
+exige su propio token de servicio) no llevan el límite general — no
+son "el resto de la API autenticada" en el sentido de esta sección, y
+cada una tiene su propio mecanismo de acceso. Si conviene limitarlas
+también, es una ronda aparte.
