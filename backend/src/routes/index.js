@@ -34,6 +34,7 @@ const {
 const {
   exigirVisibilidadProyecto, exigirVisibilidadNodo, exigirVisibilidadRiesgo,
   exigirVisibilidadIndicador, exigirVisibilidadEntidadEnParams,
+  exigirVisibilidadDeEntidadEnQuery,
 } = require('../utils/alcance-lectura');
 
 // Importar routers de cada recurso
@@ -128,9 +129,14 @@ router.use('/catalogo-indicadores', catalogoIndicadoresRoutes);
 
 // ─── Rutas anidadas (conectan controllers de diferentes recursos) ─
 
-// Etapas de un proyecto
-router.get('/proyectos/:id/etapas', etapasController.listarPorProyecto);
-router.get('/proyectos/:id/arbol', etapasController.obtenerArbol);
+// Etapas de un proyecto — paso 12 DGTIC: la visibilidad de proyecto
+// ahora también restringe la lectura (antes solo restringía captura).
+// DetalleProyectoLayout.jsx carga estas etapas para TODAS sus
+// secciones hijas, así que un 403 aquí es la señal con la que el
+// frontend muestra la pantalla de "sin acceso" sin llegar a montar
+// ninguna de ellas (ver SinAccesoProyecto.jsx).
+router.get('/proyectos/:id/etapas', exigirVisibilidadProyecto(), etapasController.listarPorProyecto);
+router.get('/proyectos/:id/arbol', exigirVisibilidadProyecto(), etapasController.obtenerArbol);
 // Mismo mecanismo del Paso 1 (alcance de lectura) que ya protege el resto
 // de la lectura estructural de un proyecto — antes, exportar no exigía
 // ni siquiera el peldaño 'lectura' que exigirVisibilidadProyecto aplica a
@@ -140,16 +146,16 @@ router.get('/proyectos/:id/arbol', etapasController.obtenerArbol);
 router.get('/proyectos/:id/exportar', exigirVisibilidadProyecto(), exportarController.exportarProyecto);
 router.post('/proyectos/:id/etapas', exigirResponsableProyecto(), etapasController.crear);
 
-// Acciones de una etapa
-router.get('/etapas/:id/acciones', accionesController.listarPorEtapa);
+// Acciones de una etapa — paso 12 DGTIC (cierre de lectura).
+router.get('/etapas/:id/acciones', exigirVisibilidadNodo('etapa'), accionesController.listarPorEtapa);
 router.post('/etapas/:id/acciones', exigirResponsableNodo('etapa'), accionesController.crearEnEtapa);
 
-// Acciones directas del proyecto (sin etapa)
-router.get('/proyectos/:id/acciones', accionesController.listarDirectasProyecto);
+// Acciones directas del proyecto (sin etapa) — paso 12 DGTIC.
+router.get('/proyectos/:id/acciones', exigirVisibilidadProyecto(), accionesController.listarDirectasProyecto);
 router.post('/proyectos/:id/acciones', exigirResponsableProyecto(), accionesController.crearEnProyecto);
 
-// Subacciones de una acción
-router.get('/acciones/:id/subacciones', accionesController.listarSubacciones);
+// Subacciones de una acción — paso 12 DGTIC.
+router.get('/acciones/:id/subacciones', exigirVisibilidadNodo('accion'), accionesController.listarSubacciones);
 router.post('/acciones/:id/subacciones', exigirResponsableNodo('accion'), accionesController.crearSubaccion);
 // toggle eliminado — usar PUT /acciones/:id con { estado } en body
 
@@ -185,8 +191,8 @@ router.post('/etapas/:etapaId/miembros-nodo/responder', nodoMiembrosController.r
 router.post('/acciones/:accionId/miembros-nodo/responder', nodoMiembrosController.responder);
 router.post('/tareas/:tareaId/miembros-nodo/responder', nodoMiembrosController.responder);
 
-// Tareas de una acción
-router.get('/acciones/:id/tareas', tareasController.listar);
+// Tareas de una acción — paso 12 DGTIC.
+router.get('/acciones/:id/tareas', exigirVisibilidadNodo('accion'), tareasController.listar);
 router.post('/acciones/:id/tareas', exigirResponsableNodo('accion'), tareasController.crear);
 
 // Evidencias de etapas, acciones, riesgos y subacciones
@@ -267,15 +273,20 @@ router.get('/tareas/:id/aportaciones', exigirVisibilidadNodo('tarea'), aportacio
 // desde las aportaciones) ya ES indicadores.valor_actual con el nuevo
 // historial — habría quedado como un segundo cálculo redundante.
 
-// Estadísticas del proyecto (para el resumen/dashboard)
-router.get('/proyectos/:id/stats', proyectosStatsController.obtenerStats);
-router.get('/proyectos/:id/actividades-sin-fecha', proyectosStatsController.obtenerActividadesSinFecha);
-router.get('/proyectos/:id/actividad-reciente', proyectosController.actividadReciente);
-router.get('/proyectos/:id/bitacora', proyectosController.bitacora);
-router.get('/proyectos/:id/portada-resumen', proyectosController.portadaResumen);
+// Estadísticas del proyecto (para el resumen/dashboard) — paso 12 DGTIC.
+router.get('/proyectos/:id/stats', exigirVisibilidadProyecto(), proyectosStatsController.obtenerStats);
+router.get('/proyectos/:id/actividades-sin-fecha', exigirVisibilidadProyecto(), proyectosStatsController.obtenerActividadesSinFecha);
+router.get('/proyectos/:id/actividad-reciente', exigirVisibilidadProyecto(), proyectosController.actividadReciente);
+router.get('/proyectos/:id/bitacora', exigirVisibilidadProyecto(), proyectosController.bitacora);
+router.get('/proyectos/:id/portada-resumen', exigirVisibilidadProyecto(), proyectosController.portadaResumen);
 
-// Conteo de descendientes (para confirm de cancelación en cascada)
-router.get('/conteo-descendientes', estadoController.conteoDescendientes);
+// Conteo de descendientes (para confirm de cancelación en cascada) — paso
+// 12 DGTIC: entidad_tipo/entidad_id viajan en la query, igual que ya
+// resuelve exigirVisibilidadDeEntidadEnQuery para /comentarios y
+// /bloqueos — acepta 'Proyecto'/'Etapa'/'Accion'/'Tarea' (la misma
+// capitalización que ya usa este endpoint) porque obtenerProyectoIdDeEntidad
+// normaliza con toLowerCase() antes de comparar.
+router.get('/conteo-descendientes', exigirVisibilidadDeEntidadEnQuery(), estadoController.conteoDescendientes);
 
 // Cambio de estado genérico (alternativa a PUT en cada recurso)
 router.put('/estado', estadoController.cambiarEstado);
@@ -285,8 +296,8 @@ router.put('/estado/automatico', estadoController.restaurarEstadoAutomatico);
 // Agenda del usuario autenticado
 router.get('/agenda', accionesController.agenda);
 
-// Campos extra schema (para DataGrid dinámico)
-router.get('/proyectos/:id/campos-extra-schema', etapasController.obtenerCamposExtraSchema);
+// Campos extra schema (para DataGrid dinámico) — paso 12 DGTIC.
+router.get('/proyectos/:id/campos-extra-schema', exigirVisibilidadProyecto(), etapasController.obtenerCamposExtraSchema);
 
 // Cobertura geográfica — de un solo proyecto/nodo, mismo tratamiento que
 // etapas/:id o riesgos/:id (Fase 2 / Paso 1): lectura total entre
@@ -323,19 +334,25 @@ router.get('/inicio/filtros/carteras', inicioController.obtenerCarterasFiltro);
 // ya cierra exactamente ese caso (y de paso cierra el mismo hueco de
 // visibilidad que tenía el resto del panorama, sin filtro hasta ahora).
 router.get('/proyectos/:id/panorama', exigirVisibilidadProyecto(), panoramaController.obtenerPanorama);
-// Panorama compacto (hover de ProyectoCard en Inicio): árbol ligero + actividad reciente
-router.get('/proyectos/:id/panorama-rapido', panoramaController.obtenerPanoramaRapido);
+// Panorama compacto (hover de ProyectoCard en Tablero): árbol ligero +
+// actividad reciente — paso 12 DGTIC: mismo hueco que el resto de esta
+// sección. El hover en Tablero.jsx ya atrapa el error y muestra el
+// popover vacío en vez de romperse, así que cerrarlo no rompe esa
+// pantalla.
+router.get('/proyectos/:id/panorama-rapido', exigirVisibilidadProyecto(), panoramaController.obtenerPanoramaRapido);
 
-// Miembros de etapas, acciones y tareas (nodo_miembros)
-router.get('/etapas/:etapaId/miembros-nodo', nodoMiembrosController.listar);
+// Miembros de etapas, acciones y tareas (nodo_miembros) — paso 12 DGTIC:
+// solo el GET (lectura) llevaba el hueco; agregar/actualizar/eliminar ya
+// exigían puedeGestionarParticipantesNodo dentro del controller.
+router.get('/etapas/:etapaId/miembros-nodo', exigirVisibilidadNodo('etapa', 'etapaId'), nodoMiembrosController.listar);
 router.post('/etapas/:etapaId/miembros-nodo', nodoMiembrosController.agregar);
 router.put('/etapas/:etapaId/miembros-nodo/:userId', nodoMiembrosController.actualizar);
 router.delete('/etapas/:etapaId/miembros-nodo/:userId', nodoMiembrosController.eliminar);
-router.get('/acciones/:accionId/miembros-nodo', nodoMiembrosController.listar);
+router.get('/acciones/:accionId/miembros-nodo', exigirVisibilidadNodo('accion', 'accionId'), nodoMiembrosController.listar);
 router.post('/acciones/:accionId/miembros-nodo', nodoMiembrosController.agregar);
 router.put('/acciones/:accionId/miembros-nodo/:userId', nodoMiembrosController.actualizar);
 router.delete('/acciones/:accionId/miembros-nodo/:userId', nodoMiembrosController.eliminar);
-router.get('/tareas/:tareaId/miembros-nodo', nodoMiembrosController.listar);
+router.get('/tareas/:tareaId/miembros-nodo', exigirVisibilidadNodo('tarea', 'tareaId'), nodoMiembrosController.listar);
 router.post('/tareas/:tareaId/miembros-nodo', nodoMiembrosController.agregar);
 router.put('/tareas/:tareaId/miembros-nodo/:userId', nodoMiembrosController.actualizar);
 router.delete('/tareas/:tareaId/miembros-nodo/:userId', nodoMiembrosController.eliminar);

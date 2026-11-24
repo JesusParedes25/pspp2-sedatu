@@ -187,6 +187,10 @@ export default function ModalDuplicarProyecto({ proyectoOrigen = null, onCerrar,
                   <span className="text-xs text-gray-400 flex items-center gap-1.5">
                     <Loader2 size={12} className="animate-spin" /> Revisando la estructura...
                   </span>
+                ) : estructura.fallo ? (
+                  <p className="text-xs text-red-600">
+                    No se pudo revisar la estructura de este proyecto — puede que no tengas acceso a él.
+                  </p>
                 ) : total === 0 ? (
                   <p className="text-xs text-amber-700">
                     Este proyecto todavía no tiene estructura capturada: se creará el proyecto nuevo vacío.

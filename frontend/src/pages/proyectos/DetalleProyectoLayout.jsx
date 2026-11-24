@@ -37,6 +37,7 @@ import SelectorDG from '../../components/proyectos/SelectorDG';
 import EmptyState from '../../components/common/EmptyState';
 import ModalEditarProyecto from '../../components/proyectos/ModalEditarProyecto';
 import ModalEliminarProyecto from '../../components/proyectos/ModalEliminarProyecto';
+import SinAccesoProyecto from '../../components/proyectos/SinAccesoProyecto';
 import Breadcrumb from '../../components/common/Breadcrumb';
 import * as proyectosApi from '../../api/proyectos';
 
@@ -92,7 +93,16 @@ export default function DetalleProyectoLayout() {
   const { proyecto, cargando, error, recargar: recargarProyecto, recargarSilencioso: recargarProyectoSilencioso } = useProyecto(id);
   const permisos = usePermisosProyecto(proyecto);
   const [dgSeleccionada, setDgSeleccionada] = useState(null);
-  const { etapas, cargando: cargandoEtapas, recargar: recargarEtapas, recargarSilencioso: recargarEtapasSilencioso } = useEtapas(id, dgSeleccionada);
+  const {
+    etapas, cargando: cargandoEtapas, errorCodigo: errorCodigoEtapas,
+    recargar: recargarEtapas, recargarSilencioso: recargarEtapasSilencioso,
+  } = useEtapas(id, dgSeleccionada);
+  // Señal de "no tienes visibilidad de este proyecto" (paso 12 DGTIC): se
+  // lee de la carga de etapas porque es la única llamada que hace esta
+  // misma capa para TODAS las secciones, sin importar cuál esté activa —
+  // así el resto de las secciones (Seguimiento, Resumen, Bitácora...)
+  // nunca llega a pedir su propio contenido cuando no hay acceso.
+  const sinAcceso = errorCodigoEtapas === 'NO_AUTORIZADO';
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -181,7 +191,12 @@ export default function DetalleProyectoLayout() {
   // ruta (lo que el usuario pidió explícitamente).
   const enPortada = seccionActiva.fin === true;
 
-  if (cargando) {
+  // Paso 12 DGTIC: también se espera a que resuelva la carga de etapas
+  // (éxito o 403) antes de decidir qué mostrar — si se dejara avanzar con
+  // cargandoEtapas aún en curso, el <Outlet> de abajo montaría la sección
+  // activa (y esta dispararía sus propias llamadas) antes de saber si hay
+  // visibilidad, exactamente la ráfaga de rechazos que este paso evita.
+  if (cargando || (proyecto && !error && cargandoEtapas)) {
     return (
       <div className="animate-pulse space-y-4">
         <div className="h-8 bg-gray-200 rounded w-1/3" />
@@ -195,6 +210,10 @@ export default function DetalleProyectoLayout() {
     return (
       <EmptyState titulo="Proyecto no encontrado" subtitulo={error || 'El proyecto solicitado no existe o fue eliminado.'} />
     );
+  }
+
+  if (sinAcceso) {
+    return <SinAccesoProyecto proyecto={proyecto} permisos={permisos} />;
   }
 
   const outletContext = {

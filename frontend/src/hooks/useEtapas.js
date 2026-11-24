@@ -18,16 +18,23 @@ export function useEtapas(proyectoId, idDg) {
   const [etapas, setEtapas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
+  // Código del error (p.ej. 'NO_AUTORIZADO') además del mensaje — paso 12
+  // DGTIC: DetalleProyectoLayout.jsx lo usa para distinguir "no tienes
+  // visibilidad de este proyecto" de cualquier otra falla y mostrar la
+  // pantalla de sin acceso en vez de un error genérico.
+  const [errorCodigo, setErrorCodigo] = useState(null);
 
   const cargar = useCallback(async (silencioso = false) => {
     if (!proyectoId) return;
     if (!silencioso) setCargando(true);
     setError(null);
+    setErrorCodigo(null);
     try {
       const respuesta = await etapasApi.obtenerEtapasProyecto(proyectoId, idDg);
       setEtapas(respuesta.datos);
     } catch (err) {
       setError(err.response?.data?.mensaje || 'Error al cargar etapas');
+      setErrorCodigo(err.response?.data?.codigo || null);
     } finally {
       if (!silencioso) setCargando(false);
     }
@@ -40,5 +47,5 @@ export function useEtapas(proyectoId, idDg) {
     cargar();
   }, [cargar]);
 
-  return { etapas, cargando, error, recargar: cargar, recargarSilencioso };
+  return { etapas, cargando, error, errorCodigo, recargar: cargar, recargarSilencioso };
 }

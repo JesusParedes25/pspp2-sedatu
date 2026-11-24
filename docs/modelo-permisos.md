@@ -1,16 +1,19 @@
 # Modelo de permisos de PSPP v2.0
 
-> **Versión: Fase 4, parte B v3. 2026-11-23.**
+> **Versión: paso 12 DGTIC. 2026-11-24.**
 > Cubre la matriz de capacidades completa (sección 13), la transferencia
-> de administración de proyecto exclusiva de superadmin (sección 15.1) y
-> el aviso de cambio de función: correo y notificación dentro de la
+> de administración de proyecto exclusiva de superadmin (sección 15.1), el
+> aviso de cambio de función: correo y notificación dentro de la
 > plataforma, ambos escritos por el backend en la misma petición que
 > aplica el cambio, por SMTP genérico del servidor (sección 15.2 — paso
-> 8 DGTIC retira EmailJS y el envío desde el navegador por completo). El
-> modelo de autorización vigente es una sola función, `funcionEfectiva`
-> (`backend/src/utils/funcion-efectiva.js`), comparada contra un mínimo
-> por `backend/src/utils/autorizacion.js`; si el código y este documento
-> no coinciden, manda el código.
+> 8 DGTIC retira EmailJS y el envío desde el navegador por completo), y
+> el cierre de la lectura estructural que faltaba por conectar al modelo
+> de alcance ya decidido (sección 17 — paso 12 DGTIC), con un defecto
+> encontrado y aún sin corregir (17.2) y una tensión de diseño sin
+> resolver (17.3). El modelo de autorización vigente es una sola
+> función, `funcionEfectiva` (`backend/src/utils/funcion-efectiva.js`),
+> comparada contra un mínimo por `backend/src/utils/autorizacion.js`; si
+> el código y este documento no coinciden, manda el código.
 
 ## 0. Resumen ejecutivo
 
@@ -348,11 +351,13 @@ cualquier otro dato de proyecto — así que estos dos GET pasan a
 `PUT /bloqueos/:id/resolver` (una acción, no una lectura) conserva el
 criterio de captura-o-creador del Paso 0, sin cambios.
 
-**Deliberadamente fuera de este PR** (mismo criterio: no se nombraron en
-el Paso 1/2 de este trabajo, se reportan en vez de tocarse): los listados
-de riesgos por nodo (`/etapas|acciones|subacciones|tareas/:id/riesgos`),
-`/etapas/:id/indicadores`, y `/proyectos/:id/panorama-rapido` tienen el
-mismo hueco de visibilidad hoy — ver sección 8.
+**Actualizado en rondas posteriores**: los listados de riesgos por nodo
+(`/etapas|acciones|subacciones|tareas/:id/riesgos`) y
+`/etapas/:id/indicadores`, que esta sección dejaba fuera a propósito, se
+cerraron en el paso 10 DGTIC; `/proyectos/:id/panorama-rapido`,
+`/acciones/:id/indicadores` e `/indicadores/:id/resumen-aportaciones` en
+los pasos 10-12 (ver sección 17). **Atención**: `/etapas/:id/indicadores`
+tiene un defecto conocido que deja ese cierre sin efecto — ver 17.2.
 
 ### 7.2 Bloque A, Paso 2 — lectura a nivel proyecto
 
@@ -1007,10 +1012,21 @@ contra `'externo'`, un valor que ese campo nunca tiene — así que el
 
 ## 14. Qué queda pendiente (decisiones de producto y endpoints sin migrar)
 
-- **Listados de riesgos por nodo, `/etapas/:id/indicadores`,
-  `/proyectos/:id/panorama-rapido`**: mismo hueco de visibilidad
-  (`externo` sin filtrar) que el resto de la lectura estructural, no
-  nombrados en el Paso 1/2 de este PR — pendientes de una ronda futura.
+- **`/etapas/:id/indicadores` no está realmente cerrado** (defecto
+  encontrado en el paso 12 DGTIC, ver sección 17.2): `etapas.routes.js`
+  declara la misma ruta sin candado y, por orden de montaje, es esa
+  versión la que Express atiende — la del paso 10 con
+  `exigirVisibilidadNodo` nunca se ejecuta. Pendiente de corregir.
+- **Auditoría de subrouters (paso 12 DGTIC, Parte C)**: `routes/index.js`
+  ya queda con su lectura estructural directa cerrada (sección 17), pero
+  los archivos que monta con `router.use()` (proyectos, etapas, acciones,
+  catálogo de indicadores, importador...) tienen huecos propios,
+  reportados pero sin cerrar — incluye dos lecturas que cruzan proyectos
+  completos (`GET /catalogo-indicadores/:id/uso` y `/:id/nodos`, con
+  nombre y avance real de todos los proyectos que usan esa entrada de
+  catálogo) y `GET /proyectos/:id`, que por diseño de la sección 17.3
+  sigue sin candado. Lista completa entregada aparte; pendiente decidir
+  cuáles cerrar y en qué orden.
 - **Teléfono en el directorio de usuarios**: columna que no existe hoy en
   `usuarios` — pendiente de decidir si se agrega (y entonces aplicar el
   filtro de campo por perfil ya diseñado en 7.3) antes de construir nada.
@@ -1607,3 +1623,104 @@ esté activo la pantalla reemplaza por completo el panel de
 resumen+filtros+lista por un aviso ("No se pudieron cargar las
 actividades... intenta de nuevo") con un botón "Reintentar" que vuelve
 a llamar la misma función de carga — nunca un tablero de ceros.
+
+## 17. Paso 12 DGTIC — la visibilidad de proyecto también cierra la lectura
+
+Decisión de modelo, no de implementación: hasta este paso, la sección 5
+ya describía "lectura total entre internos, `externo` solo si invitado"
+como la regla querida, pero el código solo la aplicaba donde alguien se
+había acordado de conectarla (sección 7). Quince endpoints de lectura
+estructural, repartidos en `routes/index.js`, seguían sin ningún
+candado — cualquier autenticado, `externo` incluido, los leía igual que
+un interno. Este paso cierra esos quince (más `/proyectos/:id/panorama-rapido`,
+el mismo caso) con el mismo patrón ya establecido en la sección 7.1:
+`exigirVisibilidadProyecto()` para los que identifican el proyecto por
+`:id` directo, `exigirVisibilidadNodo(tipo, param)` para los que lo
+hacen por una etapa/acción/tarea, y `exigirVisibilidadDeEntidadEnQuery()`
+para `/conteo-descendientes` (`entidad_tipo`/`entidad_id` en query,
+igual que ya resolvía `/comentarios` y `/bloqueos`).
+
+Las quince rutas: `/proyectos/:id/etapas`, `/arbol`, `/acciones`,
+`/stats`, `/actividades-sin-fecha`, `/actividad-reciente`, `/bitacora`,
+`/portada-resumen`, `/campos-extra-schema`, `/panorama-rapido`;
+`/etapas/:id/acciones`; `/acciones/:id/subacciones`, `/acciones/:id/tareas`;
+`/conteo-descendientes`; y el `GET` (no las escrituras, que ya exigían
+`puedeGestionarParticipantesNodo` dentro del controller) de
+`/etapas|acciones|tareas/:id/miembros-nodo`. Para cualquier perfil
+interno esto no cambia nada — `puedeVerProyecto` ya era `true` sin
+condición; la prueba de regresión en
+`backend/src/__tests__/lectura-estructural-visibilidad.test.js` (un
+`enlace` sin relación con el proyecto sigue pasando en los quince casos)
+es la que lo garantiza hacia adelante.
+
+### 17.1 Por qué no bastaba con agregar el candado: la ráfaga de rechazos
+
+Cerrar los quince endpoints sin más habría dejado una pantalla rota:
+`DetalleProyectoLayout.jsx` (el layout de todo `/proyectos/:id/*`) carga
+las etapas del proyecto para TODAS sus secciones, y cada sección hija
+(Portada, Seguimiento, Resumen, Bitácora...) pide además su propio
+contenido en cuanto monta. Sin un punto único de corte, alguien sin
+acceso habría visto una sección a medio renderizar mientras cada una de
+sus llamadas regresaba 403 por separado.
+
+La solución no agrega un endpoint nuevo: usa la carga de etapas
+(`GET /proyectos/:id/etapas`, la única llamada que hace el layout para
+TODAS las secciones sin importar cuál esté activa) como la señal única
+de "hay visibilidad o no". `useEtapas.js` ahora expone también
+`errorCodigo` (antes solo el mensaje); `DetalleProyectoLayout.jsx` espera
+a que esa carga resuelva (éxito o 403) antes de decidir qué mostrar, y
+si el código es `NO_AUTORIZADO`, renderiza `SinAccesoProyecto.jsx` en
+vez del encabezado y el `<Outlet>` — ninguna sección hija llega a
+montarse, así que ninguna de sus llamadas de contenido sale nunca.
+Verificado con `DetalleProyectoLayout.test.jsx` (mockeando los hooks de
+datos): con `errorCodigo: 'NO_AUTORIZADO'` se renderiza la pantalla de
+sin acceso y no la sección activa; con la carga de etapas aún en curso,
+ninguna de las dos.
+
+### 17.2 Defecto encontrado, no corregido en este paso: `/etapas/:id/indicadores`
+
+Al auditar los subrouters (Parte C de este paso, reportada aparte) se
+encontró que `backend/src/routes/etapas.routes.js` declara su propia
+`GET /:id/indicadores` **sin** `exigirVisibilidadNodo` — la misma ruta
+que el paso 10 DGTIC reportó haber cerrado en `routes/index.js`. Las dos
+coexisten porque Express no detecta rutas duplicadas: `router.use('/etapas',
+etapasRoutes)` (línea ~114 de `routes/index.js`) se registra ANTES que la
+ruta directa (~línea 234), así que para cualquier petición a
+`/etapas/:id/indicadores` es la versión del subrouter, sin candado, la
+que responde — la versión protegida nunca se ejecuta. Confirmado
+empíricamente (una app Express mínima con el mismo patrón de montaje
+reproduce el shadowing) y explica por qué la prueba del paso 10
+(`riesgos-indicadores-visibilidad.test.js`) seguía en verde: verifica que
+la línea con el middleware existe en el archivo fuente, no cuál versión
+atiende la petición real. **El hueco original de A01 para esta ruta
+nunca se cerró.** Queda pendiente como hallazgo del paso 12, no corregido
+aquí a propósito (el encargo fue auditar los subrouters, no tocarlos).
+
+### 17.3 `GET /proyectos/:id` se queda abierto a propósito — con una tensión sin resolver
+
+El diseño de 17.1 necesita que `SinAccesoProyecto.jsx` muestre el nombre
+del proyecto y su DG aun sin visibilidad — y esos datos los sigue dando
+`GET /proyectos/:id` (`proyectos.controller.js::obtenerPorId`), que no
+lleva candado de visibilidad ni en este paso ni antes. La omisión es
+deliberada: cerrarlo habría dejado a `DetalleProyectoLayout.jsx` sin
+ninguna fuente para esos dos datos en el caso sin acceso.
+
+La tensión que deja sin resolver: `obtenerPorId` no devuelve solo
+nombre y DG — devuelve el proyecto completo, con `descripcion`, fechas,
+`etiquetas`, `dgs` e **`indicadores`** (la lista de indicadores del
+proyecto, con su progreso). `SinAccesoProyecto.jsx` solo lee `nombre` y
+`dg_lider_siglas`/`direccion_area_lider_siglas` del objeto, así que la
+pantalla nunca lo muestra — pero el cuerpo de la respuesta HTTP sí lo
+trae completo, visible para cualquiera que abra las herramientas de
+desarrollador del navegador. No es el mismo hueco que cerraron los
+quince endpoints (esos exponían contenido real en la pantalla; este
+expone contenido real en la respuesta de red, no en la pantalla), pero
+tampoco es nada: es la misma clase de dato que, en los quince casos de
+arriba, se decidió que `externo` sin invitación no debía poder leer.
+Cerrarlo de raíz pide decidir primero qué forma toma: ¿una proyección
+reducida (nombre + DG únicamente) para quien no tiene visibilidad, y la
+respuesta completa solo para quien sí la tiene? ¿Dos endpoints en vez de
+uno? Se deja consignado aquí, sin resolver, para decidirlo aparte —
+`proyectos.routes.js` tiene además otros dos huecos del mismo tipo
+(`/:id/dgs`, `/:id/etiquetas`), reportados en la auditoría de subrouters
+de este mismo paso.
