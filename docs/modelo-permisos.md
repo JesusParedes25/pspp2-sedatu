@@ -1,12 +1,11 @@
 # Modelo de permisos de PSPP v2.0
 
-> **Versión: paso 15 DGTIC. 2026-11-24.**
+> **Versión: paso 15 DGTIC. 2026-11-25.**
 > Jerarquía institucional de dos niveles entre direcciones (sección 17):
 > `direccion_general` (rol nuevo) ve todos los proyectos de TODAS las
-> Direcciones de Área de su Dirección General; `direccion` sigue viendo
-> por DG completa hoy, con su acotamiento a solo su propia Dirección de
-> Área **decidido pero pendiente de implementar**, a la espera de un
-> diagnóstico contra cuentas reales (sección 17.2). El modelo de lectura
+> Direcciones de Área de su Dirección General; `direccion` ve solo los
+> de su propia Dirección de Área, nunca los de otra área de la misma DG.
+> El modelo de lectura
 > de un proyecto (sección 5) tiene dos reglas (sección 5.1): la
 > visibilidad de seguimiento (estructura, avance, bitácora de cambios)
 > es total entre internos; el contenido de trabajo (comentarios,
@@ -42,29 +41,31 @@ es sobre la primera:
    interno. `externo` solo ve lo que le invitaron, estructura incluida.
    Las vistas personalizadas (Tablero, dashboard, mapas, Mis
    indicadores, Documentos) se quedan acotadas a participación + el
-   bono de DG de `direccion`/`direccion_general` (sección 9.1) —
+   bono institucional de `direccion` (su propia Dirección de Área) y
+   `direccion_general` (toda su Dirección General, sección 9.1) —
    excepto Mis actividades/Agenda, que son trabajo propio y nunca llevan
-   ese bono. Fase 2/Paso 1 (sección 7) cerró el grueso de la lectura
+   ningún bono. Fase 2/Paso 1 (sección 7) cerró el grueso de la lectura
    estructural y el directorio de usuarios; Fase 2/Paso 2 (sección 9)
-   cerró el bono de DG y conectó dashboard/mapas agregados al alcance
-   real, retirando el `?id_dg=` libre; Fase 3 (sección 11) mostró ese
-   cálculo en la interfaz (candado, banda de consulta) sin cambiar el
-   modelo. La Fase 4/parte A (sección 13) no cambia el modelo tampoco —
-   levanta la matriz de capacidades y cierra tres huecos de
+   cerró el bono institucional y conectó dashboard/mapas agregados al
+   alcance real, retirando el `?id_dg=` libre; Fase 3 (sección 11)
+   mostró ese cálculo en la interfaz (candado, banda de consulta) sin
+   cambiar el modelo. La Fase 4/parte A (sección 13) no cambia el modelo
+   tampoco — levanta la matriz de capacidades y cierra tres huecos de
    implementación (lectura para interno, alcance de solicitudes,
-   exportar). El paso 15 DGTIC agrega `direccion_general`, un nivel
-   arriba de `direccion` en la jerarquía institucional (sección 17), y
-   deja decidido pero pendiente de implementar el acotamiento de
-   `direccion` a su propia Dirección de Área (sección 17.2). Lo que
-   queda pendiente sin una decisión tomada está en la sección 14.
+   exportar). El paso 15 DGTIC agrega la jerarquía institucional de dos
+   niveles entre direcciones: `direccion_general` (rol nuevo, alcance de
+   Dirección General completa) y `direccion` acotado a su propia
+   Dirección de Área, nunca a las otras áreas de su misma DG (sección
+   17). Lo que queda pendiente sin una decisión tomada está en la
+   sección 14.
 
 La arquitectura de la pregunta 1 es una **escalera única de 4 peldaños**
 (`lectura < captura < responsable < administracion_proyecto`), resuelta
 en un solo lugar por **9 vías** que pueden otorgarla (superadmin, creador,
 invitación directa, ser responsable de un nodo, herencia del padre, rol a
-nivel proyecto, bono de DG para ejecutivo, bono de DG para dirección y
-bono de DG para dirección general — estos dos últimos tope en `lectura`,
-nunca más alto). Cada función con nombre en `autorizacion.js` es, sin
+nivel proyecto, bono de DG para ejecutivo, bono de Dirección de Área para
+dirección y bono de DG para dirección general — estos dos últimos tope en
+`lectura`, nunca más alto). Cada función con nombre en `autorizacion.js` es, sin
 excepción, una comparación de esa escalera contra un mínimo — no queda
 ninguna cadena de `if/OR` suelta decidiendo permisos por su cuenta.
 
@@ -85,10 +86,13 @@ concreto, salvo las excepciones explícitas en el código:
   proyecto cuya `id_dg_lider` coincida con su propio `id_dg` (vía
   `direccion_general_dg`) — todas las Direcciones de Área de su
   Dirección General, nunca edición automática.
-- `direccion` → `lectura` sobre CUALQUIER proyecto cuya `id_dg_lider`
-  coincida con su propio `id_dg` (vía `direccion_dg`, paso 14 DGTIC) —
-  **pendiente de acotarse a `id_direccion_area`** en vez de `id_dg` (ver
-  sección 17), decisión tomada pero no implementada todavía.
+- `direccion` → `lectura` sobre CUALQUIER proyecto cuya
+  `id_direccion_area_lider` coincida con su propio `id_direccion_area`
+  (vía `direccion_area`, paso 15 DGTIC CAMBIO 1) — solo su propia
+  Dirección de Área, nunca las otras áreas de su misma Dirección
+  General. Hasta el paso 14 DGTIC este bono fue por `id_dg` completo,
+  igual que `direccion_general`; el paso 15 lo acotó a su nivel real en
+  la jerarquía (sección 17).
 
 `enlace` no tiene ningún bono automático — su función depende
 enteramente de estar invitado (`proyecto_usuarios`/`nodo_miembros`) o de
@@ -100,10 +104,10 @@ Jerarquía institucional entre los dos roles de dirección (paso 15
 DGTIC): una Dirección General (`direcciones_generales`) contiene varias
 Direcciones de Área (`direcciones_area.id_dg`). `direccion_general` es
 el nivel de arriba — ve todas las áreas de su DG; `direccion` es el
-nivel de abajo — ve (hoy) su DG completa también, y (una vez
-implementada la sección 17) solo su propia área. Ninguno de los dos
-gana edición automática por el bono: para capturar, los dos necesitan
-participación real, igual que cualquier otro rol.
+nivel de abajo — ve solo su propia área, nunca las otras áreas de la
+misma DG. Ninguno de los dos gana edición automática por el bono: para
+capturar, los dos necesitan participación real, igual que cualquier
+otro rol.
 
 `requiereRol([...])` (`backend/src/middleware/roles.middleware.js`) es un
 segundo mecanismo, independiente de la escalera: rutas de administración
@@ -145,8 +149,8 @@ Cada peldaño incluye las facultades del anterior (`PELDANOS` + `indice()` +
 
 | `proyecto` | `proyecto_usuarios`, fila aceptada a nivel de TODO el proyecto | el `rol` aceptado, aplicado al proyecto completo y a todos sus nodos |
 | `ejecutivo_dg` | `usuario.rol==='ejecutivo'` + mismo `id_dg` que `proyectos.id_dg_lider` | `responsable` (nunca más alto) |
-| `direccion_dg` (paso 14 DGTIC) | `usuario.rol==='direccion'` + mismo `id_dg` que `proyectos.id_dg_lider` | `lectura` (nunca más alto — a propósito: ver sección 5.1). Pendiente de cambiar a `id_direccion_area`, sección 17 |
-| `direccion_general_dg` (paso 15 DGTIC) | `usuario.rol==='direccion_general'` + mismo `id_dg` que `proyectos.id_dg_lider` | `lectura` (nunca más alto, mismo criterio que `direccion_dg` — ver sección 17) |
+| `direccion_area` (paso 14 DGTIC, acotada a nivel área en el paso 15 CAMBIO 1) | `usuario.rol==='direccion'` + mismo `id_direccion_area` que `proyectos.id_direccion_area_lider` | `lectura` (nunca más alto — a propósito: ver sección 5.1) |
+| `direccion_general_dg` (paso 15 DGTIC) | `usuario.rol==='direccion_general'` + mismo `id_dg` que `proyectos.id_dg_lider` | `lectura` (nunca más alto, mismo criterio que `ejecutivo_dg` pero sin pasar de `lectura` — ver sección 17) |
 
 `masAlto(a, b)` resuelve el empate: en igualdad de peldaño gana el primer
 argumento — por eso los llamadores siempre ordenan la vía más específica
@@ -281,11 +285,12 @@ personalizadas** — pantallas que agregan a propósito "lo tuyo", no "todo":
 Tablero, dashboard, mapas de Territorio, Mis indicadores, Documentos. Ahí
 sí se acota a participación (`backend/src/utils/alcanceProyectos.js`,
 sección 9.1), con una excepción propia: `direccion` suma también los
-proyectos de su DG líder aunque no participe en ellos directamente (el
-bono de DG). **Mis actividades y Agenda son la excepción a la excepción**:
-son trabajo propio de la persona (asignaciones directas), nunca llevan el
-bono — un director no hereda ahí los pendientes de los enlaces de su DG
-(sección 9.1). La sección **Proyectos con el filtro "Todos"**, en cambio,
+proyectos de su propia Dirección de Área aunque no participe en ellos
+directamente, y `direccion_general` suma los de TODA su Dirección
+General (el bono institucional). **Mis actividades y Agenda son la
+excepción a la excepción**: son trabajo propio de la persona
+(asignaciones directas), nunca llevan ningún bono — un director no
+hereda ahí los pendientes de los enlaces de su área o su DG (sección 9.1). La sección **Proyectos con el filtro "Todos"**, en cambio,
 es una vista estructural (no personalizada) y queda abierta a cualquier
 perfil interno, igual que cualquier otra lectura de proyecto. Aparte de
 estas vistas personalizadas, la única otra excepción a "lectura total
@@ -313,7 +318,8 @@ una deliberada y resuelta por un mecanismo distinto:
    reconocimiento de que algo va mal — pertenecer a la Secretaría no
    basta para verlos, hace falta una vía real de `funcionEfectiva`
    (sección 2): ser creador, estar invitado, ser responsable del nodo, o
-   el bono de DG de `ejecutivo`/`direccion`. `puedeVerContenidoProyecto`/
+   el bono institucional de `ejecutivo`/`direccion`/`direccion_general`.
+   `puedeVerContenidoProyecto`/
    `puedeVerContenidoNodo` (sección 3) son esa regla hecha código —
    exigen el peldaño `lectura` real, sin el atajo de `puedeVerProyecto`.
    Se aplica de dos formas distintas según el endpoint:
@@ -349,8 +355,8 @@ a evaluar la regla 2.
 | Estructura, avance, bitácora de cambios de un proyecto | Lectura total entre internos, `externo` solo si invitado | `puedeVerProyecto` + `exigirVisibilidad*` (sección 7) |
 | Comentarios, documentos/evidencias, riesgos (endpoints dedicados) | Acotado a participación real | `puedeVerContenido*` + `exigirParticipacion*` → 403 `SIN_PARTICIPACION` |
 | Lo mismo, embebido en estadísticas/portada/actividad-reciente/bitácora/panorama/panorama-rápido/stream de nodo | Acotado a participación real | 200 sin cambio de middleware; campo de contenido redactado a `null` |
-| Tablero, dashboard, mapas, Mis indicadores, Documentos | Acotado a participación + bono de DG para `direccion`/`direccion_general` | `utils/alcanceProyectos.js` (sección 9.1) |
-| Mis actividades, Agenda | Acotado a asignación directa — SIN el bono de DG | `acciones.queries.js::obtenerAccionesAgenda` (sección 9.1) |
+| Tablero, dashboard, mapas, Mis indicadores, Documentos | Acotado a participación + bono de Dirección de Área para `direccion` / bono de DG para `direccion_general` | `utils/alcanceProyectos.js` (sección 9.1) |
+| Mis actividades, Agenda | Acotado a asignación directa — SIN ningún bono institucional | `acciones.queries.js::obtenerAccionesAgenda` (sección 9.1) |
 | Proyectos → filtro "Todos" | Abierto a cualquier interno | ya así, sin cambios |
 | Directorio de usuarios (nombre/cargo/correo/DG/teléfono) | Campos por perfil + alcance por perfil | sección 7.3 (Bloque B) |
 
@@ -515,42 +521,53 @@ pendientes). "Personalizada" distingue estas vistas de las estructurales
 del Paso 1 (sección 7): ahí el usuario pide UN proyecto/nodo concreto;
 aquí pide un agregado de "lo que me toca" entre TODOS los proyectos.
 
-### 9.1 El bono de DG — definición exacta
+### 9.1 El bono institucional — definición exacta
 
-Un usuario `direccion` recibe la **unión de exactamente dos conjuntos**,
-calculada por `alcanceProyectosUsuario`/`alcanceProyectosUsuarioONull`
-(`backend/src/utils/alcanceProyectos.js`):
+`alcanceProyectosUsuario`/`alcanceProyectosUsuarioONull`
+(`backend/src/utils/alcanceProyectos.js`) dan, a cada uno de los dos
+roles de dirección, la **unión de exactamente dos conjuntos** — mismo
+patrón, dos niveles distintos de la jerarquía institucional (sección 17):
 
-1. Los proyectos donde participa — igual que cualquier otro perfil
-   (`miembrosQueries.obtenerProyectosUsuario`).
-2. Los proyectos cuya dirección general dueña es la suya
-   (`proyectos.id_dg_lider = usuario.id_dg`), participe o no.
+- **`direccion`**: (1) los proyectos donde participa
+  (`miembrosQueries.obtenerProyectosUsuario`) y (2) los proyectos de su
+  propia Dirección de Área (`proyectos.id_direccion_area_lider =
+  usuario.id_direccion_area`), participe o no. **Nunca** los de otra
+  área, aunque esa área cuelgue de la misma Dirección General.
+- **`direccion_general`**: (1) los proyectos donde participa y (2) los
+  proyectos de TODA su Dirección General (`proyectos.id_dg_lider =
+  usuario.id_dg`), participe o no — todas las Direcciones de Área que
+  cuelguen de ella, no solo una.
 
-**Nada más.** Deliberadamente **NO** incluye proyectos de otra DG por el
-solo hecho de que un enlace de su propia dirección participe ahí —
-eso se consideró y se descartó por costo/complejidad; si se pide en el
-futuro, es otro PR. La resolución compara `proyectos.id_dg_lider` contra
-`usuario.id_dg` directamente — **nunca** cruzando `proyecto_usuarios` ni
-`nodo_miembros` para rastrear membresías de terceros (la prueba que fija
-esto, `alcanceProyectos.test.js`, verifica que el SQL del lado de DG no
-referencia ninguna de esas dos tablas). `direccion` sin `id_dg` no recibe
-bono (cae a solo participación, sin error). `superadmin`/`ejecutivo` ven
-todo, sin tocar membresía. `enlace`/`externo` nunca llevan bono.
+**Nada más en ningún caso.** Deliberadamente **NO** incluyen proyectos
+fuera de su propio nivel (área u DG, según el rol) por el solo hecho de
+que un enlace de su misma dirección participe ahí — eso se consideró y
+se descartó por costo/complejidad; si se pide en el futuro, es otro PR.
+Cada resolución compara la columna del proyecto directamente contra la
+del usuario (`id_direccion_area_lider`/`id_dg_lider`) — **nunca**
+cruzando `proyecto_usuarios` ni `nodo_miembros` para rastrear membresías
+de terceros (la prueba que fija esto, `alcanceProyectos.test.js`,
+verifica que el SQL de cada bono no referencia ninguna de esas dos
+tablas, y que el de `direccion` no referencia `id_dg_lider` ni el de
+`direccion_general` referencia `id_direccion_area_lider`). Sin el campo
+correspondiente (`id_direccion_area`/`id_dg` nulo) no hay bono, cae a
+solo participación, sin error. `superadmin`/`ejecutivo` ven todo, sin
+tocar membresía. `enlace`/`externo` nunca llevan bono.
 
 **Mis actividades y Agenda son la excepción a la excepción** (ya anotado
 en la sección 5): `acciones.controller.js::agenda` resuelve siempre por
-el id propio del usuario, nunca por `id_dg` — un director no hereda ahí
-los pendientes de los enlaces de su DG.
+el id propio del usuario, nunca por `id_direccion_area` ni por `id_dg` —
+un director no hereda ahí los pendientes de los enlaces de su área o su DG.
 
-Este bono es un mecanismo aparte de la vía `direccion_dg` de
-`funcionEfectivaEnProyecto` (sección 2.1, paso 14 DGTIC) — mismo criterio
-(`id_dg_lider === usuario.id_dg`), pero resuelto por código distinto para
-un propósito distinto: este acota QUÉ PROYECTOS entran en una vista
-personalizada (Tablero, Documentos...); la vía de la escalera decide si
-`direccion` VE EL CONTENIDO DE TRABAJO (sección 5.1) de un proyecto que
-ya tenía abierto por `puedeVerProyecto`. No competir por la lectura
-estructural (que ya era total) fue la razón de no reusar este mismo
-`alcanceProyectosUsuario` para eso.
+Cada bono es un mecanismo aparte de su vía homóloga en
+`funcionEfectivaEnProyecto` (sección 2.1): `direccion_area` para
+`direccion`, `direccion_general_dg` para `direccion_general`. Mismo
+criterio que su bono de `alcanceProyectos.js`, pero resuelto por código
+distinto para un propósito distinto: este acota QUÉ PROYECTOS entran en
+una vista personalizada (Tablero, Documentos...); la vía de la escalera
+decide si el usuario VE EL CONTENIDO DE TRABAJO (sección 5.1) de un
+proyecto que ya tenía abierto por `puedeVerProyecto`. No competir por la
+lectura estructural (que ya era total) fue la razón de no reusar este
+mismo `alcanceProyectosUsuario` para eso.
 
 ### 9.2 Grupo 1 — ya conectados, ganan el bono sin cambio de código propio
 
@@ -562,8 +579,9 @@ compartida, lo ganan automáticamente: `GET /inicio`,
 `GET /geo/territorio/estado/:cve_ent/detalle`, `/municipios-actividad`,
 `/geo/territorio/zm/:gid/detalle`, `GET /indicadores/mios` ("Mis
 indicadores"), `GET /evidencias` (listado, "Documentos"). Decisión de
-producto confirmada: un director ve en estos lugares los indicadores y
-documentos de los proyectos de su DG, igual que el resto del Grupo 1.
+producto confirmada: un director de área ve en estos lugares los
+indicadores y documentos de los proyectos de su propia área, y un
+director general los de toda su DG, igual que el resto del Grupo 1.
 
 ### 9.3 Grupo 2 — conectados por primera vez a `alcanceProyectosUsuarioONull`
 
@@ -633,7 +651,9 @@ ahora llama a `funcionEfectivaPorLotes(usuario, proyectoId)` y filtra
 la MISMA función que usa `autorizacion.js` para aceptar o rechazar una
 escritura real, no de una copia. El controller pasa ahora el objeto
 `usuario` completo (antes solo `usuario.id`) porque
-`funcionEfectivaPorLotes` necesita `rol`/`id_dg` para el bono de DG.
+`funcionEfectivaPorLotes` necesita `rol`/`id_dg`/`id_direccion_area` para
+los bonos institucionales (`ejecutivo_dg`, `direccion_area`,
+`direccion_general_dg`).
 
 En el frontend, `usePermisos.js::permisosDeNodo` (líneas 184-220) ya
 hacía exactamente lo que este paso necesitaba mostrar — `esSoloLectura`
@@ -1179,6 +1199,20 @@ contra `'externo'`, un valor que ese campo nunca tiene — así que el
   ese tablero, incluido `ejecutivo`/`direccion` en proyectos de su propia
   DG). Corregirlo por fila es trabajo aparte, fuera de este paso (14
   DGTIC), que se limitó al contenido de trabajo DENTRO de un proyecto.
+- **El bono de DG de `direccion` para resolver solicitudes
+  (`porBonoDireccion`, sección 13.4) no se acotó junto con el resto del
+  rol**: el paso 15 DGTIC (CAMBIO 1) bajó el alcance general de
+  `direccion` de Dirección General a Dirección de Área en
+  `alcanceProyectos.js` y `funcion-efectiva.js`, pero
+  `solicitudes.controller.js`/`solicitudes.queries.js` resuelven ese
+  bono aparte (comparando `usuario.id_dg` contra `solicitud.id_dg_lider`
+  directamente, fuera de `funcionEfectiva`) y se dejó sin tocar a
+  propósito — no estaba en el encargo de ese cambio. Hoy un director de
+  área puede ver y resolver, en su bandeja de Notificaciones, una
+  solicitud de participación de un proyecto de OTRA área de su misma DG,
+  aunque ya no vea ese proyecto en ningún otro lugar de la plataforma
+  (Tablero, Documentos, Seguimiento...). Acotar este bono también a
+  `id_direccion_area` queda para una ronda aparte.
 - **`text-gray-500` (chips/contadores del panel) y `text-gray-400`
   (leyendas como "Calculado desde sus acciones.") no pasan 4.5:1 contra
   el fondo `bg-gray-150` del panel bloqueado** (4.16:1 y 2.18:1 — ambos
@@ -1737,89 +1771,70 @@ resumen+filtros+lista por un aviso ("No se pudieron cargar las
 actividades... intenta de nuevo") con un botón "Reintentar" que vuelve
 a llamar la misma función de carga — nunca un tablero de ceros.
 
-## 17. Jerarquía de dos niveles: `direccion_general` y el acotamiento (pendiente) de `direccion` (paso 15 DGTIC)
+## 17. Jerarquía de dos niveles: `direccion` (Dirección de Área) y `direccion_general` (Dirección General) — paso 15 DGTIC
 
-Jerarquía institucional decidida: una Dirección General
-(`direcciones_generales`) contiene varias Direcciones de Área
-(`direcciones_area.id_dg`). Dos piezas, una implementada y una
-decidida-pero-pendiente:
+Jerarquía institucional: una Dirección General (`direcciones_generales`)
+contiene varias Direcciones de Área (`direcciones_area.id_dg`).
+`direccion_general` es el nivel de arriba — ve todas las áreas de su DG;
+`direccion` es el nivel de abajo — ve solo su propia área, nunca las
+otras áreas de la misma DG. Ninguno de los dos gana edición automática
+por el bono: para capturar, los dos necesitan participación real, igual
+que cualquier otro rol (sección 9.1).
 
-### 17.1 Implementado: `direccion_general`, rol nuevo
-
-Alcance: todos los proyectos cuya `id_dg_lider` sea la propia DG del
-usuario — todas las Direcciones de Área que cuelgan de ella, no solo
-una. Mismo criterio y mismo tope que ya usaba `direccion` desde el paso
-14 (nunca edición automática, solo `lectura`), resuelto en los mismos
-dos lugares de siempre, por los mismos dos motivos de siempre (sección
-9.1):
+Ambos roles se resuelven en los mismos dos lugares, por los mismos dos
+motivos de siempre (sección 9.1):
 
 - `utils/alcanceProyectos.js::alcanceProyectosUsuario` — vistas
-  personalizadas (Tablero, mapas, Mis indicadores, Documentos): la
-  rama de `direccion` ahora también acepta `direccion_general`,
-  reusando el mismo `proyectosDeLaDG`.
-- `utils/funcion-efectiva.js::funcionEfectivaEnProyecto` — vía nueva
-  `direccion_general_dg` (sección 2.1), idéntica en forma a
-  `direccion_dg` (mismo `id_dg_lider === usuario.id_dg`, mismo tope en
-  `lectura`), de la que heredan automáticamente el resto de pantallas
-  que ya dependen de `funcionEfectivaEnProyecto`/`EnNodo` sin tocarlas:
-  Seguimiento e Indicadores de un proyecto (abiertos a cualquier
-  interno desde antes, sección 5), y Comentarios/Documentos/Riesgos/
-  Bitácora/Actividad (contenido de trabajo, sección 5.1 — redactado o
-  bloqueado según el mismo criterio de participación que ya aplica a
-  cualquier otro rol).
+  personalizadas (Tablero, mapas, Mis indicadores, Documentos):
+  `direccion` usa `proyectosDeSuArea(id_direccion_area)`;
+  `direccion_general` usa `proyectosDeLaDG(id_dg)`.
+- `utils/funcion-efectiva.js::funcionEfectivaEnProyecto` — vías
+  `direccion_area` (compara `proyectos.id_direccion_area_lider` contra
+  `usuario.id_direccion_area`) y `direccion_general_dg` (compara
+  `proyectos.id_dg_lider` contra `usuario.id_dg`), sección 2.1, ambas
+  topadas en `lectura`, nunca edición automática. De ahí heredan
+  automáticamente el resto de pantallas que ya dependen de
+  `funcionEfectivaEnProyecto`/`EnNodo` sin tocarlas: Seguimiento e
+  Indicadores de un proyecto (abiertos a cualquier interno desde antes,
+  sección 5), y Comentarios/Documentos/Riesgos/Bitácora/Actividad
+  (contenido de trabajo, sección 5.1 — redactado o bloqueado según el
+  mismo criterio de participación que ya aplica a cualquier otro rol).
 
-**Migración 090**: solo amplía el `CHECK` de `usuarios.rol` a seis
-valores. Los campos `id_dg`/`id_direccion_area` de `usuarios` ya
-existían desde la migración 001 — asignar el rol nuevo a una cuenta es
-una operación normal del panel de administración (`AdminCatalogos.jsx`,
-que ya muestra el selector de Dirección General para cualquier rol, sin
-necesitar un campo nuevo), no una migración de datos.
+**Migración 090**: amplía el `CHECK` de `usuarios.rol` a seis valores.
+Los campos `id_dg`/`id_direccion_area` de `usuarios` ya existían desde
+la migración 001 — no hizo falta ninguna migración de datos para este
+paso, en ninguna de las dos piezas (rol nuevo o acotamiento del
+existente): asignar/reasignar un rol de dirección a una cuenta es una
+operación normal del panel de administración.
 
-**Corregido de paso, por quedar directamente al lado de lo que se
+**Panel de administración**: `AdminCatalogos.jsx` exige la Dirección de
+Área al asignar `direccion` y la Dirección General al asignar
+`direccion_general` — sin ese dato no se puede guardar la cuenta, con
+un mensaje explícito de por qué se pide (`errorAlcanceRol`,
+`admin.controller.js`, validado tanto al crear como al editar un
+usuario, contra el estado final resultante de combinar el cuerpo de la
+petición con lo que ya había en la base). Evita crear o dejar, sin
+querer, una cuenta de dirección sin el campo que necesita su bono —
+antes de esta validación era posible, y esa persona pasaba a ver cero
+proyectos de más sin que nada en el panel explicara por qué.
+
+**Bug de paso, corregido por quedar directamente al lado de lo que se
 estaba tocando**: `frontend/src/utils/funcionProyecto.js` y
-`frontend/src/hooks/usePermisos.js` seguían marcando a `direccion` de la
-misma DG como `ATRIBUCION` ("tu cargo te permite editar este proyecto")
-en el cálculo optimista del lado del cliente — correcto hasta antes del
-paso 14, incorrecto desde que `direccion_dg` quedó topada en `lectura`.
-El servidor siempre mandó la respuesta correcta (nunca se pudo editar
-de verdad por esa vía), pero por un instante, antes de que la respuesta
-real llegara, el chip y los campos editables prometían algo que al
-usarlo fallaba — exactamente lo que `funcionProyecto.js` dice en su
-propia cabecera que hay que evitar. Ahora ambos marcan `SEGUIMIENTO`
-("consultas, no editas") para `direccion`/`direccion_general` de la
-misma DG, igual que ya hacía `ejecutivo` fuera de la suya.
+`frontend/src/hooks/usePermisos.js` marcaban a `direccion` de la misma
+DG como `ATRIBUCION` ("tu cargo te permite editar este proyecto") en el
+cálculo optimista del lado del cliente — correcto hasta antes del paso
+14, incorrecto desde que el bono de dirección quedó topado en
+`lectura`. El servidor siempre mandó la respuesta correcta (nunca se
+pudo editar de verdad por esa vía), pero por un instante, antes de que
+la respuesta real llegara, el chip y los campos editables prometían
+algo que al usarlo fallaba. Ahora ambos marcan `SEGUIMIENTO`
+("consultas, no editas") para `direccion`/`direccion_general` sobre un
+proyecto que no es el suyo por participación directa, igual que ya
+hacía `ejecutivo` fuera de su DG.
 
-### 17.2 Decidido, pendiente de implementar: acotar `direccion` a su Dirección de Área
-
-`direccion` pasaría de alcance Dirección General (`usuario.id_dg`) a
-alcance Dirección de Área (`usuario.id_direccion_area`), en los mismos
-dos lugares de 17.1 (`alcanceProyectos.js` y la vía `direccion_dg`) —
-comparando `proyectos.id_direccion_area_lider` en vez de
-`proyectos.id_dg_lider`. Es la razón de que el rol nuevo exista: antes
-de este cambio, un director de área y un director general eran la
-misma cosa (alcance de DG completa); después, son dos niveles
-distintos de verdad.
-
-**Por qué no se implementó en el mismo PR**: acotar el alcance de un
-rol existente puede quitarle a una cuenta real, que usa la plataforma a
-diario, una visibilidad de la que depende sin estar formalmente
-invitada a los proyectos que ve. A diferencia de `direccion_general`
-(aditivo — nadie pierde nada, es un rol que hay que asignar a propósito),
-este cambio sí puede quitar algo a cuentas que ya existen. Antes de
-tocar el código se pidió, y sigue pendiente, un diagnóstico contra la
-base de datos real: cuántas cuentas `direccion` existen, cuántos
-proyectos ve cada una hoy, cuántos vería con el alcance acotado, y el
-detalle de los que perdería (que por construcción son siempre proyectos
-donde no participa de verdad — si participara, seguirían visibles por
-esa vía, sin depender del bono). El resultado de ese diagnóstico decide
-si el cambio se aplica tal cual o si antes hay que invitar explícitamente
-a algunas cuentas a los proyectos de los que dependen.
-
-**Nota para cuando se implemente**: `solicitudes.controller.js` tiene un
-bono de DG propio para `direccion` (resolver solicitudes de
-participación de cualquier proyecto de su DG, `porBonoDireccion`,
-sección 13.4) que es una extensión deliberada **fuera** de
-`funcionEfectiva` y de `alcanceProyectos.js` — no se tocó en este paso
-porque el encargo no lo mencionó, pero acotar `direccion` a su área sin
-revisar también este bono dejaría a un director resolviendo solicitudes
-de proyectos de áreas que ya no ve en ningún otro lado de la plataforma.
+**Nota aparte, sin corregir en este paso** (sección 14): el bono de DG
+de `direccion` para resolver solicitudes de participación
+(`porBonoDireccion`, sección 13.4) vive fuera de `funcionEfectiva` y de
+`alcanceProyectos.js`, en `solicitudes.controller.js`/
+`solicitudes.queries.js` — sigue comparando por `id_dg` completo, no se
+acotó junto con el resto del rol.

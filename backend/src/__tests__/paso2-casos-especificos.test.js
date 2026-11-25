@@ -37,11 +37,13 @@ describe('GET /indicadores/mios — hereda el bono de DG (Grupo 1)', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
-  test('direccion recibe también los indicadores de los proyectos de su propia DG, aunque no participe en ellos', async () => {
+  // Paso 15 DGTIC, CAMBIO 1: el bono de 'direccion' bajó de nivel DG a
+  // nivel Dirección de Área.
+  test('direccion recibe también los indicadores de los proyectos de su propia Dirección de Área, aunque no participe en ellos', async () => {
     miembrosQueries.obtenerProyectosUsuario.mockResolvedValueOnce([UUID_PROPIO]);
     pool.query.mockResolvedValueOnce({ rows: [{ id: UUID_DG }] });
 
-    const req = { usuario: { rol: 'direccion', id: 'u1', id_dg: 'dg-1' }, query: {} };
+    const req = { usuario: { rol: 'direccion', id: 'u1', id_direccion_area: 'area-1' }, query: {} };
     await indicadoresController.listarMios(req, crearRes(), jest.fn());
 
     const [proyectoIdsPasados] = inicioQueries.obtenerIndicadoresAgregados.mock.calls[0];

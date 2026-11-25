@@ -224,34 +224,60 @@ describe('contenido de trabajo — quien SÍ participa (invitación de lectura a
   });
 });
 
-describe('control — superadmin y direccion_dg (vías ya cubiertas por funcionEfectivaEnProyecto)', () => {
+describe('control — superadmin, direccion_area y direccion_general_dg (vías ya cubiertas por funcionEfectivaEnProyecto)', () => {
   test('superadmin: participa en cualquier proyecto sin ninguna fila de invitación', async () => {
     const r = await pedir(`/proyectos/${PROYECTO_A}/riesgos`, { id: 'u-super', rol: 'superadmin' });
     expect(r.status).not.toBe(403);
   });
 
-  test('direccion de la misma DG que lidera el proyecto: participa (bono de DG, paso 14)', async () => {
+  // Paso 15 DGTIC, CAMBIO 1: el bono de 'direccion' bajó de nivel DG a
+  // nivel Dirección de Área — la vía se llama 'direccion_area' desde
+  // entonces (antes 'direccion_dg', comparaba por id_dg).
+  test('direccion de la misma Dirección de Área que lidera el proyecto: participa (bono de área, paso 15)', async () => {
     pool.query.mockImplementation((sql, params) => {
       if (/FROM proyectos WHERE id = \$1/.test(sql)) {
-        return Promise.resolve({ rows: [{ id_creador: null, id_dg_lider: 9 }] });
+        return Promise.resolve({ rows: [{ id_creador: null, id_dg_lider: null, id_direccion_area_lider: 'area-9' }] });
       }
       if (/FROM proyecto_usuarios WHERE id_proyecto = \$1 AND id_usuario = \$2/.test(sql)) {
         return Promise.resolve({ rows: [] });
       }
       return Promise.resolve({ rows: [] });
     });
-    const r = await pedir(`/proyectos/${PROYECTO_A}/riesgos`, { id: 'u-direccion', rol: 'direccion', id_dg: 9 });
+    const r = await pedir(`/proyectos/${PROYECTO_A}/riesgos`, { id: 'u-direccion', rol: 'direccion', id_direccion_area: 'area-9' });
     expect(r.status).not.toBe(403);
   });
 
-  test('direccion de OTRA DG: no participa', async () => {
+  test('direccion de OTRA área (aunque sea de la misma DG): no participa', async () => {
     pool.query.mockImplementation((sql) => {
       if (/FROM proyectos WHERE id = \$1/.test(sql)) {
-        return Promise.resolve({ rows: [{ id_creador: null, id_dg_lider: 9 }] });
+        return Promise.resolve({ rows: [{ id_creador: null, id_dg_lider: null, id_direccion_area_lider: 'area-9' }] });
       }
       return Promise.resolve({ rows: [] });
     });
-    const r = await pedir(`/proyectos/${PROYECTO_A}/riesgos`, { id: 'u-direccion-otra', rol: 'direccion', id_dg: 1 });
+    const r = await pedir(`/proyectos/${PROYECTO_A}/riesgos`, { id: 'u-direccion-otra', rol: 'direccion', id_direccion_area: 'area-1' });
+    expect(r.status).toBe(403);
+    expect(r.cuerpo.codigo).toBe('SIN_PARTICIPACION');
+  });
+
+  test('direccion_general de la misma DG que lidera el proyecto: participa (bono de DG completa, paso 15)', async () => {
+    pool.query.mockImplementation((sql) => {
+      if (/FROM proyectos WHERE id = \$1/.test(sql)) {
+        return Promise.resolve({ rows: [{ id_creador: null, id_dg_lider: 9, id_direccion_area_lider: null }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+    const r = await pedir(`/proyectos/${PROYECTO_A}/riesgos`, { id: 'u-direccion-general', rol: 'direccion_general', id_dg: 9 });
+    expect(r.status).not.toBe(403);
+  });
+
+  test('direccion_general de OTRA DG: no participa', async () => {
+    pool.query.mockImplementation((sql) => {
+      if (/FROM proyectos WHERE id = \$1/.test(sql)) {
+        return Promise.resolve({ rows: [{ id_creador: null, id_dg_lider: 9, id_direccion_area_lider: null }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+    const r = await pedir(`/proyectos/${PROYECTO_A}/riesgos`, { id: 'u-direccion-general-otra', rol: 'direccion_general', id_dg: 1 });
     expect(r.status).toBe(403);
     expect(r.cuerpo.codigo).toBe('SIN_PARTICIPACION');
   });

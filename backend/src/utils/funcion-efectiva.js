@@ -87,7 +87,7 @@ async function funcionEfectivaEnProyecto(usuario, idProyecto, db) {
 
   const conn = db || pool;
   const { rows } = await conn.query(
-    'SELECT id_creador, id_dg_lider FROM proyectos WHERE id = $1', [idProyecto]
+    'SELECT id_creador, id_dg_lider, id_direccion_area_lider FROM proyectos WHERE id = $1', [idProyecto]
   );
   const proyecto = rows[0];
   if (!proyecto) return null;
@@ -117,33 +117,34 @@ async function funcionEfectivaEnProyecto(usuario, idProyecto, db) {
     candidato = masAlto(candidato, { peldano: 'responsable', via: 'ejecutivo_dg' });
   }
 
-  // Paso 14 DGTIC: 'direccion' de la misma DG que lidera el proyecto gana
+  // Paso 14 DGTIC (vía 'direccion_dg' entonces, renombrada 'direccion_area'
+  // en el paso 15 DGTIC / CAMBIO 1 — ya no compara por DG, compara por
+  // Dirección de Área, el nombre viejo describía mal lo que hace): la
+  // 'direccion' de la misma Dirección de Área que lidera el proyecto gana
   // 'lectura' aunque no participe — es responsable institucional de esos
   // proyectos y necesita ver su contenido de trabajo (comentarios,
   // documentos, riesgos), no solo su estructura y avance (eso ya era
   // visible para cualquier interno vía puedeVerProyecto, sección 5 del
-  // modelo de permisos). Tope deliberado en 'lectura', nunca más alto:
-  // el bono de DG de 'ejecutivo' llega a 'responsable' porque ya existía
-  // así desde antes de este paso; extenderle lo mismo a 'direccion' le
+  // modelo de permisos). Tope deliberado en 'lectura', nunca más alto: le
   // daría edición automática sobre proyectos donde no participa, que la
   // Fase 1 retiró a propósito (ver docs/modelo-permisos.md, sección 1) y
-  // que este paso no busca revertir — solo visibilidad.
+  // que este cambio no busca revertir — solo visibilidad.
   if (
     usuario.rol === 'direccion' &&
-    usuario.id_dg != null &&
-    proyecto.id_dg_lider != null &&
-    usuario.id_dg === proyecto.id_dg_lider
+    usuario.id_direccion_area != null &&
+    proyecto.id_direccion_area_lider != null &&
+    usuario.id_direccion_area === proyecto.id_direccion_area_lider
   ) {
-    candidato = masAlto(candidato, { peldano: 'lectura', via: 'direccion_dg' });
+    candidato = masAlto(candidato, { peldano: 'lectura', via: 'direccion_area' });
   }
 
   // Paso 15 DGTIC: 'direccion_general' — rol nuevo, un nivel arriba de
   // 'direccion' en la jerarquía institucional (una Dirección General
-  // contiene varias Direcciones de Área). Mismo criterio de comparación
-  // que 'direccion_dg' arriba (por id_dg, no por id_direccion_area: su
-  // alcance es la DG completa, todas sus áreas) y mismo tope deliberado
-  // en 'lectura' — ve el contenido de trabajo de cualquier proyecto de
-  // su DG, nunca gana edición automática sobre uno en el que no participa.
+  // contiene varias Direcciones de Área). A diferencia de 'direccion_area'
+  // arriba, SÍ compara por id_dg, no por id_direccion_area: su alcance es
+  // la DG completa, todas sus áreas. Mismo tope deliberado en 'lectura' —
+  // ve el contenido de trabajo de cualquier proyecto de su DG, nunca gana
+  // edición automática sobre uno en el que no participa.
   if (
     usuario.rol === 'direccion_general' &&
     usuario.id_dg != null &&

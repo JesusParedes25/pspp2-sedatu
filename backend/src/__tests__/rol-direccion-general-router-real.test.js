@@ -21,15 +21,11 @@
  * petición HTTP real con `fetch`, solo se mockean `db/pool`,
  * `utils/minio.js` y `verificarToken` (lee X-Test-Usuario).
  *
- * LO QUE ESTE ARCHIVO NO PRUEBA, A PROPÓSITO: el contraste "direccion de
- * un área NO alcanza los proyectos de otra área de su misma DG" — ese
- * acotamiento de 'direccion' (de nivel Dirección General a nivel
- * Dirección de Área) es un cambio aparte, pendiente de que el usuario
- * confirme el impacto en cuentas reales antes de implementarlo (ver
- * docs/modelo-permisos.md sección 9.1 y la nota en alcanceProyectos.js).
- * Hoy 'direccion' sigue viendo por DG completa, así que afirmar esa
- * separación aquí sería afirmar algo que el código todavía no hace.
- * Ver el test.todo al final.
+ * CAMBIO 1 (paso 15): 'direccion' está acotado a su propia Dirección de
+ * Área, no a toda la DG. Este archivo también prueba el contraste: dos
+ * 'direccion' de áreas distintas bajo la MISMA DG no se ven los proyectos
+ * entre sí, mientras que 'direccion_general' de esa DG sí alcanza ambas
+ * áreas (ver el describe "CAMBIO 1" más abajo).
  *
  * Ejecutar: npm test (el archivo aislado CUELGA en este entorno, ver
  * nota de paso 13 — correr siempre la suite completa sin filtro).
@@ -58,16 +54,25 @@ const errorHandler = require('../middleware/errorHandler');
 const DGA = '00000000-0000-0000-0000-0000000000d1';
 const DGB = '00000000-0000-0000-0000-0000000000d2';
 
-const PROYECTO_A1 = { id: '00000000-0000-0000-0000-0000000000a1', nombre: 'Proyecto Area A1', dg: DGA };
-const PROYECTO_A2 = { id: '00000000-0000-0000-0000-0000000000a2', nombre: 'Proyecto Area A2', dg: DGA };
-const PROYECTO_B1 = { id: '00000000-0000-0000-0000-0000000000b1', nombre: 'Proyecto DGB 1', dg: DGB };
+// Dos Direcciones de Área distintas, ambas colgando de DGA (CAMBIO 1).
+const AREA_A1 = '00000000-0000-0000-0000-0000000000e1';
+const AREA_A2 = '00000000-0000-0000-0000-0000000000e2';
+const AREA_B1 = '00000000-0000-0000-0000-0000000000e3';
+
+const PROYECTO_A1 = { id: '00000000-0000-0000-0000-0000000000a1', nombre: 'Proyecto Area A1', dg: DGA, area: AREA_A1 };
+const PROYECTO_A2 = { id: '00000000-0000-0000-0000-0000000000a2', nombre: 'Proyecto Area A2', dg: DGA, area: AREA_A2 };
+const PROYECTO_B1 = { id: '00000000-0000-0000-0000-0000000000b1', nombre: 'Proyecto DGB 1', dg: DGB, area: AREA_B1 };
 const TODOS_LOS_PROYECTOS = [PROYECTO_A1, PROYECTO_A2, PROYECTO_B1];
 
 const DG_LIDER_POR_PROYECTO = Object.fromEntries(TODOS_LOS_PROYECTOS.map((p) => [p.id, p.dg]));
+const AREA_LIDER_POR_PROYECTO = Object.fromEntries(TODOS_LOS_PROYECTOS.map((p) => [p.id, p.area]));
 const PROYECTOS_POR_DG = { [DGA]: [PROYECTO_A1, PROYECTO_A2], [DGB]: [PROYECTO_B1] };
+const PROYECTOS_POR_AREA = { [AREA_A1]: [PROYECTO_A1], [AREA_A2]: [PROYECTO_A2], [AREA_B1]: [PROYECTO_B1] };
 
 const DIRECCION_GENERAL_DGA = { id: 'u-dg-general-a', rol: 'direccion_general', id_dg: DGA };
 const DIRECCION_GENERAL_DGB = { id: 'u-dg-general-b', rol: 'direccion_general', id_dg: DGB };
+const DIRECCION_AREA_A1 = { id: 'u-direccion-area-a1', rol: 'direccion', id_dg: DGA, id_direccion_area: AREA_A1 };
+const DIRECCION_AREA_A2 = { id: 'u-direccion-area-a2', rol: 'direccion', id_dg: DGA, id_direccion_area: AREA_A2 };
 const ENLACE_AJENO = { id: 'u-enlace-ajeno', rol: 'enlace' };
 
 function mockPool() {
@@ -75,15 +80,26 @@ function mockPool() {
     // ── funcion-efectiva.js::funcionEfectivaEnProyecto — fila del proyecto ──
     if (/FROM proyectos WHERE id = \$1/.test(sql)) {
       const [id] = params;
-      return Promise.resolve({ rows: [{ id_creador: null, id_dg_lider: DG_LIDER_POR_PROYECTO[id] || null }] });
+      return Promise.resolve({
+        rows: [{
+          id_creador: null,
+          id_dg_lider: DG_LIDER_POR_PROYECTO[id] || null,
+          id_direccion_area_lider: AREA_LIDER_POR_PROYECTO[id] || null,
+        }],
+      });
     }
     if (/FROM proyecto_usuarios WHERE id_proyecto = \$1 AND id_usuario = \$2/.test(sql)) {
       return Promise.resolve({ rows: [] }); // nadie participa de verdad en estas pruebas
     }
-    // ── alcanceProyectos.js::proyectosDeLaDG (el bono de DG) ──
+    // ── alcanceProyectos.js::proyectosDeLaDG (el bono de direccion_general) ──
     if (sql.includes('id_dg_lider = $1')) {
       const [idDg] = params;
       return Promise.resolve({ rows: (PROYECTOS_POR_DG[idDg] || []).map((p) => ({ id: p.id })) });
+    }
+    // ── alcanceProyectos.js::proyectosDeSuArea (el bono de direccion, CAMBIO 1) ──
+    if (sql.includes('id_direccion_area_lider = $1')) {
+      const [idArea] = params;
+      return Promise.resolve({ rows: (PROYECTOS_POR_AREA[idArea] || []).map((p) => ({ id: p.id })) });
     }
     // ── inicio.controller.js::obtenerProyectosFiltro — fila final {id,nombre} ──
     if (sql.includes('SELECT id, nombre FROM proyectos') && sql.includes('id = ANY($1)')) {
@@ -174,10 +190,29 @@ describe('Contenido de trabajo (paso 14) — direccion_general participa vía el
   });
 });
 
-// Pendiente de CAMBIO 1 (acotar 'direccion' de nivel DG a nivel Dirección
-// de Área) — una vez implementado y con el impacto confirmado, esta
-// prueba demuestra que una 'direccion' de un área NO alcanza los
-// proyectos de otra área de su misma DG, y que 'direccion_general' de
-// esa misma DG SÍ alcanza los dos. Hoy 'direccion' todavía ve por DG
-// completa, así que no se afirma aquí algo que el código no hace.
-test.todo("CAMBIO 1 pendiente: 'direccion' de un área no alcanza los proyectos de otra área de su misma DG; 'direccion_general' de esa DG sí alcanza los dos");
+describe("CAMBIO 1 — 'direccion' acotado a su propia Dirección de Área, 'direccion_general' sigue viendo toda la DG", () => {
+  test('direccion de AREA_A1 ve su propio proyecto (A1) pero NO el de AREA_A2, aunque ambas áreas cuelgan de la MISMA DGA', async () => {
+    const { status, cuerpo } = await pedir('/inicio/filtros/proyectos', DIRECCION_AREA_A1);
+    expect(status).toBe(200);
+    const ids = cuerpo.datos.map((p) => p.id);
+    expect(ids).toContain(PROYECTO_A1.id);
+    expect(ids).not.toContain(PROYECTO_A2.id);
+    expect(ids).not.toContain(PROYECTO_B1.id);
+  });
+
+  test('direccion de AREA_A2 ve su propio proyecto (A2) pero NO el de AREA_A1, aunque ambas áreas cuelgan de la MISMA DGA', async () => {
+    const { status, cuerpo } = await pedir('/inicio/filtros/proyectos', DIRECCION_AREA_A2);
+    expect(status).toBe(200);
+    const ids = cuerpo.datos.map((p) => p.id);
+    expect(ids).toContain(PROYECTO_A2.id);
+    expect(ids).not.toContain(PROYECTO_A1.id);
+    expect(ids).not.toContain(PROYECTO_B1.id);
+  });
+
+  test('direccion_general de DGA, en cambio, SÍ alcanza los proyectos de AMBAS áreas (A1 y A2) — su alcance sigue siendo la DG completa', async () => {
+    const { status, cuerpo } = await pedir('/inicio/filtros/proyectos', DIRECCION_GENERAL_DGA);
+    expect(status).toBe(200);
+    const ids = cuerpo.datos.map((p) => p.id);
+    expect(ids).toEqual(expect.arrayContaining([PROYECTO_A1.id, PROYECTO_A2.id]));
+  });
+});
