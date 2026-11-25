@@ -47,10 +47,13 @@ describe('alcanceProyectosUsuarioONull', () => {
     expect(resultado).toBeNull();
   });
 
-  test('direccion recibe la unión de su participación y los proyectos de su propia DG (Fase 2 / Paso 2)', async () => {
+  // Paso 15 DGTIC, CAMBIO 1: el bono de 'direccion' bajó de nivel DG a
+  // nivel Dirección de Área — ver alcanceProyectos.test.js para la
+  // cobertura completa de esa regla.
+  test('direccion recibe la unión de su participación y los proyectos de su propia Dirección de Área', async () => {
     miembrosQueries.obtenerProyectosUsuario.mockResolvedValueOnce([UUID_1]);
     mockQuery.mockResolvedValueOnce({ rows: [{ id: UUID_2 }] });
-    const resultado = await alcanceProyectosUsuarioONull({ rol: 'direccion', id: 'u1', id_dg: 'dg-1' });
+    const resultado = await alcanceProyectosUsuarioONull({ rol: 'direccion', id: 'u1', id_direccion_area: 'area-1' });
     expect(resultado.sort()).toEqual([UUID_1, UUID_2].sort());
   });
 

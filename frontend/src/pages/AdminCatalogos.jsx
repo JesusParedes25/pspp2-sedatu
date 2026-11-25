@@ -169,6 +169,26 @@ function TabUsuarios({ dgs, das }) {
 
   const dasDgActual = modal ? das.filter(d => d.id_dg === modal.datos.id_dg) : [];
 
+  // 'direccion' solo ve algo por su bono (Tablero/Mapa/Mis indicadores,
+  // Comentarios/Documentos/Riesgos) si tiene Dirección de Área asignada —
+  // bajó de nivel DG a nivel Dirección de Área (paso 15 DGTIC, CAMBIO 1).
+  // 'direccion_general' necesita su Dirección General por el mismo motivo,
+  // un nivel arriba. El backend ya rechaza guardar sin esto (mismo
+  // mensaje); esto evita el viaje redondo y explica el porqué antes de
+  // que la persona intente guardar.
+  const sinAlcanceParaRol = (() => {
+    if (!modal) return null;
+    if (modal.datos.rol === 'direccion' && !modal.datos.id_direccion_area) {
+      return modal.datos.id_dg
+        ? 'El rol "direccion" exige elegir una Dirección de Área: sin ella, esta cuenta no vería ningún proyecto.'
+        : 'El rol "direccion" exige una Dirección de Área: elige primero su Dirección General para poder elegirla.';
+    }
+    if (modal.datos.rol === 'direccion_general' && !modal.datos.id_dg) {
+      return 'El rol "direccion_general" exige una Dirección General: sin ella, esta cuenta no vería ningún proyecto.';
+    }
+    return null;
+  })();
+
   const [guardar, enviando] = useEnvioUnico(async () => {
     try {
       if (modal.modo === 'crear') {
@@ -394,10 +414,13 @@ function TabUsuarios({ dgs, das }) {
                   </select>
                 </Field>
               )}
+              {sinAlcanceParaRol && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-snug">{sinAlcanceParaRol}</p>
+              )}
             </div>
             <div className="flex justify-end gap-3 px-6 py-4 border-t">
               <button onClick={() => setModal(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
-              <button onClick={guardar} disabled={enviando} className="px-4 py-2 text-sm bg-guinda-700 text-white rounded-lg hover:bg-guinda-600 disabled:opacity-50 flex items-center gap-2">
+              <button onClick={guardar} disabled={enviando || !!sinAlcanceParaRol} title={sinAlcanceParaRol || undefined} className="px-4 py-2 text-sm bg-guinda-700 text-white rounded-lg hover:bg-guinda-600 disabled:opacity-50 flex items-center gap-2">
                 {enviando && <Loader2 size={14} className="animate-spin" />}
                 {modal.modo === 'crear' ? 'Crear usuario' : 'Guardar cambios'}
               </button>

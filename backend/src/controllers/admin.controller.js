@@ -257,6 +257,26 @@ async function listarUsuarios(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// 'direccion' y 'direccion_general' solo ven algo por su bono institucional
+// (utils/alcanceProyectos.js, utils/funcion-efectiva.js) si tienen asignada
+// la Dirección de Área / Dirección General correspondiente — sin eso, la
+// cuenta queda creada pero sin ver ningún proyecto, sin ningún aviso que lo
+// explique (paso 15 DGTIC, CAMBIO 1: el bono de 'direccion' bajó de DG a
+// Dirección de Área; antes de este cambio, un 'direccion' sin área todavía
+// veía los proyectos de su DG, así que el hueco no era visible). Null-safe
+// en el resto del código a propósito (ver docs/modelo-permisos.md sección
+// 9.1) — aquí, en cambio, SÍ se exige, porque el silencio de "cae a cero
+// sin explicación" es peor que negar el guardado con el motivo exacto.
+function errorAlcanceRol(rol, idDg, idDireccionArea) {
+  if (rol === 'direccion' && !idDireccionArea) {
+    return 'El rol "direccion" exige asignar una Dirección de Área: sin ella, esta cuenta no vería ningún proyecto.';
+  }
+  if (rol === 'direccion_general' && !idDg) {
+    return 'El rol "direccion_general" exige asignar una Dirección General: sin ella, esta cuenta no vería ningún proyecto.';
+  }
+  return null;
+}
+
 // POST /admin/usuarios — crear usuario (sin password; se envía link de activación)
 async function crearUsuario(req, res, next) {
   try {
@@ -264,6 +284,9 @@ async function crearUsuario(req, res, next) {
     if (!nombre_completo || !correo || !rol) {
       return res.status(400).json({ error: true, mensaje: 'nombre_completo, correo y rol son requeridos' });
     }
+    const errorAlcance = errorAlcanceRol(rol, id_dg, id_direccion_area);
+    if (errorAlcance) return res.status(400).json({ error: true, mensaje: errorAlcance });
+
     const { rows: exist } = await pool.query('SELECT id FROM usuarios WHERE correo = $1', [correo]);
     if (exist.length > 0) return res.status(409).json({ error: true, mensaje: 'Ya existe un usuario con ese correo' });
 
@@ -298,6 +321,18 @@ async function editarUsuario(req, res, next) {
   try {
     const { id } = req.params;
     const { nombre_completo, correo, cargo, rol, id_dg, id_direccion_area } = req.body;
+
+    // Fotografía ANTES del UPDATE — rol/id_dg/id_direccion_area deciden el
+    // alcance de permisos de la cuenta (ver autorizacion.js), así que un
+    // cambio aquí necesita antes/después, no solo un título genérico. Se
+    // pide antes de armar el UPDATE porque también hace falta para
+    // completar, con lo que esta petición no toca, el rol/DG/área
+    // RESULTANTE que valida errorAlcanceRol más abajo.
+    const { rows: [antes] } = await pool.query(
+      'SELECT nombre_completo, correo, cargo, rol, id_dg, id_direccion_area FROM usuarios WHERE id = $1', [id]
+    );
+    if (!antes) return res.status(404).json({ error: true, mensaje: 'Usuario no encontrado' });
+
     const sets = []; const params = []; let i = 1;
     if (nombre_completo !== undefined) { sets.push(`nombre_completo=$${i++}`); params.push(nombre_completo); }
     if (correo !== undefined) { sets.push(`correo=$${i++}`); params.push(correo); }
@@ -306,30 +341,32 @@ async function editarUsuario(req, res, next) {
     if (id_dg !== undefined) { sets.push(`id_dg=$${i++}`); params.push(id_dg || null); }
     if (id_direccion_area !== undefined) { sets.push(`id_direccion_area=$${i++}`); params.push(id_direccion_area || null); }
     if (sets.length === 0) return res.status(400).json({ error: true, mensaje: 'Nada que actualizar' });
-    params.push(id);
 
-    // Fotografía ANTES del UPDATE — rol/id_dg/id_direccion_area deciden el
-    // alcance de permisos de la cuenta (ver autorizacion.js), así que un
-    // cambio aquí necesita antes/después, no solo un título genérico.
-    const { rows: [antes] } = await pool.query(
-      'SELECT nombre_completo, correo, cargo, rol, id_dg, id_direccion_area FROM usuarios WHERE id = $1', [id]
-    );
+    // Rol/DG/área RESULTANTES (lo que llega en esta petición, o lo que ya
+    // tenía si esta petición no lo toca) — un PUT que solo cambia el
+    // nombre no debe poder dejar pasar silenciosamente una combinación
+    // rol+alcance que nunca se habría aceptado al crearla (cuentas de
+    // antes de este paso).
+    const rolFinal = rol !== undefined ? rol : antes.rol;
+    const idDgFinal = id_dg !== undefined ? (id_dg || null) : antes.id_dg;
+    const idAreaFinal = id_direccion_area !== undefined ? (id_direccion_area || null) : antes.id_direccion_area;
+    const errorAlcance = errorAlcanceRol(rolFinal, idDgFinal, idAreaFinal);
+    if (errorAlcance) return res.status(400).json({ error: true, mensaje: errorAlcance });
+
+    params.push(id);
 
     const { rows } = await pool.query(
       `UPDATE usuarios SET ${sets.join(', ')} WHERE id = $${i} RETURNING id, nombre_completo, correo, cargo, rol, id_dg, id_direccion_area`,
       params
     );
-    if (!rows[0]) return res.status(404).json({ error: true, mensaje: 'Usuario no encontrado' });
 
-    if (antes) {
-      const { nombre_completo: n, correo: c, cargo: cg, rol: r, id_dg: dg, id_direccion_area: da } = rows[0];
-      await registrarAuditoria({
-        tabla: 'usuarios', registroId: id, campoModificado: 'ficha',
-        valorAnterior: antes,
-        valorNuevo: { nombre_completo: n, correo: c, cargo: cg, rol: r, id_dg: dg, id_direccion_area: da },
-        operacion: 'UPDATE', idUsuario: req.usuario?.id || null
-      });
-    }
+    const { nombre_completo: n, correo: c, cargo: cg, rol: r, id_dg: dg, id_direccion_area: da } = rows[0];
+    await registrarAuditoria({
+      tabla: 'usuarios', registroId: id, campoModificado: 'ficha',
+      valorAnterior: antes,
+      valorNuevo: { nombre_completo: n, correo: c, cargo: cg, rol: r, id_dg: dg, id_direccion_area: da },
+      operacion: 'UPDATE', idUsuario: req.usuario?.id || null
+    });
 
     res.json({ datos: rows[0], mensaje: 'Usuario actualizado' });
   } catch (err) { next(err); }

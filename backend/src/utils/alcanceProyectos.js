@@ -3,12 +3,13 @@
  * PROPÓSITO: A qué proyectos tiene acceso un usuario en las vistas
  *            personalizadas (Tablero, dashboard, mapas por DG/estado,
  *            Mis indicadores, Documentos) — superadmin/ejecutivo ven
- *            todos los proyectos activos; `direccion` ve los suyos más
- *            el bono de DG (sección 9.1 de docs/modelo-permisos.md);
- *            `direccion_general` (paso 15 DGTIC) ve los suyos más el
- *            mismo bono de DG, un nivel arriba de `direccion` en la
- *            jerarquía institucional; cualquier otro rol (`enlace`)
- *            solo los que ya le pertenecen.
+ *            todos los proyectos activos; `direccion_general` ve los
+ *            suyos más el bono de TODA su Dirección General (sección
+ *            9.1 de docs/modelo-permisos.md); `direccion` ve los suyos
+ *            más el bono de su propia Dirección de Área únicamente
+ *            (paso 15 DGTIC, CAMBIO 1 — antes de este paso era también
+ *            a nivel DG completa); cualquier otro rol (`enlace`) solo
+ *            los que ya le pertenecen.
  *
  * Antes este mismo bloque vivía duplicado tal cual en
  * inicio.controller.js y en geo.controller.js (obtenerMapaInicio y
@@ -21,26 +22,31 @@
  * territorial (esos sí soportan `null` = sin restricción en su propia
  * query); no se tocan ni se unifican, son dos contratos distintos.
  *
- * EL BONO DE DG (Fase 2 / Paso 2, docs/modelo-permisos.md sección 9.1):
- * un usuario `direccion` recibe la UNIÓN de exactamente dos conjuntos —
- * (1) los proyectos donde participa, igual que cualquier otro perfil, y
- * (2) los proyectos cuya `id_dg_lider` es la propia `usuario.id_dg`,
- * participe o no. Nada más — en particular, NO se amplía por que un
- * tercero de su misma DG participe en un proyecto de OTRA DG: el bono se
- * resuelve comparando `proyectos.id_dg_lider` contra `usuario.id_dg`
- * directamente, nunca cruzando `proyecto_usuarios`/`nodo_miembros` de
- * nadie más. Null-safe: un `direccion` sin `id_dg` asignada no gana nada
- * de más, se queda solo con su participación real.
+ * EL BONO DE DG, PARA `direccion_general` (Fase 2 / Paso 2 + paso 15
+ * DGTIC, docs/modelo-permisos.md sección 9.1): recibe la UNIÓN de
+ * exactamente dos conjuntos — (1) los proyectos donde participa, igual
+ * que cualquier otro perfil, y (2) los proyectos cuya `id_dg_lider` es
+ * la propia `usuario.id_dg`, participe o no. Nada más — en particular,
+ * NO se amplía por que un tercero de su misma DG participe en un
+ * proyecto de OTRA DG: el bono se resuelve comparando
+ * `proyectos.id_dg_lider` contra `usuario.id_dg` directamente, nunca
+ * cruzando `proyecto_usuarios`/`nodo_miembros` de nadie más. Null-safe:
+ * sin `id_dg` asignada no gana nada de más, se queda solo con su
+ * participación real.
  *
- * `direccion_general` (paso 15 DGTIC) recibe exactamente el mismo bono
- * de DG que `direccion` tiene HOY — comparando `proyectos.id_dg_lider`
- * contra `usuario.id_dg`, mismo helper (`proyectosDeLaDG`), mismo
- * null-safety. Es un rol nuevo pensado para quedarse a nivel Dirección
- * General completa (todas las áreas que cuelgan de ella) incluso si el
- * bono de `direccion` más adelante bajara a nivel Dirección de Área —
- * ese acotamiento de `direccion` es una decisión aparte, pendiente de
- * confirmar su impacto antes de tocar este archivo (ver
- * docs/modelo-permisos.md sección 9.1), y no se implementó en este paso.
+ * EL BONO DE ÁREA, PARA `direccion` (paso 15 DGTIC, CAMBIO 1): mismo
+ * principio, un nivel abajo — unión de (1) los proyectos donde
+ * participa y (2) los proyectos cuya `id_direccion_area_lider` es la
+ * propia `usuario.id_direccion_area`, participe o no. Comparado contra
+ * su diagnóstico real antes de aplicarse (ver el PR de este cambio): de
+ * cuatro cuentas `direccion` existentes, ninguna perdía un proyecto
+ * donde participara de verdad — los proyectos que dejan de verse por
+ * este acotamiento son siempre, por construcción, proyectos donde la
+ * cuenta no participaba. Null-safe igual que el de arriba: sin
+ * `id_direccion_area` asignada no gana nada de más. El panel de
+ * administración (`admin.controller.js::errorAlcanceRol`) exige esta
+ * área al asignar el rol, justamente para que este caso null-safe no
+ * sea la forma normal en que alguien termine con el rol.
  */
 const pool = require('../db/pool');
 const miembrosQueries = require('../db/queries/miembros.queries');
@@ -50,6 +56,14 @@ async function proyectosDeLaDG(idDg) {
   const { rows } = await pool.query(
     "SELECT id FROM proyectos WHERE deleted_at IS NULL AND estado != 'Cancelada' AND id_dg_lider = $1",
     [idDg]
+  );
+  return rows.map(r => r.id);
+}
+
+async function proyectosDeSuArea(idDireccionArea) {
+  const { rows } = await pool.query(
+    "SELECT id FROM proyectos WHERE deleted_at IS NULL AND estado != 'Cancelada' AND id_direccion_area_lider = $1",
+    [idDireccionArea]
   );
   return rows.map(r => r.id);
 }
@@ -66,9 +80,13 @@ async function alcanceProyectosUsuario(usuario) {
   }
 
   const propios = await miembrosQueries.obtenerProyectosUsuario(usuario.id);
-  if ((usuario.rol === 'direccion' || usuario.rol === 'direccion_general') && usuario.id_dg) {
+  if (usuario.rol === 'direccion_general' && usuario.id_dg) {
     const deSuDG = await proyectosDeLaDG(usuario.id_dg);
     return Array.from(new Set([...propios, ...deSuDG]));
+  }
+  if (usuario.rol === 'direccion' && usuario.id_direccion_area) {
+    const deSuArea = await proyectosDeSuArea(usuario.id_direccion_area);
+    return Array.from(new Set([...propios, ...deSuArea]));
   }
   return propios;
 }
