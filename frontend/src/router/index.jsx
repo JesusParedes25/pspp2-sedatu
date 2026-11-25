@@ -29,7 +29,6 @@ import ConfiguracionProyecto from '../pages/proyectos/ConfiguracionProyecto';
 import RiesgosProyecto from '../pages/proyectos/RiesgosProyecto';
 import IndicadoresProyecto from '../pages/proyectos/IndicadoresProyecto';
 import CarteraDetalle from '../pages/carteras/CarteraDetalle';
-import Agenda from '../pages/Agenda';
 import MisActividades from '../pages/MisActividades';
 import Evidencias from '../pages/Evidencias';
 import Notificaciones from '../pages/Notificaciones';
@@ -75,7 +74,13 @@ export default function AppRouter() {
         <Route path="indicadores" element={<Indicadores />} />
         <Route path="indicadores/catalogo/:id" element={<DetalleCatalogo />} />
         <Route path="indicadores/:id" element={<DetalleIndicador />} />
-        <Route path="agenda" element={<Agenda />} />
+        {/* /agenda era una ruta propia de antes de "Mis actividades" (PR
+            #157) — Agenda.jsx quedó embebido ahí como pestaña
+            (/mis-actividades?tab=agenda, ya con su entrada en el sidebar) y
+            esta ruta quedó sin ningún enlace apuntándole. Se deja como
+            redirect, no se borra sin más, por si alguien la tenía como
+            favorito desde antes del cambio. */}
+        <Route path="agenda" element={<Navigate to="/mis-actividades?tab=agenda" replace />} />
         <Route path="mis-actividades" element={<MisActividades />} />
         <Route path="evidencias" element={<Evidencias />} />
         <Route path="notificaciones" element={<Notificaciones />} />

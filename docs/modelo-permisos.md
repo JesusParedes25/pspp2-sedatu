@@ -1,6 +1,6 @@
 # Modelo de permisos de PSPP v2.0
 
-> **Versión: paso 15 DGTIC. 2026-11-25.**
+> **Versión: paso 17 DGTIC. 2026-11-25.**
 > Jerarquía institucional de dos niveles entre direcciones (sección 17):
 > `direccion_general` (rol nuevo) ve todos los proyectos de TODAS las
 > Direcciones de Área de su Dirección General; `direccion` ve solo los
@@ -1034,13 +1034,15 @@ construcción, lo que aparece en la bandeja es ahora exactamente lo que
 `responder()` va a aceptar; antes podían desincronizarse (y de hecho lo
 estaban, ver el hallazgo de abajo).
 
-**El bono de DG de `direccion`** (poder resolver solicitudes de
-proyectos que lidera su DG) nunca fue parte de la escalera general —
-`funcion-efectiva.js` solo le da ese bono a `ejecutivo`. Es una
-extensión deliberada, exclusiva de solicitudes, que ya vivía en
-`pendientesQuePuedeResolver` desde antes de esta ronda; se replicó
-también dentro de `responder()` (`porBonoDireccion`, líneas 255-257)
-para que ambos lugares queden de acuerdo — **sin este PR, un director
+**El bono institucional para resolver solicitudes** (de `direccion`
+sobre los proyectos de su propia Dirección de Área, y de
+`direccion_general` sobre los de toda su Dirección General) nunca fue
+parte de la escalera general — `funcion-efectiva.js` solo le da un bono
+incondicional a `ejecutivo`. Es una extensión deliberada, exclusiva de
+solicitudes, que ya vivía en `pendientesQuePuedeResolver` desde antes de
+esta ronda; se replicó también dentro de `responder()`
+(`porBonoDireccion`, exportada de `solicitudes.queries.js` y usada en
+los dos lugares) para que ambos queden de acuerdo — **sin este PR, un director
 veía la solicitud en su bandeja por este bono y, al intentar
 aceptarla, se topaba con un 403**: el mismo defecto "visible pero no
 resoluble" que esta ronda vino a cerrar para el caso nodo/proyecto,
@@ -1061,8 +1063,9 @@ resolver, igual que ya corregía el caso de `direccion`.
 
 Quienes ya podían resolver todo de verdad (no solo verlo en la
 bandeja) siguen pudiendo: `superadmin` (incondicional, dentro de la
-propia `funcionEfectivaEnNodo`/`EnProyecto`), `ejecutivo`/`direccion`
-con el DG correcto, y cualquier `responsable`/`administracion_proyecto`
+propia `funcionEfectivaEnNodo`/`EnProyecto`), `ejecutivo`/`direccion_general`
+con el DG correcto, `direccion` con la Dirección de Área correcta, y
+cualquier `responsable`/`administracion_proyecto`
 del proyecto completo (vía herencia hacia los nodos, sección 13.2).
 
 ### 13.5 Commit 4 — `GET /proyectos/:id/exportar` sin candado de visibilidad
@@ -1199,20 +1202,6 @@ contra `'externo'`, un valor que ese campo nunca tiene — así que el
   ese tablero, incluido `ejecutivo`/`direccion` en proyectos de su propia
   DG). Corregirlo por fila es trabajo aparte, fuera de este paso (14
   DGTIC), que se limitó al contenido de trabajo DENTRO de un proyecto.
-- **El bono de DG de `direccion` para resolver solicitudes
-  (`porBonoDireccion`, sección 13.4) no se acotó junto con el resto del
-  rol**: el paso 15 DGTIC (CAMBIO 1) bajó el alcance general de
-  `direccion` de Dirección General a Dirección de Área en
-  `alcanceProyectos.js` y `funcion-efectiva.js`, pero
-  `solicitudes.controller.js`/`solicitudes.queries.js` resuelven ese
-  bono aparte (comparando `usuario.id_dg` contra `solicitud.id_dg_lider`
-  directamente, fuera de `funcionEfectiva`) y se dejó sin tocar a
-  propósito — no estaba en el encargo de ese cambio. Hoy un director de
-  área puede ver y resolver, en su bandeja de Notificaciones, una
-  solicitud de participación de un proyecto de OTRA área de su misma DG,
-  aunque ya no vea ese proyecto en ningún otro lugar de la plataforma
-  (Tablero, Documentos, Seguimiento...). Acotar este bono también a
-  `id_direccion_area` queda para una ronda aparte.
 - **`text-gray-500` (chips/contadores del panel) y `text-gray-400`
   (leyendas como "Calculado desde sus acciones.") no pasan 4.5:1 contra
   el fondo `bg-gray-150` del panel bloqueado** (4.16:1 y 2.18:1 — ambos
@@ -1832,9 +1821,11 @@ algo que al usarlo fallaba. Ahora ambos marcan `SEGUIMIENTO`
 proyecto que no es el suyo por participación directa, igual que ya
 hacía `ejecutivo` fuera de su DG.
 
-**Nota aparte, sin corregir en este paso** (sección 14): el bono de DG
-de `direccion` para resolver solicitudes de participación
-(`porBonoDireccion`, sección 13.4) vive fuera de `funcionEfectiva` y de
-`alcanceProyectos.js`, en `solicitudes.controller.js`/
-`solicitudes.queries.js` — sigue comparando por `id_dg` completo, no se
-acotó junto con el resto del rol.
+El bono para resolver solicitudes de participación (`porBonoDireccion`,
+sección 13.4) vive fuera de `funcionEfectiva` y de `alcanceProyectos.js`
+— es código propio de `solicitudes.controller.js`/
+`solicitudes.queries.js` — pero sigue el mismo nivel que el resto de la
+plataforma: `direccion` por su propia Dirección de Área
+(`solicitud.id_direccion_area_lider === usuario.id_direccion_area`),
+`direccion_general` por toda su Dirección General
+(`solicitud.id_dg_lider === usuario.id_dg`).

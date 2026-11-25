@@ -39,7 +39,7 @@ import {
   Home, LayoutDashboard, FolderKanban, Bell, PlusCircle, ChevronLeft, ChevronRight,
   ChevronDown, LogOut, FileText, Map, Shield, ListChecks, ListTodo, CalendarDays,
   List, Briefcase, Inbox, History, Users, Building2, Landmark, BarChart3, KeyRound,
-  Trash2, BookOpen,
+  Trash2, BookOpen, ArrowRightLeft,
 } from 'lucide-react';
 
 // Definición de items del menú principal.
@@ -101,6 +101,11 @@ const menuItems = [
           { to: '/admin/catalogos?tab=programas', param: 'programas', etiqueta: 'Programas', icono: Landmark },
           { to: '/admin/catalogos?tab=indicadores', param: 'indicadores', etiqueta: 'Indicadores', icono: BarChart3 },
           { to: '/admin/catalogos?tab=api', param: 'api', etiqueta: 'API', icono: KeyRound },
+        ],
+      },
+      {
+        titulo: 'Proyectos', children: [
+          { to: '/admin/catalogos?tab=transferencia', param: 'transferencia', etiqueta: 'Transferir administración', icono: ArrowRightLeft },
         ],
       },
       {
