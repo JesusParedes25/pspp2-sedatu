@@ -123,7 +123,7 @@ async function listarDeUsuario(idUsuario, db) {
 async function obtener(idSolicitud, db) {
   const conn = db || pool;
   const { rows } = await conn.query(
-    `SELECT s.*, u.nombre_completo, u.correo, p.id_dg_lider
+    `SELECT s.*, u.nombre_completo, u.correo, p.id_dg_lider, p.id_direccion_area_lider
      FROM solicitudes_participacion s
      JOIN usuarios u ON u.id = s.id_usuario
      JOIN proyectos p ON p.id = s.id_proyecto
@@ -269,17 +269,32 @@ async function destinatariosDe(idProyecto, db) {
 // aceptable porque las solicitudes pendientes en todo el sistema son
 // pocas (eventos esporádicos, no un stream de actividad).
 //
-// El bono de DG de 'direccion' NO es parte de la escalera general
-// (funcion-efectiva.js solo le da ese bono a 'ejecutivo') — es una
-// extensión deliberada, solo para solicitudes, que ya existía aquí desde
-// antes de esta ronda; se mantiene como caso aparte, replicado también
-// en responder() para que ambos lugares sigan de acuerdo.
+// El bono institucional para resolver solicitudes NO es parte de la
+// escalera general (funcion-efectiva.js no le da este bono a ningún rol
+// de dirección) — es una extensión deliberada, solo para solicitudes,
+// que ya existía aquí desde antes de esta ronda; se mantiene como caso
+// aparte, replicado también en responder() (vía esta misma función
+// exportada) para que ambos lugares sigan de acuerdo. Mismo nivel que ya
+// rige el resto de la plataforma desde el paso 15 DGTIC CAMBIO 1:
+// 'direccion' por su propia Dirección de Área, 'direccion_general' por
+// toda su Dirección General.
+function porBonoDireccion(usuario, solicitud) {
+  if (usuario.rol === 'direccion') {
+    return usuario.id_direccion_area != null
+      && solicitud.id_direccion_area_lider === usuario.id_direccion_area;
+  }
+  if (usuario.rol === 'direccion_general') {
+    return usuario.id_dg != null && solicitud.id_dg_lider === usuario.id_dg;
+  }
+  return false;
+}
+
 async function pendientesQuePuedeResolver(usuario, db) {
   const conn = db || pool;
   const { rows } = await conn.query(`
     SELECT s.*, u.nombre_completo, u.correo, u.cargo, u.rol AS perfil,
            dg.siglas AS dg_siglas,
-           p.nombre AS nombre_proyecto, p.id_dg_lider,
+           p.nombre AS nombre_proyecto, p.id_dg_lider, p.id_direccion_area_lider,
            CASE s.tipo_nodo
              WHEN 'etapa'  THEN (SELECT e.nombre FROM etapas e   WHERE e.id = s.id_nodo)
              WHEN 'accion' THEN (SELECT a.nombre FROM acciones a WHERE a.id = s.id_nodo)
@@ -295,10 +310,7 @@ async function pendientesQuePuedeResolver(usuario, db) {
 
   const resultado = [];
   for (const sol of rows) {
-    const porBonoDireccion = usuario.rol === 'direccion'
-      && usuario.id_dg != null
-      && sol.id_dg_lider === usuario.id_dg;
-    const permitido = porBonoDireccion || (sol.id_nodo
+    const permitido = porBonoDireccion(usuario, sol) || (sol.id_nodo
       ? await puedeGestionarParticipantesNodo({ usuario, tipoNodo: sol.tipo_nodo, idNodo: sol.id_nodo })
       : await puedeGestionarParticipantes({ usuario, idProyecto: sol.id_proyecto }));
     if (permitido) resultado.push(sol);
@@ -331,5 +343,5 @@ async function resueltasPorUsuario(usuarioId, limite = 20) {
 
 module.exports = {
   crear, listarDeProyecto, listarDeUsuario, obtener, responder,
-  destinatariosDe, pendientesQuePuedeResolver, resueltasPorUsuario,
+  destinatariosDe, pendientesQuePuedeResolver, resueltasPorUsuario, porBonoDireccion,
 };

@@ -28,6 +28,7 @@ const RESPONSABLE_PROYECTO = '00000000-0000-0000-0000-0000000000b6';
 const DIRECTOR_DG = '00000000-0000-0000-0000-0000000000b7';
 const SIN_RELACION = '00000000-0000-0000-0000-0000000000b8';
 const ID_DG = '00000000-0000-0000-0000-0000000000dg';
+const ID_AREA = '00000000-0000-0000-0000-0000000000ar';
 
 function crearRes() {
   return { status: jest.fn().mockReturnThis(), json: jest.fn().mockReturnThis() };
@@ -38,7 +39,11 @@ let fixture;
 jest.mock('../db/pool', () => ({ query: jest.fn() }));
 const pool = require('../db/pool');
 
+// porBonoDireccion se deja con su implementación real (no es parte del
+// mock) a propósito: es el gate real para el bono institucional, y esta
+// suite existe para probar el gate real, no una copia de su lógica.
 jest.mock('../db/queries/solicitudes.queries', () => ({
+  ...jest.requireActual('../db/queries/solicitudes.queries'),
   obtener: jest.fn(),
   responder: jest.fn(),
 }));
@@ -85,6 +90,7 @@ function solicitudDeEtapaA() {
   return {
     id: 'sol-1', estado: 'pendiente', id_proyecto: PROYECTO,
     id_nodo: ETAPA_A, tipo_nodo: 'etapa', id_dg_lider: ID_DG,
+    id_direccion_area_lider: ID_AREA,
   };
 }
 
@@ -92,6 +98,7 @@ function solicitudDeProyecto() {
   return {
     id: 'sol-2', estado: 'pendiente', id_proyecto: PROYECTO,
     id_nodo: null, tipo_nodo: null, id_dg_lider: ID_DG,
+    id_direccion_area_lider: ID_AREA,
   };
 }
 
@@ -161,12 +168,12 @@ test('superadmin sigue resolviendo una solicitud de nodo sin ninguna fila propia
   expect(res.status).not.toHaveBeenCalledWith(403);
 });
 
-test('dirección con el bono de su DG sigue resolviendo una solicitud de nodo de un proyecto de su DG', async () => {
+test('dirección con el bono de su propia Dirección de Área sigue resolviendo una solicitud de nodo de un proyecto de esa área', async () => {
   fixture.etapaA.id_responsable = null;
   solicitudesQueries.obtener.mockResolvedValue(solicitudDeEtapaA());
   solicitudesQueries.responder.mockResolvedValue({ id: 'sol-1', funcion: 'captura', id_usuario: SOLICITANTE, id_nodo: ETAPA_A, tipo_nodo: 'etapa' });
 
-  const req = { params: { id: 'sol-1' }, body: { respuesta: 'aceptar' }, usuario: { id: DIRECTOR_DG, rol: 'direccion', id_dg: ID_DG, nombre_completo: 'Directora' } };
+  const req = { params: { id: 'sol-1' }, body: { respuesta: 'aceptar' }, usuario: { id: DIRECTOR_DG, rol: 'direccion', id_dg: ID_DG, id_direccion_area: ID_AREA, nombre_completo: 'Directora' } };
   const res = crearRes();
   await responder(req, res, jest.fn());
 
@@ -174,11 +181,39 @@ test('dirección con el bono de su DG sigue resolviendo una solicitud de nodo de
   expect(solicitudesQueries.responder).toHaveBeenCalled();
 });
 
-test('dirección de OTRA DG (sin bono, sin nada directo) no puede resolver', async () => {
+// paso 17 DGTIC: el bono de 'direccion' para solicitudes bajó de nivel DG a
+// nivel Dirección de Área (igual que el resto de la plataforma desde el
+// paso 15 CAMBIO 1) — una dirección de OTRA área de la MISMA DG ya no
+// puede resolver, aunque antes sí por el bono de DG completa.
+test('dirección de OTRA área (misma DG, sin bono, sin nada directo) ya NO puede resolver', async () => {
   fixture.etapaA.id_responsable = null;
   solicitudesQueries.obtener.mockResolvedValue(solicitudDeEtapaA());
 
-  const req = { params: { id: 'sol-1' }, body: { respuesta: 'aceptar' }, usuario: { id: 'otra-dg', rol: 'direccion', id_dg: 'dg-distinta', nombre_completo: 'Otra directora' } };
+  const req = { params: { id: 'sol-1' }, body: { respuesta: 'aceptar' }, usuario: { id: 'otra-area', rol: 'direccion', id_dg: ID_DG, id_direccion_area: 'area-distinta', nombre_completo: 'Otra directora' } };
+  const res = crearRes();
+  await responder(req, res, jest.fn());
+
+  expect(res.status).toHaveBeenCalledWith(403);
+});
+
+test('dirección_general con el bono de TODA su DG sigue resolviendo, aunque el nodo sea de un área que no es la suya como director de área', async () => {
+  fixture.etapaA.id_responsable = null;
+  solicitudesQueries.obtener.mockResolvedValue(solicitudDeEtapaA());
+  solicitudesQueries.responder.mockResolvedValue({ id: 'sol-1', funcion: 'captura', id_usuario: SOLICITANTE, id_nodo: ETAPA_A, tipo_nodo: 'etapa' });
+
+  const req = { params: { id: 'sol-1' }, body: { respuesta: 'aceptar' }, usuario: { id: 'directora-general', rol: 'direccion_general', id_dg: ID_DG, nombre_completo: 'Directora general' } };
+  const res = crearRes();
+  await responder(req, res, jest.fn());
+
+  expect(res.status).not.toHaveBeenCalledWith(403);
+  expect(solicitudesQueries.responder).toHaveBeenCalled();
+});
+
+test('dirección_general de OTRA DG (sin bono, sin nada directo) no puede resolver', async () => {
+  fixture.etapaA.id_responsable = null;
+  solicitudesQueries.obtener.mockResolvedValue(solicitudDeEtapaA());
+
+  const req = { params: { id: 'sol-1' }, body: { respuesta: 'aceptar' }, usuario: { id: 'otra-dg-general', rol: 'direccion_general', id_dg: 'dg-distinta', nombre_completo: 'Otra directora general' } };
   const res = crearRes();
   await responder(req, res, jest.fn());
 

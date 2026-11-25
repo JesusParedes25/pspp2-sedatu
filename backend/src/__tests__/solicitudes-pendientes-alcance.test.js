@@ -22,6 +22,7 @@ const SOLICITANTE = '00000000-0000-0000-0000-0000000000c4';
 const RESPONSABLE_ETAPA_A = '00000000-0000-0000-0000-0000000000c5';
 const SIN_RELACION = '00000000-0000-0000-0000-0000000000c6';
 const ID_DG = '00000000-0000-0000-0000-0000000000dg';
+const ID_AREA = '00000000-0000-0000-0000-0000000000ar';
 
 let fixture;
 
@@ -34,6 +35,7 @@ const SOLICITUD_ETAPA_A = {
   id_proyecto: PROYECTO, id_nodo: ETAPA_A, tipo_nodo: 'etapa',
   nombre_completo: 'Quien pide', correo: 'x@example.org', cargo: null, perfil: 'enlace',
   dg_siglas: null, nombre_proyecto: 'Proyecto de prueba', id_dg_lider: ID_DG,
+  id_direccion_area_lider: ID_AREA,
   nombre_nodo: 'Etapa A', created_at: new Date(),
 };
 
@@ -98,13 +100,32 @@ test('responsable/administracion_proyecto de TODO el proyecto sigue viéndola (r
   expect(resultado.map(s => s.id)).toContain('sol-1');
 });
 
-test('dirección con el bono de su DG la ve (aunque no tenga nada directo en la etapa)', async () => {
-  const resultado = await pendientesQuePuedeResolver({ id: 'directora', rol: 'direccion', id_dg: ID_DG });
+test('dirección con el bono de su propia Dirección de Área la ve (aunque no tenga nada directo en la etapa)', async () => {
+  const resultado = await pendientesQuePuedeResolver({ id: 'directora', rol: 'direccion', id_dg: ID_DG, id_direccion_area: ID_AREA });
   expect(resultado.map(s => s.id)).toContain('sol-1');
 });
 
-test('dirección de otra DG no la ve', async () => {
-  const resultado = await pendientesQuePuedeResolver({ id: 'otra-directora', rol: 'direccion', id_dg: 'dg-distinta' });
+// paso 17 DGTIC: el bono de 'direccion' para solicitudes bajó de nivel DG a
+// nivel Dirección de Área, igual que ya pasó con el resto de la plataforma
+// en el paso 15 (CAMBIO 1) — dos direcciones de área DISTINTA bajo la MISMA
+// DG no se ven las solicitudes entre sí.
+test('dirección de OTRA área NO la ve, aunque comparta la MISMA DG', async () => {
+  const resultado = await pendientesQuePuedeResolver({ id: 'otra-directora', rol: 'direccion', id_dg: ID_DG, id_direccion_area: 'area-distinta' });
+  expect(resultado.map(s => s.id)).not.toContain('sol-1');
+});
+
+test('dirección de otra DG (y otra área) tampoco la ve', async () => {
+  const resultado = await pendientesQuePuedeResolver({ id: 'otra-directora-2', rol: 'direccion', id_dg: 'dg-distinta', id_direccion_area: 'area-distinta' });
+  expect(resultado.map(s => s.id)).not.toContain('sol-1');
+});
+
+test('dirección_general con el bono de TODA su DG la ve, aunque la solicitud sea de un área que no es la suya como director de área', async () => {
+  const resultado = await pendientesQuePuedeResolver({ id: 'directora-general', rol: 'direccion_general', id_dg: ID_DG });
+  expect(resultado.map(s => s.id)).toContain('sol-1');
+});
+
+test('dirección_general de otra DG no la ve', async () => {
+  const resultado = await pendientesQuePuedeResolver({ id: 'otra-directora-general', rol: 'direccion_general', id_dg: 'dg-distinta' });
   expect(resultado.map(s => s.id)).not.toContain('sol-1');
 });
 

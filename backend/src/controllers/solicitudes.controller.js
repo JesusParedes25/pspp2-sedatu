@@ -261,18 +261,16 @@ async function responder(req, res, next) {
     // responsable de una sola etapa no podía resolver ni ver en su
     // bandeja las solicitudes de su propia etapa.
     //
-    // El bono de DG de 'direccion' (ver pendientesQuePuedeResolver, que
-    // decide qué le aparece en la bandeja) no es parte de la escalera
-    // general (funcion-efectiva.js) — es una extensión deliberada, solo
-    // para solicitudes, que ya existía ahí antes de esta ronda. Se
-    // replica aquí para que ambos lugares queden consistentes: si
-    // pendientesQuePuedeResolver ya le muestra la solicitud a un
-    // director por el bono de su DG, este gate tiene que dejarlo
-    // resolverla — de lo contrario, la vería pero no podría aceptarla.
-    const porBonoDireccion = req.usuario.rol === 'direccion'
-      && req.usuario.id_dg != null
-      && solicitud.id_dg_lider === req.usuario.id_dg;
-    const permitido = porBonoDireccion || (solicitud.id_nodo
+    // El bono institucional para resolver solicitudes (ver
+    // pendientesQuePuedeResolver, que decide qué le aparece en la
+    // bandeja, y solicitudesQueries.porBonoDireccion, la misma función
+    // que resuelve ambos lugares) no es parte de la escalera general
+    // (funcion-efectiva.js) — es una extensión deliberada, solo para
+    // solicitudes, que ya existía antes de esta ronda. Si
+    // pendientesQuePuedeResolver ya le muestra la solicitud a una
+    // dirección por su bono, este gate tiene que dejarla resolverla — de
+    // lo contrario, la vería pero no podría aceptarla.
+    const permitido = solicitudesQueries.porBonoDireccion(req.usuario, solicitud) || (solicitud.id_nodo
       ? await puedeGestionarParticipantesNodo({ usuario: req.usuario, tipoNodo: solicitud.tipo_nodo, idNodo: solicitud.id_nodo })
       : await puedeGestionarParticipantes({ usuario: req.usuario, idProyecto: solicitud.id_proyecto }));
     if (!permitido) {
